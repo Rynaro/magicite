@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://magicite.dev/schema/engram-0.2.schema.json",
+  "title": "Engram v0.2 frontmatter",
+  "description": "Machine-readable form of docs/04-engram-format.md's frontmatter spec (v0.2).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["spec", "name", "id", "version", "provenance", "intent", "triggers"],
+  "properties": {
+    "spec": { "const": "engram/0.2" },
+    "name": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "id": { "type": "string", "pattern": "^egr_[0-9a-f]{8}$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "provenance": {
+      "type": "string",
+      "enum": ["authored", "imported", "distilled", "sharpened"]
+    },
+    "parents": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^egr_[0-9a-f]{8}$" },
+      "default": []
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["does", "use_when"],
+      "properties": {
+        "does": { "type": "string", "minLength": 1 },
+        "use_when": { "type": "string", "minLength": 1 },
+        "not_when": { "type": ["string", "null"] }
+      }
+    },
+    "triggers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["positive"],
+      "properties": {
+        "positive": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "negative": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        }
+      }
+    },
+    "context_affinity": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "embedding": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "model": { "type": ["string", "null"] },
+        "ref": { "type": ["string", "null"] },
+        "last_refreshed": { "type": ["string", "null"] }
+      }
+    },
+    "plasticity": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "storage_strength": { "type": "number", "minimum": 0, "maximum": 1 },
+        "exposure_count": { "type": "integer", "minimum": 0 },
+        "outcome": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "success": { "type": "integer", "minimum": 0 },
+            "failure": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "last_applied": { "type": ["string", "null"] },
+        "excitability": { "type": "number" },
+        "last_checkpoint": { "type": ["string", "null"] },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "nascent", "probation", "consolidated", "promoted", "archived"]
+        }
+      }
+    },
+    "synapses": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["target", "type", "storage_strength", "evidence_count", "provenance", "first_observed"],
+        "properties": {
+          "target": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["co_activation", "composes", "depends_on", "similar_to", "inhibits"]
+          },
+          "storage_strength": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence_count": { "type": "integer", "minimum": 0 },
+          "provenance": {
+            "type": "string",
+            "enum": ["declared", "learned", "distilled", "derived"]
+          },
+          "first_observed": { "type": "string" },
+          "last_updated": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "needs": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "yields": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "composes": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "inhibits": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "affinity": { "type": "array", "items": { "type": "string" }, "default": [] },
+    "provenance_journal": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version", "timestamp", "author", "event"],
+        "properties": {
+          "version": { "type": "integer", "minimum": 1 },
+          "timestamp": { "type": "string" },
+          "author": { "type": "string" },
+          "event": { "type": "string" },
+          "note": { "type": ["string", "null"] },
+          "summary_of_change": { "type": ["string", "null"] },
+          "signal_tier": { "type": ["string", "null"] },
+          "base_version": { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "trust": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "origin": { "type": "string", "enum": ["authored", "imported", "distilled"] },
+        "verification_status": {
+          "type": "string",
+          "enum": ["pending", "verified", "quarantined"]
+        },
+        "signer": { "type": ["string", "null"] },
+        "import_source": { "type": ["string", "null"] },
+        "injection_risk": { "type": "object" }
+      }
+    },
+    "exports": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "skill_md": { "type": "boolean" }
+      }
+    }
+  }
+}

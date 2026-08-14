@@ -1,0 +1,41 @@
+{"query": "rollback proton for a steam game", "expected_top1": "proton-ge-proton-downgrade"}
+{"query": "game broke after the last GE-Proton update", "expected_top1": "proton-ge-proton-downgrade"}
+{"query": "how do I downgrade proton for one game", "expected_top1": "proton-ge-proton-downgrade"}
+{"query": "Hades II stutters since GE-Proton 10-9", "expected_top1": "proton-ge-proton-downgrade"}
+{"query": "new proton build regressed my game performance", "expected_top1": "proton-ge-proton-downgrade"}
+{"query": "pin an older ge-proton version for a specific appid", "expected_top1": "proton-ge-proton-downgrade"}
+{"query": "where is the compatdata folder for my steam game", "expected_top1": "steam-prefix-access"}
+{"query": "find the wine prefix for a steam appid", "expected_top1": "steam-prefix-access"}
+{"query": "I need filesystem access to my proton game's prefix", "expected_top1": "steam-prefix-access"}
+{"query": "locate steamapps compatdata for a given app id", "expected_top1": "steam-prefix-access"}
+{"query": "open the proton prefix in a file manager", "expected_top1": "steam-prefix-access"}
+{"query": "proton is completely broken and nothing launches", "expected_top1": "proton-clean-install"}
+{"query": "every game fails under proton, need a clean reinstall", "expected_top1": "proton-clean-install"}
+{"query": "fix a corrupted proton compatibility tool install", "expected_top1": "proton-clean-install"}
+{"query": "wipe and reinstall proton from scratch", "expected_top1": "proton-clean-install"}
+{"query": "proton itself seems damaged, not just one game", "expected_top1": "proton-clean-install"}
+{"query": "confirm the ge-proton downgrade actually applied", "expected_top1": "proton-verify-installation"}
+{"query": "check the proton log after launching with PROTON_LOG", "expected_top1": "proton-verify-installation"}
+{"query": "verify which proton version is active for this game", "expected_top1": "proton-verify-installation"}
+{"query": "did my proton install actually change versions", "expected_top1": "proton-verify-installation"}
+{"query": "inspect proton log tail to confirm the build", "expected_top1": "proton-verify-installation"}
+{"query": "create a wine prefix for a lutris game", "expected_top1": "lutris-wine-prefix-setup"}
+{"query": "installing a GOG game through lutris needs a prefix", "expected_top1": "lutris-wine-prefix-setup"}
+{"query": "set up a fresh wine prefix outside of steam", "expected_top1": "lutris-wine-prefix-setup"}
+{"query": "lutris installer asks me to create a new prefix", "expected_top1": "lutris-wine-prefix-setup"}
+{"query": "run winetricks inside a new lutris prefix", "expected_top1": "lutris-wine-prefix-setup"}
+{"query": "force this game onto my discrete nvidia gpu", "expected_top1": "nvidia-prime-render-offload"}
+{"query": "laptop game runs on integrated graphics instead of the dgpu", "expected_top1": "nvidia-prime-render-offload"}
+{"query": "prime offload isn't using the nvidia card", "expected_top1": "nvidia-prime-render-offload"}
+{"query": "enable the discrete gpu for a game launch on a hybrid laptop", "expected_top1": "nvidia-prime-render-offload"}
+{"query": "nvidia-smi shows the game isn't using the dgpu", "expected_top1": "nvidia-prime-render-offload"}
+{"query": "steam wont open at all", "expected_top1": "steam-runtime-repair"}
+{"query": "steam client crashes right after the splash screen", "expected_top1": "steam-runtime-repair"}
+{"query": "repair a broken steam runtime install", "expected_top1": "steam-runtime-repair"}
+{"query": "steam crashes on launch before showing the library", "expected_top1": "steam-runtime-repair"}
+{"query": "the whole steam client fails to start", "expected_top1": "steam-runtime-repair"}
+{"query": "multiplayer game says EAC not installed under proton", "expected_top1": "proton-ge-proton-downgrade"}
+{"query": "steam downloads cap at 500kb/s no matter what game", "expected_top1": "steam-runtime-repair"}
+{"query": "textures look corrupted since I updated my gpu driver", "expected_top1": "nvidia-prime-render-offload"}
+{"query": "rollback ge-proton for steam after regression", "expected_top1": "proton-ge-proton-downgrade"}
+{"query": "steam prefix pfx folder for a specific game", "expected_top1": "steam-prefix-access"}
