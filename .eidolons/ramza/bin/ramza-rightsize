@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# ramza-rightsize — mechanical right-sizing gate: observable signals in, planning tier out.
+# Tiers: trivial | lite | full. Deterministic scoring; overrides recorded, never silent.
+# Part of RAMZA (https://github.com/Rynaro/Ramza). bash 3.2 compatible.
+set -eu
+
+die()  { printf 'ramza-rightsize: %s\n' "$*" >&2; exit 2; }
+say()  { printf '%s\n' "$*" >&2; }
+need() { command -v "$1" >/dev/null 2>&1 || die "required tool '$1' not found"; }
+now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-rightsize --files-est N [--new-dep] [--public-api] [--migration]
+                       [--security] [--novel] [--stakes low|med|high]
+                       [--plan SLUG --state FILE [--force]]
+                       [--override trivial|lite|full --reason STR]
+
+Scoring (deterministic):
+  files-est:  <=2 -> 0   3..9 -> 1   >=10 -> 2
+  each flag (new-dep, public-api, migration, security, novel): +1
+  stakes: low 0, med 1, high 2
+Tier: score <=1 trivial | 2..4 lite | >=5 full
+With --state, initialises the plan-state file (schema ramza/plan-state.v1).
+Prints the tier on stdout.
+EOF
+  exit 2
+}
+
+FILES_EST="" NEW_DEP=0 PUBLIC_API=0 MIGRATION=0 SECURITY=0 NOVEL=0 STAKES=low
+PLAN="" STATE="" FORCE=0 OVERRIDE="" REASON=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --files-est) FILES_EST="${2:-}"; shift 2 ;;
+    --new-dep) NEW_DEP=1; shift ;;
+    --public-api) PUBLIC_API=1; shift ;;
+    --migration) MIGRATION=1; shift ;;
+    --security) SECURITY=1; shift ;;
+    --novel) NOVEL=1; shift ;;
+    --stakes) STAKES="${2:-}"; shift 2 ;;
+    --plan) PLAN="${2:-}"; shift 2 ;;
+    --state) STATE="${2:-}"; shift 2 ;;
+    --force) FORCE=1; shift ;;
+    --override) OVERRIDE="${2:-}"; shift 2 ;;
+    --reason) REASON="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    *) die "unknown argument: $1 (see --help)" ;;
+  esac
+done
+
+[ -n "$FILES_EST" ] || usage
+case "$FILES_EST" in (*[!0-9]*|'') die "--files-est must be a non-negative integer" ;; esac
+case "$STAKES" in low|med|high) : ;; *) die "--stakes must be low|med|high" ;; esac
+[ -z "$OVERRIDE" ] || [ -n "$REASON" ] || die "--override requires --reason (overrides are recorded, never silent)"
+case "${OVERRIDE:-trivial}" in trivial|lite|full) : ;; *) die "--override must be trivial|lite|full" ;; esac
+
+SCORE=0
+if   [ "$FILES_EST" -ge 10 ]; then SCORE=$((SCORE + 2))
+elif [ "$FILES_EST" -ge 3  ]; then SCORE=$((SCORE + 1)); fi
+SCORE=$((SCORE + NEW_DEP + PUBLIC_API + MIGRATION + SECURITY + NOVEL))
+case "$STAKES" in med) SCORE=$((SCORE + 1)) ;; high) SCORE=$((SCORE + 2)) ;; esac
+
+if   [ "$SCORE" -le 1 ]; then TIER=trivial
+elif [ "$SCORE" -le 4 ]; then TIER=lite
+else TIER=full; fi
+
+FINAL="$TIER"
+[ -z "$OVERRIDE" ] || FINAL="$OVERRIDE"
+
+if [ -n "$STATE" ]; then
+  need jq
+  [ -n "$PLAN" ] || die "--state requires --plan SLUG"
+  if [ -e "$STATE" ] && [ "$FORCE" -ne 1 ]; then
+    die "state file exists: $STATE (use --force to re-initialise)"
+  fi
+  mkdir -p "$(dirname "$STATE")"
+  jq -n \
+    --arg schema "ramza/plan-state.v1" \
+    --arg plan "$PLAN" \
+    --arg tier "$FINAL" \
+    --arg computed "$TIER" \
+    --arg at "$(now_utc)" \
+    --arg reason "$REASON" \
+    --argjson score "$SCORE" \
+    --argjson files "$FILES_EST" \
+    --argjson newdep "$NEW_DEP" --argjson api "$PUBLIC_API" \
+    --argjson mig "$MIGRATION" --argjson sec "$SECURITY" --argjson novel "$NOVEL" \
+    --arg stakes "$STAKES" \
+    '{
+      schema: $schema, plan: $plan, created_at: $at,
+      tier: $tier, phase: "RS", phases_done: ["RS"],
+      rightsize: ({
+        score: $score, computed_tier: $computed,
+        inputs: {files_est: $files, new_dep: ($newdep==1), public_api: ($api==1),
+                 migration: ($mig==1), security: ($sec==1), novel: ($novel==1), stakes: $stakes}
+      }
+      + (if $reason != "" then {override: {tier: $tier, reason: $reason, at: $at}} else {} end)),
+      refine_cycles: 0, skips: [], gates: [], amendments: [],
+      declared_scope: [], criteria_sha256: null, critic: {author: null, checker: null}
+    }' > "$STATE"
+  say "state initialised: $STATE (tier: $FINAL, score: $SCORE)"
+fi
+
+[ -z "$OVERRIDE" ] || say "override: computed $TIER -> $FINAL (reason: $REASON)"
+printf '%s\n' "$FINAL"

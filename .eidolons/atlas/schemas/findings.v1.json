@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlas.agent/schemas/findings.v1.json",
+  "title": "ATLAS Findings Collection",
+  "description": "Output of Phase L (Locate). A collection of FINDING records, GAP records, and an escalation log.",
+  "type": "object",
+  "required": ["mission_id", "findings", "gaps", "escalation_log", "telemetry"],
+  "properties": {
+    "mission_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}-[0-9]{3}$"
+    },
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "gaps": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/gap"}
+    },
+    "escalation_log": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/escalation_event"}
+    },
+    "telemetry": {"$ref": "#/$defs/phase_l_telemetry"}
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["id", "claim", "evidence", "confidence", "supports_decision"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^FINDING-[0-9]{3,}$"
+        },
+        "claim": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 500
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["path", "lines", "excerpt_ref"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "lines": {
+                "type": "string",
+                "pattern": "^[0-9]+-[0-9]+$|^[0-9]+$"
+              },
+              "excerpt_ref": {
+                "type": "string",
+                "pattern": "^memex://excerpt/[a-f0-9]+$"
+              }
+            }
+          }
+        },
+        "ruled_out": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["H", "M", "L"]
+        },
+        "supports_decision": {
+          "type": "string",
+          "pattern": "^DT-[0-9]+$"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "required": ["id", "sub_question", "strikes", "escalate_to"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^GAP-[0-9]{3,}$"
+        },
+        "sub_question": {"type": "string"},
+        "strikes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["probe", "result"],
+            "properties": {
+              "probe": {"type": "string"},
+              "result": {"type": "string"}
+            }
+          }
+        },
+        "working_hypothesis": {"type": "string"},
+        "escalate_to": {
+          "type": "string",
+          "enum": ["human", "follow-up-ATLAS", "SPECTRA", "APIVR-Delta", "hiram"]
+        }
+      }
+    },
+    "escalation_event": {
+      "type": "object",
+      "required": ["trigger_id", "fired_at", "on_probe", "action_taken"],
+      "properties": {
+        "trigger_id": {
+          "type": "string",
+          "pattern": "^ET-[0-9]+$"
+        },
+        "fired_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "on_probe": {"type": "string"},
+        "on_path": {"type": "string"},
+        "action_taken": {
+          "type": "string",
+          "enum": ["halt", "annotate", "continue-with-flag"]
+        }
+      }
+    },
+    "phase_l_telemetry": {
+      "type": "object",
+      "required": [
+        "probes_total", "tool_calls", "tokens_in", "tokens_out", "wall_clock_s"
+      ],
+      "properties": {
+        "probes_total": {"type": "integer", "minimum": 0},
+        "tier1_symbol": {"type": "integer", "minimum": 0},
+        "tier2_graph": {"type": "integer", "minimum": 0},
+        "tier3_lexical": {"type": "integer", "minimum": 0},
+        "tier4_windowed_read": {"type": "integer", "minimum": 0},
+        "tier5_test_dryrun": {"type": "integer", "minimum": 0},
+        "subagents_spawned": {"type": "integer", "minimum": 0},
+        "three_strike_halts": {"type": "integer", "minimum": 0},
+        "tool_calls": {"type": "integer", "minimum": 0},
+        "tokens_in": {"type": "integer", "minimum": 0},
+        "tokens_out": {"type": "integer", "minimum": 0},
+        "wall_clock_s": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

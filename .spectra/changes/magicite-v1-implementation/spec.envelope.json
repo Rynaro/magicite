@@ -1,0 +1,75 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "01a00270-c5bd-74b1-999b-089d1f45df2e",
+  "thread_id": "01a00270-c5bd-7c82-9812-71812368c709",
+  "parent_id": null,
+  "from": {
+    "eidolon": "ramza",
+    "version": "1.0.0"
+  },
+  "to": {
+    "eidolon": "vivi",
+    "version": "n/a"
+  },
+  "performative": "PROPOSE",
+  "edge_origin": "roster",
+  "objective": "Propose the decision-ready v1 implementation spec for Magicite (Python + FastMCP, stdio, SQLite WAL, local embeddings) targeting ESL change magicite-v1-implementation.",
+  "artifact": {
+    "kind": "spec",
+    "schema_version": "1.0",
+    "path": ".spectra/changes/magicite-v1-implementation/spec.md",
+    "sha256": "92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b",
+    "size_bytes": 88404
+  },
+  "context_delta": {
+    "token_budget": 6000,
+    "tokens_used": 0,
+    "input_handles": [
+      "docs/01-vision-and-hypotheses.md",
+      "docs/02-architecture.md",
+      "docs/03-learning-model.md",
+      "docs/04-engram-format.md",
+      "docs/05-protocol-and-signals.md",
+      "docs/06-trust-governance-lifecycle.md",
+      "docs/07-evaluation-and-observability.md",
+      "docs/README.md"
+    ],
+    "summary": "Construction spec for Magicite v1: repository/package layout, SQLite DDL with the Tier A/B/C split and the sync() rebuild procedure, the 16-tool FastMCP surface with risk-class and idempotency contracts, the seven-phase lease-arbitrated Dream worker and synapses: checkpoint, the lifecycle FSM with docs/06 approval gates, unified register()/SKILL.md ingestion, decay/forgetting semantics, the three-guard P0 enforcement point, test strategy with the acceptance checks Kupo runs, eight ordered milestones (walking skeleton first), 33 EARS acceptance criteria, a risks register and eight unilaterally resolved corpus contradictions."
+  },
+  "constraints": {
+    "trust_level": "standard"
+  },
+  "ise": {
+    "assertion_grade": "self-attested",
+    "provenance": {
+      "methodology_version": "ramza-1.0.0",
+      "tool_surface": [
+        "Read",
+        "Bash",
+        "crystalium.recall"
+      ],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  },
+  "confidence": 0.85,
+  "integrity": {
+    "method": "sha256",
+    "value": "92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b"
+  },
+  "trace": {
+    "ts": "2026-08-14T22:42:20Z",
+    "host": "claude-code",
+    "model": "claude-opus-5",
+    "tier": "standard"
+  },
+  "x_ramza_acceptance_criteria": {
+    "path": ".spectra/changes/magicite-v1-implementation/acceptance-criteria.md",
+    "sha256": "7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448",
+    "count": 33
+  }
+}

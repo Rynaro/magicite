@@ -1,0 +1,260 @@
+{
+  "eidolon": "vigil",
+  "version": "1.8.0",
+  "methodology": "VIGIL",
+  "eiis_version": "1.4",
+  "canonical_inventory_strict": true,
+  "installed_at": "2026-08-14T21:28:41Z",
+  "target": "./.eidolons/vigil",
+  "spec_file": ".eidolons/vigil/SPEC.md",
+  "hosts_wired": [
+    "claude-code"
+  ],
+  "files_written": [
+    {
+      "path": "./.eidolons/vigil/agent.md",
+      "sha256": "792ea567cc1755302fb34d1ca51d44ea64fba9c8be7c51d8bc4f275829da0ffa",
+      "role": "agent-profile",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/SPEC.md",
+      "sha256": "b7a42517fdd6acc618c7909023ec2fa590e2932045cf2197de40bc7c7729d63c",
+      "role": "spec",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/ECL_VERSION",
+      "sha256": "d526eb4e878a23ef26ae190031b4efd2d58ed66789ac049ea3dbaf74c9df7402",
+      "role": "ecl-version",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/skills/verify.md",
+      "sha256": "ed2532c196758847f64c95be610e07be52626773c959046f684b779ca0257e69",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/vigil-verify/SKILL.md",
+      "sha256": "ed2532c196758847f64c95be610e07be52626773c959046f684b779ca0257e69",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/skills/isolate.md",
+      "sha256": "9e33cf7ba81dd93a5d18e521ae1c9631e2829b99d3dd781fe4179d4a6ab540d2",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/vigil-isolate/SKILL.md",
+      "sha256": "9e33cf7ba81dd93a5d18e521ae1c9631e2829b99d3dd781fe4179d4a6ab540d2",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/skills/graph.md",
+      "sha256": "ebcb2a302e33579717e78ad0ea99250413dd75be0ae380e3622dcdc466abaa8d",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/vigil-graph/SKILL.md",
+      "sha256": "ebcb2a302e33579717e78ad0ea99250413dd75be0ae380e3622dcdc466abaa8d",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/skills/intervene.md",
+      "sha256": "ee81be86607ea733d02809044b39cb7cfc8ec569597ad40285c119f694015717",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/vigil-intervene/SKILL.md",
+      "sha256": "ee81be86607ea733d02809044b39cb7cfc8ec569597ad40285c119f694015717",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/skills/learn.md",
+      "sha256": "ab7a0769de6e25c9864631b221169c64eace59019b17a5e4903b86f34d1ffa12",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/vigil-learn/SKILL.md",
+      "sha256": "ab7a0769de6e25c9864631b221169c64eace59019b17a5e4903b86f34d1ffa12",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/skills/verify-incoming.md",
+      "sha256": "673a3b2be1f141858fc3c7c5415427bd2f32792c67988adbdd9c167ddf96cc98",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/vigil-verify-incoming/SKILL.md",
+      "sha256": "673a3b2be1f141858fc3c7c5415427bd2f32792c67988adbdd9c167ddf96cc98",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/skills/esl-hop.md",
+      "sha256": "838696cd30281f9fd06fb2b4ab06bd7f8cf36e65f367adf0697cb0001b0e960f",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/vigil-esl-hop/SKILL.md",
+      "sha256": "838696cd30281f9fd06fb2b4ab06bd7f8cf36e65f367adf0697cb0001b0e960f",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/templates/root-cause-report.md",
+      "sha256": "8807e2bedb47f559ea651b4142e49488b0e3a6d0a89fa7a4f51616e7de4d9a5c",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/templates/verified-patch.md",
+      "sha256": "1bec30df6879f513527bc036415d3cc92876a781f81a130d7425f82d2ac48a0e",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/templates/failure-signature.md",
+      "sha256": "d27e734173c3e8183b509c73826b840926549e47eac0524f5db7e884f5837012",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/templates/escalation-brief.md",
+      "sha256": "64293ec7d3b4a3b8627c2c36791a8241996ec8a99e4d9a8832982180e34f5f8f",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/schemas/reproduction.v1.json",
+      "sha256": "6164bd2a9917b8da08b5fd1cfe7dc05f9ca44876d07b6c4319cd48baf97b8718",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/schemas/intervention-log.v1.json",
+      "sha256": "c0bed91294518207c63c257621dc6d85abdc99275319714100de5fa0c2a5664a",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/vigil/schemas/root-cause-report.v1.json",
+      "sha256": "839d07dc19c4e981236223182d28bc82fd7be347a970f7961da2875610461ca0",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "551330608d0ea5f3980cceac3693501abe999b84659022c6d83ef34cc6f61dff",
+      "role": "dispatch",
+      "mode": "appended"
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "551330608d0ea5f3980cceac3693501abe999b84659022c6d83ef34cc6f61dff",
+      "role": "dispatch",
+      "mode": "appended"
+    },
+    {
+      "path": ".claude/agents/vigil.md",
+      "sha256": "00e410f78b123a3256267609bd2c4e9e9311c589775ab6a25be808a21ce1702e",
+      "role": "dispatch",
+      "mode": "created"
+    }
+  ],
+  "skills": [
+    {
+      "name": "verify",
+      "source_path": ".eidolons/vigil/skills/verify.md",
+      "source_sha256": "ed2532c196758847f64c95be610e07be52626773c959046f684b779ca0257e69",
+      "vendor_path": ".claude/skills/vigil-verify/SKILL.md",
+      "vendor_sha256": "ed2532c196758847f64c95be610e07be52626773c959046f684b779ca0257e69"
+    },
+    {
+      "name": "isolate",
+      "source_path": ".eidolons/vigil/skills/isolate.md",
+      "source_sha256": "9e33cf7ba81dd93a5d18e521ae1c9631e2829b99d3dd781fe4179d4a6ab540d2",
+      "vendor_path": ".claude/skills/vigil-isolate/SKILL.md",
+      "vendor_sha256": "9e33cf7ba81dd93a5d18e521ae1c9631e2829b99d3dd781fe4179d4a6ab540d2"
+    },
+    {
+      "name": "graph",
+      "source_path": ".eidolons/vigil/skills/graph.md",
+      "source_sha256": "ebcb2a302e33579717e78ad0ea99250413dd75be0ae380e3622dcdc466abaa8d",
+      "vendor_path": ".claude/skills/vigil-graph/SKILL.md",
+      "vendor_sha256": "ebcb2a302e33579717e78ad0ea99250413dd75be0ae380e3622dcdc466abaa8d"
+    },
+    {
+      "name": "intervene",
+      "source_path": ".eidolons/vigil/skills/intervene.md",
+      "source_sha256": "ee81be86607ea733d02809044b39cb7cfc8ec569597ad40285c119f694015717",
+      "vendor_path": ".claude/skills/vigil-intervene/SKILL.md",
+      "vendor_sha256": "ee81be86607ea733d02809044b39cb7cfc8ec569597ad40285c119f694015717"
+    },
+    {
+      "name": "learn",
+      "source_path": ".eidolons/vigil/skills/learn.md",
+      "source_sha256": "ab7a0769de6e25c9864631b221169c64eace59019b17a5e4903b86f34d1ffa12",
+      "vendor_path": ".claude/skills/vigil-learn/SKILL.md",
+      "vendor_sha256": "ab7a0769de6e25c9864631b221169c64eace59019b17a5e4903b86f34d1ffa12"
+    },
+    {
+      "name": "verify-incoming",
+      "source_path": ".eidolons/vigil/skills/verify-incoming.md",
+      "source_sha256": "673a3b2be1f141858fc3c7c5415427bd2f32792c67988adbdd9c167ddf96cc98",
+      "vendor_path": ".claude/skills/vigil-verify-incoming/SKILL.md",
+      "vendor_sha256": "673a3b2be1f141858fc3c7c5415427bd2f32792c67988adbdd9c167ddf96cc98"
+    },
+    {
+      "name": "esl-hop",
+      "source_path": ".eidolons/vigil/skills/esl-hop.md",
+      "source_sha256": "838696cd30281f9fd06fb2b4ab06bd7f8cf36e65f367adf0697cb0001b0e960f",
+      "vendor_path": ".claude/skills/vigil-esl-hop/SKILL.md",
+      "vendor_sha256": "838696cd30281f9fd06fb2b4ab06bd7f8cf36e65f367adf0697cb0001b0e960f"
+    }
+  ],
+  "handoffs_declared": {
+    "upstream": [],
+    "downstream": [
+      "apivr",
+      "spectra",
+      "idg",
+      "forge"
+    ]
+  },
+  "token_budget": {
+    "entry": 996,
+    "working_set_target": 3500
+  },
+  "security": {
+    "reads_repo": true,
+    "reads_network": false,
+    "writes_repo": false,
+    "persists": [
+      ".vigil/config.yml",
+      "memories/vigil-failures.yaml"
+    ]
+  },
+  "comm": {
+    "envelope_version": "2.0",
+    "emits": [
+      "root-cause-report",
+      "escalation-brief"
+    ],
+    "consumes": [
+      "repair-failed-report"
+    ]
+  }
+}

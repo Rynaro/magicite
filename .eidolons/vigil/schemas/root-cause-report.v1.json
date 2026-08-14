@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vigil.agent/schemas/root-cause-report.v1.json",
+  "title": "VIGIL Root-Cause Report",
+  "description": "Primary VIGIL deliverable. Emitted by Phase L after successful counterfactual attribution. Schema-enforced.",
+  "type": "object",
+  "required": [
+    "mission_id",
+    "methodology_version",
+    "authority",
+    "classification",
+    "confidence",
+    "reproduction",
+    "findings",
+    "root_cause",
+    "originating_decision",
+    "handoff",
+    "telemetry"
+  ],
+  "properties": {
+    "mission_id": {
+      "type": "string",
+      "pattern": "^VIGIL-[0-9]{8}-[0-9]{3}$"
+    },
+    "methodology_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "authority": {
+      "type": "string",
+      "enum": ["read-only", "sandbox", "write"]
+    },
+    "upstream_trigger": {
+      "type": "string",
+      "enum": ["apivr_escalation", "consultant_invocation", "post_hoc_review", "ci_failure", "bug_report"]
+    },
+    "classification": {
+      "type": "string",
+      "enum": [
+        "LOGIC_ERROR",
+        "REGRESSION",
+        "BUILD_ERROR",
+        "TYPE_ERROR",
+        "LINT_VIOLATION",
+        "RUNTIME_ERROR",
+        "INTEGRATION_ERROR",
+        "ENVIRONMENT_ERROR",
+        "HEISENBUG",
+        "COMPOUND",
+        "SPEC_DEFECT"
+      ]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["H", "M", "L"],
+      "description": "L confidence is not admissible for this report type — use escalation-brief instead."
+    },
+    "reproduction": {"$ref": "#/$defs/reproduction_summary"},
+    "fault_surface_summary": {"$ref": "#/$defs/fault_surface_summary"},
+    "idg_summary": {"$ref": "#/$defs/idg_summary"},
+    "intervention_summary": {"$ref": "#/$defs/intervention_summary"},
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "root_cause": {"$ref": "#/$defs/root_cause_block"},
+    "originating_decision": {"$ref": "#/$defs/originating_decision"},
+    "recommended_fix": {"$ref": "#/$defs/recommended_fix"},
+    "compound_findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/compound_finding"}
+    },
+    "handoff": {"$ref": "#/$defs/handoff"},
+    "telemetry": {"$ref": "#/$defs/telemetry"},
+    "markers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["FLAKE", "DISPUTED", "GAP"]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "If confidence is L, the report is invalid — must use escalation-brief instead.",
+      "if": {"properties": {"confidence": {"const": "L"}}},
+      "then": {"not": {}}
+    },
+    {
+      "description": "If root cause is SPEC_DEFECT, recommended_fix must route to SPECTRA; no code patch.",
+      "if": {"properties": {"classification": {"const": "SPEC_DEFECT"}}},
+      "then": {
+        "properties": {
+          "handoff": {
+            "properties": {"primary_recipient": {"const": "SPECTRA"}}
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "reproduction_summary": {
+      "type": "object",
+      "required": ["mode", "signature", "determinism_verdict"],
+      "properties": {
+        "mode": {"type": "string", "enum": ["deterministic", "statistical"]},
+        "signature": {
+          "type": "object",
+          "required": ["error_class", "assertion", "stack_top"],
+          "properties": {
+            "command": {"type": "string"},
+            "error_class": {"type": "string"},
+            "assertion": {"type": "string"},
+            "stack_top": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {"type": "string"}
+            }
+          }
+        },
+        "determinism_verdict": {
+          "type": "string",
+          "enum": ["stable", "flaky"]
+        },
+        "statistical_evidence": {
+          "type": ["object", "null"],
+          "properties": {
+            "runs": {"type": "integer", "minimum": 5},
+            "failures": {"type": "integer", "minimum": 3},
+            "failure_rate": {"type": "number", "minimum": 0, "maximum": 1},
+            "ci_95": {
+              "type": "array",
+              "items": {"type": "number"},
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        }
+      }
+    },
+    "fault_surface_summary": {
+      "type": "object",
+      "required": ["candidate_count"],
+      "properties": {
+        "candidate_count": {"type": "integer", "minimum": 1, "maximum": 8},
+        "ruled_out_count": {"type": "integer", "minimum": 3}
+      }
+    },
+    "idg_summary": {
+      "type": "object",
+      "required": ["root_candidates", "symptom_nodes", "graph_shape"],
+      "properties": {
+        "root_candidates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["node_id", "descendant_count"],
+            "properties": {
+              "node_id": {"type": "string"},
+              "descendant_count": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "symptom_nodes": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "graph_shape": {
+          "type": "string",
+          "enum": ["normal", "single_node", "disconnected"]
+        }
+      }
+    },
+    "intervention_summary": {
+      "type": "object",
+      "required": ["interventions_used", "interventions_cap", "survivor"],
+      "properties": {
+        "interventions_used": {"type": "integer", "minimum": 1, "maximum": 5},
+        "interventions_cap": {"type": "integer", "const": 5},
+        "survivor": {
+          "type": "object",
+          "required": ["hypothesis_id", "intervention_id"],
+          "properties": {
+            "hypothesis_id": {"type": "string", "pattern": "^H-[0-9]+$"},
+            "intervention_id": {"type": "string", "pattern": "^I-[0-9]+$"}
+          }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "claim", "evidence", "confidence"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^FINDING-[0-9]{3,}$"
+        },
+        "claim": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 500
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["path", "lines"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "lines": {
+                "type": "string",
+                "pattern": "^[0-9]+(-[0-9]+)?$"
+              },
+              "excerpt_ref": {"type": "string"}
+            }
+          }
+        },
+        "confidence": {"type": "string", "enum": ["H", "M", "L"]},
+        "counterfactual_result": {
+          "type": "string",
+          "enum": ["FLIPPED", "NO_CHANGE", "N/A"]
+        },
+        "intervention_id": {
+          "type": ["string", "null"],
+          "pattern": "^I-[0-9]+$"
+        }
+      }
+    },
+    "root_cause_block": {
+      "type": "object",
+      "required": ["statement", "primary_finding_ref", "counterfactual_intervention_ref"],
+      "properties": {
+        "statement": {"type": "string", "minLength": 10, "maxLength": 2000},
+        "primary_finding_ref": {"type": "string", "pattern": "^FINDING-[0-9]{3,}$"},
+        "counterfactual_intervention_ref": {"type": "string", "pattern": "^I-[0-9]+$"}
+      }
+    },
+    "originating_decision": {
+      "type": "object",
+      "required": ["commit", "classification"],
+      "properties": {
+        "commit": {
+          "type": ["string", "null"],
+          "description": "Commit SHA; null only if walkback failed and [GAP] is set."
+        },
+        "commit_date": {"type": ["string", "null"]},
+        "commit_message": {"type": ["string", "null"]},
+        "pr_ref": {"type": ["string", "null"]},
+        "classification": {
+          "type": "string",
+          "enum": [
+            "implementation_bug",
+            "spec_defect",
+            "contract_drift",
+            "dep_change",
+            "missing_test",
+            "env_drift",
+            "unknown_walkback_failed"
+          ]
+        },
+        "downstream_route": {
+          "type": "string",
+          "enum": ["APIVR-Delta", "SPECTRA", "human"]
+        }
+      }
+    },
+    "recommended_fix": {
+      "type": "object",
+      "required": ["scope", "risk"],
+      "properties": {
+        "scope": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {"type": "string"},
+              "maxItems": 3
+            }
+          }
+        },
+        "risk": {"type": "string", "enum": ["low", "medium", "high"]},
+        "verified_patch_ref": {"type": ["string", "null"]},
+        "verification_command": {"type": "string"}
+      }
+    },
+    "compound_finding": {
+      "type": "object",
+      "required": ["description", "recommended_downstream"],
+      "properties": {
+        "description": {"type": "string"},
+        "recommended_downstream": {
+          "type": "string",
+          "enum": ["APIVR-Delta", "SPECTRA", "IDG", "human", "separate_VIGIL_mission"]
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "required": ["primary_recipient", "rationale"],
+      "properties": {
+        "primary_recipient": {
+          "type": "string",
+          "enum": ["APIVR-Delta", "SPECTRA", "IDG", "FORGE", "human"]
+        },
+        "rationale": {"type": "string", "maxLength": 500},
+        "supplementary_artifacts": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "fallback_recipient": {
+          "type": "string",
+          "enum": ["human"],
+          "default": "human"
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "required": ["tokens_in", "tokens_out", "interventions_used"],
+      "properties": {
+        "tokens_in": {"type": "integer", "minimum": 0},
+        "tokens_out": {"type": "integer", "minimum": 0},
+        "tool_calls": {
+          "type": "object",
+          "properties": {
+            "verify": {"type": "integer", "minimum": 0},
+            "isolate": {"type": "integer", "minimum": 0},
+            "graph": {"type": "integer", "minimum": 0},
+            "intervene": {"type": "integer", "minimum": 0},
+            "learn": {"type": "integer", "minimum": 0}
+          }
+        },
+        "interventions_used": {"type": "integer", "minimum": 1, "maximum": 5},
+        "wall_clock_s": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

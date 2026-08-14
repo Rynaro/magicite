@@ -1,0 +1,54 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "<UUIDv4-or-v7>",
+  "thread_id":  "<inherited-from-incoming-reasoning-request>",
+  "parent_id":  "<message_id-of-incoming-reasoning-request>",
+  "from": { "eidolon": "forge",       "version": "1.10.0" },
+  "to":   { "eidolon": "<requester>", "version": "<requester-version>" },
+  "performative": "PROPOSE",
+  "edge_origin": "roster",
+  "objective": "Return reasoning-report for <decision-question> after F→O→R→G→E cycle.",
+  "artifact": {
+    "kind": "reasoning-report",
+    "schema_version": "1.0",
+    "path": ".eidolons/forge/output/reasoning-report-<thread-id>.md",
+    "sha256": "<lowercase-hex-64>",
+    "size_bytes": 0
+  },
+  "context_delta": {
+    "token_budget": 3000,
+    "tokens_used": 0,
+    "input_handles": ["<incoming-request-handle>"],
+    "summary": "<=200 tokens describing the verdict and confidence delta vs incoming framing."
+  },
+  "constraints": { "trust_level": "standard" },
+  "ise": {
+    "assertion_grade": "self-attested",
+    "provenance": {
+      "methodology_version": "forge-1.10.0",
+      "tool_surface": [],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  },
+  "expected_response": {
+    "performative": "ACKNOWLEDGE",
+    "shape_hint": "envelope-only"
+  },
+  "confidence": 0.0,
+  "assumptions": [],
+  "integrity": {
+    "method": "sha256",
+    "value": "<lowercase-hex-64>"
+  },
+  "trace": {
+    "ts": "<RFC3339-UTC>",
+    "host": "<host-slug>",
+    "model": "<model-id>",
+    "tier": "standard"
+  }
+}

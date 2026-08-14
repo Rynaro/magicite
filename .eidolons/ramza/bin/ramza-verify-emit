@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# ramza-verify-emit — the emission gate: nothing hands off unvalidated.
+# Checks the spec's frontmatter contract and the ECL envelope (required fields,
+# performative against the closed set read from the schema itself, and a real
+# recomputation of the sha256 integrity value over the payload bytes).
+# Deeper transport checks belong to Junction harness_verify (L1-L4); this gate is local.
+# Part of RAMZA (https://github.com/Rynaro/Ramza). bash 3.2 compatible. Requires jq.
+set -eu
+
+die() { printf 'ramza-verify-emit: %s\n' "$*" >&2; exit 2; }
+say() { printf '%s\n' "$*" >&2; }
+need() { command -v "$1" >/dev/null 2>&1 || die "required tool '$1' not found"; }
+need jq
+
+sha256_of_file() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  else die "neither shasum nor sha256sum found"; fi
+}
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-verify-emit --spec FILE [--envelope FILE] [--schema-dir DIR]
+
+Spec checks: YAML frontmatter present with eidolon, kind: spec, version, created_at.
+Envelope checks (when --envelope): required fields present; performative is a member
+of the closed set read from schemas/ecl-envelope.v2.json; integrity.method is sha256;
+integrity.value equals the recomputed sha256 of the spec payload bytes.
+Failures print to stdout; exit 1 if any, else 0.
+EOF
+  exit 2
+}
+
+SPEC="" ENVELOPE="" SCHEMA_DIR=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --spec) SPEC="${2:-}"; shift 2 ;;
+    --envelope) ENVELOPE="${2:-}"; shift 2 ;;
+    --schema-dir) SCHEMA_DIR="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+[ -n "$SPEC" ] || usage
+[ -f "$SPEC" ] || die "no such file: $SPEC"
+if [ -z "$SCHEMA_DIR" ]; then
+  SCHEMA_DIR="$(cd "$(dirname "$0")/.." && pwd)/schemas"
+fi
+
+FAIL=""
+fail() { FAIL="${FAIL}$*
+"; }
+
+# --- spec frontmatter -------------------------------------------------------
+FM=$(awk '/^---[ \t]*$/ { n++; next } n == 1 { print } n >= 2 { exit }' "$SPEC")
+if [ -z "$FM" ]; then
+  fail "spec: missing YAML frontmatter (--- block)"
+else
+  for key in eidolon kind version created_at; do
+    printf '%s\n' "$FM" | grep -q "^${key}:" || fail "spec: frontmatter missing '${key}:'"
+  done
+  printf '%s\n' "$FM" | grep -q '^kind:[ \t]*"*spec"*' || fail "spec: frontmatter kind must be 'spec'"
+fi
+
+# --- envelope ---------------------------------------------------------------
+if [ -n "$ENVELOPE" ]; then
+  [ -f "$ENVELOPE" ] || die "no such envelope: $ENVELOPE"
+  jq empty "$ENVELOPE" 2>/dev/null || fail "envelope: not valid JSON"
+  if jq empty "$ENVELOPE" 2>/dev/null; then
+    for field in envelope_version message_id thread_id performative from to artifact integrity; do
+      jq -e --arg f "$field" 'has($f)' "$ENVELOPE" >/dev/null || fail "envelope: missing field '$field'"
+    done
+    SCHEMA="$SCHEMA_DIR/ecl-envelope.v2.json"
+    if [ -f "$SCHEMA" ]; then
+      PERF=$(jq -r '.performative // empty' "$ENVELOPE")
+      if [ -n "$PERF" ]; then
+        jq -e --arg p "$PERF" '
+          [.. | objects | select(has("enum")) | .enum[]? | select(type == "string")] as $enums
+          | ([.properties.performative.enum[]?] // []) as $closed
+          | (if ($closed | length) > 0 then $closed else $enums end) | index($p) != null
+        ' "$SCHEMA" >/dev/null || fail "envelope: performative '$PERF' not in the closed set (schema: $SCHEMA)"
+      fi
+    else
+      say "warn: schema not found ($SCHEMA); skipping performative closed-set check"
+    fi
+    METHOD=$(jq -r '.integrity.method // empty' "$ENVELOPE")
+    [ "$METHOD" = "sha256" ] || fail "envelope: integrity.method must be sha256 (got: ${METHOD:-none})"
+    WANT=$(jq -r '.integrity.value // empty' "$ENVELOPE")
+    if [ -n "$WANT" ]; then
+      GOT=$(sha256_of_file "$SPEC")
+      [ "$GOT" = "$WANT" ] || fail "envelope: integrity.value mismatch (envelope: $WANT, payload: $GOT)"
+    else
+      fail "envelope: missing integrity.value"
+    fi
+  fi
+fi
+
+if [ -n "$FAIL" ]; then
+  printf '%s' "$FAIL"
+  exit 1
+fi
+say "ok: emission gate passed ($(basename "$SPEC")${ENVELOPE:+ + envelope})"
+exit 0

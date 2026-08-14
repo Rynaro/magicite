@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# ramza-ears-lint — mechanical linter for EARS-form acceptance criteria.
+# Enforces: closed form set, unique IDs, exactly one atomic THEN (no compound AND),
+# and a VERIFY method per criterion. One criterion = one mechanically checkable assertion.
+# Part of RAMZA (https://github.com/Rynaro/Ramza). bash 3.2 compatible (portable awk).
+set -eu
+
+die() { printf 'ramza-ears-lint: %s\n' "$*" >&2; exit 2; }
+say() { printf '%s\n' "$*" >&2; }
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-ears-lint FILE
+
+Lints acceptance criteria written in the RAMZA EARS template
+(templates/acceptance-criteria.md). Expected block shape:
+
+  ### AC-001 (event-driven)
+  GIVEN <precondition>
+  WHEN  <trigger>
+  THEN  <single assertion — no " AND ">
+  VERIFY: <mechanical check: test name, command, or gate>
+
+Forms (closed set, ESL 1.1 §2.5): ubiquitous, event-driven, state-driven,
+unwanted-behavior, optional-feature.
+Violations print to stdout (one per line); exit 1 if any, else 0.
+EOF
+  exit 2
+}
+
+[ $# -eq 1 ] || usage
+case "$1" in -h|--help) usage ;; esac
+FILE="$1"
+[ -f "$FILE" ] || die "no such file: $FILE"
+
+VIOLATIONS=$(awk '
+  function flush_block() {
+    if (id == "") return
+    if (form != "ubiquitous" && form != "event-driven" && form != "state-driven" \
+        && form != "unwanted-behavior" && form != "optional-feature")
+      printf "%s: unknown form \"%s\" (closed set: ubiquitous|event-driven|state-driven|unwanted-behavior|optional-feature)\n", id, form
+    if (then_count == 0) printf "%s: missing THEN\n", id
+    if (then_count > 1)  printf "%s: %d THEN lines (one criterion = one assertion)\n", id, then_count
+    if (compound)        printf "%s: compound THEN (contains \" AND \") — split into separate criteria\n", id
+    if (!verify_seen)    printf "%s: missing VERIFY: method\n", id
+    id = ""; form = ""; then_count = 0; compound = 0; verify_seen = 0
+  }
+  /^### AC-/ {
+    flush_block()
+    blocks++
+    id = $2
+    sub(/\(.*/, "", id)
+    gsub(/[ \t]/, "", id)
+    form = $0
+    if (form ~ /\(/) { sub(/^[^(]*\(/, "", form); sub(/\).*$/, "", form) } else { form = "" }
+    if (id !~ /^AC-[A-Za-z0-9_-]+$/) { printf "line %d: malformed criterion heading\n", NR; id = "HDR" NR }
+    if (seen[id]++) printf "%s: duplicate ID\n", id
+    next
+  }
+  id != "" && /^THEN[ \t]/ {
+    then_count++
+    if ($0 ~ / AND /) compound = 1
+    next
+  }
+  id != "" && /^VERIFY:[ \t]*[^ \t]/ { verify_seen = 1; next }
+  END {
+    flush_block()
+    if (blocks == 0) print "no criteria found (expected \"### AC-<id> (<form>)\" blocks)"
+  }
+' "$FILE")
+
+if [ -n "$VIOLATIONS" ]; then
+  printf '%s\n' "$VIOLATIONS"
+  exit 1
+fi
+N=$(grep -c '^### AC-' "$FILE")
+say "ok: $N criteria pass EARS lint"
+exit 0

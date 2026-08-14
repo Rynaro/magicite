@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/Ramza/blob/main/schemas/ecl-envelope.v1.json",
+  "title": "ECL envelope v1 (vendored)",
+  "description": "Vendored copy of eidolons-ecl/schemas/envelope.v1.json for self-contained RAMZA validation. Validates the ECL v1.0 envelope sidecar written next to every emitted RAMZA artefact. Source-of-truth is the central ECL spec at Rynaro/eidolons-ecl; re-vendor when ECL publishes a new envelope schema version.",
+  "type": "object",
+  "required": [
+    "envelope_version",
+    "message_id",
+    "thread_id",
+    "parent_id",
+    "from",
+    "to",
+    "performative",
+    "objective",
+    "artifact",
+    "integrity",
+    "trace"
+  ],
+  "properties": {
+    "envelope_version": {
+      "type": "string",
+      "pattern": "^1\\.0(\\.\\d+)?$",
+      "description": "ECL spec version this envelope conforms to. ECL v1.0 §1.1.1."
+    },
+    "message_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Globally unique ID. UUIDv7 RECOMMENDED."
+    },
+    "thread_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID grouping all envelopes of one logical mission."
+    },
+    "parent_id": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "format": "uuid" }
+      ],
+      "description": "message_id of the immediate causal predecessor. null only on the first envelope of a thread."
+    },
+    "from": { "$ref": "#/$defs/agentRef" },
+    "to":   { "$ref": "#/$defs/agentRef" },
+    "performative": {
+      "type": "string",
+      "enum": ["REQUEST", "INFORM", "PROPOSE", "CRITIQUE", "DECIDE", "DELEGATE", "ACKNOWLEDGE", "ESCALATE", "RESUME", "REFUSE"],
+      "description": "ECL v1.0 §2."
+    },
+    "edge_origin": {
+      "enum": ["roster", "composition", "implicit"],
+      "description": "Where the (from, to) edge is declared. ECL v1.0 §3.3."
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "description": "Single sentence stating the goal of this message."
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["kind", "schema_version", "path", "sha256", "size_bytes"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Slug naming the payload kind (e.g. 'spec')."
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+(\\.\\d+)?$",
+          "description": "SemVer of the per-Eidolon profile schema validating this payload."
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\.\\.).+$",
+          "description": "Relative path. MUST NOT begin with '/' or contain '..'."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Lowercase hex digest of the payload bytes at emit time."
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Payload byte count at emit time."
+        }
+      },
+      "additionalProperties": false
+    },
+    "context_delta": {
+      "type": "object",
+      "properties": {
+        "token_budget":   { "type": "integer", "minimum": 0 },
+        "tokens_used":    { "type": "integer", "minimum": 0 },
+        "input_handles":  { "type": "array", "items": { "type": "string" } },
+        "summary":        { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "deadline_ts": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "format": "date-time" }
+          ]
+        },
+        "trust_level": {
+          "enum": ["low", "standard", "high"],
+          "default": "standard"
+        }
+      },
+      "additionalProperties": false
+    },
+    "expected_response": {
+      "type": "object",
+      "properties": {
+        "performative": {
+          "type": "string",
+          "enum": ["REQUEST", "INFORM", "PROPOSE", "CRITIQUE", "DECIDE", "DELEGATE", "ACKNOWLEDGE", "ESCALATE", "RESUME", "REFUSE"]
+        },
+        "shape_hint": {
+          "type": "string",
+          "description": "Free-form hint about the shape of the expected reply (e.g. 'apivr-completion-report.md + status.json')."
+        }
+      },
+      "additionalProperties": false
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Sender's self-assessed confidence in the payload."
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Material assumptions the receiver should know."
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["method", "value"],
+      "properties": {
+        "method": {
+          "enum": ["sha256", "hmac-sha256"],
+          "description": "ECL v1.0 §6.1."
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Lowercase hex digest. ECL v1.0 §6.2.1."
+        }
+      },
+      "additionalProperties": false
+    },
+    "trace": {
+      "type": "object",
+      "required": ["ts", "host", "model", "tier"],
+      "properties": {
+        "ts": {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 UTC timestamp at envelope construction."
+        },
+        "host": {
+          "type": "string",
+          "description": "Host environment slug (e.g. 'claude-code', 'cursor', 'codex', 'opencode', 'raw')."
+        },
+        "model": {
+          "type": "string",
+          "description": "Model identifier (e.g. 'claude-sonnet-4-6'). Free-form to allow vendor strings."
+        },
+        "tier": {
+          "enum": ["standard", "trance"],
+          "description": "Routing tier. ECL v1.0 §5.2."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "patternProperties": {
+    "^x_[a-z][a-z0-9_]*$": {
+      "description": "Vendor extension fields. Receivers SHALL ignore unknown x_* fields. ECL v1.0 §1.2.3."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "agentRef": {
+      "type": "object",
+      "required": ["eidolon", "version"],
+      "properties": {
+        "eidolon": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Lowercase slug. Reserved values: 'human', 'orchestrator'."
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$|^n/a$",
+          "description": "SemVer of the Eidolon, or the literal 'n/a' for 'human' / 'orchestrator'."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

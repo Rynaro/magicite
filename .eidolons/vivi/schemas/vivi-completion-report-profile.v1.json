@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/Vivi/blob/v1.1.0/schemas/vivi-completion-report-profile.v1.json",
+  "title": "ECL vivi-completion-report profile v1",
+  "description": "Vendored from eidolons-ecl/schemas/per-eidolon/vivi-completion-report.v1.json (ECL v1.0.0). Vivi emit when work is complete; consumed by IDG. Contract: vivi-to-idg.yaml.",
+  "allOf": [
+    { "$ref": "_base-profile.v1.json" },
+    {
+      "type": "object",
+      "required": ["files_changed_count", "tests_run", "tests_passed"],
+      "properties": {
+        "kind":    { "const": "vivi-completion-report" },
+        "eidolon": { "const": "vivi" },
+        "files_changed_count": { "type": "integer", "minimum": 0 },
+        "tests_run":           { "type": "integer", "minimum": 0 },
+        "tests_passed":        { "type": "integer", "minimum": 0 },
+        "deltas_count":        { "type": "integer", "minimum": 0 },
+        "escalations_count":   { "type": "integer", "minimum": 0 }
+      }
+    }
+  ]
+}

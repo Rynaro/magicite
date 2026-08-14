@@ -1,0 +1,205 @@
+{
+  "eidolon": "idg",
+  "version": "1.10.0",
+  "methodology": "IDG",
+  "installed_at": "2026-08-14T21:28:38Z",
+  "target": "/home/rynaro/workspace/oss/magicite/.eidolons/idg",
+  "hosts_wired": [
+    "claude-code"
+  ],
+  "canonical_inventory_strict": true,
+  "spec_file": ".eidolons/idg/SPEC.md",
+  "skills": [
+    {
+      "name": "composition",
+      "source_path": ".eidolons/idg/skills/composition.md",
+      "source_sha256": "4d9a0c5e92dbdd6688d6450c6a2d66a0799e3b90bf49b1378d0c387f610c85aa",
+      "vendor_path": ".claude/skills/idg-composition/SKILL.md",
+      "vendor_sha256": "4d9a0c5e92dbdd6688d6450c6a2d66a0799e3b90bf49b1378d0c387f610c85aa"
+    },
+    {
+      "name": "verification",
+      "source_path": ".eidolons/idg/skills/verification.md",
+      "source_sha256": "7be59e3da02c59a624a24896472f4f3faf1c6d08ff24ee0ef6ffa014443d05e6",
+      "vendor_path": ".claude/skills/idg-verification/SKILL.md",
+      "vendor_sha256": "7be59e3da02c59a624a24896472f4f3faf1c6d08ff24ee0ef6ffa014443d05e6"
+    },
+    {
+      "name": "section-parallel",
+      "source_path": ".eidolons/idg/skills/section-parallel.md",
+      "source_sha256": "8f386ac2aabc032cf8c72b385144f53c9b8a1e71724d1ee369ce2e6d0712094c",
+      "vendor_path": ".claude/skills/idg-section-parallel/SKILL.md",
+      "vendor_sha256": "8f386ac2aabc032cf8c72b385144f53c9b8a1e71724d1ee369ce2e6d0712094c"
+    },
+    {
+      "name": "verify-incoming",
+      "source_path": ".eidolons/idg/skills/verify-incoming.md",
+      "source_sha256": "0d70306f7085f20c55af386c7c81727b589c1fadf53725a42dbcdd7cafcec23f",
+      "vendor_path": ".claude/skills/idg-verify-incoming/SKILL.md",
+      "vendor_sha256": "0d70306f7085f20c55af386c7c81727b589c1fadf53725a42dbcdd7cafcec23f"
+    },
+    {
+      "name": "esl-hop",
+      "source_path": ".eidolons/idg/skills/esl-hop.md",
+      "source_sha256": "04e12cb90ccd550d63893b3cba3591a6ad8e92beb4638c8638439a57783bcfdd",
+      "vendor_path": ".claude/skills/idg-esl-hop/SKILL.md",
+      "vendor_sha256": "04e12cb90ccd550d63893b3cba3591a6ad8e92beb4638c8638439a57783bcfdd"
+    }
+  ],
+  "files_written": [
+    {
+      "path": "agent.md",
+      "sha256": "b5488584d8e180fcb68af12e2a10e51a59366ac00cc5df8de875d4e58155bf5c",
+      "role": "agent-profile",
+      "mode": "created"
+    },
+    {
+      "path": "SPEC.md",
+      "sha256": "103dc831455587018cee5db1e84675b62e9e84da73596fc70a6b9dfdb74d2e62",
+      "role": "spec",
+      "mode": "created"
+    },
+    {
+      "path": "ECL_VERSION",
+      "sha256": "d526eb4e878a23ef26ae190031b4efd2d58ed66789ac049ea3dbaf74c9df7402",
+      "role": "ecl-version",
+      "mode": "created"
+    },
+    {
+      "path": "skills/composition.md",
+      "sha256": "4d9a0c5e92dbdd6688d6450c6a2d66a0799e3b90bf49b1378d0c387f610c85aa",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/verification.md",
+      "sha256": "7be59e3da02c59a624a24896472f4f3faf1c6d08ff24ee0ef6ffa014443d05e6",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/section-parallel.md",
+      "sha256": "8f386ac2aabc032cf8c72b385144f53c9b8a1e71724d1ee369ce2e6d0712094c",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/verify-incoming.md",
+      "sha256": "0d70306f7085f20c55af386c7c81727b589c1fadf53725a42dbcdd7cafcec23f",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/esl-hop.md",
+      "sha256": "04e12cb90ccd550d63893b3cba3591a6ad8e92beb4638c8638439a57783bcfdd",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/idg-composition/SKILL.md",
+      "sha256": "4d9a0c5e92dbdd6688d6450c6a2d66a0799e3b90bf49b1378d0c387f610c85aa",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/idg-verification/SKILL.md",
+      "sha256": "7be59e3da02c59a624a24896472f4f3faf1c6d08ff24ee0ef6ffa014443d05e6",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/idg-section-parallel/SKILL.md",
+      "sha256": "8f386ac2aabc032cf8c72b385144f53c9b8a1e71724d1ee369ce2e6d0712094c",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/idg-verify-incoming/SKILL.md",
+      "sha256": "0d70306f7085f20c55af386c7c81727b589c1fadf53725a42dbcdd7cafcec23f",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/idg-esl-hop/SKILL.md",
+      "sha256": "04e12cb90ccd550d63893b3cba3591a6ad8e92beb4638c8638439a57783bcfdd",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "templates/session-chronicle.md",
+      "sha256": "17b2260d301040dc0d45ba718686b9859ca802ba074ff7f1ab1eaa5312083ff6",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/adr.md",
+      "sha256": "8074185d4a03567a5f0c3b2154c485d908031acc19cb0972d814068b86d081ae",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/runbook.md",
+      "sha256": "f85423ccdb7e39b548168ac57bd053ca8a0c46c6f1bcc2f4e7f3738fdc9ff14f",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/change-narrative.md",
+      "sha256": "2144bcb3103030d7effef228a11b4038d03fdfbc9c8ea841333ad36d8858d61b",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/ecl-envelope.v1.json",
+      "sha256": "855314c0607e2c31327804f34f552aaf8411e1cef2d864422b293e2f6449496f",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/ecl-envelope.v2.json",
+      "sha256": "77b3b5899fca634df0c5a68dc432a53f4978fd744a0c32564750152fdc2c0485",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/ecl-base-profile.v1.json",
+      "sha256": "f21a83c93c610aa88b352447cfeb00aecded03957c5a65c28b75242842e1aa2d",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/apivr-completion-report-profile.v1.json",
+      "sha256": "bd13b10246211b91d14d7d722ea884850c911d3911fc566efc0da09de0b0315c",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/root-cause-report-profile.v1.json",
+      "sha256": "f7f12c6c12ff78b1b4d583ff3a53859a345c5a2c8b12eaf291fca7a816d1a319",
+      "role": "other",
+      "mode": "created"
+    }
+  ],
+  "handoffs_declared": {
+    "upstream": [],
+    "downstream": []
+  },
+  "token_budget": {
+    "entry": 524,
+    "working_set_target": 1000
+  },
+  "security": {
+    "reads_repo": false,
+    "reads_network": false,
+    "writes_repo": false,
+    "persists": []
+  },
+  "comm": {
+    "envelope_version": "2.0",
+    "emits": [],
+    "verifies": [
+      "apivr-completion-report",
+      "root-cause-report"
+    ]
+  }
+}

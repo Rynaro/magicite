@@ -1,0 +1,63 @@
+{
+  "x_ramza_comment": "ECL v2.0 envelope sidecar. See ../ECL_VERSION for the targeted ECL version and the canonical spec at Rynaro/eidolons-ecl (spec/ecl-2.0.md). Validate this file against ../schemas/ecl-envelope.v2.json (ecl-envelope.v1.json is retained for the §7.3 back-compat window). Fill every <placeholder> before emitting, then run `ramza-verify-emit --spec <spec> --envelope <this-file>` as the final Assemble exit gate.",
+  "envelope_version": "2.0",
+  "message_id": "<uuid-v7>",
+  "thread_id": "<uuid-v7-same-as-spec-thread>",
+  "parent_id": null,
+  "from": {
+    "eidolon": "ramza",
+    "version": "0.1.0"
+  },
+  "to": {
+    "eidolon": "apivr",
+    "version": "n/a"
+  },
+  "performative": "PROPOSE",
+  "edge_origin": "roster",
+  "objective": "<One sentence ≤240 chars stating what this spec proposes, e.g. 'Propose implementation spec for <feature> targeting <repo>.'>",
+  "artifact": {
+    "kind": "spec",
+    "schema_version": "1.0",
+    "path": "<relative-path-to-spec.md e.g. .spectra/plans/2026-05-08-feature.md>",
+    "sha256": "<64-hex-chars lowercase sha256 of the spec Markdown file bytes>",
+    "size_bytes": 0
+  },
+  "context_delta": {
+    "token_budget": 6000,
+    "tokens_used": 0,
+    "input_handles": [],
+    "summary": "<One-paragraph summary of what this spec contains and what APIVR-Δ should act on.>"
+  },
+  "constraints": {
+    "trust_level": "standard"
+  },
+  "ise": {
+    "assertion_grade": "self-attested",
+    "provenance": {
+      "methodology_version": "ramza-0.1.0",
+      "tool_surface": ["Read", "Grep", "Glob"],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  },
+  "confidence": 0.9,
+  "integrity": {
+    "method": "sha256",
+    "value": "<64-hex-chars lowercase sha256 — MUST match artifact.sha256>"
+  },
+  "trace": {
+    "ts": "<RFC-3339 UTC timestamp e.g. 2026-05-08T12:00:00Z>",
+    "host": "claude-code",
+    "model": "<model identifier e.g. claude-sonnet-4-6>",
+    "tier": "standard"
+  },
+  "x_ramza_acceptance_criteria": {
+    "x_ramza_comment": "Stub — populate at Assemble with the `ramza-freeze --state <state> --criteria <file>` output. Present whenever this spec emits EARS-form acceptance criteria per templates/acceptance-criteria.md (the normal case); omit this whole object only for a spec that carries no lintable acceptance-criteria block at all.",
+    "path": "<relative-path-to-the-acceptance-criteria-content e.g. .spectra/plans/2026-05-08-feature.acceptance.md>",
+    "sha256": "<64-hex-chars lowercase sha256 — the value ramza-freeze printed, frozen per templates/acceptance-criteria.md>"
+  }
+}

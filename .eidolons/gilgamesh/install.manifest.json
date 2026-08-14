@@ -1,0 +1,207 @@
+{
+  "eidolon": "gilgamesh",
+  "version": "1.0.0",
+  "methodology": "GILGAMESH",
+  "installed_at": "2026-08-14T21:28:43Z",
+  "target": "/home/rynaro/workspace/oss/magicite/.eidolons/gilgamesh",
+  "hosts_wired": [
+    "claude-code"
+  ],
+  "canonical_inventory_strict": true,
+  "spec_file": ".eidolons/gilgamesh/SPEC.md",
+  "skills": [
+    {
+      "name": "verify-incoming",
+      "source_path": ".eidolons/gilgamesh/skills/verify-incoming.md",
+      "source_sha256": "85d92c8b9cdf15b52e2ca9712338081738d3c8b0ff79c0b7d05ca2955d8c99e2",
+      "vendor_path": ".claude/skills/gilgamesh-verify-incoming/SKILL.md",
+      "vendor_sha256": "85d92c8b9cdf15b52e2ca9712338081738d3c8b0ff79c0b7d05ca2955d8c99e2"
+    },
+    {
+      "name": "gauge",
+      "source_path": ".eidolons/gilgamesh/skills/gauge.md",
+      "source_sha256": "92cb78dbd7e1d1d9bbfbb2cfc093e85bfdfe111d008b36b6c8ae156bf6bfbdda",
+      "vendor_path": ".claude/skills/gilgamesh-gauge/SKILL.md",
+      "vendor_sha256": "92cb78dbd7e1d1d9bbfbb2cfc093e85bfdfe111d008b36b6c8ae156bf6bfbdda"
+    },
+    {
+      "name": "grind",
+      "source_path": ".eidolons/gilgamesh/skills/grind.md",
+      "source_sha256": "cada094e2ccd2bd114de5c7e9f368ac10b2b04c5582907fbd1f39d0b6fd7a4d0",
+      "vendor_path": ".claude/skills/gilgamesh-grind/SKILL.md",
+      "vendor_sha256": "cada094e2ccd2bd114de5c7e9f368ac10b2b04c5582907fbd1f39d0b6fd7a4d0"
+    },
+    {
+      "name": "attest",
+      "source_path": ".eidolons/gilgamesh/skills/attest.md",
+      "source_sha256": "7fe1e8f7e1490b7735aeaaf2ae3809085bbcbe04e11835220e126b8558d75aa8",
+      "vendor_path": ".claude/skills/gilgamesh-attest/SKILL.md",
+      "vendor_sha256": "7fe1e8f7e1490b7735aeaaf2ae3809085bbcbe04e11835220e126b8558d75aa8"
+    },
+    {
+      "name": "esl-hop",
+      "source_path": ".eidolons/gilgamesh/skills/esl-hop.md",
+      "source_sha256": "257aec628d013bde2f534d95c74d9551e743df67bf302e0d2cde88646f83feb3",
+      "vendor_path": ".claude/skills/gilgamesh-esl-hop/SKILL.md",
+      "vendor_sha256": "257aec628d013bde2f534d95c74d9551e743df67bf302e0d2cde88646f83feb3"
+    }
+  ],
+  "files_written": [
+    {
+      "path": "agent.md",
+      "sha256": "200e5cedbb46c9541087380c3f53ac1a21f4b40d3ddec44ebe016e5729cd3df7",
+      "role": "agent-profile",
+      "mode": "created"
+    },
+    {
+      "path": "SPEC.md",
+      "sha256": "6719ec3ff3e30622f396f3d4f3eb4f6d395a61aaac19f46bc47968165bc51717",
+      "role": "spec",
+      "mode": "created"
+    },
+    {
+      "path": "ECL_VERSION",
+      "sha256": "d526eb4e878a23ef26ae190031b4efd2d58ed66789ac049ea3dbaf74c9df7402",
+      "role": "ecl-version",
+      "mode": "created"
+    },
+    {
+      "path": "skills/verify-incoming.md",
+      "sha256": "85d92c8b9cdf15b52e2ca9712338081738d3c8b0ff79c0b7d05ca2955d8c99e2",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/gauge.md",
+      "sha256": "92cb78dbd7e1d1d9bbfbb2cfc093e85bfdfe111d008b36b6c8ae156bf6bfbdda",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/grind.md",
+      "sha256": "cada094e2ccd2bd114de5c7e9f368ac10b2b04c5582907fbd1f39d0b6fd7a4d0",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/attest.md",
+      "sha256": "7fe1e8f7e1490b7735aeaaf2ae3809085bbcbe04e11835220e126b8558d75aa8",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/esl-hop.md",
+      "sha256": "257aec628d013bde2f534d95c74d9551e743df67bf302e0d2cde88646f83feb3",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/gilgamesh-verify-incoming/SKILL.md",
+      "sha256": "85d92c8b9cdf15b52e2ca9712338081738d3c8b0ff79c0b7d05ca2955d8c99e2",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/gilgamesh-gauge/SKILL.md",
+      "sha256": "92cb78dbd7e1d1d9bbfbb2cfc093e85bfdfe111d008b36b6c8ae156bf6bfbdda",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/gilgamesh-grind/SKILL.md",
+      "sha256": "cada094e2ccd2bd114de5c7e9f368ac10b2b04c5582907fbd1f39d0b6fd7a4d0",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/gilgamesh-attest/SKILL.md",
+      "sha256": "7fe1e8f7e1490b7735aeaaf2ae3809085bbcbe04e11835220e126b8558d75aa8",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/gilgamesh-esl-hop/SKILL.md",
+      "sha256": "257aec628d013bde2f534d95c74d9551e743df67bf302e0d2cde88646f83feb3",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/taskstate.v1.json",
+      "sha256": "d179870d2696fab68ade9fd7ae60c68b6808bc9f26c942e0534c863fef16b51a",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/handoff-request.v1.json",
+      "sha256": "8d8bd6f4f91b7d957f8e2d1128ec888ed03fbcbb7f40a27ab90782b3b98a7856",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/mission-contract.v1.json",
+      "sha256": "b44e2b21dcdcf4e9c7e30d3e74fb004151e453354aa50b9ae8ff18c9bb562dab",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/capability-authority.v1.json",
+      "sha256": "52b348ceab9e3b9447fece6c6b47d7b644232a4b47727cf507bfcba2dd553b56",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/ecl-envelope.v1.json",
+      "sha256": "855314c0607e2c31327804f34f552aaf8411e1cef2d864422b293e2f6449496f",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/ecl-envelope.v2.json",
+      "sha256": "3a27423fd2ded99ddce0217ba5b086e6d4cc0f16a303f3ade97ec1f8109f3f80",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/ecl-base-profile.v1.json",
+      "sha256": "f21a83c93c610aa88b352447cfeb00aecded03957c5a65c28b75242842e1aa2d",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/install.manifest.v1.json",
+      "sha256": "ff6a1672579275a07f7ffb5a0523cc6ad2babf6846c6a30f8c6f9f6aad03889b",
+      "role": "other",
+      "mode": "created"
+    }
+  ],
+  "handoffs_declared": {
+    "upstream": [
+      "orchestrator"
+    ],
+    "downstream": []
+  },
+  "token_budget": {
+    "entry": 901,
+    "working_set_target": 3000
+  },
+  "security": {
+    "reads_repo": true,
+    "reads_network": false,
+    "writes_repo": false,
+    "persists": []
+  },
+  "comm": {
+    "envelope_version": "2.0",
+    "emits": [
+      "PROPOSE",
+      "INFORM",
+      "ESCALATE",
+      "REFUSE",
+      "ACKNOWLEDGE",
+      "RESUME"
+    ],
+    "verifies": [
+      "mission-contract"
+    ]
+  }
+}

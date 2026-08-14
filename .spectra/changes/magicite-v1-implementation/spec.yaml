@@ -1,0 +1,365 @@
+# Machine-readable projection of spec.md (ESL C3 tier_artifacts_present, tier=full).
+# Authority: spec.md is normative; this file is a faithful summary and MUST NOT diverge.
+# Metadata head conforms to .eidolons/ramza/schemas/spec-profile.v1.json (additionalProperties: true);
+# RAMZA ships no dedicated spec.yaml schema, so the ECL spec-profile is used as the canonical head.
+
+# ── spec-profile.v1 required head ──────────────────────────────────────────
+eidolon: ramza
+version: 1.0.0
+kind: spec
+status: ready-for-vivi
+created_at: "2026-08-14T22:41:43Z"
+thread_id: "01a00270-c5bd-7c82-9812-71812368c709"
+# evidence_anchors_count: docs/0N citations in spec.md
+evidence_anchors_count: 102
+target_repos:
+  - magicite
+stories_count: 8
+# validation_gates_count MUST equal len(validation_gates) below
+validation_gates_count: 9
+# confidence: ramza-score --rubric confidence -> VALIDATE
+confidence: 0.8475
+decisions_resolved_at: "2026-08-14T22:41:43Z"
+
+# ── ESL binding ────────────────────────────────────────────────────────────
+change_id: magicite-v1-implementation
+esl_tier: full
+maker: vivi
+checker: kupo
+spec_ref: .spectra/changes/magicite-v1-implementation/spec.md
+clarification_budget: none
+
+# ── RAMZA gate record (source of truth: plan-state.json) ───────────────────
+ramza:
+  planning_tier: full
+  rightsize_score: 8
+  phase_walk: [RS, S, P, E, C, T, R, T, A, DONE]
+  skips: []
+  refine_cycles: 1
+  critic:
+    author: ramza-author
+    checker: ramza-critic-in-session
+    independence: in-session adversarial pass; no second agent was available to RAMZA
+    disclosure: risk R11; Kupo is the independent checker at ESL verify
+  scores:
+    complexity: {total: 10, of: 12, verdict: human_loop}
+    explore_selected: {label: H-C layered core + in-process leased writer, total: 85, verdict: elite}
+    refine_cycle_1: {total: 3.6, min: 3, verdict: pass}
+    confidence: {total: 84.75, verdict: VALIDATE}
+  structural_lint: clean
+  ears_lint: {criteria: 33, result: pass}
+  declared_scope_globs: 13
+  criteria_frozen: true
+
+# ── stack decisions (fixed upstream; not reopened by this spec) ────────────
+stack:
+  language: python
+  python_requires: ">=3.11"
+  framework: mcp.server.fastmcp.FastMCP (official MCP Python SDK, mcp>=1.12)
+  framework_assumption: A1 — standalone fastmcp>=2 would change only src/magicite/mcp/*
+  transport: stdio
+  storage: sqlite (WAL, embedded, single file)
+  embeddings:
+    default_provider: fastembed (ONNX BAAI/bge-small-en-v1.5, baked into the image)
+    alt_providers: [ollama, hashing]
+    banned: torch
+  distribution:
+    primary: "ghcr.io/rynaro/magicite (sibling-MCP pattern: --cap-drop ALL, no-new-privileges, non-root UID 10001, digest-pinned)"
+    secondary: pip install magicite (development)
+  out_of_scope: [served HTTP/OAuth/Postgres profile, CRDT merge, GNN layer, fine-grained telemetry KPI, in-server generative model, R4/R5 tools]
+
+# ── architecture invariants (the four commitments in spec Approach) ────────
+invariants:
+  - id: INV-1
+    statement: the engine is a library; MCP is an adapter (magicite.core never imports the MCP framework)
+  - id: INV-2
+    statement: writers are a place, not a rule — durable mutation only inside the leased WriterExecutor
+  - id: INV-3
+    statement: files are the source of truth (Tier A+B in .egr.md); the graph DB is a rebuildable index
+  - id: INV-4
+    statement: the 16-tool surface is frozen at M0; unimplemented bodies return typed not_implemented
+p0_enforcement:
+  g1_authorizer: sqlite3 set_authorizer DENYs INSERT/UPDATE/DELETE on any non-eph_ table for hot-path connections (mechanism verified executable)
+  g2_lease: storage/durable.py asserts WriterLease ownership on every public write
+  g3_dream_context: writer.write_plasticity/write_synapses assert the Dream ContextVar set only by dream.checkpoint_phase()
+  tier_gate: plasticity.apply() raises P0Violation for any Tier-0 signal targeting S
+
+# ── MCP surface (16 tools; count reconciliation in CR-5) ───────────────────
+tool_surface:
+  count: 16
+  tools:
+    - {name: route, risk_class: R0, side_effect: none, signal_tier: 0, idempotent: true}
+    - {name: load_skill_body, risk_class: R0, side_effect: none, signal_tier: 0, idempotent: true}
+    - {name: introspect, risk_class: R0, side_effect: none, signal_tier: null, idempotent: true}
+    - {name: flag_dead, risk_class: R0, side_effect: none, signal_tier: null, idempotent: true}
+    - {name: signal_use, risk_class: R1, side_effect: ephemeral, signal_tier: 1|2, idempotent: true}
+    - {name: signal_outcome, risk_class: R1, side_effect: ephemeral, signal_tier: 1|2, idempotent: true}
+    - {name: session_end, risk_class: R1, side_effect: ephemeral+enqueue, signal_tier: 1, idempotent: true}
+    - {name: register, risk_class: R2, side_effect: filesystem+durable_index, signal_tier: null, idempotent: true}
+    - {name: sync, risk_class: R2, side_effect: durable_index, signal_tier: null, idempotent: true}
+    - {name: checkpoint, risk_class: R2, side_effect: filesystem, signal_tier: null, idempotent: true}
+    - {name: export, risk_class: R2, side_effect: filesystem, signal_tier: null, idempotent: true}
+    - {name: consolidate, risk_class: R3, side_effect: batch, signal_tier: null, idempotent: true}
+    - {name: nucleate, risk_class: R3, side_effect: proposal, signal_tier: null, idempotent: true}
+    - {name: sharpen, risk_class: R3, side_effect: proposal->durable, signal_tier: null, idempotent: true}
+    - {name: promote, risk_class: R3, side_effect: proposal->durable, signal_tier: null, idempotent: true}
+    - {name: archive, risk_class: R3, side_effect: proposal->durable, signal_tier: null, idempotent: true}
+
+# ── milestones (ordered; M0 first, M1-M3 not reorderable, M4>M3, M5>M4) ────
+milestones:
+  - id: M0
+    title: "Walking skeleton \u2014 server boots, register -> route -> introspect end-to-end"
+    duration_days: 3
+    risk_tag: P0
+    executor_hint: frontier (explicit file list + schemas)
+    proves: [AC-001, AC-002, AC-003, AC-004, AC-005, AC-006]
+    file_set: "pyproject.toml, uv.lock, src/magicite/{config,errors}.py, obs/logging.py, storage/db.py, storage/migrations/001_init.sql, engram/{model,parser,ids,lint,writer}.py, engram/schema/engram-0.2.schema.json, embeddings/hashing_provider.py, core/router.py (reduced), mcp/{app,registry,schemas,bind_*}.py, tests/fixtures/toy-registry/"
+  - id: M1
+    title: "Storage completeness, engram round-trip, and the rebuild invariant"
+    duration_days: 4
+    risk_tag: P0
+    executor_hint: frontier (goals + contracts)
+    proves: [AC-007, AC-008, AC-009, AC-010, AC-018, AC-021]
+    file_set: "storage/{durable,ephemeral,queries}.py, engram/skillmd.py, engram/lint.py (import profile), core sync() pipeline, export(), tests/acceptance/test_rebuild_invariant.py"
+  - id: M2
+    title: "Routing engine \u2014 embeddings, activation, communities, composition"
+    duration_days: 5
+    risk_tag: P1
+    executor_hint: frontier (goals + contracts)
+    proves: [AC-011, AC-012, AC-022, AC-023]
+    file_set: "embeddings/{base,fastembed_provider,ollama_provider,cache}.py, core/{activation,communities,composition,router}.py, mcp/bind_retrieval.py, tests/integration/test_route_latency.py"
+  - id: M3
+    title: "Signals \u2014 the Tier 0/1/2 ladder, tags, and caps"
+    duration_days: 4
+    risk_tag: P0
+    executor_hint: frontier (goals + contracts)
+    proves: [AC-013, AC-014, AC-015, AC-019]
+    file_set: "core/{session,signals}.py, mcp/bind_signals.py, obs/events.py, storage/authorizer.py, docs/adapters/claude-code.md, tests/acceptance/test_p0_hot_path.py"
+  - id: M4
+    title: "Dream worker \u2014 lease, seven phases, synapses: checkpoint"
+    duration_days: 5
+    risk_tag: P0
+    executor_hint: frontier (goals + contracts)
+    proves: [AC-016, AC-017, AC-020, AC-021, AC-025, AC-032, AC-033]
+    file_set: "storage/lease.py, core/{dream,plasticity,decay,audit}.py, mcp/bind_dream.py, tests/acceptance/test_dream_idempotent.py"
+  - id: M5
+    title: "Lifecycle, trust, and governance"
+    duration_days: 4
+    risk_tag: P0
+    executor_hint: frontier (goals + contracts)
+    proves: [AC-016, AC-024, AC-027, AC-028]
+    file_set: "core/{lifecycle,fitness,approvals}.py, mcp/bind_lifecycle.py, .spectra/approvals mirror, docs/operations.md"
+  - id: M6
+    title: "Distillation proposals, evaluation harness, standing KPIs"
+    duration_days: 4
+    risk_tag: P2
+    executor_hint: frontier (goals + contracts)
+    proves: [AC-029, AC-030]
+    file_set: "core/distill.py, eval/{bench,metrics,ablations}.py, obs/kpi.py, tests/integration/test_bench.py"
+  - id: M7
+    title: "Packaging, hardening, host adapter docs"
+    duration_days: 2
+    risk_tag: P1
+    executor_hint: mid (copy atlas-aci Dockerfile shape)
+    proves: [AC-026, AC-031]
+    file_set: "Dockerfile, Dockerfile.dev, .dockerignore, .github/workflows/{ci,release}.yml, README.md, magicite doctor"
+  # total: 31d across 8 packages, each <= 8d
+
+# ── acceptance criteria (authority: acceptance-criteria.md, frozen) ────────
+acceptance_criteria:
+  count: 33
+  source: .spectra/changes/magicite-v1-implementation/acceptance-criteria.md
+  sha256: 7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448
+  frozen_by: ramza-freeze
+  ids:
+    - {id: AC-001, form: event-driven, verify: "test: tests/acceptance/test_stdio_handshake.py::test_initialize"}
+    - {id: AC-002, form: ubiquitous, verify: "test: tests/acceptance/test_stdio_handshake.py::test_stdout_is_protocol_only"}
+    - {id: AC-003, form: event-driven, verify: "test: tests/acceptance/test_tool_manifest.py::test_sixteen_tools"}
+    - {id: AC-004, form: ubiquitous, verify: "test: tests/unit/mcp/test_registry.py::test_metadata_complete"}
+    - {id: AC-005, form: unwanted-behavior, verify: "test: tests/unit/mcp/test_schemas.py::test_unknown_field_rejected"}
+    - {id: AC-006, form: event-driven, verify: "test: tests/acceptance/test_walking_skeleton.py::test_register_route_introspect"}
+    - {id: AC-007, form: ubiquitous, verify: "test: tests/unit/engram/test_writer.py::test_atomic_replace_never_partial"}
+    - {id: AC-008, form: event-driven, verify: "test: tests/integration/test_register_import.py::test_import_profile_downgrades"}
+    - {id: AC-009, form: event-driven, verify: "test: tests/acceptance/test_rebuild_invariant.py::test_durable_state_survives_rebuild"}
+    - {id: AC-010, form: state-driven, verify: "test: tests/acceptance/test_rebuild_invariant.py::test_only_tier_c_is_lost"}
+    - {id: AC-011, form: event-driven, verify: "test: tests/integration/test_route_latency.py::test_p95_under_100ms"}
+    - {id: AC-012, form: event-driven, verify: "test: tests/integration/test_route_end_to_end.py::test_topological_plan_order"}
+    - {id: AC-013, form: unwanted-behavior, verify: "test: tests/acceptance/test_p0_hot_path.py::test_authorizer_denies_durable_write"}
+    - {id: AC-014, form: unwanted-behavior, verify: "test: tests/unit/core/test_plasticity.py::test_tier0_cannot_move_S"}
+    - {id: AC-015, form: event-driven, verify: "test: tests/unit/core/test_signals.py::test_tier_assigned_server_side"}
+    - {id: AC-016, form: unwanted-behavior, verify: "test: tests/unit/core/test_lifecycle.py::test_promote_denied_below_evidence_bar"}
+    - {id: AC-017, form: event-driven, verify: "test: tests/unit/core/test_plasticity.py::test_metaplastic_saturation_bound"}
+    - {id: AC-018, form: event-driven, verify: "test: tests/integration/test_skillmd_roundtrip.py::test_export_import_stable"}
+    - {id: AC-019, form: event-driven, verify: "test: tests/unit/mcp/test_idempotency.py::test_replay_returns_cached_response"}
+    - {id: AC-020, form: event-driven, verify: "test: tests/acceptance/test_dream_idempotent.py::test_second_run_is_a_noop"}
+    - {id: AC-021, form: event-driven, verify: "test: tests/unit/engram/test_writer.py::test_render_is_deterministic"}
+    - {id: AC-022, form: state-driven, verify: "test: tests/unit/core/test_communities.py::test_fallback_detector"}
+    - {id: AC-023, form: event-driven, verify: "test: tests/unit/core/test_router.py::test_inhibition_lowers_score"}
+    - {id: AC-024, form: ubiquitous, verify: "test: tests/unit/test_p0_enforcement.py::test_forbidden_imports"}
+    - {id: AC-025, form: unwanted-behavior, verify: "test: tests/integration/test_dream_cycle.py::test_single_writer_enforced"}
+    - {id: AC-026, form: event-driven, verify: "test: tests/acceptance/test_docker_smoke.py::test_offline_handshake"}
+    - {id: AC-027, form: unwanted-behavior, verify: "test: tests/unit/core/test_approvals.py::test_r3_requires_approval_by_default"}
+    - {id: AC-028, form: event-driven, verify: "test: tests/integration/test_register_import.py::test_exec_block_quarantined"}
+    - {id: AC-029, form: event-driven, verify: "test: tests/integration/test_bench.py::test_baseline_metrics_emitted"}
+    - {id: AC-030, form: event-driven, verify: "test: tests/unit/core/test_audit.py::test_hub_detection"}
+    - {id: AC-031, form: ubiquitous, verify: "command: uv pip list --format json | jq -e 'map(.name) | index(\"torch\") == null'"}
+    - {id: AC-032, form: event-driven, verify: "test: tests/integration/test_dream_cycle.py::test_session_end_debounce"}
+    - {id: AC-033, form: state-driven, verify: "test: tests/integration/test_dream_cycle.py::test_decay_floor_archives_never_deletes"}
+
+# ── validation gates Kupo runs at ESL verify (spec section 7.2) ────────────
+validation_gates:
+  - {id: VG-1, command: "uv run ruff check . && uv run mypy src", proves: "lint + type"}
+  - {id: VG-2, command: "uv run pytest -q --cov=src/magicite --cov-fail-under=70", proves: "unit + integration with coverage floor"}
+  - {id: VG-3, command: "uv run pytest -q -m acceptance", proves: "the AC-mapped acceptance suite"}
+  - {id: VG-4, command: "uv run magicite tools | jq '.tools | length'  # == 16", proves: "tool-surface count (AC-003)"}
+  - {id: VG-5, command: "uv run pytest tests/acceptance/test_stdio_handshake.py", proves: "stdio handshake + stdout purity (AC-001, AC-002)"}
+  - {id: VG-6, command: "uv run pytest tests/acceptance/test_rebuild_invariant.py", proves: "rebuildable-index invariant (AC-009, AC-010)"}
+  - {id: VG-7, command: "uv run pytest tests/acceptance/test_p0_hot_path.py", proves: "P0 authorizer + AST import guards (AC-013, AC-014, AC-024)"}
+  - {id: VG-8, command: "uv run pytest tests/acceptance/test_dream_idempotent.py", proves: "Dream run idempotency + render determinism (AC-020, AC-021)"}
+  - {id: VG-9, command: "docker build -t magicite:verify . && uv run pytest tests/acceptance/test_docker_smoke.py", proves: "offline containerised handshake (AC-026)"}
+
+# ── risk register ──────────────────────────────────────────────────────────
+risks:
+  - id: R1
+    tag: P0
+    owner: vivi
+    milestone: "M3,M4"
+    risk: "Signal poisoning / adversarial valence"
+    mitigation: "two-phase commit, Tier-0 barred from S, Tier-1 capped 3 dw/skill/session at weight 0.6, metaplastic saturation, Dream-only S writes"
+  - id: R2
+    tag: P0
+    owner: vivi
+    milestone: "M3"
+    risk: "Tier-2 provenance spoofing"
+    mitigation: "tier assigned server-side; Tier 2 requires adapter_token == MAGICITE_HOOK_TOKEN (AC-015)"
+  - id: R3
+    tag: P1
+    owner: vivi
+    milestone: "M4"
+    risk: "Checkpoint file churn above the 5% target"
+    mitigation: "epsilon-hysteresis 0.05, lazy S materialisation, state-derived dirty set, checkpoint_write_ratio CI assertion"
+  - id: R4
+    tag: P1
+    owner: vivi
+    milestone: "M2,M7"
+    risk: "Embedding provider weight / offline behaviour"
+    mitigation: "model baked at build, MAGICITE_EMBEDDING_OFFLINE=1, hashing provider for CI, torch banned (AC-031)"
+  - id: R5
+    tag: P1
+    owner: vivi
+    milestone: "M2"
+    risk: "Leiden dependency fragility (igraph/leidenalg wheels)"
+    mitigation: "CommunityDetector protocol; Leiden as an extra; label-propagation fallback reported by introspect (AC-022)"
+  - id: R6
+    tag: P1
+    owner: vivi
+    milestone: "M0"
+    risk: "FastMCP metadata API drift"
+    mitigation: "metadata owned by TOOL_REGISTRY; MCP annotations/_meta are projections; magicite tools prints the authoritative manifest (AC-004)"
+  - id: R7
+    tag: P2
+    owner: vivi
+    milestone: "M4,M7"
+    risk: "Lock semantics on non-local filesystems"
+    mitigation: "flock plus DB writer_lease with TTL/heartbeat; magicite doctor warns; documented in docs/operations.md"
+  - id: R8
+    tag: P2
+    owner: vivi
+    milestone: "M6"
+    risk: "Distillation quality without an in-server LLM (CR-3)"
+    mitigation: "support/consistency thresholds, approval-gated proposals landing nascent+pending; revisit if acceptance < 30%"
+  - id: R9
+    tag: P2
+    owner: vivi
+    milestone: "M2"
+    risk: "Cold start / small registries (<50 skills Magicite is overhead)"
+    mitigation: "route() returns registry_size; magicite doctor states break-even honestly"
+  - id: R10
+    tag: P1
+    owner: kupo+vivi
+    milestone: "M6"
+    risk: "Hypothesis falsification (H-BODY/H-SCALE/H-COMPOSE/H-LEARN are UNVERIFIED-2026)"
+    mitigation: "bench harness with baselines a-d ships in v1 so falsification is early and cheap"
+  - id: R11
+    tag: P1
+    owner: kupo
+    milestone: "verify"
+    risk: "Critic independence \u2014 the critic pass ran in-session (no second agent available)"
+    mitigation: "disclosed, not laundered; Kupo is the independent checker at ESL verify; frozen criteria hash is the tamper anchor"
+
+# ── corpus contradictions resolved unilaterally (spec section 9) ───────────
+corpus_contradictions:
+  - id: CR-1
+    confidence: high
+    tension: "route() updates exposure_count (docs/05) vs Tier-A file fields being Dream-only (docs/02-04)"
+    resolution: "bookkeeping counters are Tier-C accumulators (eph_bookkeeping); the file value is last-checkpoint + delta, folded in at Dream phase 7"
+  - id: CR-2
+    confidence: high
+    tension: "skill-graph.db 'can be committed' (docs/06) vs the DB being a rebuildable cache (docs/03,04)"
+    resolution: "path stays per docs/02; register() writes a .gitignore excluding skill-graph.db*; MAGICITE_COMMIT_DB=1 restores the docs/06 reading"
+  - id: CR-3
+    confidence: high
+    tension: "Dream drafts composites 'via local model' (docs/03) and the LLM rubric (docs/07) vs local-first no-service posture (docs/02)"
+    resolution: "the v1 server ships no generative model: nucleate emits proposals (trace IR + skeleton), the host agent drafts and calls register(); the rubric gate is a deterministic 12-point structural rubric at the docs/07 >=8/12 bar; rubric_provider=host reserved"
+  - id: CR-4
+    confidence: high
+    tension: "register()'s 'any lint violation -> hard error' vs GAP-005 wholesale SKILL.md migration"
+    resolution: "two lint profiles: strict keeps the hard error; import downgrades to warnings and lands status=draft + verification_status=pending, never routable, never silently accepted"
+  - id: CR-5
+    confidence: high
+    tension: "the 16-tool surface (brief, docs/05's 8+8 arithmetic) vs 13 tools actually headed in docs/05"
+    resolution: "v1 ships exactly 16 = 14 unified inventory + load_skill_body (docs/05 progressive disclosure) + session_end (docs/03 session-end trace, the on-session-end Dream trigger); 8+8 is pre-deduplication"
+  - id: CR-6
+    confidence: high
+    tension: "Ollama named in docs/02 vs 'local embedding model' plus an offline hardened container"
+    resolution: "Embedder protocol with fastembed (default, baked), ollama (opt-in, preserves the docs/02 reading), hashing (deterministic, CI); embedding.model records the producer so docs/04's bge-m3 example stays legal"
+  - id: CR-7
+    confidence: high
+    tension: "docs/06 says imports start status=pending vs docs/04's status=nascent + verification_status=pending"
+    resolution: "the two axes stay orthogonal; pending is never a lifecycle status; imports are status in {nascent, draft} x verification_status=pending"
+  - id: CR-8
+    confidence: high
+    tension: "docs/04 defines id as the content-hash of identity+routing while version bumps on every sharpening \u2014 sharpening would change every id and dangle every edge FK"
+    resolution: "id is computed once at first registration and is thereafter immutable; the identity+routing hash lives separately as identity_sha256 for drift and duplicate-import detection (found by the critic pass)"
+
+# ── declared execution scope (drift watch; recorded in plan-state.json) ────
+declared_scope:
+  - "src/magicite/*"
+  - "tests/*"
+  - "pyproject.toml"
+  - "uv.lock"
+  - "Dockerfile"
+  - "Dockerfile.dev"
+  - ".dockerignore"
+  - ".gitignore"
+  - ".github/workflows/*"
+  - "README.md"
+  - "LICENSE"
+  - "docs/adapters/*"
+  - "docs/operations.md"
+
+# ── artifacts (hashes as emitted at Assemble; spec.yaml is a projection) ───
+artifacts:
+  - path: ".spectra/changes/magicite-v1-implementation/spec.md"
+    sha256: 92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b
+    role: "normative spec (frozen payload of the ECL envelope)"
+  - path: ".spectra/changes/magicite-v1-implementation/acceptance-criteria.md"
+    sha256: 7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448
+    role: "frozen EARS criteria (ramza-freeze)"
+  - path: ".spectra/changes/magicite-v1-implementation/plan-state.json"
+    sha256: 700b3644389af2df110e36e178d15fe7128acf97ae334eb32bd6bf5290fb4578
+    role: "tamper-evident audit trail (ramza/plan-state.v1)"
+  - path: ".spectra/changes/magicite-v1-implementation/spec.envelope.json"
+    sha256: d221d1297812019ef434816a5193059d485df94fd7749212de8263b4e6475f64
+    role: "ECL v2.0 PROPOSE envelope -> vivi"
+  - path: ".spectra/changes/magicite-v1-implementation/ramza-calibration.jsonl"
+    sha256: f2f3ac72015b57689210e55348e9f73c5e7e2ad6ca45df8ece22800c069a61c4
+    role: "instrument-vs-outcome calibration log"
+
+# ── handoff ────────────────────────────────────────────────────────────────
+handoff:
+  to: vivi
+  performative: PROPOSE
+  message_id: "01a00270-c5bd-74b1-999b-089d1f45df2e"
+  verdict: VALIDATE — human validation wanted on the eight CR resolutions (CR-3 and CR-4 change what v1 does) and on assumption A1 before implementation starts
+  not_vivi_s_call: [the 16-tool surface, the Tier A/B/C split, the P0 guard mechanism, any section-9 resolution]

@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/Vivi/blob/v1.1.0/schemas/install.manifest.v1.json",
+  "title": "EIIS install.manifest v1",
+  "description": "Written by install.sh into <target>/install.manifest.json after a successful install. Defined by EIIS v1.0 §3.",
+  "type": "object",
+  "required": [
+    "eidolon",
+    "version",
+    "methodology",
+    "installed_at",
+    "target",
+    "hosts_wired",
+    "files_written"
+  ],
+  "properties": {
+    "eidolon": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Lowercase slug identifying the Eidolon (e.g. 'atlas')."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "SemVer of the Eidolon at install time. May be overridden post-write by a meta-installer (EIIS v1.0 §3.6)."
+    },
+    "methodology": {
+      "type": "string",
+      "description": "Methodology name (e.g. 'ATLAS')."
+    },
+    "installed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 / RFC 3339 UTC timestamp of this install. The only non-deterministic field (EIIS v1.0 §3.5)."
+    },
+    "target": {
+      "type": "string",
+      "description": "Relative path to the install directory inside the consumer repo."
+    },
+    "hosts_wired": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "claude-code",
+          "copilot",
+          "cursor",
+          "opencode",
+          "codex",
+          "raw"
+        ]
+      },
+      "description": "Hosts for which dispatch files were created or updated. EIIS v1.1 §3.2."
+    },
+    "files_written": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "role"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path of the written file, relative to consumer repo root."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "SHA-256 hex digest of the file content after writing."
+          },
+          "role": {
+            "enum": [
+              "entry-point",
+              "spec",
+              "skill",
+              "template",
+              "dispatch",
+              "manifest",
+              "agent-profile",
+              "ecl-version",
+              "other"
+            ],
+            "description": "Semantic role of this file in the Eidolon install. 'agent-profile' and 'ecl-version' added in EIIS v1.4."
+          },
+          "mode": {
+            "enum": ["created", "appended", "overwritten"],
+            "description": "How the file was produced."
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "Array of all files written. EIIS v1.0 §3.4 — MUST be populated when --manifest-only is false; warn-only enforcement until 2027-04-24, then MUST-fail."
+    },
+    "handoffs_declared": {
+      "type": "object",
+      "description": "Pipeline neighbours declared in the Eidolon's agent.md frontmatter.",
+      "properties": {
+        "upstream": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "downstream": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "token_budget": {
+      "type": "object",
+      "description": "Token counts measured at install time.",
+      "properties": {
+        "entry": {
+          "type": "integer",
+          "description": "Estimated token count of agent.md (word_count / 0.75)."
+        },
+        "working_set_target": {
+          "type": "integer",
+          "description": "Declared always-loaded budget target for this Eidolon."
+        }
+      },
+      "additionalProperties": false
+    },
+    "security": {
+      "type": "object",
+      "description": "Self-declared security posture of this Eidolon.",
+      "properties": {
+        "reads_repo": { "type": "boolean" },
+        "reads_network": { "type": "boolean" },
+        "writes_repo": { "type": "boolean" },
+        "persists": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Paths where the Eidolon may persist state (e.g. Memex root)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "comm": {
+      "type": "object",
+      "description": "ECL communication metadata. Present when the Eidolon adopts ECL v1.0+ emission.",
+      "required": ["envelope_version"],
+      "properties": {
+        "envelope_version": {
+          "type": "string",
+          "pattern": "^(1\\.[012]|2\\.0)(\\.\\d+)?$",
+          "description": "ECL spec version this Eidolon targets. ECL v2.0 §7.2. Accepts v1.0, v1.1, v1.2 (§7.3 compatibility window) and v2.0."
+        },
+        "emits": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "description": "Artefact kinds this Eidolon emits as ECL envelopes."
+        },
+        "verifies_incoming": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "description": "Inbound artefact kinds this Eidolon performs opt-in verification on."
+        }
+      },
+      "additionalProperties": false
+    },
+    "spec_file": {
+      "type": "string",
+      "pattern": "^\\.eidolons/[a-z][a-z0-9-]*/SPEC\\.md$",
+      "description": "Canonical full-spec path (EIIS v1.3 §1.8). MUST point at the SPEC.md emitted by this install."
+    },
+    "canonical_inventory_strict": {
+      "type": "boolean",
+      "description": "v1.4+. When true, this install declares §1.9 strict-inventory conformance (EIIS v1.4). Default behaviour at EIIS_VERSION >= 1.4 is true."
+    },
+    "skills": {
+      "type": "array",
+      "description": "Skills emitted by this install, with both source-of-truth and host-vendor paths (EIIS v1.3 §4.2.4).",
+      "items": {
+        "type": "object",
+        "required": ["name", "source_path", "source_sha256"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Skill slug, e.g. 'context-engineering'."
+          },
+          "source_path": {
+            "type": "string",
+            "pattern": "^\\.eidolons/[a-z][a-z0-9-]*/skills/[a-z][a-z0-9-]*\\.md$",
+            "description": "Source-of-truth flat path."
+          },
+          "source_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          },
+          "vendor_path": {
+            "type": "string",
+            "pattern": "^\\.claude/skills/[a-z][a-z0-9-]*-[a-z][a-z0-9-]*/SKILL\\.md$",
+            "description": "Claude Code host vendor copy. Present when claude-code is in hosts_wired."
+          },
+          "vendor_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

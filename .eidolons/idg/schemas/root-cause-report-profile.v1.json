@@ -1,0 +1,45 @@
+{
+  "$comment": "vendored from eidolons-ecl@v1.0.0 — do not edit manually; refresh on each ECL release",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/eidolons-ecl/blob/v1.0.0/schemas/per-eidolon/root-cause-report.v1.json",
+  "title": "ECL root-cause-report profile v1",
+  "description": "VIGIL emit after V→I→G→I→L cycle; consumed by APIVR-Δ (or SPECTRA/IDG for systemic findings).",
+  "allOf": [
+    { "$ref": "ecl-base-profile.v1.json" },
+    {
+      "type": "object",
+      "required": ["reproduction_runs", "hypotheses_count", "interventions_count", "blame_target"],
+      "properties": {
+        "kind":    { "const": "root-cause-report" },
+        "eidolon": { "const": "vigil" },
+        "reproduction_runs": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "VIGIL P0: >=2 deterministic runs OR statistical CI >=85%."
+        },
+        "reproduction_ci": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "hypotheses_count": {
+          "type": "integer",
+          "minimum": 3,
+          "description": "VIGIL P0: >=3 hypotheses before intervention."
+        },
+        "interventions_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "VIGIL P0: <=5 intervention budget."
+        },
+        "blame_target": {
+          "type": "string",
+          "description": "path:line of the root cause."
+        },
+        "verified_patch_path": { "type": "string" },
+        "non_determinism_declared": { "type": "boolean" }
+      }
+    }
+  ]
+}

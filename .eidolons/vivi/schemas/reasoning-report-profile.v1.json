@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/Vivi/blob/v1.1.0/schemas/reasoning-report-profile.v1.json",
+  "title": "ECL reasoning-report profile v1",
+  "description": "Vendored from eidolons-ecl/schemas/per-eidolon/reasoning-report.v1.json (ECL v1.0.0). Inbound verification: FORGE-emitted reasoning report received by Vivi. Contract: forge-to-vivi.yaml.",
+  "allOf": [
+    { "$ref": "_base-profile.v1.json" },
+    {
+      "type": "object",
+      "required": ["hypotheses_count", "passes_used", "decision"],
+      "properties": {
+        "kind":    { "const": "reasoning-report" },
+        "eidolon": { "const": "forge" },
+        "hypotheses_count": {
+          "type": "integer",
+          "minimum": 3,
+          "description": "FORGE P0: >=3 hypotheses with adversarial stress-tests."
+        },
+        "passes_used": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "FORGE P0: <=3 deliberation passes."
+        },
+        "reforged": { "type": "boolean", "default": false },
+        "decision": { "type": "string", "minLength": 1 },
+        "reversal_conditions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "FORGE P0: reversal conditions are mandatory."
+        }
+      }
+    }
+  ]
+}

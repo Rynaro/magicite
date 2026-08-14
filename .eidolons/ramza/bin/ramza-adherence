@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# ramza-adherence — post-execution plan-adherence report: Plan-Phase, Plan-Order,
+# Plan-Fidelity (geometric-mean composite), computed from the state-file audit trail
+# and the latest drift evidence. Adherence ("did we follow the plan") is measured
+# separately from plan quality — a correct final diff can hide a broken trajectory.
+# Part of RAMZA (https://github.com/Rynaro/Ramza). bash 3.2 compatible. Requires jq.
+set -eu
+
+die() { printf 'ramza-adherence: %s\n' "$*" >&2; exit 2; }
+say() { printf '%s\n' "$*" >&2; }
+need() { command -v "$1" >/dev/null 2>&1 || die "required tool '$1' not found"; }
+now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+need jq
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-adherence --state FILE [--min SCORE]
+
+Computes from the audit trail:
+  plan_phase    mandatory phases entered / mandatory phases for the tier
+                (a recorded skip-with-reason costs its phase; silent skips are
+                 impossible — ramza-gate denies them)
+  plan_order    1.0 minus penalties: 0.2 per refine cycle beyond the first,
+                0.3 if the refine cap was reached (floor 0)
+  plan_fidelity from the LATEST drift report: covered files / changed files
+                (1.0 when no drift report exists but scope was declared and
+                 criteria verify clean; 0 fidelity evidence -> null)
+  composite     geometric mean of the available components
+
+Exit: 0 normally; 1 when --min is given and composite < min.
+The report is appended to the state file's adherence_reports[].
+EOF
+  exit 2
+}
+
+STATE="" MIN=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --state) STATE="${2:-}"; shift 2 ;;
+    --min) MIN="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+[ -n "$STATE" ] || usage
+[ -f "$STATE" ] || die "no state file: $STATE"
+
+REPORT=$(jq '
+  def mandatory:
+    if .tier == "trivial" then ["RS","S","C","A"] else ["RS","S","P","E","C","T","A"] end;
+  (mandatory) as $m
+  | (.phases_done // []) as $done
+  | ([$m[] | select(. as $p | $done | index($p) != null)] | length) as $entered
+  | ($entered / ($m | length)) as $phase
+  | (.refine_cycles // 0) as $rc
+  | (1.0
+     - (if $rc > 1 then 0.2 * ($rc - 1) else 0 end)
+     - (if $rc >= 3 then 0.3 else 0 end)) as $order_raw
+  | (if $order_raw < 0 then 0 else $order_raw end) as $order
+  | ((.drift_reports // []) | if length > 0 then .[length-1] else null end) as $drift
+  | (if $drift != null and $drift.files_changed > 0
+       then (($drift.files_changed - ($drift.uncovered | length)) / $drift.files_changed)
+     elif $drift != null then 1.0
+     elif ((.declared_scope | length) > 0 and .criteria_sha256 != null) then null
+     else null end) as $fidelity
+  | ([$phase, $order] + (if $fidelity != null then [$fidelity] else [] end)) as $parts
+  | (($parts | map(log) | add) / ($parts | length) | exp) as $geo
+  | {
+      plan_phase: (($phase * 1000 | round) / 1000),
+      plan_order: (($order * 1000 | round) / 1000),
+      plan_fidelity: (if $fidelity != null then (($fidelity * 1000 | round) / 1000) else null end),
+      composite: (($geo * 1000 | round) / 1000),
+      inputs: {tier, phases_done: $done, refine_cycles: $rc, skips: (.skips | length),
+               drift_range: (if $drift != null then $drift.range else null end)}
+    }' "$STATE") || die "state file is not a valid ramza/plan-state.v1 artifact"
+
+AT=$(now_utc)
+REPORT=$(printf '%s' "$REPORT" | jq --arg at "$AT" '. + {at: $at}')
+TMP="${STATE}.tmp.$$"
+jq --argjson r "$REPORT" '.adherence_reports = (.adherence_reports // []) + [$r]' \
+  "$STATE" > "$TMP" && mv "$TMP" "$STATE"
+
+printf '%s\n' "$REPORT"
+if [ -n "$MIN" ]; then
+  printf '%s' "$REPORT" | jq -e --argjson min "$MIN" '.composite >= $min' >/dev/null || {
+    say "adherence below threshold ($MIN)"
+    exit 1
+  }
+fi
+exit 0

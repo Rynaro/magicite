@@ -1,0 +1,296 @@
+{
+  "eidolon": "atlas",
+  "version": "1.13.0",
+  "methodology": "ATLAS",
+  "canonical_inventory_strict": true,
+  "installed_at": "2026-08-14T21:28:34Z",
+  "target": "./.eidolons/atlas",
+  "spec_file": ".eidolons/atlas/SPEC.md",
+  "hosts_wired": [
+    "claude-code"
+  ],
+  "files_written": [
+    {
+      "path": "./.eidolons/atlas/agent.md",
+      "sha256": "8ba252f9b2172fa4b40cfb3aa82642a7c36219c6d5d509f6aa8eb2949527f8bd",
+      "role": "agent-profile",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/SPEC.md",
+      "sha256": "feb119bc3bc3910335def00cad25c1f14098f959979ccb70a8265c4a5bd48fd2",
+      "role": "spec",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/ECL_VERSION",
+      "sha256": "d526eb4e878a23ef26ae190031b4efd2d58ed66789ac049ea3dbaf74c9df7402",
+      "role": "ecl-version",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/templates/mission-brief.md",
+      "sha256": "3ce185251f729d7fef6f6ca4160dd640127591be2dbf929149ced7cf151a1113",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/templates/traversal-map.md",
+      "sha256": "ac8eb5af42c41ea942e8fc70b3bf3dee5c93fcef9a63ef563a0d1508749c2508",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/templates/findings.md",
+      "sha256": "9a29dda99c273f505e8159c76ee71fd037ff23f44df8f36e9d5d83c5a55dfcee",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/templates/scout-report.md",
+      "sha256": "0667c182765d83b9d539f50e26623b76c8cbc34d8a6ea7edbd1cf4fcc46f7fa7",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/schemas/mission-brief.v1.json",
+      "sha256": "a65f8dc87f5ca0543b9f34ab74ef150b5e85faa4086542e6f7b1ff4514ad28ea",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/schemas/findings.v1.json",
+      "sha256": "063182a5e244d2e458068b7538a42d559ea47ed2dbdbec2b53c2a3d699b1b507",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/schemas/scout-report.v1.json",
+      "sha256": "d310da3319b0e14921446403b0f8c7daa0d17935f13f9e4b99816e7142139956",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/schemas/install.manifest.v1.json",
+      "sha256": "83dc4638bde1794b68934b4474d8d8234031d7394cb50ee092a48ee868207c0e",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/schemas/scout-report-profile.v1.json",
+      "sha256": "e00cab8ae48d62b03551fd520d92a8b8adc65eb6fb098539b0a904e30627c6eb",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/schemas/ecl-envelope.v2.json",
+      "sha256": "89275b3035d5b348a7dffd0a71553f401459cefe3fd7a14a8b4d843352088096",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/schemas/scout-report.envelope.json",
+      "sha256": "c51813f61f540e664c7e12b1107405615944a78bb3f0872bbc49c434e7d34797",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/commands/aci.sh",
+      "sha256": "e5455f83791eb18d04eb496299dec3c30e25851de3a227582d52f2b0f7fdd195",
+      "role": "command",
+      "mode": "created"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "fb70dea8e5794b03aa4e075fa7f93d0b6d9934aa8bd8025f90455b4e04f9e310",
+      "role": "dispatch",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/skills/traverse.md",
+      "sha256": "cd09ef0a78c6bd2cd0eb967a4fc3f5b739d6036d18e48527c968a21739045435",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/atlas-traverse/SKILL.md",
+      "sha256": "cd09ef0a78c6bd2cd0eb967a4fc3f5b739d6036d18e48527c968a21739045435",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/skills/locate.md",
+      "sha256": "0a577b994faeb8ed513a68ad38d5603a734177fb92cca2de91f2930a52936db2",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/atlas-locate/SKILL.md",
+      "sha256": "0a577b994faeb8ed513a68ad38d5603a734177fb92cca2de91f2930a52936db2",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/skills/abstract.md",
+      "sha256": "db7189b6e6035ce39543c3e3d6ebe125fe10724eb7afcae3d0f7f3e734d222a8",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/atlas-abstract/SKILL.md",
+      "sha256": "db7189b6e6035ce39543c3e3d6ebe125fe10724eb7afcae3d0f7f3e734d222a8",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/skills/synthesize.md",
+      "sha256": "884105af2371faefd2fa3f443ac4d9f88eae0ebcd3f7605051165134b8626362",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/atlas-synthesize/SKILL.md",
+      "sha256": "884105af2371faefd2fa3f443ac4d9f88eae0ebcd3f7605051165134b8626362",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/skills/scatter.md",
+      "sha256": "da82cf6b24b45af33063d4501eb0a4be0de996b7071c8d68aba10d69fdfade8d",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/atlas-scatter/SKILL.md",
+      "sha256": "da82cf6b24b45af33063d4501eb0a4be0de996b7071c8d68aba10d69fdfade8d",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/skills/rescout.md",
+      "sha256": "d582e242d661321073098bfa6130650602119897a36be53c9582dc52ee305e56",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/atlas-rescout/SKILL.md",
+      "sha256": "d582e242d661321073098bfa6130650602119897a36be53c9582dc52ee305e56",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/skills/verify-incoming.md",
+      "sha256": "71275f69080a995d4f4b1dbed376fc7a23f96aa43028ac884593688eca4e1c81",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/atlas-verify-incoming/SKILL.md",
+      "sha256": "71275f69080a995d4f4b1dbed376fc7a23f96aa43028ac884593688eca4e1c81",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/atlas/skills/esl-hop.md",
+      "sha256": "be96e7b1ffba48f070bda02b4f7a81e1091f7e05287fb3a433f4e8576b501d6d",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/atlas-esl-hop/SKILL.md",
+      "sha256": "be96e7b1ffba48f070bda02b4f7a81e1091f7e05287fb3a433f4e8576b501d6d",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "fb70dea8e5794b03aa4e075fa7f93d0b6d9934aa8bd8025f90455b4e04f9e310",
+      "role": "dispatch",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/agents/atlas.md",
+      "sha256": "6f39aa577be0c1e02bf3065cd5a8974bfe96d37166f9efa55212d01d2fd1ff0d",
+      "role": "dispatch",
+      "mode": "created"
+    }
+  ],
+  "skills": [
+    {
+      "name": "traverse",
+      "source_path": ".eidolons/atlas/skills/traverse.md",
+      "source_sha256": "cd09ef0a78c6bd2cd0eb967a4fc3f5b739d6036d18e48527c968a21739045435",
+      "vendor_path": ".claude/skills/atlas-traverse/SKILL.md",
+      "vendor_sha256": "cd09ef0a78c6bd2cd0eb967a4fc3f5b739d6036d18e48527c968a21739045435"
+    },
+    {
+      "name": "locate",
+      "source_path": ".eidolons/atlas/skills/locate.md",
+      "source_sha256": "0a577b994faeb8ed513a68ad38d5603a734177fb92cca2de91f2930a52936db2",
+      "vendor_path": ".claude/skills/atlas-locate/SKILL.md",
+      "vendor_sha256": "0a577b994faeb8ed513a68ad38d5603a734177fb92cca2de91f2930a52936db2"
+    },
+    {
+      "name": "abstract",
+      "source_path": ".eidolons/atlas/skills/abstract.md",
+      "source_sha256": "db7189b6e6035ce39543c3e3d6ebe125fe10724eb7afcae3d0f7f3e734d222a8",
+      "vendor_path": ".claude/skills/atlas-abstract/SKILL.md",
+      "vendor_sha256": "db7189b6e6035ce39543c3e3d6ebe125fe10724eb7afcae3d0f7f3e734d222a8"
+    },
+    {
+      "name": "synthesize",
+      "source_path": ".eidolons/atlas/skills/synthesize.md",
+      "source_sha256": "884105af2371faefd2fa3f443ac4d9f88eae0ebcd3f7605051165134b8626362",
+      "vendor_path": ".claude/skills/atlas-synthesize/SKILL.md",
+      "vendor_sha256": "884105af2371faefd2fa3f443ac4d9f88eae0ebcd3f7605051165134b8626362"
+    },
+    {
+      "name": "scatter",
+      "source_path": ".eidolons/atlas/skills/scatter.md",
+      "source_sha256": "da82cf6b24b45af33063d4501eb0a4be0de996b7071c8d68aba10d69fdfade8d",
+      "vendor_path": ".claude/skills/atlas-scatter/SKILL.md",
+      "vendor_sha256": "da82cf6b24b45af33063d4501eb0a4be0de996b7071c8d68aba10d69fdfade8d"
+    },
+    {
+      "name": "rescout",
+      "source_path": ".eidolons/atlas/skills/rescout.md",
+      "source_sha256": "d582e242d661321073098bfa6130650602119897a36be53c9582dc52ee305e56",
+      "vendor_path": ".claude/skills/atlas-rescout/SKILL.md",
+      "vendor_sha256": "d582e242d661321073098bfa6130650602119897a36be53c9582dc52ee305e56"
+    },
+    {
+      "name": "verify-incoming",
+      "source_path": ".eidolons/atlas/skills/verify-incoming.md",
+      "source_sha256": "71275f69080a995d4f4b1dbed376fc7a23f96aa43028ac884593688eca4e1c81",
+      "vendor_path": ".claude/skills/atlas-verify-incoming/SKILL.md",
+      "vendor_sha256": "71275f69080a995d4f4b1dbed376fc7a23f96aa43028ac884593688eca4e1c81"
+    },
+    {
+      "name": "esl-hop",
+      "source_path": ".eidolons/atlas/skills/esl-hop.md",
+      "source_sha256": "be96e7b1ffba48f070bda02b4f7a81e1091f7e05287fb3a433f4e8576b501d6d",
+      "vendor_path": ".claude/skills/atlas-esl-hop/SKILL.md",
+      "vendor_sha256": "be96e7b1ffba48f070bda02b4f7a81e1091f7e05287fb3a433f4e8576b501d6d"
+    }
+  ],
+  "handoffs_declared": {
+    "upstream": [],
+    "downstream": [
+      "spectra",
+      "apivr-delta"
+    ]
+  },
+  "token_budget": {
+    "entry": 998,
+    "working_set_target": 1000
+  },
+  "ecl_version_emitted": "2.0",
+  "security": {
+    "reads_repo": true,
+    "reads_network": false,
+    "writes_repo": false,
+    "persists": [
+      ".atlas/.memex"
+    ]
+  }
+}

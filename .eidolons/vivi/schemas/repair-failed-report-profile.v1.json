@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/Vivi/blob/v1.1.0/schemas/repair-failed-report-profile.v1.json",
+  "title": "ECL repair-failed-report profile v1",
+  "description": "Vendored from eidolons-ecl/schemas/per-eidolon/repair-failed-report.v1.json (ECL v1.0.0). Vivi emit on the 3-failure threshold; consumed by VIGIL. Contract: vivi-to-vigil.yaml.",
+  "allOf": [
+    { "$ref": "_base-profile.v1.json" },
+    {
+      "type": "object",
+      "required": ["failure_category", "attempts", "last_test_command"],
+      "properties": {
+        "kind":    { "const": "repair-failed-report" },
+        "eidolon": { "const": "vivi" },
+        "failure_category": {
+          "type": "string",
+          "description": "Vivi failure taxonomy slug (e.g. 'flaky-test', 'env-mismatch')."
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 3,
+          "description": "MUST be >= 3 to trigger escalation per Vivi P0."
+        },
+        "last_test_command": { "type": "string" },
+        "trace_artifact_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

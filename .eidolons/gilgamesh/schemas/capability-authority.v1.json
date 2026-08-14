@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Rynaro/Gilgamesh/schemas/capability-authority.v1.json",
+  "title": "Gilgamesh Capability-Authority Table v1",
+  "description": "The machine-readable capability-permission table (digest §7, AC-E04, R-028). Exactly six rows — read, write, exec, network, secrets, deploy — each with a default column and an escalation column. Instantiated in Gauge from the mission-contract's authority grant; frozen into TaskState.authority. The wanderer leaves with no weapons (R-032): deploy is never grantable, secrets are broker-only, and nothing here persists across missions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "rows"],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "kind": { "const": "capability-authority" },
+    "rows": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["read", "write", "exec", "network", "secrets", "deploy"],
+      "description": "The six capability rows. Every row carries a default and an escalation cell.",
+      "properties": {
+        "read": { "$ref": "#/$defs/row" },
+        "write": { "$ref": "#/$defs/row" },
+        "exec": { "$ref": "#/$defs/row" },
+        "network": { "$ref": "#/$defs/row" },
+        "secrets": { "$ref": "#/$defs/row" },
+        "deploy": { "$ref": "#/$defs/row" }
+      }
+    }
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default", "escalation"],
+      "properties": {
+        "default": {
+          "type": "string",
+          "description": "The standing grant for this capability with no escalation."
+        },
+        "escalation": {
+          "type": "string",
+          "description": "The maximum reachable grant via an approved escalation, or 'never-grantable' when the ceiling is fixed (deploy)."
+        },
+        "grantable": {
+          "type": "boolean",
+          "description": "Whether an escalation above default is reachable at all. false for deploy (constitutional)."
+        },
+        "requires_approval": {
+          "type": "boolean",
+          "description": "Whether reaching the escalation cell requires an out-of-band operator approval routed by the orchestrator."
+        }
+      }
+    }
+  }
+}

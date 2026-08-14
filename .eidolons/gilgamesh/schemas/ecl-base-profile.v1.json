@@ -1,0 +1,46 @@
+{
+  "$comment": "vendored from eidolons-ecl@v1.0.0 — do not edit manually; refresh on each ECL release",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/eidolons-ecl/blob/v1.0.0/schemas/per-eidolon/_base-profile.v1.json",
+  "title": "ECL per-Eidolon profile base v1",
+  "description": "Common YAML frontmatter required of any artefact wrapped by an ECL envelope. Each kind-specific profile extends this with its own required keys. ECL v1.0 §3.1.",
+  "type": "object",
+  "required": ["eidolon", "version", "kind", "status", "created_at"],
+  "properties": {
+    "eidolon": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Eidolon slug that emitted this artefact."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "SemVer of the emitting Eidolon."
+    },
+    "kind": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Artefact kind slug. MUST equal the envelope's artifact.kind."
+    },
+    "status": {
+      "type": "string",
+      "description": "Methodology-defined status (e.g. 'ready-for-spectra', 'completed', 'in-review')."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC timestamp."
+    },
+    "thread_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "RECOMMENDED: mirror the envelope's thread_id so the artefact carries its own provenance."
+    },
+    "evidence_anchors_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of path:line citations in the body."
+    }
+  },
+  "additionalProperties": true
+}

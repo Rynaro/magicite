@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/Ramza/blob/main/schemas/spec-profile.v1.json",
+  "title": "ECL spec profile v1 (vendored)",
+  "description": "Vendored copy of eidolons-ecl/schemas/per-eidolon/spec.v1.json for self-contained RAMZA validation. Validates the ECL envelope YAML frontmatter for a RAMZA spec payload. Source-of-truth is the central ECL spec at Rynaro/eidolons-ecl; re-vendor when ECL publishes a new profile version.",
+  "type": "object",
+  "required": ["eidolon", "version", "kind", "status", "created_at", "target_repos", "stories_count", "validation_gates_count"],
+  "properties": {
+    "eidolon": {
+      "const": "ramza",
+      "description": "Eidolon slug that emitted this artefact."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "SemVer of the emitting Eidolon."
+    },
+    "kind": {
+      "const": "spec",
+      "description": "Artefact kind slug. MUST equal the envelope's artifact.kind."
+    },
+    "status": {
+      "type": "string",
+      "description": "Methodology-defined status (e.g. 'ready-for-apivr', 'in-review')."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC timestamp."
+    },
+    "thread_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "RECOMMENDED: mirror the envelope's thread_id so the artefact carries its own provenance."
+    },
+    "evidence_anchors_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of path:line citations in the body."
+    },
+    "target_repos": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Repos the spec applies to."
+    },
+    "stories_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "validation_gates_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "decisions_resolved_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}

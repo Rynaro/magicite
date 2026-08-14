@@ -1,0 +1,182 @@
+{
+  "schema": "ramza/plan-state.v1",
+  "plan": "magicite-v1-implementation",
+  "created_at": "2026-08-14T22:28:09Z",
+  "tier": "full",
+  "phase": "DONE",
+  "phases_done": [
+    "RS",
+    "S",
+    "P",
+    "E",
+    "C",
+    "T",
+    "R",
+    "T",
+    "A",
+    "DONE"
+  ],
+  "rightsize": {
+    "score": 8,
+    "computed_tier": "full",
+    "inputs": {
+      "files_est": 60,
+      "new_dep": true,
+      "public_api": true,
+      "migration": false,
+      "security": true,
+      "novel": true,
+      "stakes": "high"
+    }
+  },
+  "refine_cycles": 1,
+  "skips": [],
+  "gates": [
+    {
+      "rubric": "complexity",
+      "total": 10,
+      "dims": {
+        "scope": 3,
+        "ambiguity": 2,
+        "dependencies": 2,
+        "risk": 3
+      },
+      "verdict": "human_loop",
+      "at": "2026-08-14T22:28:14Z",
+      "label": "magicite-v1-implementation"
+    },
+    {
+      "rubric": "explore",
+      "total": 67.5,
+      "dims": {
+        "alignment": 7,
+        "correctness": 7,
+        "maintainability": 5,
+        "performance": 8,
+        "simplicity": 9,
+        "risk": 6,
+        "innovation": 3
+      },
+      "verdict": "weak",
+      "at": "2026-08-14T22:29:27Z",
+      "label": "H-A single-process monolith"
+    },
+    {
+      "rubric": "explore",
+      "total": 63,
+      "dims": {
+        "alignment": 6,
+        "correctness": 8,
+        "maintainability": 7,
+        "performance": 7,
+        "simplicity": 4,
+        "risk": 5,
+        "innovation": 4
+      },
+      "verdict": "weak",
+      "at": "2026-08-14T22:29:27Z",
+      "label": "H-B sidecar dream process"
+    },
+    {
+      "rubric": "explore",
+      "total": 85,
+      "dims": {
+        "alignment": 10,
+        "correctness": 9,
+        "maintainability": 9,
+        "performance": 8,
+        "simplicity": 6,
+        "risk": 8,
+        "innovation": 5
+      },
+      "verdict": "elite",
+      "at": "2026-08-14T22:29:27Z",
+      "label": "H-C layered core + in-process leased writer"
+    },
+    {
+      "rubric": "explore",
+      "total": 61,
+      "dims": {
+        "alignment": 6,
+        "correctness": 9,
+        "maintainability": 6,
+        "performance": 5,
+        "simplicity": 3,
+        "risk": 4,
+        "innovation": 9
+      },
+      "verdict": "weak",
+      "at": "2026-08-14T22:29:27Z",
+      "label": "H-D event-sourced core"
+    },
+    {
+      "rubric": "explore",
+      "total": 42.5,
+      "dims": {
+        "alignment": 3,
+        "correctness": 4,
+        "maintainability": 6,
+        "performance": 4,
+        "simplicity": 8,
+        "risk": 3,
+        "innovation": 2
+      },
+      "verdict": "weak",
+      "at": "2026-08-14T22:29:27Z",
+      "label": "H-E files-only no SQLite"
+    },
+    {
+      "rubric": "refine",
+      "cycle": 1,
+      "total": 3.6,
+      "min": 3,
+      "dims": {
+        "clarity": 4,
+        "completeness": 3,
+        "actionability": 4,
+        "efficiency": 3,
+        "testability": 4
+      },
+      "verdict": "pass",
+      "at": "2026-08-14T22:40:06Z",
+      "label": "critic pass 1 — magicite-v1-implementation"
+    },
+    {
+      "rubric": "confidence",
+      "total": 84.75,
+      "dims": {
+        "pattern_match": 80,
+        "requirement_clarity": 85,
+        "decomposition_stability": 90,
+        "constraint_compliance": 84
+      },
+      "verdict": "VALIDATE",
+      "at": "2026-08-14T22:41:43Z",
+      "label": "magicite-v1-implementation assemble"
+    }
+  ],
+  "amendments": [],
+  "declared_scope": [
+    "src/magicite/*",
+    "tests/*",
+    "pyproject.toml",
+    "uv.lock",
+    "Dockerfile",
+    "Dockerfile.dev",
+    ".dockerignore",
+    ".gitignore",
+    ".github/workflows/*",
+    "README.md",
+    "LICENSE",
+    "docs/adapters/*",
+    "docs/operations.md"
+  ],
+  "criteria_sha256": "7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448",
+  "critic": {
+    "author": "ramza-author",
+    "checker": "ramza-critic-in-session",
+    "at": "2026-08-14T22:40:06Z"
+  },
+  "scope_declared_at": "2026-08-14T22:42:02Z",
+  "criteria_frozen_at": "2026-08-14T22:42:02Z"
+}

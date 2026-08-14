@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlas.agent/schemas/mission-brief.v1.json",
+  "title": "ATLAS Mission Brief",
+  "description": "The bounded contract produced in Phase A (Assess). Validated before Phase T (Traverse) begins.",
+  "type": "object",
+  "required": [
+    "mission_id", "created", "goal", "decision_target", "sub_questions",
+    "scope", "budget", "stop_conditions", "handoff_recipients"
+  ],
+  "properties": {
+    "mission_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}-[0-9]{3}$",
+      "description": "YYYYMMDD-NNN format"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "parent_mission_id": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9]{8}-[0-9]{3}$|^user$"
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 300,
+      "description": "One-sentence imperative"
+    },
+    "decision_target": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 500,
+      "description": "Checkable question answerable in a finite enumeration"
+    },
+    "sub_questions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^DT-[0-9]+$"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 10
+          }
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": ["include"],
+      "properties": {
+        "include": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"}
+        },
+        "exclude": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": ["max_tool_calls", "max_tokens_input", "max_wall_clock_s"],
+      "properties": {
+        "max_tool_calls": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "max_tokens_input": {"type": "integer", "minimum": 1000, "maximum": 500000},
+        "max_wall_clock_s": {"type": "integer", "minimum": 10, "maximum": 3600},
+        "max_subagents": {"type": "integer", "minimum": 0, "maximum": 16, "default": 4},
+        "max_recursion_depth": {"type": "integer", "minimum": 0, "maximum": 1, "default": 1}
+      }
+    },
+    "stop_conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "description"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^SC-[0-9]+$"},
+          "description": {"type": "string"}
+        }
+      }
+    },
+    "escalation_triggers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "pattern_kind", "pattern"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^ET-[0-9]+$"},
+          "pattern_kind": {
+            "type": "string",
+            "enum": ["path_glob", "symbol_regex", "sql_table", "custom"]
+          },
+          "pattern": {"type": "string"},
+          "action": {
+            "type": "string",
+            "enum": ["halt", "annotate", "continue-with-flag"],
+            "default": "halt"
+          }
+        }
+      }
+    },
+    "handoff_recipients": {
+      "type": "object",
+      "required": ["primary"],
+      "properties": {
+        "primary": {
+          "type": "string",
+          "enum": ["SPECTRA", "APIVR-Delta", "human", "hiram", "veronica", "archie"]
+        },
+        "fallback": {
+          "type": "string",
+          "enum": ["SPECTRA", "APIVR-Delta", "human", "hiram", "veronica", "archie"],
+          "default": "human"
+        }
+      }
+    },
+    "acceptance_notes": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "hard_gate": {
+      "type": "boolean",
+      "default": false,
+      "description": "Auto-set by harness when election-critical triggers match; frontmatter-readable."
+    }
+  }
+}

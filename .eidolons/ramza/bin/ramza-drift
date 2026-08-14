@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# ramza-drift — plan-vs-diff drift detection: the capability no vendor and no MCP server
+# ships (verified 2026-07). Compares the plan's frozen declared scope against the files
+# actually touched in a git range; uncovered changes are reported and fail the check.
+# Implements the drift_check named by ESL §6.4. Part of RAMZA (https://github.com/Rynaro/Ramza).
+# bash 3.2 compatible. Requires jq + git.
+set -eu
+
+die()  { printf 'ramza-drift: %s\n' "$*" >&2; exit 2; }
+say()  { printf '%s\n' "$*" >&2; }
+need() { command -v "$1" >/dev/null 2>&1 || die "required tool '$1' not found"; }
+now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+need jq
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-drift --state FILE --declare 'GLOB [GLOB...]'     declare the plan scope (at Assemble)
+       ramza-drift --state FILE --declare-from FILE            declare scope from newline-separated list
+       ramza-drift --state FILE [--range A..B | --staged] [--repo DIR] [--allow 'GLOB ...']
+                                                               check the executed diff against declared scope
+
+Scope entries are shell globs matched against repo-relative paths (e.g. 'src/auth/*'
+'db/migrate/*' 'docs/*.md'). The check exits 1 and reports every changed file not
+covered by the declared scope (plus standing --allow globs, e.g. '.spectra/*').
+A drift report is appended to the state file's drift_reports[].
+EOF
+  exit 2
+}
+
+STATE="" DECLARE="" DECLARE_FROM="" RANGE="" STAGED=0 REPO="." ALLOW=".spectra/*"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --state) STATE="${2:-}"; shift 2 ;;
+    --declare) DECLARE="${2:-}"; shift 2 ;;
+    --declare-from) DECLARE_FROM="${2:-}"; shift 2 ;;
+    --range) RANGE="${2:-}"; shift 2 ;;
+    --staged) STAGED=1; shift ;;
+    --repo) REPO="${2:-}"; shift 2 ;;
+    --allow) ALLOW="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+[ -n "$STATE" ] || usage
+[ -f "$STATE" ] || die "no state file: $STATE"
+TMP="${STATE}.tmp.$$"
+
+if [ -n "$DECLARE" ] || [ -n "$DECLARE_FROM" ]; then
+  if [ -n "$DECLARE_FROM" ]; then
+    [ -f "$DECLARE_FROM" ] || die "no such file: $DECLARE_FROM"
+    SCOPE_JSON=$(jq -R -s 'split("\n") | map(select(length > 0))' < "$DECLARE_FROM")
+  else
+    set -f  # globs are data here — no pathname expansion
+    SCOPE_JSON=$(printf '%s\n' $DECLARE | jq -R -s 'split("\n") | map(select(length > 0))')
+    set +f
+  fi
+  N=$(printf '%s' "$SCOPE_JSON" | jq 'length')
+  [ "$N" -gt 0 ] || die "declared scope is empty"
+  jq --argjson s "$SCOPE_JSON" --arg at "$(now_utc)" \
+    '.declared_scope = $s | .scope_declared_at = $at' "$STATE" > "$TMP" && mv "$TMP" "$STATE"
+  say "scope declared: $N glob(s)"
+  exit 0
+fi
+
+need git
+COUNT=$(jq -r '.declared_scope | length' "$STATE")
+[ "$COUNT" -gt 0 ] || die "no declared scope in state (run --declare at Assemble first)"
+
+if [ "$STAGED" -eq 1 ]; then
+  CHANGED=$(git -C "$REPO" diff --name-only --cached)
+  RANGE_LABEL="staged"
+elif [ -n "$RANGE" ]; then
+  CHANGED=$(git -C "$REPO" diff --name-only "$RANGE")
+  RANGE_LABEL="$RANGE"
+else
+  # porcelain, not `diff HEAD`: untracked (new) files are exactly what drift must catch
+  CHANGED=$(git -C "$REPO" status --porcelain -uall | awk '{print $NF}')
+  RANGE_LABEL="worktree-vs-HEAD"
+fi
+
+SCOPE=$(jq -r '.declared_scope[]' "$STATE")
+UNCOVERED=""
+TOTAL=0
+set -f  # scope globs are patterns for `case`, never pathname-expanded
+for f in $CHANGED; do
+  TOTAL=$((TOTAL + 1))
+  COVERED=0
+  for g in $SCOPE $ALLOW; do
+    # shellcheck disable=SC2254  # globs must expand as patterns
+    case "$f" in ($g) COVERED=1; break ;; esac
+  done
+  [ "$COVERED" -eq 1 ] || UNCOVERED="$UNCOVERED$f
+"
+done
+set +f
+
+N_UNCOVERED=0
+[ -z "$UNCOVERED" ] || N_UNCOVERED=$(printf '%s' "$UNCOVERED" | grep -c .)
+UNCOVERED_JSON=$(printf '%s' "$UNCOVERED" | jq -R -s 'split("\n") | map(select(length > 0))')
+jq --arg at "$(now_utc)" --arg range "$RANGE_LABEL" \
+   --argjson total "$TOTAL" --argjson unc "$UNCOVERED_JSON" \
+  '.drift_reports = (.drift_reports // []) + [{at: $at, range: $range, files_changed: $total, uncovered: $unc}]' \
+  "$STATE" > "$TMP" && mv "$TMP" "$STATE"
+
+if [ "$N_UNCOVERED" -gt 0 ]; then
+  printf 'DRIFT: %s of %s changed file(s) outside declared plan scope (%s):\n' "$N_UNCOVERED" "$TOTAL" "$RANGE_LABEL"
+  printf '%s' "$UNCOVERED" | sed 's/^/  - /'
+  printf 'Either amend the plan scope (ramza-drift --declare + ramza-freeze --amend) or revert the changes.\n'
+  exit 1
+fi
+say "ok: $TOTAL changed file(s), all within declared scope ($RANGE_LABEL)"
+exit 0

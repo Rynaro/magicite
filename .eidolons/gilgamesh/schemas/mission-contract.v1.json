@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Rynaro/Gilgamesh/schemas/mission-contract.v1.json",
+  "title": "Gilgamesh Mission-Contract v1",
+  "description": "The typed mission Gilgamesh CONSUMES inbound (ECL artifact.kind 'mission-contract') from the orchestrator or a human. Gauge validates this contract before any work begins; a mission that maps cleanly to a specialist, or that requests authority beyond the grantable ceiling, is REFUSED cheaply. Named consistently with the eidolons-ecl per-eidolon schema authored in parallel (Track F).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "objective",
+    "scope",
+    "deliverables",
+    "evidence_required",
+    "stop_conditions",
+    "authority"
+  ],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "kind": { "const": "mission-contract" },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Single-sentence mission goal."
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["paths", "mode"],
+      "properties": {
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "mode": { "type": "string", "enum": ["read", "write", "read-write"] }
+      }
+    },
+    "deliverables": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "evidence_required": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "The external evidence format that will prove each deliverable — the oracle set Gilgamesh binds acceptance signals to in Lock."
+    },
+    "stop_conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["read", "write", "exec", "network", "secrets", "deploy"],
+      "description": "The six-row authority grant. Instantiates the capability-authority table's default column; deploy is never grantable regardless of what the contract requests.",
+      "properties": {
+        "read":    { "type": "string" },
+        "write":   { "type": "string" },
+        "exec":    { "type": "string" },
+        "network": { "type": "string" },
+        "secrets": { "type": "string" },
+        "deploy":  { "type": "string" }
+      }
+    }
+  }
+}

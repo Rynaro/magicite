@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# ramza-score — rubric arithmetic done by code, never by the model.
+# Reads per-dimension scores (JSON), emits weighted totals + the gate verdict, and
+# appends a calibration log entry so instrument-vs-outcome data accrues from day one.
+# Part of RAMZA (https://github.com/Rynaro/Ramza). bash 3.2 compatible. Requires jq.
+set -eu
+
+die()  { printf 'ramza-score: %s\n' "$*" >&2; exit 2; }
+say()  { printf '%s\n' "$*" >&2; }
+need() { command -v "$1" >/dev/null 2>&1 || die "required tool '$1' not found"; }
+now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+need jq
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-score --rubric explore|confidence|complexity|refine [--in FILE] [--cycle N]
+                   [--state FILE] [--log FILE] [--label STR]
+
+Reads dimension scores as JSON from --in (or stdin). Emits a JSON result on stdout.
+Rubrics (weights are v1 instruments under calibration, see docs/methodology/scoring.md):
+  explore     {alignment,correctness,maintainability,performance,simplicity,risk,innovation} each 1..10
+              weights .25/.20/.15/.15/.10/.10/.05 -> total 0..100; >=85 elite | 70..84 solid | <70 weak
+  confidence  {pattern_match,requirement_clarity,decomposition_stability,constraint_compliance} each 0..100
+              equal .25 -> pct; >=85 AUTO_PROCEED | 70..84 VALIDATE | 50..69 COLLABORATE | <50 ESCALATE
+  complexity  {scope,ambiguity,dependencies,risk} each 1..3 -> sum 4..12
+              4..6 standard | 7..9 extended | 10..12 human_loop
+  refine      {clarity,completeness,actionability,efficiency,testability} each 1..5, --cycle N (1..3)
+              cycle 1 pass: all >=3; cycle >=2 pass: all >=4
+With --state, the verdict is appended to the state file's gates[]. With --log, a JSONL
+calibration entry is appended (default: alongside --state at ramza-calibration.jsonl).
+EOF
+  exit 2
+}
+
+RUBRIC="" IN="" STATE="" LOG="" LABEL="" CYCLE=1
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --rubric) RUBRIC="${2:-}"; shift 2 ;;
+    --in) IN="${2:-}"; shift 2 ;;
+    --cycle) CYCLE="${2:-}"; shift 2 ;;
+    --state) STATE="${2:-}"; shift 2 ;;
+    --log) LOG="${2:-}"; shift 2 ;;
+    --label) LABEL="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+case "$RUBRIC" in explore|confidence|complexity|refine) : ;; *) usage ;; esac
+case "$CYCLE" in (*[!0-9]*|'') die "--cycle must be a positive integer" ;; esac
+
+if [ -n "$IN" ]; then DIMS=$(cat "$IN"); else DIMS=$(cat); fi
+printf '%s' "$DIMS" | jq -e 'type == "object"' >/dev/null 2>&1 || die "input must be a JSON object of dimension scores"
+
+require_dims() { # $1 = space list, $2 min, $3 max
+  for d in $1; do
+    V=$(printf '%s' "$DIMS" | jq -r --arg d "$d" '.[$d] // "MISSING"')
+    [ "$V" != "MISSING" ] || die "missing dimension: $d"
+    printf '%s' "$DIMS" | jq -e --arg d "$d" --argjson lo "$2" --argjson hi "$3" \
+      '.[$d] | (type=="number") and . >= $lo and . <= $hi' >/dev/null \
+      || die "dimension '$d' must be a number in [$2,$3]"
+  done
+}
+
+case "$RUBRIC" in
+  explore)
+    require_dims "alignment correctness maintainability performance simplicity risk innovation" 1 10
+    RESULT=$(printf '%s' "$DIMS" | jq '{
+      rubric: "explore",
+      total: ((.alignment*0.25 + .correctness*0.20 + .maintainability*0.15 + .performance*0.15
+             + .simplicity*0.10 + .risk*0.10 + .innovation*0.05) * 10 * 100 | round / 100),
+      dims: .
+    } | .verdict = (if .total >= 85 then "elite" elif .total >= 70 then "solid" else "weak" end)')
+    ;;
+  confidence)
+    require_dims "pattern_match requirement_clarity decomposition_stability constraint_compliance" 0 100
+    RESULT=$(printf '%s' "$DIMS" | jq '{
+      rubric: "confidence",
+      total: ((.pattern_match + .requirement_clarity + .decomposition_stability + .constraint_compliance) / 4
+              * 100 | round / 100),
+      dims: .
+    } | .verdict = (if .total >= 85 then "AUTO_PROCEED" elif .total >= 70 then "VALIDATE"
+                    elif .total >= 50 then "COLLABORATE" else "ESCALATE" end)')
+    ;;
+  complexity)
+    require_dims "scope ambiguity dependencies risk" 1 3
+    RESULT=$(printf '%s' "$DIMS" | jq '{
+      rubric: "complexity",
+      total: (.scope + .ambiguity + .dependencies + .risk),
+      dims: .
+    } | .verdict = (if .total <= 6 then "standard" elif .total <= 9 then "extended" else "human_loop" end)')
+    ;;
+  refine)
+    require_dims "clarity completeness actionability efficiency testability" 1 5
+    MIN_REQ=4; [ "$CYCLE" -le 1 ] && MIN_REQ=3
+    RESULT=$(printf '%s' "$DIMS" | jq --argjson minreq "$MIN_REQ" --argjson cycle "$CYCLE" '
+      ((.clarity + .completeness + .actionability + .efficiency + .testability) / 5) as $mean
+      | ([.clarity, .completeness, .actionability, .efficiency, .testability] | min) as $min
+      | {rubric: "refine", cycle: $cycle, total: ($mean * 100 | round / 100), min: $min, dims: .}
+      | .verdict = (if $min >= $minreq then "pass" else "fail" end)')
+    ;;
+esac
+
+AT=$(now_utc)
+RESULT=$(printf '%s' "$RESULT" | jq --arg at "$AT" --arg label "$LABEL" '. + {at: $at} + (if $label != "" then {label: $label} else {} end)')
+
+if [ -n "$STATE" ]; then
+  [ -f "$STATE" ] || die "no state file: $STATE"
+  TMP="${STATE}.tmp.$$"
+  jq --argjson g "$RESULT" '.gates += [$g]' "$STATE" > "$TMP" && mv "$TMP" "$STATE"
+  [ -n "$LOG" ] || LOG="$(dirname "$STATE")/ramza-calibration.jsonl"
+fi
+if [ -n "$LOG" ]; then
+  mkdir -p "$(dirname "$LOG")"
+  printf '%s\n' "$(printf '%s' "$RESULT" | jq -c .)" >> "$LOG"
+  say "calibration log appended: $LOG"
+fi
+
+printf '%s\n' "$RESULT"
+VERDICT=$(printf '%s' "$RESULT" | jq -r '.verdict')
+case "$VERDICT" in weak|fail|ESCALATE) exit 1 ;; esac
+exit 0

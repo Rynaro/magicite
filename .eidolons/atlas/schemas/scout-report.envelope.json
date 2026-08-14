@@ -1,0 +1,58 @@
+{
+  "x_atlas_comment": "ECL v2.0 envelope sidecar. See ../ECL_VERSION for the targeted ECL version and the canonical spec at Rynaro/eidolons-ecl (spec/ecl-2.0.md). Validate this file against ../schemas/ecl-envelope.v2.json. Fill every <placeholder> before emitting.",
+  "envelope_version": "2.0",
+  "message_id": "<uuid-v7>",
+  "thread_id": "<uuid-v7-same-as-mission-thread>",
+  "parent_id": null,
+  "from": {
+    "eidolon": "atlas",
+    "version": "<atlas-semver e.g. 1.13.0>"
+  },
+  "to": {
+    "eidolon": "spectra",
+    "version": "<spectra-semver or n/a>"
+  },
+  "performative": "PROPOSE",
+  "edge_origin": "roster",
+  "objective": "<One sentence ≤240 chars stating what this scout report answers, e.g. 'Deliver scout report for mission <MISSION-ID> answering DECISION_TARGET: <dt>.'>",
+  "artifact": {
+    "kind": "scout-report",
+    "schema_version": "1.0",
+    "path": "scout-report-<mission-id>.md",
+    "sha256": "<64-hex-chars lowercase sha256 of the scout-report file bytes>",
+    "size_bytes": 0
+  },
+  "context_delta": {
+    "token_budget": 4000,
+    "tokens_used": 0,
+    "input_handles": [],
+    "summary": "<One-paragraph summary of what this scout report contains and what the receiver should act on.>"
+  },
+  "constraints": {
+    "trust_level": "standard"
+  },
+  "ise": {
+    "assertion_grade": "self-attested",
+    "provenance": {
+      "methodology_version": "atlas-<atlas-semver e.g. 1.13.0>",
+      "tool_surface": ["<subset actually invoked, from: view_file|list_dir|search_text|search_symbol|graph_query|test_dry_run|memex_read>"],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  },
+  "confidence": 0.5,
+  "integrity": {
+    "method": "sha256",
+    "value": "<64-hex-chars lowercase sha256 — MUST match artifact.sha256>"
+  },
+  "trace": {
+    "ts": "<RFC-3339 UTC timestamp e.g. 2026-05-08T12:00:00Z>",
+    "host": "<host slug: claude-code | cursor | codex | opencode | raw>",
+    "model": "<model identifier e.g. claude-sonnet-4-6>",
+    "tier": "standard"
+  }
+}

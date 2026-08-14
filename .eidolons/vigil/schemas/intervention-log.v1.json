@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vigil.agent/schemas/intervention-log.v1.json",
+  "title": "VIGIL Intervention Log",
+  "description": "Output of Phase I (Intervene). Enforces ≥3 hypotheses, ≤5 interventions, counterfactual-based survivor selection.",
+  "type": "object",
+  "required": ["mission_id", "hypotheses", "interventions", "budget"],
+  "properties": {
+    "mission_id": {
+      "type": "string",
+      "pattern": "^VIGIL-[0-9]{8}-[0-9]{3}$"
+    },
+    "upstream_idg": {"type": "string"},
+    "hypotheses": {
+      "type": "array",
+      "minItems": 3,
+      "description": "Plurality rule — ≥3 competing hypotheses before any intervention.",
+      "items": {"$ref": "#/$defs/hypothesis"}
+    },
+    "interventions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "description": "Hard cap of 5 interventions per mission.",
+      "items": {"$ref": "#/$defs/intervention"}
+    },
+    "survivor": {
+      "oneOf": [
+        {"$ref": "#/$defs/survivor_record"},
+        {"type": "null"}
+      ],
+      "description": "Null indicates no hypothesis survived; escalation-brief must be emitted instead of root-cause report."
+    },
+    "multi_flip_handling": {
+      "type": ["object", "null"],
+      "properties": {
+        "flipped_interventions": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^I-[0-9]+$"}
+        },
+        "tiebreak_method": {
+          "type": "string",
+          "enum": ["smallest_intervention", "disputed_escalated"]
+        },
+        "disputed": {"type": "boolean"}
+      }
+    },
+    "compound_findings": {
+      "type": "array",
+      "description": "NEW_FAILURE outcomes revealed additional distinct issues.",
+      "items": {
+        "type": "object",
+        "required": ["source_intervention", "description"],
+        "properties": {
+          "source_intervention": {"type": "string", "pattern": "^I-[0-9]+$"},
+          "description": {"type": "string"},
+          "recommended_next_mission": {"type": "boolean"}
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": ["interventions_used", "interventions_cap", "exhausted"],
+      "properties": {
+        "interventions_used": {"type": "integer", "minimum": 1, "maximum": 5},
+        "interventions_cap": {"type": "integer", "const": 5},
+        "exhausted": {"type": "boolean"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "If survivor is null, the budget must be exhausted — escalation-brief is required.",
+      "if": {"properties": {"survivor": {"type": "null"}}},
+      "then": {
+        "properties": {
+          "budget": {"properties": {"exhausted": {"const": true}}}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hypothesis": {
+      "type": "object",
+      "required": ["id", "candidate_ref", "mechanism", "falsification_criterion"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^H-[0-9]{3,}$"},
+        "candidate_ref": {"type": "string", "description": "References a ROOT_CANDIDATE from idg.md"},
+        "mechanism": {
+          "type": "string",
+          "minLength": 20,
+          "description": "Description of how this candidate could cause the observed failure."
+        },
+        "falsification_criterion": {
+          "type": "string",
+          "minLength": 20,
+          "description": "What intervention would confirm or deny this hypothesis."
+        },
+        "confidence_prior": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        }
+      }
+    },
+    "intervention": {
+      "type": "object",
+      "required": ["id", "hypothesis_id", "intervention_type", "target", "authority_used", "runs", "verdict"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^I-[0-9]{3,}$"},
+        "hypothesis_id": {"type": "string", "pattern": "^H-[0-9]{3,}$"},
+        "intervention_type": {
+          "type": "string",
+          "enum": ["code_change", "oracle_injection", "state_correction", "timing_fix"]
+        },
+        "target": {
+          "type": "string",
+          "description": "Path:lines for code_change; node id for other types."
+        },
+        "description": {"type": "string"},
+        "diff_or_oracle": {
+          "type": ["string", "null"],
+          "description": "Unified diff for code_change, oracle value/spec for injection, description for others."
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "files_affected": {"type": "integer", "minimum": 0, "maximum": 3},
+            "out_of_scope_justification": {"type": ["string", "null"]}
+          }
+        },
+        "authority_used": {
+          "type": "string",
+          "enum": ["simulated", "sandbox", "write"]
+        },
+        "runs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["mode", "outcome"],
+            "properties": {
+              "mode": {"type": "string", "enum": ["deterministic", "statistical"]},
+              "outcome": {
+                "type": "string",
+                "enum": ["FLIPPED", "NO_CHANGE", "NEW_FAILURE", "ERROR"]
+              },
+              "evidence_ref": {"type": "string"}
+            }
+          }
+        },
+        "statistical_summary": {
+          "type": ["object", "null"],
+          "properties": {
+            "runs": {"type": "integer", "minimum": 5},
+            "flip_ratio": {
+              "type": "string",
+              "pattern": "^[0-9]+/[0-9]+$"
+            }
+          }
+        },
+        "verdict": {
+          "type": "string",
+          "enum": ["FLIPPED", "NO_CHANGE", "NEW_FAILURE", "ERROR", "DISPUTED"]
+        }
+      }
+    },
+    "survivor_record": {
+      "type": "object",
+      "required": ["hypothesis_id", "intervention_id", "confidence"],
+      "properties": {
+        "hypothesis_id": {"type": "string", "pattern": "^H-[0-9]{3,}$"},
+        "intervention_id": {"type": "string", "pattern": "^I-[0-9]{3,}$"},
+        "confidence": {"type": "string", "enum": ["H", "M"]},
+        "verified_patch": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

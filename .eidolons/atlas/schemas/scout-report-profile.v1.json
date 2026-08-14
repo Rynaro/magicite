@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/ATLAS/blob/main/schemas/scout-report-profile.v1.json",
+  "title": "ECL scout-report profile v1 (vendored)",
+  "description": "Vendored copy of eidolons-ecl/schemas/per-eidolon/scout-report.v1.json for self-contained ATLAS validation. Validates the ECL envelope YAML frontmatter for an ATLAS scout-report payload; the body structure is governed by schemas/scout-report.v1.json in this repo. Source-of-truth is the central ECL spec at Rynaro/eidolons-ecl; re-vendor when ECL publishes a new profile version.",
+  "allOf": [
+    {
+      "type": "object",
+      "required": ["kind", "eidolon", "ecl_version"],
+      "properties": {
+        "kind":        { "const": "scout-report" },
+        "eidolon":     { "const": "atlas" },
+        "ecl_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$" }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["decision_target", "scope", "findings_count"],
+      "properties": {
+        "decision_target": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The DECISION_TARGET sub-question the mission was framed around."
+        },
+        "scope": {
+          "type": "object",
+          "required": ["entrypoints", "modules"],
+          "properties": {
+            "entrypoints": { "type": "array", "items": { "type": "string" } },
+            "modules":     { "type": "array", "items": { "type": "string" } },
+            "excluded":    { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false,
+          "description": "ECL envelope frontmatter scope fields. NOTE: these differ from the body's mission_recap.scope.{include,exclude} fields in scout-report.v1.json — they are different layers, not duplicates."
+        },
+        "findings_count": { "type": "integer", "minimum": 0 },
+        "gaps_count":     { "type": "integer", "minimum": 0 },
+        "confidence_distribution": {
+          "type": "object",
+          "properties": {
+            "H": { "type": "integer", "minimum": 0 },
+            "M": { "type": "integer", "minimum": 0 },
+            "L": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

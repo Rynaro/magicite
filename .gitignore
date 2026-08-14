@@ -1,0 +1,25 @@
+# Machine-local MCP wiring (absolute paths, restricted mode)
+.mcp.json
+eidolons.mcp.lock
+
+# Eidolons scratch state
+.atlas/memex/
+.eidolons/.context/
+.eidolons/memories/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Magicite runtime state — the graph DB is a rebuildable index (CR-2).
+# Set MAGICITE_COMMIT_DB=1 and remove these lines to track it instead.
+skill-graph.db
+skill-graph.db-wal
+skill-graph.db-shm

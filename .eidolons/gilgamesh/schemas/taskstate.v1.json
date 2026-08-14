@@ -1,0 +1,184 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Rynaro/Gilgamesh/schemas/taskstate.v1.json",
+  "title": "Gilgamesh TaskState v1",
+  "description": "The structured task-state record that is the single audit artefact of one Gilgamesh mission. It supersedes append-only context at long horizons (digest §3): the mission's objective, acceptance signals, environment snapshot, plan, evidenced claims, changed artefacts, externalized verification outcomes, unresolved risks, the bounded loop budget, the capability-authority table state, and the terminal stop_state. Finalized in Attest and shipped as the mission's audit record. Gilgamesh keeps NO permanent memory (R-032): everything gathered lives here and is returned or discarded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "objective",
+    "acceptance_criteria",
+    "budget",
+    "authority",
+    "stop_state"
+  ],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "kind": { "const": "taskstate" },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The single-sentence mission objective, copied verbatim from the inbound mission-contract."
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "description": "The acceptance signals frozen at Lock. Each names the external oracle that proves it (never self-assessment).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "signal", "oracle"],
+        "properties": {
+          "id": { "type": "string" },
+          "signal": { "type": "string", "description": "What must become true." },
+          "oracle": {
+            "type": "string",
+            "description": "The external verifier that declares pass/fail (test/parser/diff/env-feedback). Never 'self-assessment'."
+          },
+          "verifier_class": {
+            "type": "string",
+            "enum": ["test", "typecheck", "lint", "compile", "diff", "schema-validate", "parser", "env-feedback"]
+          }
+        }
+      }
+    },
+    "env_snapshot_ref": {
+      "type": "string",
+      "description": "Reference (path or handle) to the environment snapshot taken in Inventory — the reproducibility anchor, not the environment inlined."
+    },
+    "plan": {
+      "type": "array",
+      "description": "The local plan frozen at Lock (steps + dependencies). After Lock, scope may only shrink.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step_id", "intent"],
+        "properties": {
+          "step_id": { "type": "string" },
+          "intent": { "type": "string" },
+          "depends_on": { "type": "array", "items": { "type": "string" } },
+          "verified_by": { "type": "string", "description": "The acceptance_criteria.id whose oracle proves this step." }
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "description": "Evidence-anchored claims. A claim without an external evidence anchor is inadmissible (the Excalipoor rule).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "evidence"],
+        "properties": {
+          "claim": { "type": "string" },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "description": "External evidence anchor: oracle output, path:line, or verification_outcome id." }
+          }
+        }
+      }
+    },
+    "changed_artifacts": {
+      "type": "array",
+      "description": "Artefacts mutated during Grind — sandbox-relative, PROPOSE-only (never the real tree).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "change_kind"],
+        "properties": {
+          "path": { "type": "string" },
+          "change_kind": { "type": "string", "enum": ["created", "modified", "deleted"] },
+          "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
+    "verification_outcomes": {
+      "type": "array",
+      "description": "The externalized verification record (AC-E05): every meaningful mutation passes an external gate. Never self-reported.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["oracle", "result"],
+        "properties": {
+          "criterion_id": { "type": "string" },
+          "oracle": { "type": "string" },
+          "result": { "type": "string", "enum": ["green", "red", "error", "timeout"] },
+          "output_excerpt": { "type": "string" }
+        }
+      }
+    },
+    "unresolved_risks": {
+      "type": "array",
+      "description": "The risk ledger — risks opened at Lock that remain open at Attest.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["risk"],
+        "properties": {
+          "risk": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+          "mitigation": { "type": "string" }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "description": "The bounded loop budget (AC-E07, R-031). A mission that exhausts any dimension terminates via the stopping policy.",
+      "additionalProperties": false,
+      "required": ["time", "turns", "tokens"],
+      "properties": {
+        "time": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["limit_seconds"],
+          "properties": {
+            "limit_seconds": { "type": "integer", "minimum": 0 },
+            "spent_seconds": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "turns": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["limit"],
+          "properties": {
+            "limit": { "type": "integer", "minimum": 0 },
+            "spent": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "tokens": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["limit"],
+          "properties": {
+            "limit": { "type": "integer", "minimum": 0 },
+            "spent": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "authority": {
+      "$ref": "capability-authority.v1.json",
+      "description": "The instantiated capability-authority table state for this mission (default column plus any granted escalations)."
+    },
+    "failure_counters": {
+      "type": "object",
+      "description": "Mechanical counters that drive the stopping-policy transitions in Grind.",
+      "additionalProperties": false,
+      "properties": {
+        "consecutive_failures": { "type": "integer", "minimum": 0 },
+        "total_failures": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "stop_state": {
+      "type": "string",
+      "enum": ["continue", "recover", "escalate", "terminate"],
+      "description": "The current stopping-policy state (AC-E06). The set is closed to exactly these four members."
+    },
+    "handoff_requests": {
+      "type": "array",
+      "description": "Typed delegation requests PROPOSEd upward for the orchestrator to route (AC-E09). Gilgamesh NEVER dispatches or spawns.",
+      "items": { "$ref": "handoff-request.v1.json" }
+    }
+  }
+}

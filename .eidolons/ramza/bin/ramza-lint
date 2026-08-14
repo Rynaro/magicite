@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# ramza-lint — plan-body structural completeness, tier-aware. A plan that is missing
+# its required sections never reaches the Assemble gate. Grep-level checks by design:
+# structure is mechanical, content quality belongs to the critic gate.
+# Part of RAMZA (https://github.com/Rynaro/Ramza). bash 3.2 compatible.
+set -eu
+
+die() { printf 'ramza-lint: %s\n' "$*" >&2; exit 2; }
+say() { printf '%s\n' "$*" >&2; }
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-lint --plan FILE (--tier trivial|lite|full | --state STATEFILE)
+
+Required "## " sections per tier:
+  trivial: Scope, Approach, Acceptance Criteria
+  lite:    + Stories, Confidence
+  full:    + Rejected Alternatives, Risks
+Also enforced: trivial plans stay under 120 lines (anti-ceremony budget).
+Missing sections print to stdout; exit 1 if any, else 0.
+EOF
+  exit 2
+}
+
+PLAN="" TIER="" STATE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --plan) PLAN="${2:-}"; shift 2 ;;
+    --tier) TIER="${2:-}"; shift 2 ;;
+    --state) STATE="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+[ -n "$PLAN" ] || usage
+[ -f "$PLAN" ] || die "no such file: $PLAN"
+if [ -z "$TIER" ]; then
+  [ -n "$STATE" ] || usage
+  command -v jq >/dev/null 2>&1 || die "required tool 'jq' not found"
+  [ -f "$STATE" ] || die "no state file: $STATE"
+  TIER=$(jq -r '.tier' "$STATE")
+fi
+case "$TIER" in trivial|lite|full) : ;; *) die "tier must be trivial|lite|full (got: $TIER)" ;; esac
+
+REQUIRED="Scope|Approach|Acceptance Criteria"
+[ "$TIER" = "lite" ] && REQUIRED="$REQUIRED|Stories|Confidence"
+[ "$TIER" = "full" ] && REQUIRED="$REQUIRED|Stories|Confidence|Rejected Alternatives|Risks"
+
+MISSING=""
+OLDIFS="$IFS"; IFS='|'
+for section in $REQUIRED; do
+  if ! grep -q "^## .*${section}" "$PLAN"; then
+    MISSING="${MISSING}missing section: ## ${section}
+"
+  fi
+done
+IFS="$OLDIFS"
+
+if [ "$TIER" = "trivial" ]; then
+  LINES=$(wc -l < "$PLAN" | tr -d ' ')
+  if [ "$LINES" -gt 120 ]; then
+    MISSING="${MISSING}trivial plan exceeds the 120-line budget ($LINES lines) — right-size up or cut ceremony
+"
+  fi
+fi
+
+if [ -n "$MISSING" ]; then
+  printf '%s' "$MISSING"
+  exit 1
+fi
+say "ok: plan passes structural lint (tier: $TIER)"
+exit 0

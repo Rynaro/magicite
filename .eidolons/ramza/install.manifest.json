@@ -1,0 +1,315 @@
+{
+  "eidolon": "ramza",
+  "version": "1.0.0",
+  "methodology": "RAMZA",
+  "installed_at": "2026-08-14T21:28:35Z",
+  "target": "./.eidolons/ramza",
+  "ecl_version_emitted": "2.0",
+  "spec_file": ".eidolons/ramza/SPEC.md",
+  "canonical_inventory_strict": true,
+  "skills": [
+    {
+      "name": "methodology",
+      "source_path": ".eidolons/ramza/skills/methodology.md",
+      "vendor_path": ".claude/skills/ramza-methodology/SKILL.md",
+      "source_sha256": "2cb2dcbb95b5c380b393122419133e7c0c88d284475f7879c9e3da04bd5f2573",
+      "vendor_sha256": "2cb2dcbb95b5c380b393122419133e7c0c88d284475f7879c9e3da04bd5f2573"
+    },
+    {
+      "name": "discover",
+      "source_path": ".eidolons/ramza/skills/discover.md",
+      "vendor_path": ".claude/skills/ramza-discover/SKILL.md",
+      "source_sha256": "f4d140c4079afeae7b9096250e0bfd8911d81c1e46099abf78b36f4782208477",
+      "vendor_sha256": "f4d140c4079afeae7b9096250e0bfd8911d81c1e46099abf78b36f4782208477"
+    },
+    {
+      "name": "critic",
+      "source_path": ".eidolons/ramza/skills/critic.md",
+      "vendor_path": ".claude/skills/ramza-critic/SKILL.md",
+      "source_sha256": "295de06ea3cf318adcc92ad10d3186036251a2df5ad373f8d728c93287a7b832",
+      "vendor_sha256": "295de06ea3cf318adcc92ad10d3186036251a2df5ad373f8d728c93287a7b832"
+    },
+    {
+      "name": "parallel-spec",
+      "source_path": ".eidolons/ramza/skills/parallel-spec.md",
+      "vendor_path": ".claude/skills/ramza-parallel-spec/SKILL.md",
+      "source_sha256": "7a42d13f68976d8054b5acd0a7dfa5ec19616c3a15bef7723c715c5252a621d4",
+      "vendor_sha256": "7a42d13f68976d8054b5acd0a7dfa5ec19616c3a15bef7723c715c5252a621d4"
+    },
+    {
+      "name": "verify-incoming",
+      "source_path": ".eidolons/ramza/skills/verify-incoming.md",
+      "vendor_path": ".claude/skills/ramza-verify-incoming/SKILL.md",
+      "source_sha256": "62a647eea8da117152f8b3c5f8af2e39c173cfa5d13a3d7c7d0c4f6dfe9b7243",
+      "vendor_sha256": "62a647eea8da117152f8b3c5f8af2e39c173cfa5d13a3d7c7d0c4f6dfe9b7243"
+    },
+    {
+      "name": "esl-hop",
+      "source_path": ".eidolons/ramza/skills/esl-hop.md",
+      "vendor_path": ".claude/skills/ramza-esl-hop/SKILL.md",
+      "source_sha256": "48d309f1ac8d521828eb49b209e864ceae070532909262234e41d36f1a089493",
+      "vendor_sha256": "48d309f1ac8d521828eb49b209e864ceae070532909262234e41d36f1a089493"
+    }
+  ],
+  "hosts_wired": [
+    "claude-code"
+  ],
+  "files_written": [
+    {
+      "path": "./.eidolons/ramza/agent.md",
+      "sha256": "40b62d2ea3156f27ef2080638dce224c34410cdf3d5bcefd92f2ac563ddd6acc",
+      "role": "agent-profile",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/SPEC.md",
+      "sha256": "9d9c28c36c256e579b637668b149f05b4fd2203fcdeaca1894bfe26969911ec4",
+      "role": "spec",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/templates/scoring.md",
+      "sha256": "3a1e7a68646aad115b68027144a0df072a2676615460ea66b6a857f437ca5cbb",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/templates/tiers.md",
+      "sha256": "5b636df250cb44dfa86f5a0e3f865ade29d34398ecfbb38b57a6b79943f6cca6",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/templates/planning-artifact.md",
+      "sha256": "7d63569325154d0567f3750a243629ed678a02802dc3711d74d752e1a08eeae8",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/templates/acceptance-criteria.md",
+      "sha256": "a0d6ed12d05c5e83698b87b44222366b7d2399068c1ba436cd7405bac1d85bf7",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/schemas/plan-state.v1.json",
+      "sha256": "bee5f610318d1d53190c538f97a2bb775e6f9c6a52b376c3329fefcb44f9414b",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/schemas/install.manifest.v1.json",
+      "sha256": "83dc4638bde1794b68934b4474d8d8234031d7394cb50ee092a48ee868207c0e",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/schemas/plan.junction.json",
+      "sha256": "1ebf0563b935713dd27c63d14fe8602795c14221bdf90994e56b83e077cd04ac",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/ECL_VERSION",
+      "sha256": "d526eb4e878a23ef26ae190031b4efd2d58ed66789ac049ea3dbaf74c9df7402",
+      "role": "ecl-version",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/schemas/spec-profile.v1.json",
+      "sha256": "a6acb9e926355515009f523b15a11b398a5139b9f3fd51e7d73a4d593312a177",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/schemas/ecl-envelope.v1.json",
+      "sha256": "81e12f6933dad9bdabd4ba9f5a3430173fe073835b37239a07037e1a5e063dc4",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/schemas/ecl-envelope.v2.json",
+      "sha256": "fe40267f15af63219e7f756ff32491dcadb18a79edb4231a4e8a580c1f956e4f",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/schemas/spec.envelope.json",
+      "sha256": "7ffbe8ba5d9035a75cf5cfde784f65fd692577aa015e0791f541e7d5e8487e85",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-adherence",
+      "sha256": "23c0d6281842d2e73924808eb9a35b568eca254ebd5600b46891b112d645f883",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-calibrate",
+      "sha256": "df1db3d70597df35e4654088d3396e371aac0c7b4c5e0a8b8a1e8e2bb0895b8b",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-drift",
+      "sha256": "ed447a7c7866c09603fec0d3bfa0cf9c73c67817dd6dfc80bc460be0c97a1682",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-ears-lint",
+      "sha256": "ebf84e3d29eef4e79a959590b276ac6137203935189c2ee2bea88ae2e6d2c890",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-freeze",
+      "sha256": "4c9a9625d154c123170250435931c83761baf1213ae68e18321d495e2c353686",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-gate",
+      "sha256": "7c0e658b39cf064fa459f8e5fb27ce1e1dcbf7c26d244e31eb8b119dc3aa8df0",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-lint",
+      "sha256": "3b8481255102a8485576499598d4e4eccf839dab5947beb6f47ca20e667c0ded",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-rightsize",
+      "sha256": "1bbd31e16c51e474dc7300a2cb175c8c00f2b2ac7288e90deb340cc7115809e7",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-score",
+      "sha256": "0459db9bedf33c4b6b78d424f982d431348fe9be6a83b99b5766dc0e8330d56c",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/bin/ramza-verify-emit",
+      "sha256": "60ccb72e202a74af50b1f1c7ceff35ebb25abf66dbf2549b05632bf07b4606cb",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/skills/methodology.md",
+      "sha256": "2cb2dcbb95b5c380b393122419133e7c0c88d284475f7879c9e3da04bd5f2573",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/ramza-methodology/SKILL.md",
+      "sha256": "2cb2dcbb95b5c380b393122419133e7c0c88d284475f7879c9e3da04bd5f2573",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/skills/discover.md",
+      "sha256": "f4d140c4079afeae7b9096250e0bfd8911d81c1e46099abf78b36f4782208477",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/ramza-discover/SKILL.md",
+      "sha256": "f4d140c4079afeae7b9096250e0bfd8911d81c1e46099abf78b36f4782208477",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/skills/critic.md",
+      "sha256": "295de06ea3cf318adcc92ad10d3186036251a2df5ad373f8d728c93287a7b832",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/ramza-critic/SKILL.md",
+      "sha256": "295de06ea3cf318adcc92ad10d3186036251a2df5ad373f8d728c93287a7b832",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/skills/parallel-spec.md",
+      "sha256": "7a42d13f68976d8054b5acd0a7dfa5ec19616c3a15bef7723c715c5252a621d4",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/ramza-parallel-spec/SKILL.md",
+      "sha256": "7a42d13f68976d8054b5acd0a7dfa5ec19616c3a15bef7723c715c5252a621d4",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/skills/verify-incoming.md",
+      "sha256": "62a647eea8da117152f8b3c5f8af2e39c173cfa5d13a3d7c7d0c4f6dfe9b7243",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/ramza-verify-incoming/SKILL.md",
+      "sha256": "62a647eea8da117152f8b3c5f8af2e39c173cfa5d13a3d7c7d0c4f6dfe9b7243",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/skills/esl-hop.md",
+      "sha256": "48d309f1ac8d521828eb49b209e864ceae070532909262234e41d36f1a089493",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": ".claude/skills/ramza-esl-hop/SKILL.md",
+      "sha256": "48d309f1ac8d521828eb49b209e864ceae070532909262234e41d36f1a089493",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "292daeed3fed67f8910b6465be9757c6238082249bd5f7e62602efba61b0b65b",
+      "role": "dispatch",
+      "mode": "appended"
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "292daeed3fed67f8910b6465be9757c6238082249bd5f7e62602efba61b0b65b",
+      "role": "dispatch",
+      "mode": "appended"
+    },
+    {
+      "path": ".claude/agents/ramza.md",
+      "sha256": "5c032948e758a7682a20362f425a0afbafc81804279c2cc00f51db1f99a70f2f",
+      "role": "dispatch",
+      "mode": "created"
+    },
+    {
+      "path": "./.eidolons/ramza/install.manifest.json",
+      "sha256": "",
+      "role": "manifest",
+      "mode": "created"
+    }
+  ],
+  "handoffs_declared": {
+    "upstream": [],
+    "downstream": []
+  },
+  "token_budget": {
+    "entry": 552,
+    "working_set_target": 1000
+  },
+  "security": {
+    "reads_repo": true,
+    "reads_network": false,
+    "writes_repo": true,
+    "persists": [
+      "./.eidolons/ramza/"
+    ]
+  }
+}

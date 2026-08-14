@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Rynaro/Ramza/schemas/plan-state.v1.json",
+  "title": "RAMZA plan-state v1",
+  "description": "Authoritative per-plan state machine and audit trail, maintained exclusively by the bin/ramza-* tools. Hand-editing this file defeats the audit trail and will surface as freeze/drift mismatches.",
+  "type": "object",
+  "required": ["schema", "plan", "tier", "phase", "phases_done", "refine_cycles", "skips", "gates", "amendments", "declared_scope", "criteria_sha256", "critic"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "ramza/plan-state.v1" },
+    "plan": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string" },
+    "tier": { "enum": ["trivial", "lite", "full"] },
+    "phase": { "enum": ["RS", "S", "P", "E", "C", "T", "R", "A", "DONE"] },
+    "phases_done": { "type": "array", "items": { "enum": ["RS", "S", "P", "E", "C", "T", "R", "A", "DONE"] } },
+    "rightsize": {
+      "type": "object",
+      "properties": {
+        "score": { "type": "integer", "minimum": 0 },
+        "computed_tier": { "enum": ["trivial", "lite", "full"] },
+        "inputs": { "type": "object" },
+        "override": {
+          "type": "object",
+          "required": ["tier", "reason"],
+          "properties": { "tier": { "enum": ["trivial", "lite", "full"] }, "reason": { "type": "string", "minLength": 1 }, "at": { "type": "string" } }
+        }
+      }
+    },
+    "refine_cycles": { "type": "integer", "minimum": 0, "maximum": 3 },
+    "skips": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["phase", "reason"],
+        "properties": { "phase": { "type": "string" }, "mandatory": { "type": "boolean" }, "reason": { "type": "string", "minLength": 1 }, "at": { "type": "string" } }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rubric", "total", "verdict"],
+        "properties": { "rubric": { "enum": ["explore", "confidence", "complexity", "refine"] }, "total": { "type": "number" }, "verdict": { "type": "string" }, "dims": { "type": "object" }, "at": { "type": "string" }, "label": { "type": "string" }, "cycle": { "type": "integer" }, "min": { "type": "number" } }
+      }
+    },
+    "amendments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["prev", "new", "reason"],
+        "properties": { "prev": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "new": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "reason": { "type": "string", "minLength": 1 }, "at": { "type": "string" } }
+      }
+    },
+    "declared_scope": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "scope_declared_at": { "type": "string" },
+    "criteria_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "criteria_frozen_at": { "type": "string" },
+    "critic": {
+      "type": "object",
+      "properties": { "author": { "type": ["string", "null"] }, "checker": { "type": ["string", "null"] }, "at": { "type": "string" } }
+    },
+    "drift_reports": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["at", "range", "files_changed", "uncovered"],
+        "properties": { "at": { "type": "string" }, "range": { "type": "string" }, "files_changed": { "type": "integer" }, "uncovered": { "type": "array", "items": { "type": "string" } } }
+      }
+    }
+  }
+}

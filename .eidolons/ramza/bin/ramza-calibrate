@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# ramza-calibrate — cross-model rubric calibration against shipped anchor plans.
+# A new host model scores the anchor plans; this tool compares those scores with the
+# shipped reference scores (per-dimension tolerance + verdict-band agreement, computed
+# via ramza-score so the arithmetic path under test is the production one).
+# Do not trust rubric verdicts from an uncalibrated model. (v2.0 Wave-3 item, landed.)
+# Part of RAMZA (https://github.com/Rynaro/Ramza). bash 3.2 compatible. Requires jq.
+set -eu
+
+die() { printf 'ramza-calibrate: %s\n' "$*" >&2; exit 2; }
+say() { printf '%s\n' "$*" >&2; }
+need() { command -v "$1" >/dev/null 2>&1 || die "required tool '$1' not found"; }
+need jq
+BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-calibrate --anchors DIR --scored FILE [--log FILE]
+
+  DIR    directory of anchor definitions (anchor-*.json), each:
+           {id, rubric, plan, reference: {<dims>}, tolerance, max_disagreements}
+         The referenced plan document is what the model scores.
+  FILE   the model's scores, keyed by anchor id:
+           {"<anchor-id>": {<dims>}, ...}
+
+Per anchor: |delta| per dimension vs tolerance (disagreements <= max_disagreements),
+plus verdict-band agreement and |total delta| <= 10 via ramza-score.
+Overall verdict "calibrated" only when every anchor passes. Exit 0/1.
+EOF
+  exit 2
+}
+
+ANCHORS="" SCORED="" LOG=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --anchors) ANCHORS="${2:-}"; shift 2 ;;
+    --scored) SCORED="${2:-}"; shift 2 ;;
+    --log) LOG="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+[ -n "$ANCHORS" ] && [ -n "$SCORED" ] || usage
+[ -d "$ANCHORS" ] || die "no such anchors dir: $ANCHORS"
+[ -f "$SCORED" ] || die "no such scored file: $SCORED"
+jq empty "$SCORED" 2>/dev/null || die "scored file is not valid JSON"
+
+FOUND=0 FAILED=0 REPORTS="[]"
+for ANCHOR in "$ANCHORS"/anchor-*.json; do
+  [ -f "$ANCHOR" ] || continue
+  FOUND=$((FOUND + 1))
+  ID=$(jq -r '.id' "$ANCHOR")
+  RUBRIC=$(jq -r '.rubric' "$ANCHOR")
+  TOL=$(jq -r '.tolerance // 1' "$ANCHOR")
+  MAXD=$(jq -r '.max_disagreements // 1' "$ANCHOR")
+
+  MODEL_DIMS=$(jq --arg id "$ID" '.[$id] // empty' "$SCORED")
+  if [ -z "$MODEL_DIMS" ]; then
+    REPORTS=$(printf '%s' "$REPORTS" | jq --arg id "$ID" '. + [{id: $id, pass: false, reason: "no scores provided for this anchor"}]')
+    FAILED=$((FAILED + 1))
+    continue
+  fi
+
+  # ramza-score exits 1 on weak/fail verdicts and an anchor may legitimately BE weak:
+  # capture stdout regardless of exit code; empty output = genuinely unscorable dims.
+  REF_RESULT=$(jq -c '.reference' "$ANCHOR" | "$BIN_DIR/ramza-score" --rubric "$RUBRIC" 2>/dev/null || true)
+  MODEL_RESULT=$(printf '%s' "$MODEL_DIMS" | "$BIN_DIR/ramza-score" --rubric "$RUBRIC" 2>/dev/null || true)
+  [ -n "$REF_RESULT" ] && [ -n "$MODEL_RESULT" ] || die "anchor $ID: could not score (invalid dims for rubric '$RUBRIC'?)"
+
+  ROW=$(jq -n \
+    --argjson ref "$(jq -c '.reference' "$ANCHOR")" \
+    --argjson model "$MODEL_DIMS" \
+    --argjson refr "$REF_RESULT" --argjson modr "$MODEL_RESULT" \
+    --argjson tol "$TOL" --argjson maxd "$MAXD" --arg id "$ID" '
+    ([$ref | keys[]] | map(. as $k
+      | {dim: $k, delta: (($model[$k] // -999) - $ref[$k])}
+      | select((.delta | fabs) > $tol))) as $dis
+    | {
+        id: $id,
+        disagreements: $dis,
+        total_delta: (($modr.total - $refr.total) * 100 | round / 100),
+        verdict_ref: $refr.verdict, verdict_model: $modr.verdict,
+        pass: ((($dis | length) <= $maxd)
+               and ($refr.verdict == $modr.verdict)
+               and ((($modr.total - $refr.total) | fabs) <= 10))
+      }')
+  REPORTS=$(printf '%s' "$REPORTS" | jq --argjson r "$ROW" '. + [$r]')
+  printf '%s' "$ROW" | jq -e '.pass' >/dev/null || FAILED=$((FAILED + 1))
+done
+
+[ "$FOUND" -gt 0 ] || die "no anchor-*.json files in $ANCHORS"
+
+VERDICT=calibrated
+[ "$FAILED" -eq 0 ] || VERDICT=uncalibrated
+RESULT=$(jq -n --argjson anchors "$REPORTS" --arg v "$VERDICT" \
+  --argjson found "$FOUND" --argjson failed "$FAILED" \
+  --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '{verdict: $v, anchors_total: $found, anchors_failed: $failed, anchors: $anchors, at: $at}')
+
+if [ -n "$LOG" ]; then
+  mkdir -p "$(dirname "$LOG")"
+  printf '%s\n' "$(printf '%s' "$RESULT" | jq -c .)" >> "$LOG"
+fi
+printf '%s\n' "$RESULT"
+[ "$VERDICT" = "calibrated" ] || exit 1
+exit 0

@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# ramza-gate — the phase state machine. Validates and records every transition of the
+# planning cycle (RS -> S -> P -> E -> C -> T -> [R] -> A -> DONE) against the plan-state file.
+# Out-of-order transitions are DENIED. Skipping a tier-mandatory phase requires --reason
+# (recorded, never silent). Maker!=checker is asserted mechanically for the critic gate.
+# Part of RAMZA (https://github.com/Rynaro/Ramza). bash 3.2 compatible. Requires jq.
+set -eu
+
+die()  { printf 'ramza-gate: %s\n' "$*" >&2; exit 2; }
+deny() { printf 'DENY: %s\n' "$*" >&2; exit 1; }
+say()  { printf '%s\n' "$*" >&2; }
+need() { command -v "$1" >/dev/null 2>&1 || die "required tool '$1' not found"; }
+now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+need jq
+
+ORDER="RS S P E C T R A DONE"
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-gate <command> --state FILE [options]
+  init     --plan SLUG --tier trivial|lite|full [--force]   initialise state without rightsize
+  status                                                     print tier, phase, next
+  next                                                       print next mandatory phase
+  advance  --to PHASE [--reason STR]                         enter the next phase (skips need --reason)
+  refine                                                     T -> R (max 3 cycles, then DENY + escalate)
+  critic   --author ID --checker ID                          record plan critique identities (author != checker)
+Phases: RS S P E C T R A DONE. Mandatory per tier:
+  trivial: RS S C A     lite/full: RS S P E C T A   (full additionally requires a critic record before A)
+EOF
+  exit 2
+}
+
+[ $# -ge 1 ] || usage
+CMD="$1"; shift
+STATE="" PLAN="" TIER="" TO="" REASON="" AUTHOR="" CHECKER="" FORCE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --state) STATE="${2:-}"; shift 2 ;;
+    --plan) PLAN="${2:-}"; shift 2 ;;
+    --tier) TIER="${2:-}"; shift 2 ;;
+    --to) TO="${2:-}"; shift 2 ;;
+    --reason) REASON="${2:-}"; shift 2 ;;
+    --author) AUTHOR="${2:-}"; shift 2 ;;
+    --checker) CHECKER="${2:-}"; shift 2 ;;
+    --force) FORCE=1; shift ;;
+    -h|--help) usage ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+[ -n "$STATE" ] || usage
+
+write_state() { # $1 = jq filter, remaining args passed to jq
+  _filter="$1"; shift
+  _tmp="${STATE}.tmp.$$"
+  jq "$@" "$_filter" "$STATE" > "$_tmp" && mv "$_tmp" "$STATE"
+}
+
+is_mandatory() { # $1 phase, $2 tier -> 0/1 exit
+  case "$2" in
+    trivial) case "$1" in RS|S|C|A) return 0 ;; esac ;;
+    lite|full) case "$1" in RS|S|P|E|C|T|A) return 0 ;; esac ;;
+  esac
+  return 1
+}
+
+next_mandatory() { # $1 current phase, $2 tier
+  _seen=0
+  for p in $ORDER; do
+    if [ "$_seen" -eq 1 ]; then
+      [ "$p" = "R" ] && continue           # R is entered only via `refine`
+      [ "$p" = "DONE" ] && { printf 'DONE\n'; return; }
+      if is_mandatory "$p" "$2"; then printf '%s\n' "$p"; return; fi
+      continue
+    fi
+    [ "$p" = "$1" ] && _seen=1
+  done
+  printf 'DONE\n'
+}
+
+phase_index() { # $1 phase -> index on stdout, dies on unknown
+  _i=0
+  for p in $ORDER; do
+    [ "$p" = "$1" ] && { printf '%s\n' "$_i"; return; }
+    _i=$((_i + 1))
+  done
+  die "unknown phase: $1"
+}
+
+case "$CMD" in
+  init)
+    [ -n "$PLAN" ] && [ -n "$TIER" ] || usage
+    case "$TIER" in trivial|lite|full) : ;; *) die "--tier must be trivial|lite|full" ;; esac
+    if [ -e "$STATE" ] && [ "$FORCE" -ne 1 ]; then die "state file exists: $STATE (use --force)"; fi
+    mkdir -p "$(dirname "$STATE")"
+    jq -n --arg plan "$PLAN" --arg tier "$TIER" --arg at "$(now_utc)" '{
+      schema: "ramza/plan-state.v1", plan: $plan, created_at: $at,
+      tier: $tier, phase: "RS", phases_done: ["RS"],
+      refine_cycles: 0, skips: [], gates: [], amendments: [],
+      declared_scope: [], criteria_sha256: null, critic: {author: null, checker: null}
+    }' > "$STATE"
+    say "state initialised: $STATE (tier: $TIER)"
+    ;;
+  status)
+    [ -f "$STATE" ] || die "no state file: $STATE"
+    CUR=$(jq -r '.phase' "$STATE"); T=$(jq -r '.tier' "$STATE")
+    NEXT=$( [ "$CUR" = "R" ] && printf 'T\n' || next_mandatory "$CUR" "$T" )
+    jq --arg next "$NEXT" '{plan, tier, phase, next: $next, refine_cycles, skips, criteria_frozen: (.criteria_sha256 != null)}' "$STATE"
+    ;;
+  next)
+    [ -f "$STATE" ] || die "no state file: $STATE"
+    CUR=$(jq -r '.phase' "$STATE"); T=$(jq -r '.tier' "$STATE")
+    [ "$CUR" = "R" ] && { printf 'T\n'; exit 0; }
+    next_mandatory "$CUR" "$T"
+    ;;
+  advance)
+    [ -f "$STATE" ] || die "no state file: $STATE"
+    [ -n "$TO" ] || usage
+    CUR=$(jq -r '.phase' "$STATE"); T=$(jq -r '.tier' "$STATE")
+    [ "$TO" = "R" ] && deny "R is entered via 'ramza-gate refine', not advance"
+    [ "$CUR" = "DONE" ] && deny "plan is DONE; no further transitions"
+    CI=$(phase_index "$CUR"); TI=$(phase_index "$TO")
+    if [ "$CUR" = "R" ]; then
+      [ "$TO" = "T" ] || deny "from R the only allowed transition is back to T (re-verify)"
+    else
+      [ "$TI" -gt "$CI" ] || deny "cannot move backwards or re-enter: $CUR -> $TO"
+    fi
+    NEXTM=$( [ "$CUR" = "R" ] && printf 'T\n' || next_mandatory "$CUR" "$T" )
+    if [ "$TO" != "$NEXTM" ]; then
+      # target differs from the next mandatory phase: this skips >=1 mandatory phase
+      [ -n "$REASON" ] || deny "advancing $CUR -> $TO skips mandatory phase(s) (next: $NEXTM); provide --reason to record the skip"
+      SKIPPED=""
+      for p in $ORDER; do
+        PI=$(phase_index "$p")
+        if [ "$PI" -gt "$CI" ] && [ "$PI" -lt "$TI" ] && [ "$p" != "R" ]; then
+          if is_mandatory "$p" "$T"; then SKIPPED="$SKIPPED $p"; fi
+        fi
+      done
+      for p in $SKIPPED; do
+        write_state '.skips += [{phase: $p, mandatory: true, reason: $r, at: $at}]' \
+          --arg p "$p" --arg r "$REASON" --arg at "$(now_utc)"
+      done
+    fi
+    if [ "$TO" = "A" ] && [ "$T" = "full" ]; then
+      CHK=$(jq -r '.critic.checker // empty' "$STATE")
+      [ -n "$CHK" ] || deny "tier=full requires a critic record (ramza-gate critic) before entering A"
+    fi
+    write_state '.phase = $to | .phases_done += [$to]' --arg to "$TO"
+    say "OK: $CUR -> $TO"
+    ;;
+  refine)
+    [ -f "$STATE" ] || die "no state file: $STATE"
+    CUR=$(jq -r '.phase' "$STATE"); CY=$(jq -r '.refine_cycles' "$STATE")
+    [ "$CUR" = "T" ] || deny "refine is entered from T only (current: $CUR)"
+    if [ "$CY" -ge 3 ]; then
+      deny "refine cycle cap (3) reached — escalate with a gap report; do not loop past the cap"
+    fi
+    write_state '.phase = "R" | .refine_cycles += 1 | .phases_done += ["R"]'
+    say "OK: T -> R (cycle $((CY + 1))/3)"
+    ;;
+  critic)
+    [ -f "$STATE" ] || die "no state file: $STATE"
+    [ -n "$AUTHOR" ] && [ -n "$CHECKER" ] || usage
+    [ "$AUTHOR" != "$CHECKER" ] || deny "maker!=checker violated: author and checker are both '$AUTHOR'"
+    write_state '.critic = {author: $a, checker: $c, at: $at}' \
+      --arg a "$AUTHOR" --arg c "$CHECKER" --arg at "$(now_utc)"
+    say "OK: critic recorded (author: $AUTHOR, checker: $CHECKER)"
+    ;;
+  *) usage ;;
+esac

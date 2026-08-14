@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vigil.agent/schemas/reproduction.v1.json",
+  "title": "VIGIL Reproduction Artifact",
+  "description": "Output of Phase V (Verify). Gates entry to all downstream phases.",
+  "type": "object",
+  "required": [
+    "mission_id",
+    "methodology_version",
+    "authority",
+    "failure_signature",
+    "reproduction_mode",
+    "reproduction_evidence",
+    "determinism_verdict"
+  ],
+  "properties": {
+    "mission_id": {
+      "type": "string",
+      "pattern": "^VIGIL-[0-9]{8}-[0-9]{3}$"
+    },
+    "methodology_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "authority": {
+      "type": "string",
+      "enum": ["read-only", "sandbox", "write"]
+    },
+    "upstream_artifact": {
+      "type": ["string", "null"],
+      "description": "Path to upstream trigger (e.g. repair-failed-report.md, bug report, CI log)."
+    },
+    "failure_signature": {
+      "type": "object",
+      "required": ["command", "error_class", "assertion", "stack_top"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Exact invocation that exhibits the failure."
+        },
+        "error_class": {
+          "type": "string",
+          "enum": [
+            "LOGIC_ERROR",
+            "REGRESSION",
+            "BUILD_ERROR",
+            "TYPE_ERROR",
+            "LINT_VIOLATION",
+            "RUNTIME_ERROR",
+            "INTEGRATION_ERROR",
+            "ENVIRONMENT_ERROR",
+            "HEISENBUG",
+            "COMPOUND",
+            "SPEC_DEFECT"
+          ]
+        },
+        "assertion": {"type": "string", "minLength": 5},
+        "stack_top": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {"type": "string"}
+        },
+        "base_commit": {
+          "type": "string",
+          "description": "SHA at which reproduction was performed."
+        },
+        "env_pinned": {
+          "type": "object",
+          "description": "Key env/version fingerprints.",
+          "properties": {
+            "language_version": {"type": "string"},
+            "deps_lockfile_sha": {"type": "string"},
+            "os": {"type": "string"},
+            "seed": {"type": ["string", "integer", "null"]}
+          }
+        }
+      }
+    },
+    "reproduction_mode": {
+      "type": "string",
+      "enum": ["deterministic", "statistical"]
+    },
+    "reproduction_evidence": {
+      "type": "array",
+      "minItems": 2,
+      "description": "≥2 consistent deterministic attempts, or ≥5 statistical runs.",
+      "items": {
+        "type": "object",
+        "required": ["attempt", "result"],
+        "properties": {
+          "attempt": {"type": "integer", "minimum": 1},
+          "result": {
+            "type": "string",
+            "enum": ["FAIL_MATCH", "FAIL_DIFFERENT", "PASS"]
+          },
+          "signature_match": {"type": "boolean"},
+          "stderr_tail_ref": {"type": "string"},
+          "observed_signature": {
+            "type": ["string", "null"],
+            "description": "Populated when result is FAIL_DIFFERENT."
+          }
+        }
+      }
+    },
+    "statistical_evidence": {
+      "type": ["object", "null"],
+      "description": "Required when reproduction_mode is statistical.",
+      "properties": {
+        "runs": {"type": "integer", "minimum": 5},
+        "failures": {"type": "integer", "minimum": 3},
+        "failure_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "ci_95": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "signature_consistency": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of failures with matching signature."
+        }
+      }
+    },
+    "determinism_verdict": {
+      "type": "string",
+      "enum": ["stable", "flaky", "intermittent", "not_reproduced"]
+    },
+    "markers": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["FLAKE", "GAP", "DISPUTED"]}
+    },
+    "telemetry": {
+      "type": "object",
+      "properties": {
+        "tool_calls": {"type": "integer", "minimum": 0},
+        "wall_clock_s": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "Statistical mode requires statistical_evidence.",
+      "if": {"properties": {"reproduction_mode": {"const": "statistical"}}},
+      "then": {"required": ["statistical_evidence"]}
+    },
+    {
+      "description": "intermittent / not_reproduced verdicts block downstream phases — escalation required.",
+      "if": {
+        "properties": {
+          "determinism_verdict": {
+            "enum": ["intermittent", "not_reproduced"]
+          }
+        }
+      },
+      "then": {
+        "required": ["markers"],
+        "properties": {
+          "markers": {"contains": {"const": "GAP"}}
+        }
+      }
+    }
+  ]
+}

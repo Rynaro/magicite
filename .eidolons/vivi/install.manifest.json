@@ -1,0 +1,296 @@
+{
+  "eidolon": "vivi",
+  "version": "1.3.0",
+  "methodology": "Vivi",
+  "installed_at": "2026-08-14T21:28:37Z",
+  "target": "./.eidolons/vivi",
+  "spec_file": ".eidolons/vivi/SPEC.md",
+  "canonical_inventory_strict": true,
+  "skills": [
+    {
+      "name": "context-engineering",
+      "source_path": ".eidolons/vivi/skills/context-engineering.md",
+      "source_sha256": "72d201f3d429d952e33f64cd6287ded55da0594228bb27ad66a12dbae5d82b12",
+      "vendor_path": ".claude/skills/vivi-context-engineering/SKILL.md",
+      "vendor_sha256": "72d201f3d429d952e33f64cd6287ded55da0594228bb27ad66a12dbae5d82b12"
+    },
+    {
+      "name": "failure-recovery",
+      "source_path": ".eidolons/vivi/skills/failure-recovery.md",
+      "source_sha256": "c6a51dc242c5b71f0f115fefa74ddcace2528003930df4cef6ca5d1eaaeb8300",
+      "vendor_path": ".claude/skills/vivi-failure-recovery/SKILL.md",
+      "vendor_sha256": "c6a51dc242c5b71f0f115fefa74ddcace2528003930df4cef6ca5d1eaaeb8300"
+    },
+    {
+      "name": "loop-native",
+      "source_path": ".eidolons/vivi/skills/loop-native.md",
+      "source_sha256": "84e6195015b97b396116e0dd84d2c8ffd9f39cd2d5a0fe7179ae50f13f33c454",
+      "vendor_path": ".claude/skills/vivi-loop-native/SKILL.md",
+      "vendor_sha256": "84e6195015b97b396116e0dd84d2c8ffd9f39cd2d5a0fe7179ae50f13f33c454"
+    },
+    {
+      "name": "memory-management",
+      "source_path": ".eidolons/vivi/skills/memory-management.md",
+      "source_sha256": "06fddce510d8383e4f30e79ec2ddcbeea7188ca89ec147885a9c514f6036738f",
+      "vendor_path": ".claude/skills/vivi-memory-management/SKILL.md",
+      "vendor_sha256": "06fddce510d8383e4f30e79ec2ddcbeea7188ca89ec147885a9c514f6036738f"
+    },
+    {
+      "name": "methodology",
+      "source_path": ".eidolons/vivi/skills/methodology.md",
+      "source_sha256": "a087504bf529190f3e2f30ae7766b6f10134da0877bae27fb75f06b88128c898",
+      "vendor_path": ".claude/skills/vivi-methodology/SKILL.md",
+      "vendor_sha256": "a087504bf529190f3e2f30ae7766b6f10134da0877bae27fb75f06b88128c898"
+    },
+    {
+      "name": "parallel-tracks",
+      "source_path": ".eidolons/vivi/skills/parallel-tracks.md",
+      "source_sha256": "1af1bf66acaceb781a1917a00e6ca54cddbb6f3ee9f66eff0de1b542331d6596",
+      "vendor_path": ".claude/skills/vivi-parallel-tracks/SKILL.md",
+      "vendor_sha256": "1af1bf66acaceb781a1917a00e6ca54cddbb6f3ee9f66eff0de1b542331d6596"
+    },
+    {
+      "name": "verify-incoming",
+      "source_path": ".eidolons/vivi/skills/verify-incoming.md",
+      "source_sha256": "bcce7ee589b25600b9e93079b12a700b4f6b7532146332d2f71010b723b6e257",
+      "vendor_path": ".claude/skills/vivi-verify-incoming/SKILL.md",
+      "vendor_sha256": "bcce7ee589b25600b9e93079b12a700b4f6b7532146332d2f71010b723b6e257"
+    },
+    {
+      "name": "esl-hop",
+      "source_path": ".eidolons/vivi/skills/esl-hop.md",
+      "source_sha256": "6ceb12d56cc4a66a4b3486ed00e1d3b953522aa9ffb1b1ab956a71633789a624",
+      "vendor_path": ".claude/skills/vivi-esl-hop/SKILL.md",
+      "vendor_sha256": "6ceb12d56cc4a66a4b3486ed00e1d3b953522aa9ffb1b1ab956a71633789a624"
+    }
+  ],
+  "hosts_wired": [
+    "claude-code"
+  ],
+  "files_written": [
+    {
+      "path": "agent.md",
+      "sha256": "6a5bbd72394baba5a08e481ac6d4b97740808d4a0f11750c05d9577790de92a7",
+      "role": "agent-profile",
+      "mode": "created"
+    },
+    {
+      "path": "SPEC.md",
+      "sha256": "8ee2abc4e0309aae1a6d69bf958f0a83a6ab823d77b025f2e15c6d4678657520",
+      "role": "spec",
+      "mode": "created"
+    },
+    {
+      "path": "skills/context-engineering.md",
+      "sha256": "72d201f3d429d952e33f64cd6287ded55da0594228bb27ad66a12dbae5d82b12",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/failure-recovery.md",
+      "sha256": "c6a51dc242c5b71f0f115fefa74ddcace2528003930df4cef6ca5d1eaaeb8300",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/loop-native.md",
+      "sha256": "84e6195015b97b396116e0dd84d2c8ffd9f39cd2d5a0fe7179ae50f13f33c454",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/memory-management.md",
+      "sha256": "06fddce510d8383e4f30e79ec2ddcbeea7188ca89ec147885a9c514f6036738f",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/methodology.md",
+      "sha256": "a087504bf529190f3e2f30ae7766b6f10134da0877bae27fb75f06b88128c898",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/parallel-tracks.md",
+      "sha256": "1af1bf66acaceb781a1917a00e6ca54cddbb6f3ee9f66eff0de1b542331d6596",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/verify-incoming.md",
+      "sha256": "bcce7ee589b25600b9e93079b12a700b4f6b7532146332d2f71010b723b6e257",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "skills/esl-hop.md",
+      "sha256": "6ceb12d56cc4a66a4b3486ed00e1d3b953522aa9ffb1b1ab956a71633789a624",
+      "role": "skill",
+      "mode": "created"
+    },
+    {
+      "path": "templates/discovery-report.md",
+      "sha256": "16406dd4bcec74118edca629218979ad9838d4a325dde0bd230ca9b35c630db1",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/execution-plan.md",
+      "sha256": "c541c98f17b98807ce3fc859f56e0627525aad44f9ab220bd2bd7f92f4c0902d",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/reflect-entry.md",
+      "sha256": "dcbd1d61a131e11483200516dee5ac12ef70605bce57a50a4d1b544301b803a4",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/tracks-merge-report.md",
+      "sha256": "df987d098e513edbdc96943d062c764c44917d687a46f61f596e93cfcfbcf0d6",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "ECL_VERSION",
+      "sha256": "d526eb4e878a23ef26ae190031b4efd2d58ed66789ac049ea3dbaf74c9df7402",
+      "role": "ecl-version",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/install.manifest.v1.json",
+      "sha256": "671e9fbc97e19d18adae68dbd3bdd0e6c0de32876316a87b31b13767f097d50f",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/ecl-envelope.v1.json",
+      "sha256": "71d320f2666f7c88afa908889512a6410c153ceb20d7c1a26cf608d56788e8cf",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/ecl-envelope.v2.json",
+      "sha256": "4880e460a9349366ea06b2ca7379b7bc7936c3417b320aa57f52c855f62fc45b",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/_base-profile.v1.json",
+      "sha256": "16f8888c16d377dbecd5d6a49a67e5045b681d5f36ea37f38e48605ba0098f2f",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/vivi-completion-report-profile.v1.json",
+      "sha256": "2466c7e925c70a02d91b7a0caee37aedbb9cba031db9a77464dba0f1ca7f1693",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/repair-failed-report-profile.v1.json",
+      "sha256": "5e15670b0fe9dfa7430fd327e3c35b6f08d67fdde452660848e281a8a195f85c",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/scout-report-profile.v1.json",
+      "sha256": "53ae7f76d702ded509101b7925619c6d7894e6dd2c7fcef8b22bb2c3a9a68442",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/spec-profile.v1.json",
+      "sha256": "49d61a41ebb856928c0fee4bd1376c178541be4fbccdf378c42f42d79d88cee3",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/root-cause-report-profile.v1.json",
+      "sha256": "9752ac8561e5530c67d6477880ce7f380e263b154fdd8404f00f5491570a306d",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "schemas/reasoning-report-profile.v1.json",
+      "sha256": "cdf975128f54812f14a0900a016e7314b3c1770c28bea30b0a562d723a592093",
+      "role": "other",
+      "mode": "created"
+    },
+    {
+      "path": "templates/vivi-completion-report.envelope.json",
+      "sha256": "1e146305b4b4142639f38234d77b3cb8825c58fc0d5bcd6e5776a204ccb52016",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/repair-failed-report.envelope.json",
+      "sha256": "0b8c296eb0a6f2c543025f5024ba6cb71bbd1a5f0466aff447ed80e7225c8322",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/reasoning-request.envelope.json",
+      "sha256": "59295105ab6bda849070ef46de0449cc2474c1eb46fc6552c7c07dc02a0c6c19",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/inbound/scout-report.envelope.fixture.json",
+      "sha256": "0d157566d25b79fae408feff045c0b360203be95da2e965847bdfc7ff2e07ad2",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/inbound/spec.envelope.fixture.json",
+      "sha256": "720354a3f06692800e3d87ad2c8c24d1f11b2eea3bb19cb63126486bfa798926",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/inbound/root-cause-report.envelope.fixture.json",
+      "sha256": "c331cac1eed7eac0a364bc7bbeff7e6ac9af83bd4106e8ee8eb5da13587f75dc",
+      "role": "template",
+      "mode": "created"
+    },
+    {
+      "path": "templates/inbound/reasoning-report.envelope.fixture.json",
+      "sha256": "e98d76a0f83e860d9e37c003fe826c15a22a946bbd54b4dec58be197b6d208e4",
+      "role": "template",
+      "mode": "created"
+    }
+  ],
+  "handoffs_declared": {
+    "upstream": [],
+    "downstream": [
+      "idg"
+    ]
+  },
+  "token_budget": {
+    "entry": 562,
+    "working_set_target": 1000
+  },
+  "comm": {
+    "envelope_version": "2.0",
+    "emits": [
+      "vivi-completion-report",
+      "repair-failed-report",
+      "reasoning-request"
+    ],
+    "verifies_incoming": [
+      "scout-report",
+      "spec",
+      "root-cause-report",
+      "reasoning-report"
+    ]
+  },
+  "security": {
+    "reads_repo": true,
+    "reads_network": false,
+    "writes_repo": true,
+    "persists": [
+      ".eidolons/vivi/memories/"
+    ]
+  }
+}

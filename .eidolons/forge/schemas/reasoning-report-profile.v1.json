@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/FORGE/blob/v1.3.0/schemas/reasoning-report-profile.v1.json",
+  "title": "ECL reasoning-report profile v1",
+  "description": "FORGE emit after F→O→R→G→E cycle; consumed by the requesting Eidolon. Vendored from eidolons-ecl/schemas/per-eidolon/reasoning-report.v1.json; byte-identical to upstream for v1.3.0. Enforces FORGE P0 floors: hypotheses_count >= 3, 1 <= passes_used <= 3, reversal_conditions non-empty.",
+  "allOf": [
+    {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["eidolon", "version", "kind", "status", "created_at"],
+      "properties": {
+        "eidolon": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Eidolon slug that emitted this artefact."
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "SemVer of the emitting Eidolon."
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Artefact kind slug. MUST equal the envelope's artifact.kind."
+        },
+        "status": {
+          "type": "string",
+          "description": "Methodology-defined status (e.g. 'emitted', 'in-review')."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "RFC 3339 UTC timestamp."
+        },
+        "thread_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "RECOMMENDED: mirror the envelope's thread_id so the artefact carries its own provenance."
+        },
+        "evidence_anchors_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of path:line citations in the body."
+        }
+      },
+      "additionalProperties": true
+    },
+    {
+      "type": "object",
+      "required": ["hypotheses_count", "passes_used", "decision"],
+      "properties": {
+        "kind":    { "const": "reasoning-report" },
+        "eidolon": { "const": "forge" },
+        "hypotheses_count": {
+          "type": "integer",
+          "minimum": 3,
+          "description": "FORGE P0: >=3 hypotheses with adversarial stress-tests."
+        },
+        "passes_used": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "FORGE P0: <=3 deliberation passes."
+        },
+        "reforged": { "type": "boolean", "default": false },
+        "decision": { "type": "string", "minLength": 1 },
+        "reversal_conditions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "FORGE P0: reversal conditions are mandatory."
+        },
+        "requires_checker": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set true when the verdict authorizes an irreversible action (deploy/release, destructive migration or data deletion, security-boundary change, external spend/commitment, or public communication) per skills/checker-handoff.md. The orchestrator MUST route a true-flagged report to a distinct checker (VIGIL for evidence-based claims, human for judgment calls) before any action is taken. false (default) — verdict flows unchanged."
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# ramza-freeze — SHA-256 freeze of the acceptance-criteria block at Assemble exit.
+# Freeze = tamper-EVIDENCE, not immutability: --amend is a first-class, hash-chained,
+# reasoned operation (the Brooker variable answered: mutable, never silently).
+# Part of RAMZA (https://github.com/Rynaro/Ramza). bash 3.2 compatible. Requires jq.
+set -eu
+
+die()  { printf 'ramza-freeze: %s\n' "$*" >&2; exit 2; }
+deny() { printf 'DENY: %s\n' "$*" >&2; exit 1; }
+say()  { printf '%s\n' "$*" >&2; }
+need() { command -v "$1" >/dev/null 2>&1 || die "required tool '$1' not found"; }
+now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+need jq
+
+sha256_of_file() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  else die "neither shasum nor sha256sum found"; fi
+}
+
+usage() {
+  cat >&2 <<'EOF'
+usage: ramza-freeze --state FILE --criteria FILE            freeze (fails if already frozen)
+       ramza-freeze --state FILE --criteria FILE --verify   recompute + compare (exit 1 on mismatch)
+       ramza-freeze --state FILE --criteria FILE --amend --reason STR
+                                                            hash-chained amendment (requires prior freeze)
+The hash also rides the ECL envelope as the x_ramza_acceptance_criteria vendor extension.
+EOF
+  exit 2
+}
+
+STATE="" CRITERIA="" MODE=freeze REASON=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --state) STATE="${2:-}"; shift 2 ;;
+    --criteria) CRITERIA="${2:-}"; shift 2 ;;
+    --verify) MODE=verify; shift ;;
+    --amend) MODE=amend; shift ;;
+    --reason) REASON="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+[ -n "$STATE" ] && [ -n "$CRITERIA" ] || usage
+[ -f "$STATE" ] || die "no state file: $STATE"
+[ -f "$CRITERIA" ] || die "no criteria file: $CRITERIA"
+
+HASH=$(sha256_of_file "$CRITERIA")
+CUR=$(jq -r '.criteria_sha256 // empty' "$STATE")
+TMP="${STATE}.tmp.$$"
+
+case "$MODE" in
+  freeze)
+    if [ -n "$CUR" ]; then
+      deny "criteria already frozen ($CUR); use --amend --reason to change them"
+    fi
+    jq --arg h "$HASH" --arg at "$(now_utc)" \
+      '.criteria_sha256 = $h | .criteria_frozen_at = $at' "$STATE" > "$TMP" && mv "$TMP" "$STATE"
+    say "frozen: $HASH"
+    printf '%s\n' "$HASH"
+    ;;
+  verify)
+    [ -n "$CUR" ] || deny "criteria were never frozen (nothing to verify against)"
+    if [ "$HASH" = "$CUR" ]; then
+      say "ok: criteria match frozen hash"
+      exit 0
+    fi
+    printf 'DRIFT: criteria hash mismatch\n  frozen:  %s\n  current: %s\n' "$CUR" "$HASH" >&2
+    AM=$(jq -r '.amendments | length' "$STATE")
+    printf 'Criteria were edited after freeze without ramza-freeze --amend (%s recorded amendment(s)).\n' "$AM" >&2
+    exit 1
+    ;;
+  amend)
+    [ -n "$CUR" ] || deny "cannot amend before an initial freeze"
+    [ -n "$REASON" ] || deny "--amend requires --reason (amendments are recorded, never silent)"
+    [ "$HASH" != "$CUR" ] || { say "no change: criteria hash unchanged"; exit 0; }
+    jq --arg prev "$CUR" --arg new "$HASH" --arg r "$REASON" --arg at "$(now_utc)" \
+      '.amendments += [{prev: $prev, new: $new, reason: $r, at: $at}] | .criteria_sha256 = $new' \
+      "$STATE" > "$TMP" && mv "$TMP" "$STATE"
+    say "amended: $CUR -> $HASH (reason: $REASON)"
+    printf '%s\n' "$HASH"
+    ;;
+esac

@@ -1,0 +1,40 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "01926e3c-2c8a-7b04-b3a1-1cf0a7a6d5e3",
+  "thread_id":  "01926e3a-2c8a-7b04-b3a1-1cf0a7a6d5e1",
+  "parent_id":  "01926e3b-2c8a-7b04-b3a1-1cf0a7a6d5e2",
+  "from": { "eidolon": "vigil", "version": "1.0.3" },
+  "to":   { "eidolon": "vivi", "version": "1.1.0" },
+  "performative": "PROPOSE",
+  "edge_origin": "roster",
+  "objective": "Return root-cause attribution to Vivi that escalated.",
+  "artifact": {
+    "kind": "root-cause-report",
+    "schema_version": "1.0",
+    "path": ".eidolons/vigil/output/root-cause-report.md",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "size_bytes": 0
+  },
+  "context_delta": {
+    "token_budget": 4000,
+    "tokens_used": 100,
+    "input_handles": [],
+    "summary": "Fixture for verify-incoming tests. Represents VIGIL returning a root-cause-report to Vivi."
+  },
+  "constraints": { "trust_level": "high" },
+  "expected_response": {
+    "performative": "ACKNOWLEDGE"
+  },
+  "confidence": 0.87,
+  "assumptions": [],
+  "integrity": {
+    "method": "sha256",
+    "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "trace": {
+    "ts": "2026-05-08T00:00:00Z",
+    "host": "claude-code",
+    "model": "claude-sonnet-4-6",
+    "tier": "standard"
+  }
+}

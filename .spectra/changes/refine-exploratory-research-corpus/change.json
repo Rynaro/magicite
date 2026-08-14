@@ -1,0 +1,12 @@
+{
+  "esl_version": "1.1",
+  "change_id": "refine-exploratory-research-corpus",
+  "status": "verified",
+  "tier": "full",
+  "maker": "idg",
+  "checker": "kupo",
+  "acceptance_checks": [],
+  "spec_ref": null,
+  "created_at": "2026-08-14",
+  "has_code": false
+}

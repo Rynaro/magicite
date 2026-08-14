@@ -1,0 +1,44 @@
+{
+  "_comment": "Illustrative RAMZA plan.json skeleton — Junction spec §7.5, schema `plan.v1` (Rynaro/Junction schemas/plan.v1.json). Mirrors the shape of Rynaro/Junction's examples/plan-trance/plan.json: {thread_id, tier, enforce, executor, steps[]}, each step {step_id, from{eidolon,version}, to{eidolon,version}, performative, edge_origin?, objective?, artifact?, model_tier_hint?, constraints?}. Fill every <placeholder>, then DELETE this `_comment` field before treating the file as a real plan.json — plan.v1 sets `additionalProperties:false` at every level (no vendor-extension escape hatch like ECL's `x_*` pattern), so a real `junction run <plan.json>` / `harness.run` will reject an unknown top-level key. Emitted at RAMZA's Assemble phase alongside the Markdown spec (see `templates/planning-artifact.md` 'Output Contract') when the consumer project runs Junction; a graceful no-op otherwise.",
+  "thread_id": "<uuid-v7 — same thread_id as this spec's ECL envelope, so the trace correlates>",
+  "tier": "standard",
+  "enforce": "fail-fast",
+  "executor": "container",
+  "steps": [
+    {
+      "step_id": "S0",
+      "from": { "eidolon": "human", "version": "n/a" },
+      "to":   { "eidolon": "atlas", "version": "<atlas semver, e.g. 1.13.0>" },
+      "performative": "REQUEST",
+      "edge_origin": "roster",
+      "objective": "<One sentence: what ATLAS should scout before RAMZA plans, e.g. 'Scout the auth module for MFA extension points.'>",
+      "artifact": {
+        "kind": "prompt",
+        "schema_version": "1.0",
+        "path": "<relative path to the scouting prompt, e.g. input/scout-prompt.md>"
+      },
+      "model_tier_hint": "reasoning-class",
+      "constraints": { "trust_level": "standard" }
+    },
+    {
+      "step_id": "S1",
+      "from": { "eidolon": "atlas", "version": "<atlas semver>" },
+      "to":   { "eidolon": "ramza", "version": "0.1.0" },
+      "performative": "INFORM",
+      "edge_origin": "roster",
+      "objective": "<One sentence: refine ATLAS's scout report into a decision-ready RAMZA spec, e.g. 'Produce the RS->S->P->E->C->T->A spec for TOTP-based MFA.'>",
+      "model_tier_hint": "reasoning-class",
+      "constraints": { "trust_level": "standard" }
+    },
+    {
+      "step_id": "S2",
+      "from": { "eidolon": "ramza", "version": "0.1.0" },
+      "to":   { "eidolon": "apivr", "version": "<apivr/vivi semver>" },
+      "performative": "DELEGATE",
+      "edge_origin": "roster",
+      "objective": "<One sentence: implement RAMZA's frozen, verified spec, e.g. 'Implement the MFA spec per its EARS acceptance criteria.'>",
+      "model_tier_hint": "reasoning-class",
+      "constraints": { "trust_level": "standard" }
+    }
+  ]
+}

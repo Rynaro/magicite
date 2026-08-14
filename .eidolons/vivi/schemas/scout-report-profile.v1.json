@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/Vivi/blob/v1.1.0/schemas/scout-report-profile.v1.json",
+  "title": "ECL scout-report profile v1",
+  "description": "Vendored from eidolons-ecl/schemas/per-eidolon/scout-report.v1.json (ECL v1.0.0). Inbound verification: ATLAS-emitted scout report received by Vivi. Contract: atlas-to-vivi.yaml.",
+  "allOf": [
+    { "$ref": "_base-profile.v1.json" },
+    {
+      "type": "object",
+      "required": ["decision_target", "scope", "findings_count"],
+      "properties": {
+        "kind": { "const": "scout-report" },
+        "eidolon": { "const": "atlas" },
+        "decision_target": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The DECISION_TARGET sub-question the mission was framed around."
+        },
+        "scope": {
+          "type": "object",
+          "required": ["entrypoints", "modules"],
+          "properties": {
+            "entrypoints": { "type": "array", "items": { "type": "string" } },
+            "modules":     { "type": "array", "items": { "type": "string" } },
+            "excluded":    { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        },
+        "findings_count": { "type": "integer", "minimum": 0 },
+        "gaps_count":     { "type": "integer", "minimum": 0 },
+        "confidence_distribution": {
+          "type": "object",
+          "properties": {
+            "H": { "type": "integer", "minimum": 0 },
+            "M": { "type": "integer", "minimum": 0 },
+            "L": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

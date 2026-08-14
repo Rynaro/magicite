@@ -1,0 +1,23 @@
+{
+  "$comment": "vendored from eidolons-ecl@v1.0.0 — do not edit manually; refresh on each ECL release",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/eidolons-ecl/blob/v1.0.0/schemas/per-eidolon/apivr-completion-report.v1.json",
+  "title": "ECL apivr-completion-report profile v1",
+  "description": "APIVR-Δ emit when work is complete; consumed by IDG.",
+  "allOf": [
+    { "$ref": "ecl-base-profile.v1.json" },
+    {
+      "type": "object",
+      "required": ["files_changed_count", "tests_run", "tests_passed"],
+      "properties": {
+        "kind":    { "const": "apivr-completion-report" },
+        "eidolon": { "const": "apivr" },
+        "files_changed_count": { "type": "integer", "minimum": 0 },
+        "tests_run":           { "type": "integer", "minimum": 0 },
+        "tests_passed":        { "type": "integer", "minimum": 0 },
+        "deltas_count":        { "type": "integer", "minimum": 0 },
+        "escalations_count":   { "type": "integer", "minimum": 0 }
+      }
+    }
+  ]
+}
