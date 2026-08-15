@@ -120,8 +120,7 @@ jobs:
       # for real rather than only trusted-by-inspection.
       - name: AC-031 — assert torch is absent
         run: |
-          uv run python -m pip list --format json \
-            | jq -e 'map(.name | ascii_downcase) | index("torch") == null'
+          uv pip list --format json | jq -e 'map(.name) | index("torch") == null'
 
   # ── VG-9 (AC-026): the containerised offline handshake. A separate job
   # so a Docker-layer failure never masks (or is masked by) the matrix
