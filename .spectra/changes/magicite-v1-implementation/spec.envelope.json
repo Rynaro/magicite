@@ -18,8 +18,8 @@
     "kind": "spec",
     "schema_version": "1.0",
     "path": ".spectra/changes/magicite-v1-implementation/spec.md",
-    "sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
-    "size_bytes": 90934
+    "sha256": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17",
+    "size_bytes": 94679
   },
   "context_delta": {
     "token_budget": 6000,
@@ -59,7 +59,7 @@
   "confidence": 0.85,
   "integrity": {
     "method": "sha256",
-    "value": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac"
+    "value": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17"
   },
   "trace": {
     "ts": "2026-08-14T22:42:20Z",
@@ -91,6 +91,36 @@
       "unchanged": [
         "x_ramza_acceptance_criteria (7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448) - acceptance-criteria.md is byte-identical",
         "objective and context_delta.summary - retained as sent; see spec.md section Scope for the authoritative stack statement",
+        "trace.ts - original emission timestamp, not backdated",
+        "message_id, thread_id, performative, from, to, confidence"
+      ]
+    },
+    {
+      "id": "R1-RESTATED",
+      "at": "2026-08-15",
+      "kind": "integrity_restamp",
+      "payload_path": ".spectra/changes/magicite-v1-implementation/spec.md",
+      "prev_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
+      "new_sha256": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17",
+      "prev_size_bytes": 90934,
+      "new_size_bytes": 94679,
+      "reason": "spec.md was amended in place to land the R1-RESTATED errata: risk R1's mitigation cited a per-session Tier-1 dw cap (3/skill/session) as an anti-poisoning control, and an executed adversarial review drove 253 tags / 200 captures for a single skill against it. session_id is caller-supplied and unauthenticated and omitting it mints a fresh session per call, so the honest calling convention defeats the cap; under local-first stdio no per-subject quota can bind at all. The mitigation is restated as object-keyed and temporal (per-engram refractory on the R bump, spacing-gated potentiation, decay at read, bounded retroactive credit, eph_tag-only S input), with the per-session cap demoted to runaway protection and the residuals stated openly. Re-stamping keeps the ECL integrity tag tracking the current payload; leaving it stale would make every future receiver verification report a false tamper alarm on an authorized, recorded change. The old->new transition is recorded here, in decisions/R1-RESTATED.md, and in plan-state.json errata[], so the audit chain is extended rather than broken. Chain to date: 92372ad6... -> 9fca1c08... -> 57148a2d...",
+      "authorizing_verdict": "FORGE (Reasoner) - Magicite Signal Integrity and Identity Model, 2026-08-14, RISK-ASSESSMENT, 2 passes, gate PASS, confidence 86%, requires_checker false; section 5.2 routes the spec.yaml R1 mitigation restatement to SPECTRA/RAMZA as an A1-class revision",
+      "evidence": "m3-security-review.md F-1 (executed: 5 calls/1 session -> 3 tags; 200 minted session ids -> 253 tags; 50 calls with no session_id -> still 253; 200 captured) and m4-security-retest.md (post-fix, pinned commit 3660c5d: the same 253/200 reproduce exactly, while 200 captured Tier-1 tags move S by 0.000000000 and 100 planted Tier-2 valence=+1.0 eph_event rows move S by 0.0)",
+      "decision_record": ".spectra/changes/magicite-v1-implementation/decisions/R1-RESTATED.md",
+      "implementing_commits": [
+        "9044d1f (M3 signal ladder)",
+        "3660c5d (M4 signal hygiene: refractory, decay-at-read, spacing gate, retro-credit bound, eph_event test)",
+        "15eda70 (M5 data-loss fixes)",
+        "9f5deb3 (M6 session_end grace floor)",
+        "1ce6f99 (IDG docs correction, docs/05 + docs/03)"
+      ],
+      "restamped_by": "ramza",
+      "mechanism": "targeted rewrite of artifact.sha256 / artifact.size_bytes / integrity.value plus a SECOND appended x_ramza_amendment entry (the A1-REVISED entry is left intact so the envelope carries the full hash chain), verified by bin/ramza-verify-emit; no canonical ramza-* envelope-amend command exists, and ramza-freeze --amend was again deliberately NOT used because it amends the acceptance-criteria anchor, which must not move",
+      "unchanged": [
+        "x_ramza_acceptance_criteria (7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448) - acceptance-criteria.md is byte-identical and was not re-frozen",
+        "the A1-REVISED x_ramza_amendment entry - append-only, left exactly as recorded",
+        "objective and context_delta.summary - retained as sent; see spec.md section Risks R1 for the authoritative mitigation statement",
         "trace.ts - original emission timestamp, not backdated",
         "message_id, thread_id, performative, from, to, confidence"
       ]

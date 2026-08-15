@@ -28,6 +28,20 @@ corpus: docs/01-vision-and-hypotheses.md .. docs/07-evaluation-and-observability
 > changed — is `decisions/A1-REVISED.md`. No acceptance criterion, invariant, tool signature,
 > validation-gate command, milestone, or §9 resolution was touched, and the confidence score
 > below is the as-scored value at Assemble: it was not re-scored.
+>
+> **Errata — R1-RESTATED (2026-08-15).** Risk **R1**'s mitigation cited a per-session Δw cap as an
+> anti-poisoning control. An executed adversarial review defeated that cap on the *honest* path —
+> **253 tags / 200 captures for a single skill against a documented cap of 3** — because
+> `session_id` is caller-supplied and unauthenticated and *omitting* it mints a fresh session per
+> call. Under the local-first stdio profile the achievable guarantee is **temporal, not
+> authenticational**: per-subject quotas cannot bind (one OS principal, caller-minted sessions), so
+> the bounds that hold are **object-keyed** — per engram, per wall-clock window — keyed on what a
+> caller cannot mint. Three locations here were restated (§Risks R1, the §3.3 `signal_use` step-6
+> note, the Story M3 user story); the permanent record, the executed evidence, and the residuals
+> that remain **open** are `decisions/R1-RESTATED.md`. R1's own framing — *"bounded, not
+> eliminated"* — was right; only its bookkeeping was wrong. As with A1-REVISED: no acceptance
+> criterion, invariant, tool signature, validation-gate command, milestone, or §9 resolution was
+> touched, and nothing was re-scored.
 
 ---
 
@@ -618,6 +632,11 @@ def signal_use(skill_ids: list[str],                 # ids or names, 1..20
 # 5. co-activation: every pair of skills with live tags in this session
 #    -> eph_candidate_edge(type='co_activation') upsert + edge tag
 # 6. per-skill-per-session cap = 3; extra calls return capped=true and set no new tags
+#    [R1-RESTATED 2026-08-15] this cap is RUNAWAY PROTECTION, not an anti-poisoning
+#    control: session_id is caller-supplied and unauthenticated, and omitting it mints
+#    a fresh session per call. The bounds that actually hold are object-keyed and
+#    temporal (per-engram refractory on the R bump; spacing-gated potentiation; decay
+#    at read) — see §Risks R1. Signature, defaults and return shape are unchanged.
 # returns {tagged[], co_activation_candidates[], expires_at, signal_tier, capped[], note}
 
 # ── 6. signal_outcome ── R1, Tier-1/2
@@ -1103,7 +1122,9 @@ Proves: **AC-011, AC-012, AC-022, AC-023**.
 ### Story M3: Signals — the Tier 0/1/2 ladder, tags, and caps
 
 As a host of any capability, I want learning signals to flow with or without hooks, so that plasticity
-is never dead (GAP-003) and never poisonable by a caller's claim.
+is never dead (GAP-003) and ~~never poisonable by a caller's claim~~ **poisoning is priced in
+wall-clock time rather than bounded by a caller's identity** *(R1-RESTATED, 2026-08-15 — see
+§Risks R1; this story's timebox, action plan, and proved-AC list are unchanged)*.
 Timebox: 4d. Risk tag: P0. Executor hint: frontier — goals + the caps/tier table.
 
 Action plan: `core/session.py`; `core/signals.py` (tag set/expiry, co-activation candidates,
@@ -1410,7 +1431,7 @@ with ~87% package overlap. constraint_compliance 84 — every corpus P0 maps to 
 
 | # | Risk | Tag | Mitigation | Owner |
 |---|---|---|---|---|
-| R1 | **Signal poisoning / adversarial valence.** docs/07 states this is "bounded, not eliminated": a confused agent can call `signal_outcome(+1)` on a failure. | P0 | Two-phase commit (tags ≠ weights), Tier-0 barred from S, Tier-1 capped at 3 Δw/skill/session and weighted 0.6, metaplastic saturation, Dream-only S writes, adversarial-noise robustness test in the ablation suite. | Vivi (M3/M4) |
+| R1 | **Signal poisoning / adversarial valence.** docs/07 states this is "bounded, not eliminated": a confused agent can call `signal_outcome(+1)` on a failure. *(Mitigation restated by **R1-RESTATED**, 2026-08-15: an executed adversarial review drove **253 tags / 200 captures for one skill** against the documented cap of 3. The risk statement itself stands — "bounded, not eliminated" was always the right framing; the mitigation list was the part that was wrong.)* | P0 | **Object-keyed and temporal, not identity-keyed — under stdio a per-subject quota cannot bind, so every bound below is keyed on an engram and on elapsed wall clock, neither of which a caller can mint.** Two-phase commit (tags ≠ weights); Tier-0 barred from S; Dream-only S writes (G3); `eph_tag` is the **sole** plasticity-S input — `eph_event` never is, now held by a test rather than a docstring (100 planted Tier-2 `valence=+1.0` rows move S by exactly **0.0**); a per-engram **refractory window** on the R bump (`eta_r_refractory_s=30s`) so R counts *occasions*, not *calls*; **decay applied at read** (λ_R 0.1/day, λ_S 0.01/day) so influence self-reverses with no Dream run, no `sync()`, and no human; **spacing-gated** potentiation (`tau_spacing_hours=6.0`) so a burst establishes anchors and commits nothing (200 captured Tier-1 tags → ΔS **0.000000000**; first commit needs ≳ 85 min of elapsed time; ceiling +0.048 per occasion); **bounded retroactive credit** (`retroactive_credit_max=10`); metaplastic saturation (bounds the per-event *step*, not the *number* of events); Tier-1 weighted 0.6. ~~Tier-1 capped at 3 Δw/skill/session~~ — `per_skill_session_cap=3` is **retained as runaway protection, not counted as an anti-poisoning control**. ~~adversarial-noise robustness test in the ablation suite~~ — not shipped; the standing evidence is two executed adversarial reviews plus an 8-guard mutation spot-check (carry-forward CF-1 in the record). **Residuals, verified post-fix and still open:** cap-burning inside another session and a cross-session high-salience −1.0 credit hijack both remain reachable; closing either needs caller identity (structurally impossible here) or a change to the frozen 16-tool surface. Full record, evidence and residual list: `decisions/R1-RESTATED.md`. | Vivi (M3/M4) |
 | R2 | **Tier-2 provenance spoofing.** A caller claiming `hook_verified` would get full Δw weight. | P0 | Tier is assigned server-side; Tier 2 requires `adapter_token == MAGICITE_HOOK_TOKEN` held only by the host adapter config. AC-015. | Vivi (M3) |
 | R3 | **Checkpoint file churn** exceeding the docs/03 5% target, making the registry's git history unreviewable. | P1 | ε-hysteresis (0.05), lazy S materialisation, dirty-set computation from state, `checkpoint_write_ratio` metric with a CI assertion on the toy registry. | Vivi (M4) |
 | R4 | **Embedding provider weight / offline behaviour** — fastembed downloading at runtime inside a hardened container. | P1 | Model baked at build time, `MAGICITE_EMBEDDING_OFFLINE=1`, `magicite fetch-model` for pip users, `hashing` provider for CI. `torch` banned (AC-031). | Vivi (M2/M7) |

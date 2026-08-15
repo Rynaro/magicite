@@ -66,6 +66,23 @@ errata:
     unchanged: "acceptance_criteria.sha256 (7bd3d184…, byte-identical, not re-frozen); AC text; validation_gates; invariants; tool_surface; milestones; corpus_contradictions; every ramza.scores value"
     verification: "FORGE VC-1 … VC-14: 13 pass, VC-11 deferred to M7 (no Dockerfile yet) as a recorded open item against VG-9; 84 tests pass"
     human_confirmation: pending
+  - id: R1-RESTATED
+    at: "2026-08-15"
+    record: .spectra/changes/magicite-v1-implementation/decisions/R1-RESTATED.md
+    disposition: "restatement of a risk-register mitigation so it matches the shipped artifact — no formal spec amendment, no re-plan, no criteria change, no re-scoring"
+    authorizing_verdict: "FORGE (Reasoner) — Magicite Signal Integrity and Identity Model, 2026-08-14, RISK-ASSESSMENT, gate PASS, confidence 86%, requires_checker false; section 5.2 routes the spec.yaml R1 mitigation restatement to SPECTRA/RAMZA as an A1-class revision"
+    trigger: "An executed adversarial review drove 253 Tier-1 tags / 200 captures for a single skill against R1's documented cap of 3 dw/skill/session, and reproduced it verbatim after the M4 fixes landed. session_id is caller-supplied and unauthenticated, and omitting it mints a fresh session per call — the honest calling convention defeats the cap. Structurally, no per-subject quota can bind under stdio (one OS principal, free session creation), so the bound moves from the subject to the object: per engram, per wall-clock window."
+    implementing_commits: [9044d1f (M3 ladder), 3660c5d (M4 signal hygiene), 15eda70 (M5 data-loss fixes), 9f5deb3 (M6 session_end grace floor), 1ce6f99 (IDG docs correction)]
+    touched: ["risks[R1].risk", "risks[R1].mitigation", "risks[R1].revised_by", "artifacts[].sha256"]
+    spec_md_sha256: {prev: 9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac, new: 57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17}
+    spec_md_locations: "reading-contract errata banner; section 3.3 signal_use step-6 note (comment only — signature, defaults and return shape byte-identical); Story M3 user-story overclaim (struck through, not deleted); section Risks R1 row"
+    envelope_integrity_restamped: true
+    unchanged: "acceptance_criteria.sha256 (7bd3d184…, byte-identical, not re-frozen; no AC references the cap, R1, or the mitigation wording); AC text; validation_gates; invariants; tool_surface; section 3.3 session-resolution rule; milestones; corpus_contradictions; R1's tag/owner/milestone; every ramza.scores value"
+    residuals_open: "cap-burning inside another agent's session; cross-session high-salience -1.0 credit hijack; pre-capture session suppression (bounded at M6 by session_end_tag_grace_s, not eliminated); saturation reachable by a patient caller (deliberate); uncapped co-activation row fan-out (potentiation gated); eph_* row growth (ops)"
+    carry_forward: "CF-1 adversarial-noise ablation never shipped; CF-2 four guards each held by exactly one test; CF-3 docs/05 names per_skill_window_cap / signal_window, which do not exist in the tree — the spec deliberately does not copy that phrasing (routed to IDG); CF-4 FORGE's reversal conditions live, M7 privilege-boundary check now due; CF-5 Fix-B server-only session minting still an open RAMZA decision"
+    verification: "executed post-fix re-test against pinned commit 3660c5d: 253/200 reproduce exactly; 200 captured Tier-1 tags move S by 0.000000000; 4200 captured edge tags commit 0 edges; 100 planted Tier-2 eph_event rows move S by 0.0; R self-reverts to baseline after a 30d anchor; mutation spot-check 8/8 guards detected"
+    verified_status_impact: "none — the criteria anchor did not move and no src/, tests/ or docs/ file was touched; see decisions/R1-RESTATED.md section 11"
+    human_confirmation: "not required for the restatement; the inherited FORGE ask (confirm M7 packaging does not put the server behind a privilege boundary the client does not share) stands as CF-4"
 
 # ── stack decisions (fixed upstream; A1 reopened once — see errata A1-REVISED) ─
 stack:
@@ -246,8 +263,39 @@ risks:
     tag: P0
     owner: vivi
     milestone: "M3,M4"
-    risk: "Signal poisoning / adversarial valence"
-    mitigation: "two-phase commit, Tier-0 barred from S, Tier-1 capped 3 dw/skill/session at weight 0.6, metaplastic saturation, Dream-only S writes"
+    risk: "Signal poisoning / adversarial valence — docs/07's 'bounded, not eliminated'. The risk framing was always right; its mitigation bookkeeping was not (see revised_by)."
+    mitigation: >-
+      Object-keyed and temporal, not identity-keyed. Under local-first stdio no per-subject quota can
+      bind (one OS principal shared by client and server; session_id is caller-supplied, unauthenticated
+      and free to mint), so every bound below is keyed on an engram and on elapsed wall clock — what a
+      caller cannot mint. Two-phase commit (tags != weights); Tier-0 barred from S; Dream-only S writes
+      (G3); eph_tag is the sole plasticity-S input and eph_event never is, now held by a test rather than
+      a docstring (100 planted Tier-2 valence=+1.0 rows move S by exactly 0.0); a per-engram refractory
+      window on the R bump (eta_r_refractory_s=30s) so R counts occasions, not calls; decay applied at
+      read (lambda_R 0.1/day, lambda_S 0.01/day) so influence self-reverses with no Dream run, no sync()
+      and no human; spacing-gated potentiation (tau_spacing_hours=6.0) so a burst establishes anchors and
+      commits nothing (200 captured Tier-1 tags -> delta S = 0.000000000; the first commit needs >= ~85
+      min of elapsed time, then at most one commit per engram per Dream run, ceiling +0.048 per
+      occasion); bounded retroactive credit (retroactive_credit_max=10); metaplastic saturation (bounds
+      the per-event step, never the number of events); Tier-1 weighted 0.6. per_skill_session_cap=3 is
+      RETAINED as runaway protection and is NOT counted as an anti-poisoning control — an executed
+      adversarial review drove 253 tags / 200 captures for a single skill against it, on the honest path.
+      Residuals, verified post-fix and still open: cap-burning inside another agent's session, and a
+      cross-session high-salience -1.0 retroactive-credit hijack; closing either needs caller identity
+      (structurally impossible under stdio) or a change to the frozen 16-tool surface. The originally
+      cited 'adversarial-noise robustness test in the ablation suite' never shipped (carry-forward CF-1);
+      the standing evidence is two executed adversarial reviews plus an 8-guard mutation spot-check.
+      Full record, evidence and residual list: decisions/R1-RESTATED.md.
+    revised_by: >-
+      R1-RESTATED (2026-08-15): the mitigation previously read 'two-phase commit, Tier-0 barred from S,
+      Tier-1 capped 3 dw/skill/session at weight 0.6, metaplastic saturation, Dream-only S writes'. The
+      capped clause described a control that cannot bind: the cap is keyed on (session_id, engram_id),
+      session_id is caller-supplied and unauthenticated, and omitting it mints a fresh session per call,
+      so the documented calling convention defeats it with no malice (253 tags / 200 captures, executed).
+      Authorizing verdict: FORGE (Reasoner) — Magicite Signal Integrity and Identity Model, 2026-08-14,
+      gate PASS, confidence 86%, section 5.2 routing the spec edit to RAMZA. Risk statement substance,
+      tag (P0), owner and milestone are unchanged; no AC, VG command, invariant, tool signature,
+      milestone or section-9 resolution was touched; nothing was re-scored.
   - id: R2
     tag: P0
     owner: vivi
@@ -368,20 +416,23 @@ declared_scope:
 # ── artifacts (hashes as emitted at Assemble; spec.yaml is a projection) ───
 artifacts:
   - path: ".spectra/changes/magicite-v1-implementation/spec.md"
-    sha256: 9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac
-    role: "normative spec (payload of the ECL envelope); rehashed 2026-08-14 by errata A1-REVISED (was 92372ad6…)"
+    sha256: 57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17
+    role: "normative spec (payload of the ECL envelope); rehashed 2026-08-15 by errata R1-RESTATED (was 9fca1c08…, itself rehashed 2026-08-14 by A1-REVISED from 92372ad6…)"
   - path: ".spectra/changes/magicite-v1-implementation/acceptance-criteria.md"
     sha256: 7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448
     role: "frozen EARS criteria (ramza-freeze)"
   - path: ".spectra/changes/magicite-v1-implementation/plan-state.json"
-    sha256: 31a6c4b31c42c72e1c621407730ed1fc433f44a40570ccd1ca3b7d8a2148068a
-    role: "tamper-evident audit trail (ramza/plan-state.v1); rehashed 2026-08-14 — errata[] entry appended (was 700b3644…)"
+    sha256: 836ec711b92202e3b0e95e2871c0624cd80728ac8f93f2a970c2fdb41e41e24a
+    role: "tamper-evident audit trail (ramza/plan-state.v1); rehashed 2026-08-15 — second errata[] entry appended (was 31a6c4b3…; amendments[] still empty, criteria_sha256 untouched)"
   - path: ".spectra/changes/magicite-v1-implementation/spec.envelope.json"
-    sha256: c8024cebebe6b3dbb44ed379c7ca1c0b6344d87d1bd1ccf44a1b118a59c8d055
-    role: "ECL v2.0 PROPOSE envelope -> vivi; integrity tag re-stamped 2026-08-14 over the amended spec.md, transition recorded in x_ramza_amendment (was d221d129…)"
+    sha256: 8f09bd2e46c6bac57e6bd883bcb522e82ea3b4ed0620c02999039658a64f27ab
+    role: "ECL v2.0 PROPOSE envelope -> vivi; integrity tag re-stamped 2026-08-15 over the amended spec.md, second x_ramza_amendment entry appended so the envelope carries the full chain 92372ad6… -> 9fca1c08… -> 57148a2d… (was c8024ceb…)"
   - path: ".spectra/changes/magicite-v1-implementation/decisions/A1-REVISED.md"
     sha256: a5801a0c9210f59740f42c082707318ec2e80d122c86ef5ec6d96a1691ea3d39
-    role: "append-only decision record for the A1 revision (2026-08-14)"
+    role: "append-only decision record for the A1 revision (2026-08-14); untouched by errata R1-RESTATED, hash re-verified on disk"
+  - path: ".spectra/changes/magicite-v1-implementation/decisions/R1-RESTATED.md"
+    sha256: 2b769225d06414b7d88e173dcc93e2c88aed5048b68f0bf7aeb571105dd96eb7
+    role: "append-only decision record for the R1 mitigation restatement (2026-08-15)"
   - path: ".spectra/changes/magicite-v1-implementation/ramza-calibration.jsonl"
     sha256: f2f3ac72015b57689210e55348e9f73c5e7e2ad6ca45df8ece22800c069a61c4
     role: "instrument-vs-outcome calibration log"

@@ -238,6 +238,68 @@
       "record": ".spectra/changes/magicite-v1-implementation/decisions/A1-REVISED.md",
       "recorded_by": "ramza",
       "human_confirmation": "pending — A1 was flagged for human validation and was originally resolved by the orchestrator, not by RAMZA analysis; surfaced as a notification, not a blocker"
+    },
+    {
+      "id": "R1-RESTATED",
+      "at": "2026-08-15T00:00:00Z",
+      "kind": "risk_mitigation_restatement",
+      "disposition": "restatement of a risk-register mitigation so it matches the shipped artifact - no formal spec amendment, no re-plan, no criteria change, no re-scoring",
+      "trigger": "An executed adversarial security review (M3) drove 253 Tier-1 tags / 200 captures for a SINGLE skill against R1's documented cap of 3 dw/skill/session, and reproduced it verbatim after the M4 fixes landed. The cap is keyed on (session_id, engram_id); session_id is caller-supplied and unauthenticated, session.resolve_id upserts any string, and OMITTING session_id mints a fresh UUID per call - so the documented, honest calling convention defeats it with no malice. R1's mitigation string therefore described a control that does not exist.",
+      "what_changed": "risks[R1].mitigation: 'two-phase commit, Tier-0 barred from S, Tier-1 capped 3 dw/skill/session at weight 0.6, metaplastic saturation, Dream-only S writes' -> an object-keyed and temporal statement of what actually ships: two-phase commit; Tier-0 barred from S; Dream-only S writes (G3); eph_tag as the sole plasticity-S input (eph_event never, now held by test); a per-engram refractory window on the R bump (eta_r_refractory_s=30s) so R counts occasions not calls; decay applied at read (lambda_R 0.1/day, lambda_S 0.01/day) so influence self-reverses without Dream, sync() or a human; spacing-gated potentiation (tau_spacing_hours=6.0) so a burst sets anchors and commits nothing; bounded retroactive credit (retroactive_credit_max=10); metaplastic saturation (bounds the per-event step, not the event count); Tier-1 weight 0.6. per_skill_session_cap=3 is RETAINED but demoted to runaway protection, not counted as an anti-poisoning control. The 'adversarial-noise robustness test in the ablation suite' clause is struck: it never shipped (eval/ablations.py has three switches, none adversarial; no AC covers it) and is carried forward as CF-1. R1's risk statement, tag (P0), owner and milestone (M3,M4) are unchanged - 'bounded, not eliminated' was always correct.",
+      "why": "FORGE section 4.2, structural result: a quota binds only if you can name principals and prevent free creation of principals. Under stdio local-first there is exactly ONE OS principal (client and server are the same user), session creation is free by design (each turn, each reconnect, each server process), and even a server-signed token does not help because the server would issue one to whoever asks. So no per-subject quota can bind in v1 without changing the deployment posture, which docs/02 defers. The bound must therefore move from the SUBJECT to the OBJECT: per engram, per wall-clock window - keyed on what a caller cannot mint. FORGE section 4.3: 'Under local-first stdio, Magicite's achievable integrity guarantee is temporal, not authenticational.' These object-keyed bounds are not v1 stopgaps: they survive into the deferred served profile, composing with per-tenant authorization rather than being replaced by it. A security claim a reader relies on and that does not hold is worse than an absent one.",
+      "authorizing_verdict": "FORGE (Reasoner) - Magicite Signal Integrity and Identity Model, 2026-08-14, RISK-ASSESSMENT with an embedded CONSTRAINT-SATISFACTION sub-decision on identity, 2 passes, 1 gate, gate PASS, confidence 86% (Evidence 92 / Logic 88 / Constraints 85 / Sensitivity 78), requires_checker false. Section 5.2: 'This is a spec edit and is not mine to make ... There is precedent for the vehicle: the recorded A1-REVISED entry that touched risks[R6] under declared variance. -> SPECTRA/RAMZA.'",
+      "evidence": "m3-security-review.md F-1 (executed) and m4-security-retest.md (executed post-fix against pinned commit 3660c5d, 324-test baseline on the extraction). Key measurements: 253 tags / 200 captures reproduce exactly; 200 captured Tier-1 tags -> delta S = 0.000000000; conversion needs >= ~85 min elapsed then at most ONE commit per engram per Dream run, ceiling +0.048/occasion; 30 calls across 30 minted sessions -> exactly ONE R bump (0.15), rank 7->5 not 7->3; 50 calls omitting session_id -> R unchanged; R pinned 1.0 with a 30d-old anchor -> back to baseline rank 7; 4200 captured edge tags -> 0 committed edges (max edge S 3.6e-07); 100 planted Tier-2 valence=+1.0 eph_event rows -> max |delta S| = 0.0; mutation spot-check 8/8 guards detected.",
+      "implementing_commits": [
+        "9044d1f - M3: signal ladder, Tier 0/1/2, server-side tier assignment, P0 authorizer",
+        "3660c5d - M4: Dream worker + signal hygiene (FORGE N-1 decay-at-read, N-2 refractory, N-4 spacing gate, N-5 retro-credit bound, N-6 eph_event-is-never-an-S-input as a test)",
+        "15eda70 - M5: two data-loss fixes (cross-process lease on the registry write path; archival requires a genuine prior peak >= floor_archived)",
+        "9f5deb3 - M6: session_end_tag_grace_s floor (bounds, does not eliminate, the pre-capture suppression primitive)",
+        "1ce6f99 - IDG docs correction (docs/05 Tier-1 ladder + Tier-0 note, docs/03 Principle 0)"
+      ],
+      "residuals_open": [
+        "RES-1 cap-burning: a caller naming another agent's session can burn a skill's per-session cap inside it, so the owner's own honest signal_use returns capped (re-test section 5 C)",
+        "RES-2 cross-session credit hijack: a high-salience valence=-1.0 signal_outcome naming another agent's session retroactively credits that agent's live tags (2 skills at -1.0, executed); breadth is bounded to 10 by retroactive_credit_max but the hijack needs a participation check, i.e. identity or a tool-surface change (re-test section 5 D)",
+        "RES-3 pre-capture session suppression survives; bounded at M6 by session_end_tag_grace_s=60s. FORGE's N-7 as specified (make session_end non-suppressive) did not land (re-test section 5 A)",
+        "RES-4 saturation is reachable by a patient caller: +0.15 R ceiling ~95% in ~9.5 min, rank-3 flip in 12 min / 48 calls; S >= 0.6 in ~18 daily occasions. Deliberate - a local-first server cannot distinguish 'used often' from 'reported as used often' (FORGE section 3.1 part 3)",
+        "RES-5 co-activation row fan-out uncapped per call (380 edges from one 20-id call); an edge at S=0.06 moves a candidate further than R saturated at 1.0. Potentiation is gated so committed edge weight is noise (3.6e-07), but 'R is the routing lever' is no longer the right mental model",
+        "RES-6 eph_tag/eph_event row growth ~10 KB per 7-id signal_use call; deferred as an operations problem, reclaimed by decay.purge_retention after retention_days"
+      ],
+      "carry_forward": [
+        "CF-1 the 'adversarial-noise robustness test in the ablation suite' named in R1's ORIGINAL mitigation never shipped; standing evidence is the two executed adversarial reviews plus the 8-guard mutation spot-check",
+        "CF-2 guard coverage is thin: refractory, decay-at-read, session_end and retro-credit are each held by exactly ONE test, two of which assert the no-op rather than the behaviour",
+        "CF-3 docs/05 names per_skill_window_cap and signal_window, which do NOT exist in the tree (no such Config field; the re-test reproduced 253 tags exactly). FORGE's N-3 window-keyed cap was not implemented - what closed the conversion hole was the spacing gate at Dream. The spec deliberately does not copy that phrasing; routed to IDG, docs/ is outside RAMZA's write boundary",
+        "CF-4 FORGE's reversal conditions are live; its single human ask was to confirm M7's packaging does not put the server behind a privilege boundary the client does not share. M7 has since shipped (01c20fc), so that check is now due and is NOT adjudicated here",
+        "CF-5 Fix-B (server-only session minting) remains an open decision routed to RAMZA/SPECTRA: it would close RES-1/2/3 as a class but contradicts spec section 3.3's session-resolution rule - a spec behaviour change, deliberately not made by this errata"
+      ],
+      "artifact_hash_transitions": [
+        {
+          "path": "spec.md",
+          "prev_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
+          "new_sha256": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17",
+          "prev_size_bytes": 90934,
+          "new_size_bytes": 94679,
+          "note": "four located patches: the reading-contract errata banner, the section 3.3 signal_use step-6 note (comment only - signature, defaults and return shape byte-identical), the Story M3 user-story overclaim ('never poisonable by a caller's claim', struck through not deleted), and the section Risks R1 row. spec.yaml artifacts[0].sha256 updated to match"
+        },
+        {
+          "path": "spec.envelope.json",
+          "field": "integrity.value (and artifact.sha256/size_bytes)",
+          "prev_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
+          "new_sha256": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17",
+          "note": "ECL integrity tag re-stamped a second time over the amended payload so future receiver verification does not report a false tamper alarm; a SECOND x_ramza_amendment entry was appended and the A1-REVISED entry left intact, so the envelope now carries the full chain 92372ad6... -> 9fca1c08... -> 57148a2d.... Mechanism = targeted rewrite of artifact.sha256/size_bytes/integrity.value, verified green by bin/ramza-verify-emit --spec spec.md --envelope spec.envelope.json; no canonical ramza-* envelope-amend command exists, and ramza-freeze --amend was again deliberately NOT used because it amends the acceptance-criteria anchor, which must not move"
+        }
+      ],
+      "unchanged": [
+        "acceptance-criteria.md - byte-identical, sha256 7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448; not re-frozen, not amended (amendments[] stays empty, criteria_sha256 untouched). Verified mechanically: no AC references the per-session cap, R1, or the mitigation wording - the false claim lived in the risk register and narrative prose only",
+        "AC-001 ... AC-033 text, all nine VG commands, INV-1 ... INV-4, the 16-tool surface (signal_use's section 3.3 signature/defaults/returns are byte-identical), section 3.3's session-resolution rule, the Tier A/B/C split, the P0 guard mechanism, the M0-M7 decomposition, all eight section-9 CR resolutions",
+        "R1's risk statement, tag (P0), owner (vivi) and milestone (M3,M4)",
+        "confidence 84.75 / VALIDATE, complexity 10/12, explore scores, refine cycle count, and the phase walk - not re-run and not re-scored",
+        "src/, tests/ and docs/ - no executable or documentation file was touched by this errata; docs/05 and docs/03 were already corrected by IDG at 1ce6f99",
+        "change.json status 'verified' - see decisions/R1-RESTATED.md section 11 for the reasoning"
+      ],
+      "verified_status_impact": "none. Kupo's sign-off (33/33 ACs, 9/9 validation gates, 457 tests, 94.04% coverage) was measured against acceptance-criteria.md at 7bd3d184..., which is byte-identical and contains no reference to the per-session cap, R1, or the mitigation wording; no file under src/, tests/ or docs/ was touched, so every VG command re-runs identically. The one thing a re-verifier should re-check is the hash chain, which moved by design and is recorded in three places. If the sign-off is held to cover the spec's prose rather than only its criteria, the remedy is a Kupo re-attest of the two amended documents, not a re-plan.",
+      "record": ".spectra/changes/magicite-v1-implementation/decisions/R1-RESTATED.md",
+      "recorded_by": "ramza",
+      "human_confirmation": "not required for the restatement itself (it corrects a false claim in RAMZA's own risk register). One inherited human ask stands, unchanged from FORGE: confirm that M7's packaging does not put the server behind a privilege boundary the client does not share - see CF-4."
     }
   ]
 }
