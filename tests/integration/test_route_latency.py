@@ -2,6 +2,15 @@
 k=5) is called 100 times THEN the p95 end-to-end latency SHALL be below
 100ms.
 
+Marked ``benchmark`` and deselected from CI's blocking gate: a wall-clock
+assertion measures the runner, not the engine -- shared CI hardware (2-4
+shared vCPUs) has no fixed relationship to the dedicated hardware the
+100ms budget was calibrated against, so gating the build on it fails the
+runner, not a regression (see ``.github/workflows/ci.yml``'s benchmark
+step for the CI-side half of this decision). The assertion and its
+100ms budget are unchanged; this test still runs, and must still pass,
+locally and in CI's non-blocking benchmark step.
+
 The 1000-engram registry is populated with direct SQL (not
 ``register()``/1000 ``.egr.md`` files -- that would measure file-parsing
 and lint throughput, a different, uninteresting-here cost) so the
@@ -125,6 +134,7 @@ def _build_synthetic_registry(conn, embedder, *, n: int, seed: int = 1234) -> No
 
 
 @pytest.mark.acceptance
+@pytest.mark.benchmark
 def test_p95_under_100ms(cfg, db_conn, embedder) -> None:
     _build_synthetic_registry(db_conn, embedder, n=N_ENGRAMS)
 

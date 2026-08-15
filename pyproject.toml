@@ -62,6 +62,7 @@ addopts = "-ra"
 testpaths = ["tests"]
 markers = [
   "acceptance: acceptance-level tests mapped to a frozen AC id",
+  "benchmark: wall-clock performance assertions -- hardware-sensitive, excluded from the blocking CI gate (see tests/integration/test_route_latency.py docstring), run separately and non-blocking for visibility",
 ]
 
 [tool.ruff]
