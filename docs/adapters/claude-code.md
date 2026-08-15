@@ -62,7 +62,7 @@ client cannot self-upgrade a call's trust level.
          "args": ["run", "--rm", "-i", "--user", "1000:1000",
                    "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
                    "-v", "<project_root>:<project_root>:z", "-w", "<project_root>",
-                   "ghcr.io/rynaro/magicite@sha256:<digest>", "serve", "--project-root", "<project_root>"],
+                   "ghcr.io/rynaro/magicite@sha256:d4de4eacbadea6f7e8fa73506dceae8e3d465088a2590c3d892deb096e03dc34", "serve", "--project-root", "<project_root>"],
          "env": { "MAGICITE_HOOK_TOKEN": "<the secret from step 1>" }
        }
      }

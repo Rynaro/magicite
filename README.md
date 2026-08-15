@@ -9,9 +9,11 @@ surface for retrieval, signal capture, and (approval-gated) learning. It
 never executes anything on your behalf and never phones home: routing,
 learning, and consolidation all happen inside your own project, offline.
 
-**Status:** v1. See `.spectra/changes/magicite-v1-implementation/spec.md`
-for the normative construction spec and `docs/` for the design corpus
-(start at `docs/01-vision-and-hypotheses.md`).
+**Status:** 0.1.0 — first release, container-only. See
+`.spectra/changes/archive/2026-08-15-magicite-v1-implementation/spec.md` for
+the normative construction spec (archived, with its five recorded amendments)
+and `docs/` for the design corpus (start at
+`docs/01-vision-and-hypotheses.md`).
 
 **Honest limits, up front (docs/01 Falsification Record, measured 2026-08-15):** At 70 skills with lexically independent queries, plain dense-embedding retrieval (baseline b: Hit@1 0.5476) remains stronger than the full Magicite pipeline (baseline d: Hit@1 0.5333). The gap is statistically indistinguishable (3 queries out of 210; prior measurement 0.4619 was 18-query gap, p = 0.00053). Full Magicite is not significantly better than native lexical matching (p = 0.19). The predicted ~50-skill break-even where Magicite's routing machinery should "pay off" remains **unevidenced** — a single unreplicated crossing on a 39-query core slice does not sustain that claim. *Caveats: these results come from a single-author corpus and queries, single annotator, single embedder (bge-small-en-v1.5), and uniform learning workload; see docs/01 "What the evidence licenses" for limitations and docs/07 §5–§6 for the mechanism.* Magicite ships as a **verified skill router with a portable format, lifecycle governance, and composition-plan expansion, whose graph and learning layers are not yet demonstrated to improve routing** — and whose actual design claim (spreading activation over declared edges, not re-derived embeddings) has never been tested. The improvement from 0.4619 to 0.5333 is mechanism repair (declared-edges amendment and inhib_gain recalibration fixed defects that were inhibiting measurement), not validation of the design hypothesis. `magicite doctor` reports your registry size and flags the cold-start case honestly: the ~50-skill number is a reference size from docs/07's original (pre-falsification) heuristic, never an asserted break-even — crossing it is not reported as evidence that hierarchy-aware routing pays off, consistent with this measurement — see [§ Diagnostics](#diagnostics-magicite-doctor).
 
@@ -29,7 +31,7 @@ docker run --rm -i \
     --user "$(id -u):$(id -g)" \
     --cap-drop ALL --security-opt no-new-privileges \
     -v "$PWD":"$PWD":z -w "$PWD" \
-    ghcr.io/rynaro/magicite@sha256:<digest> \
+    ghcr.io/rynaro/magicite@sha256:d4de4eacbadea6f7e8fa73506dceae8e3d465088a2590c3d892deb096e03dc34 \
     serve --project-root "$PWD"
 ```
 
@@ -55,7 +57,7 @@ finding behind this.
         "--label", "eidolons.project=<project>",
         "-v", "<project_root>:<project_root>:z", "-w", "<project_root>",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-        "ghcr.io/rynaro/magicite@sha256:<digest>",
+        "ghcr.io/rynaro/magicite@sha256:d4de4eacbadea6f7e8fa73506dceae8e3d465088a2590c3d892deb096e03dc34",
         "serve", "--project-root", "<project_root>"
       ]
     }
@@ -63,18 +65,23 @@ finding behind this.
 }
 ```
 
-Replace `1000:1000` with your own `$(id -u):$(id -g)` if different, and
-`<digest>` with a real, pinned `sha256:...` from a
-[release](https://github.com/Rynaro/magicite/releases). See
+Replace `1000:1000` with your own `$(id -u):$(id -g)` if different. The digest
+above is the published `v0.1.0` image; newer pinned digests appear on the
+[releases page](https://github.com/Rynaro/magicite/releases). See
 `docs/adapters/claude-code.md` for the fuller adapter walkthrough, including
 optional Tier-2 hook acceleration via `MAGICITE_HOOK_TOKEN`.
 
 ## Quickstart — pip (development)
 
+> **Not on PyPI yet.** 0.1.0 ships as a container only; the wheel job is
+> gated behind `PUBLISH_TO_PYPI` until trusted publishing is registered.
+> Install from source in the meantime.
+
 ```bash
-pip install magicite
-magicite fetch-model            # pre-download the ONNX embedding model once
-magicite serve --project-root .
+git clone https://github.com/Rynaro/magicite && cd magicite
+uv sync --all-extras
+uv run magicite fetch-model     # pre-download the ONNX embedding model once
+uv run magicite serve --project-root .
 ```
 
 `MAGICITE_EMBEDDING_PROVIDER=hashing` selects a deterministic, zero-download
