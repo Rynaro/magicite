@@ -266,3 +266,55 @@ def write_schema_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         (key, value),
     )
+
+
+def replace_similar_to_edges(
+    conn: sqlite3.Connection, neighbors_by_id: dict[str, list[tuple[str, str, float]]]
+) -> None:
+    """spec §2.6 step 8: rebuild the derived top-``m`` cosine kNN
+    ``similar_to`` edges. ``provenance='derived'`` + ``DB-only`` (spec
+    §2.2): these never enter a ``.egr.md``'s ``synapses:`` block (§4.5:
+    "kNN edges never persist") -- they are recomputed on every ``sync()``
+    from whatever embeddings currently exist, same as any other derived
+    index.
+
+    ``neighbors_by_id``: ``engram_id -> [(dst_name, dst_id, cosine), ...]``.
+    ``storage_strength`` is set to the raw cosine similarity (not 0.0, unlike
+    a freshly-declared edge) -- a kNN edge's very existence *is* its
+    evidence, unlike a declared ``needs``/``composes``/``inhibits`` edge,
+    which encodes intent and must still be *learned* (Dream, M4) before it
+    carries weight (spec Approach commitment 2: writers -- and by
+    extension, weight -- are earned, not assumed).
+    """
+    assert_single_writer()
+    now = _now()
+    conn.execute("DELETE FROM edge WHERE type = 'similar_to' AND provenance = 'derived'")
+    for src_id, neighbors in neighbors_by_id.items():
+        for dst_name, dst_id, cosine in neighbors:
+            conn.execute(
+                """
+                INSERT INTO edge (
+                  src_id, dst_name, dst_id, type, storage_strength, s_decayed_at,
+                  evidence_count, provenance, first_observed, dangling
+                ) VALUES (?,?,?, 'similar_to', ?, ?, 1, 'derived', ?, 0)
+                ON CONFLICT(src_id, dst_name, type) DO UPDATE SET
+                  dst_id=excluded.dst_id, storage_strength=excluded.storage_strength,
+                  s_decayed_at=excluded.s_decayed_at
+                """,
+                (src_id, dst_name, dst_id, round(cosine, 6), now, now),
+            )
+
+
+def upsert_communities(conn: sqlite3.Connection, assignments: dict[str, int], *, algo: str) -> None:
+    """spec §2.6 step 9 / §2.2: ``engram_community`` is "a derived index;
+    rebuilt, never checkpointed" -- a full delete + reinsert on every
+    ``sync()``, exactly like :func:`replace_similar_to_edges`, and for the
+    same reason (it is not Tier A/B durable state, spec §2.2)."""
+    assert_single_writer()
+    now = _now()
+    conn.execute("DELETE FROM engram_community")
+    for engram_id, community_id in assignments.items():
+        conn.execute(
+            "INSERT INTO engram_community (engram_id, community_id, algo, computed_at) VALUES (?,?,?,?)",
+            (engram_id, community_id, algo, now),
+        )

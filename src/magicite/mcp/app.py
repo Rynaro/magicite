@@ -49,7 +49,7 @@ from mcp.types import (  # noqa: E402
 )
 
 from magicite.config import Config  # noqa: E402
-from magicite.embeddings.hashing_provider import get_embedder  # noqa: E402
+from magicite.embeddings import get_embedder  # noqa: E402
 from magicite.errors import IdempotencyKeyConflictError, MagiciteError  # noqa: E402
 from magicite.mcp import (  # noqa: E402, F401  (imports register tools onto TOOL_REGISTRY)
     bind_dream,
@@ -78,7 +78,15 @@ class ServerState:
 def build_state(cfg: Config) -> ServerState:
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
-    embedder = get_embedder(cfg.embedding_dim)
+    # get_embedder() only *constructs* the provider here; FastEmbedProvider
+    # defers the actual fastembed.TextEmbedding construction (and its
+    # cache-check/download) to the first embed() call, not this line, so
+    # server boot never itself makes a network call (spec R4) even though
+    # the resolved default provider is now "fastembed", not "hashing" --
+    # see embeddings/fastembed_provider.py's module docstring for why that
+    # guarantee is self-enforced rather than delegated to fastembed's own
+    # (insufficient) lazy_load kwarg.
+    embedder = get_embedder(cfg)
     return ServerState(cfg=cfg, conn=conn, embedder=embedder)
 
 

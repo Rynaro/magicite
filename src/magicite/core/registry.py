@@ -13,13 +13,14 @@ and every Tier-C write goes through ``storage.ephemeral``. Nothing here
 issues raw ``INSERT``/``UPDATE``/``DELETE`` SQL against a non-``eph_``
 table directly.
 
-M1 scope: §2.6 steps 1-7 (scan/parse/validate/lint, upsert engram +
+M1 landed §2.6 steps 1-7 (scan/parse/validate/lint, upsert engram +
 declared edges + journal, resolve dangling, embed) plus the ``import``
 lint profile SKILL.md path (§5.3) and the ``export()`` compile-target
-render (§5.4). Steps 8-9 of ``sync()`` (derived ``similar_to`` kNN edges,
-community detection) land in M2 alongside ``core/activation.py``/
-``core/communities.py`` -- this module honestly reports
-``detector="none"`` rather than faking a detector that does not exist yet.
+render (§5.4). M2 closes the carry-forward: steps 8-9 (derived
+``similar_to`` kNN edges, community detection via
+``core/communities.py``) -- ``detector`` in :class:`SyncOutcome` now
+honestly reports whichever :class:`~magicite.core.communities
+.CommunityDetector` actually ran.
 """
 
 from __future__ import annotations
@@ -29,7 +30,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+import numpy as np
+
 from magicite.config import Config
+from magicite.core import communities as communities_mod
 from magicite.embeddings.base import Embedder
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
@@ -43,6 +47,24 @@ from magicite.storage import ephemeral as ephemeral_mod
 from magicite.storage import lease as lease_mod
 
 _EXPORT_STATUS_RANK: dict[str, int] = {"consolidated": 0, "promoted": 1}
+
+#: spec §2.6 step 9: the edge types that participate in community
+#: structure. ``inhibits`` is excluded -- it is an anti-affinity signal
+#: (spec §3.3 step 5), never a co-membership one.
+_COMMUNITY_EDGE_TYPES: tuple[str, ...] = ("co_activation", "composes", "depends_on", "similar_to")
+
+#: A freshly-``declared`` (never-Dream-potentiated) edge starts at
+#: ``storage_strength=0.0`` (spec §2.6 step 4/DDL default) -- Hebbian
+#: strength is *earned*, not assumed. Weighting community structure purely
+#: by S_edge would therefore make every declared needs/composes/
+#: co_activation edge structurally invisible until Dream (M4) exists,
+#: leaving only the embedding-derived ``similar_to`` edges (whose
+#: strength *is* the cosine similarity, see
+#: ``storage.durable.replace_similar_to_edges``) able to group anything.
+#: A small structural floor keeps declared composition meaningful for
+#: grouping immediately, while still letting learned strength dominate
+#: once Dream runs.
+_COMMUNITY_WEIGHT_FLOOR = 0.1
 
 
 def _now() -> str:
@@ -361,6 +383,74 @@ def register(
     )
 
 
+def _compute_similar_to_edges(conn: sqlite3.Connection, model_name: str, *, top_m: int) -> None:
+    """spec §2.6 step 8: derived top-``m`` cosine kNN ``similar_to`` edges,
+    DB-only (``storage.durable.replace_similar_to_edges``'s own docstring
+    explains why they never enter ``synapses:``)."""
+    # eph_embedding carries no FK to engram (it is Tier-C, keyed to
+    # survive a provider/model change independently of any one engram's
+    # lifecycle) -- a row can outlive its engram (e.g. sync() just deleted
+    # the engram for a vanished file, spec §2.6 step 5, but has not yet
+    # pruned the orphaned Tier-C vector). Joining against the *current*
+    # engram table here is what keeps a derived edge from ever naming a
+    # src/dst that no longer exists (which would otherwise trip the
+    # `edge.src_id REFERENCES engram(id)` foreign key).
+    rows = conn.execute(
+        """
+        SELECT x.engram_id AS engram_id, x.vec AS vec
+        FROM eph_embedding x JOIN engram e ON e.id = x.engram_id
+        WHERE x.model = ?
+        """,
+        (model_name,),
+    ).fetchall()
+    if len(rows) < 2:
+        durable_mod.replace_similar_to_edges(conn, {})
+        return
+
+    ids = [r["engram_id"] for r in rows]
+    matrix = np.stack([np.frombuffer(r["vec"], dtype=np.float32) for r in rows])
+    names_by_id = {row["id"]: row["name"] for row in conn.execute("SELECT id, name FROM engram").fetchall()}
+    sims = matrix @ matrix.T
+
+    neighbors_by_id: dict[str, list[tuple[str, str, float]]] = {}
+    for i, src_id in enumerate(ids):
+        order = np.argsort(-sims[i])
+        picked: list[tuple[str, str, float]] = []
+        for j in order:
+            dst_id = ids[int(j)]
+            if dst_id == src_id or dst_id not in names_by_id:
+                continue
+            picked.append((names_by_id[dst_id], dst_id, float(sims[i, int(j)])))
+            if len(picked) >= top_m:
+                break
+        neighbors_by_id[src_id] = picked
+    durable_mod.replace_similar_to_edges(conn, neighbors_by_id)
+
+
+def _compute_communities(conn: sqlite3.Connection) -> str:
+    """spec §2.6 step 9: recompute communities (leiden if available, else
+    label_propagation). Returns the detector name that actually ran, for
+    :attr:`SyncOutcome.detector` (AC-022: honest reporting)."""
+    node_ids = [r["id"] for r in conn.execute("SELECT id FROM engram").fetchall()]
+    placeholders = ",".join("?" for _ in _COMMUNITY_EDGE_TYPES)
+    rows = conn.execute(
+        f"""
+        SELECT src_id, dst_id, storage_strength FROM edge
+        WHERE type IN ({placeholders}) AND dangling = 0 AND dst_id IS NOT NULL
+        """,
+        _COMMUNITY_EDGE_TYPES,
+    ).fetchall()
+    edges = [
+        (r["src_id"], r["dst_id"], max(float(r["storage_strength"]), _COMMUNITY_WEIGHT_FLOOR))
+        for r in rows
+    ]
+
+    detector = communities_mod.get_detector()
+    partition = detector.detect(node_ids, edges)
+    durable_mod.upsert_communities(conn, partition, algo=detector.name)
+    return detector.name
+
+
 def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutcome:
     registry_dir = cfg.registry_dir
     registry_dir.mkdir(parents=True, exist_ok=True)
@@ -400,6 +490,15 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
         # storage.durable.recompute_dangling's docstring).
         dangling = durable_mod.recompute_dangling(conn)
 
+        # spec §2.6 step 8: derived similar_to kNN edges (rebuilt from
+        # whatever embeddings exist for this run's provider/model).
+        _compute_similar_to_edges(conn, embedder.model_name, top_m=cfg.similar_to_top_m)
+
+        # spec §2.6 step 9: recompute communities -- leiden if available,
+        # else label_propagation (AC-022). Runs *after* step 8 so the
+        # community graph can see the kNN edges it just derived.
+        detector_name = _compute_communities(conn)
+
         durable_mod.write_schema_meta(conn, "last_sync", _now())
 
     synced = conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"]
@@ -409,7 +508,7 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
         removed=removed,
         validation_errors=outcome.validation_errors,
         dangling=dangling,
-        detector="none",  # core/communities.py (leiden | label_propagation) lands in M2
+        detector=detector_name,
         consolidation_scheduled=False,
     )
 

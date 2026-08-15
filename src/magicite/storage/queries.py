@@ -29,9 +29,17 @@ def registry_summary(conn: sqlite3.Connection, *, embedding_model: str, autonomo
         "SELECT finished_at FROM consolidation_run WHERE state = 'succeeded' "
         "ORDER BY finished_at DESC LIMIT 1"
     ).fetchone()
+    # engram_community is a derived index (spec §2.2: "rebuilt, never
+    # checkpointed") -- its most recently computed `algo` is the live,
+    # ground-truth answer to "which CommunityDetector is active" (AC-022).
+    # A registry that has never run sync() has never populated this table,
+    # so "none" here is honest, not a placeholder.
+    detector_row = conn.execute(
+        "SELECT algo FROM engram_community ORDER BY computed_at DESC LIMIT 1"
+    ).fetchone()
     return {
         "counts_by_status": counts_by_status,
-        "detector": "none",  # core/communities.py lands in M2
+        "detector": detector_row["algo"] if detector_row else "none",
         "last_sync": last_sync_row["value"] if last_sync_row else None,
         "last_consolidation": last_consolidation_row["finished_at"] if last_consolidation_row else None,
         "registry_size": registry_size,

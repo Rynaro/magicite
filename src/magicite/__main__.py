@@ -49,13 +49,13 @@ def sync_cmd(project_root: str) -> None:
     from dataclasses import asdict
 
     from magicite.core import registry as registry_mod
-    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.embeddings import get_embedder
     from magicite.storage import db as db_mod
 
     cfg = Config.load(project_root)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
-    embedder = get_embedder(cfg.embedding_dim)
+    embedder = get_embedder(cfg)
     outcome = registry_mod.sync(cfg, conn, embedder)
     click.echo(json.dumps(asdict(outcome), indent=2, default=str))
 
@@ -99,12 +99,17 @@ def doctor_cmd(project_root: str) -> None:
 
 
 @cli.command(name="fetch-model")
-def fetch_model_cmd() -> None:
-    """Pre-download the default ONNX embedding model for offline use."""
-    raise click.ClickException(
-        "magicite fetch-model lands in M2 (embeddings/fastembed_provider.py); "
-        "M0 uses MAGICITE_EMBEDDING_PROVIDER=hashing, which needs no download"
-    )
+@click.option("--model-name", default=None, help="Override the default fastembed model name.")
+def fetch_model_cmd(model_name: str | None) -> None:
+    """Pre-download the default ONNX embedding model for offline use (R4:
+    the one legitimate network-touching step -- run this before setting
+    MAGICITE_EMBEDDING_OFFLINE=1 / baking a hardened image)."""
+    from magicite.embeddings.fastembed_provider import DEFAULT_MODEL_NAME, fetch_model
+
+    resolved = model_name or DEFAULT_MODEL_NAME
+    click.echo(f"fetching {resolved!r} ...")
+    fetch_model(model_name=resolved)
+    click.echo(json.dumps({"fetched": resolved}, indent=2))
 
 
 if __name__ == "__main__":

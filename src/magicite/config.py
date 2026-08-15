@@ -60,6 +60,10 @@ class Config:
     plan_max_depth: int = 5
     plan_max_size: int = 8
 
+    # ── graph index build (spec §2.6 steps 8-9) ─────────────────────────
+    similar_to_top_m: int = 5
+    hub_penalty_percentile: float = 95.0
+
     # ── signals tunables (spec §3.3, §4.1) ──────────────────────────────
     per_skill_session_cap: int = 3
     tau_credit_seconds: float = 1800.0
@@ -71,9 +75,18 @@ class Config:
     retention_days: int = 30
 
     # ── embeddings (CR-6) ────────────────────────────────────────────────
-    embedding_provider: str = "hashing"
+    #: spec §1: fastembed (ONNX BAAI/bge-small-en-v1.5) is the v1 default;
+    #: every test in this repo overrides this to "hashing" explicitly
+    #: (tests/conftest.py), so flipping the *default* here does not change
+    #: what CI exercises -- it changes what an unconfigured `magicite serve`
+    #: actually does, which is the point (R4).
+    embedding_provider: str = "fastembed"
     embedding_offline: bool = False
     embedding_dim: int = 256
+    embedding_cache_size: int = 256
+    ollama_host: str = "http://localhost:11434"
+    #: docs/04's routing-block example model (CR-6: "bge-m3 example remains legal").
+    ollama_model: str = "bge-m3"
 
     # ── governance / autonomy ────────────────────────────────────────────
     autonomous: bool = False
@@ -164,6 +177,8 @@ _FIELD_NAMES = {f.name for f in fields(Config)}
 _ENV_FIELD_MAP: dict[str, str] = {
     "MAGICITE_EMBEDDING_PROVIDER": "embedding_provider",
     "MAGICITE_EMBEDDING_OFFLINE": "embedding_offline",
+    "MAGICITE_OLLAMA_HOST": "ollama_host",
+    "MAGICITE_OLLAMA_MODEL": "ollama_model",
     "MAGICITE_HOOK_TOKEN": "hook_token",
     "MAGICITE_AUTONOMOUS": "autonomous",
     "MAGICITE_COMMIT_DB": "commit_db",
