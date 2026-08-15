@@ -18,8 +18,8 @@
   "kind": "spec",
   "schema_version": "1.0",
   "path": ".spectra/changes/magicite-v1-implementation/spec.md",
-  "sha256": "e9efab604467129246e0b70fb25ed70a576bc4fee5934a243881e2151101dd8b",
-  "size_bytes": 119819
+  "sha256": "757313fc568c2b2332d67e255f25b493b7f03c16583fb6a8e1693b4e29200440",
+  "size_bytes": 130531
  },
  "context_delta": {
   "token_budget": 6000,
@@ -59,7 +59,7 @@
  "confidence": 0.85,
  "integrity": {
   "method": "sha256",
-  "value": "e9efab604467129246e0b70fb25ed70a576bc4fee5934a243881e2151101dd8b"
+  "value": "757313fc568c2b2332d67e255f25b493b7f03c16583fb6a8e1693b4e29200440"
  },
  "trace": {
   "ts": "2026-08-14T22:42:20Z",
@@ -148,6 +148,33 @@
    "behaviour_change": "UNLIKE the A1-REVISED and R1-RESTATED restamps, this amendment changes executable behaviour: plan_confidence values change, declared edges enter the activation graph, inhibition becomes arithmetically live, communities re-cluster and two routing defaults move. All nine VG commands must be re-run after implementation.",
    "restamped_by": "ramza",
    "mechanism": "targeted rewrite of artifact.sha256 / artifact.size_bytes / integrity.value plus this third appended x_ramza_amendment entry; the first two entries are left intact so the envelope carries the full chain 92372ad6... -> 9fca1c08... -> 57148a2d... -> e9efab60... Verified afterwards by ramza-verify-emit --spec spec.md --envelope spec.envelope.json. objective, context_delta.summary, trace.ts and x_ramza_acceptance_criteria are left as sent: retroactively editing prose in a delivered ECL message would be rewriting history rather than amending it."
+  },
+  {
+   "id": "R12-FIRED",
+   "at": "2026-08-15",
+   "kind": "integrity_restamp",
+   "payload_path": ".spectra/changes/magicite-v1-implementation/spec.md",
+   "prev_sha256": "e9efab604467129246e0b70fb25ed70a576bc4fee5934a243881e2151101dd8b",
+   "new_sha256": "757313fc568c2b2332d67e255f25b493b7f03c16583fb6a8e1693b4e29200440",
+   "prev_size_bytes": 119819,
+   "new_size_bytes": 130531,
+   "reason": "spec.md was amended in place to land the R12-FIRED errata: R12's release obligation fired and the cold 210-query bench was re-run at implementing commit 2d25abb. section 3.3.1's release-obligation paragraph is replaced by the PUBLISHED measurement (MO-1 and MO-2 discharged; MO-3 still owed), the confirmation of ppr_restart=0.85 on the new graph shape, the CONFIRMATION of declared_edge_strength at 1.0 with its five grounds, the rejected intermediate value, and four PRE-REGISTERED reversal conditions RC-1...RC-4 with decision rules attached; the section Risks R12 row is marked fired and narrowed; the errata banner and the Handoff obligation bullet are updated. NO default moves, NO rule changes, NO acceptance criterion is added, edited or removed, and no config change is implied. Re-stamping keeps the ECL integrity tag tracking the current payload; leaving it stale would make every future receiver verification report a FALSE tamper alarm on an authorized, recorded change. The old->new transition is recorded here, in decisions/R12-FIRED.md and in plan-state.json errata[], so the audit chain is extended rather than broken. Chain to date: 92372ad6... -> 9fca1c08... -> 57148a2d... -> e9efab60... -> 757313fc...",
+   "authorizing_trigger": "The release obligation this envelope's own third amendment entry created: DECLARED-EDGES-AMENDED section 8 MO-1/MO-2/MO-3 and spec.md section 3.3.1 required the cold 210-query bench to be re-run after implementation and the new (b)/(c)/(d) numbers PUBLISHED, because ppr_restart=0.85 had been measured on a graph in which declared edges were still inert. No new external verdict was needed: the obligation was self-imposed and is now discharged for MO-1/MO-2.",
+   "measurement": "Hit@1, 70 engrams / 210 pre-registered lexically-independent queries, cold registry, real fastembed BAAI/bge-small-en-v1.5, commit 2d25abb. amended defaults (declared=1.0, restart=0.85): a 0.4048, b 0.5476, c 0.5286, d 0.5190. declared edges OFF (declared=0.0, restart=0.85): a 0.4048, b 0.5476, c 0.5286, d 0.5476. both reverted (declared=0.0, restart=0.15): a 0.4048, b 0.5476, c 0.4333, d 0.4905.",
+   "outcome": "(1) ppr_restart = 0.85 CONFIRMED on the new graph shape - at a fixed declared_edge_strength it is what recovers (c) 0.4333 -> 0.5286 and (d) 0.4905 -> 0.5476; R12's stated worry does not materialise and that clause is CLOSED. (2) declared_edge_strength CONFIRMED AT 1.0 against a -0.0286 Hit@1 delta in (d) (six queries in 210, no paired test run, ceiling p=0.031), because baseline (c) carries the SAME declared mass into the diffusion graph with NO inhibition and NO community rerank and is IDENTICAL across both arms (0.5286, 111/210): the channel section 3.3.1 is about measured EXACTLY INERT, so the -6 arises in a channel the run never isolated (inhibition, or the community re-clustering) - which is exactly what MO-3 asked for and did not get. (3) R12 stays OPEN at P1, NARROWED to the inhibition magnitude (inhib_gain=0.7 was never calibrated for S=1.0, where it cuts 70% of an inhibited node's activation) and the community re-clustering. (4) NEGATIVE PRODUCT FINDING recorded at full strength: H-BODY-b's design claim has now been exercised for the first time and did NOT improve routing - zero supporting measurements, two non-supporting (0/210 isolated, -6/210 full pipeline).",
+   "decision_record": ".spectra/changes/magicite-v1-implementation/decisions/R12-FIRED.md",
+   "behaviour_change": "NONE. Unlike the DECLARED-EDGES-AMENDED restamp, this one changes no executable behaviour: no default moves, no formula changes, no call site changes, no criterion changes, no magicite.toml line changes. It records a measurement, confirms two defaults, narrows a risk and pre-registers four reversal conditions. The re-verification requirements created by the third amendment entry stand unchanged.",
+   "restamped_by": "ramza",
+   "mechanism": "targeted rewrite of artifact.sha256 / artifact.size_bytes / integrity.value plus a FOURTH appended x_ramza_amendment entry (the first three are left intact so the envelope carries the full chain), verified afterwards by bin/ramza-verify-emit --spec spec.md --envelope spec.envelope.json. No canonical ramza-* envelope-amend command exists, and ramza-freeze --amend was again deliberately NOT used because it amends the acceptance-criteria anchor, which must not move.",
+   "unchanged": [
+    "x_ramza_acceptance_criteria (7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448) - acceptance-criteria.md is byte-identical and was not re-frozen",
+    "acceptance-criteria-addendum.md (2888886351b9d658ab98bf1d2e94d77e43850201130a15b26be9c63f3e27ef02) - byte-identical; AC-034...AC-042 stand as written and AC-039 stays satisfiable at any shipped default",
+    "the A1-REVISED, R1-RESTATED and DECLARED-EDGES-AMENDED x_ramza_amendment entries - append-only, left exactly as recorded",
+    "declared_edge_strength = 1.0 and every other routing constant, including inhib_gain = 0.7 - deliberately not touched on an unisolated six-query delta",
+    "objective and context_delta.summary - retained as sent; see spec.md section 3.3.1 for the authoritative measurement and decision",
+    "trace.ts - original emission timestamp, not backdated",
+    "message_id, thread_id, performative, from, to, confidence"
+   ]
   }
  ]
 }

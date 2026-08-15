@@ -65,6 +65,22 @@ corpus: docs/01-vision-and-hypotheses.md .. docs/07-evaluation-and-observability
 > two errata above, this one **does** change executable behaviour: every validation gate must be
 > re-run after implementation. Permanent record, evidence and carry-forwards:
 > `decisions/DECLARED-EDGES-AMENDED.md`.
+>
+> **Errata — R12-FIRED (2026-08-15). A measurement, not a rule change.** The amendment above made
+> the cold 210-query bench a **release obligation** rather than a suggestion, because
+> `ppr_restart = 0.85` had been measured on a graph in which declared edges were still inert. It
+> was re-run at commit `2d25abb` and the numbers are published in **§3.3.1**. Two findings.
+> **`ppr_restart = 0.85` is confirmed on the new graph shape** — it is what recovers both graph
+> baselines once declared mass is present, and R12's stated worry does not materialise.
+> **`declared_edge_strength = 1.0` costs 0.0286 Hit@1 in baseline (d) — six queries in 210** — and
+> it **stays at 1.0**, because baseline (c) carries the same declared mass into the diffusion graph
+> with **no** inhibition and **no** community rerank and is **bit-identical across the two arms
+> (0.5286, 111/210)**: the channel this amendment is actually about measured *inert*, and the −6
+> comes from a channel the run never isolated. That isolation (**MO-3**) is still owed. `S_eff`,
+> the `1.0` default, `w_authored`, every call site and every acceptance criterion are **unchanged**;
+> what changes here is the evidence record, R12's status, and four **pre-registered reversal
+> conditions** with decision rules attached. The diffusion channel's **0/210** is recorded as a
+> negative product finding in its own right. Permanent record: `decisions/R12-FIRED.md`.
 
 ---
 
@@ -780,14 +796,98 @@ and community rerank down with it. 0.0048 Hit@1 is noise; a frozen criterion is 
 tamper-evidence anchor. `ppr_restart` keeps every graph path live and is a single scalar with a
 clear physical meaning that a larger registry can sweep.
 
-**Release obligation (not a new validation gate — the nine VG commands are unchanged, and the
-70-engram corpus is not in-repo).** `ppr_restart = 0.85` was measured on a graph in which declared
-edges were still inert, and this amendment changes that graph underneath it; inhibition is
-simultaneously live for the first time (11 declared `inhibits` relations that have never had any
-effect now scale their targets' activation by 0.3). The cold 210-query bench **must** be re-run
-after implementation and the new (b)/(c)/(d) numbers published, with the inhibition delta reported
-separately so the two changes are not conflated. A default that ships on an obsolete measurement
-is the failure mode this amendment exists to correct.
+**Release obligation — DISCHARGED for MO-1/MO-2, 2026-08-15 (errata R12-FIRED); MO-3 still owed.**
+The obligation as written: `ppr_restart = 0.85` had been measured on a graph in which declared
+edges were still inert, this amendment changed that graph underneath it, inhibition became live
+for the first time (11 declared `inhibits` relations that had never had any effect now scale their
+targets' activation by 0.3), and *a default that ships on an obsolete measurement is the failure
+mode this amendment exists to correct*. The cold bench was re-run at commit `2d25abb` — the same
+70-engram corpus, the same 210 lexically-independent pre-registered queries, cold registry, real
+`fastembed` BAAI/bge-small-en-v1.5, nothing re-authored. **Published Hit@1:**
+
+| configuration | (a) lexical | (b) dense | (c) emb+graph | (d) full |
+|---|---|---|---|---|
+| **amended defaults** — `declared_edge_strength = 1.0`, `ppr_restart = 0.85` | 0.4048 | 0.5476 | 0.5286 | **0.5190** |
+| `declared_edge_strength = 0.0`, `ppr_restart = 0.85` | 0.4048 | 0.5476 | 0.5286 | **0.5476** |
+| `declared_edge_strength = 0.0`, `ppr_restart = 0.15` — pre-amendment | 0.4048 | 0.5476 | 0.4333 | 0.4905 |
+
+These **supersede** the `ppr_restart` row's figures above and baseline (c)'s previously published
+numbers (**MO-1** and **MO-2** discharged). **MO-3 — the inhibition delta reported separately — is
+NOT discharged**, and that is the load-bearing gap below.
+
+**`ppr_restart = 0.85` is CONFIRMED on the new graph shape.** It is what recovers both graph
+baselines once declared mass is present: at a fixed `declared_edge_strength = 0.0`, (c) goes
+0.4333 → 0.5286 and (d) goes 0.4905 → 0.5476. R12's stated worry — that 0.5476 was an artefact of
+the old kNN-only graph and would not transfer — **does not materialise**.
+
+**`declared_edge_strength` stays at `1.0` — confirmed on the evidence, not merely retained.**
+Rows 1 and 2 differ in that one scalar and nothing else, and full authored mass costs **0.0286
+Hit@1 in (d): 115 → 109 correct of 210, six queries.** That is one measurement against `1.0` and
+none for it — the same evidence-balance shape that moved `w_retrieval` in the table above — so it
+is answered on the record rather than waved off:
+
+1. **The channel this section is actually about measured EXACTLY inert, not harmful.** Baseline
+   (c) carries declared `composes`/`depends_on` into the diffusion graph at full authored mass
+   (call-site row 7 above; `eval/bench.py` `_GRAPH_EDGE_TYPES`) and carries **no** inhibition,
+   **no** community rerank, **no** `R`, **no** excitability and **no** hub penalty. (c) is
+   **0.5286 in both arms — 111 of 210, identical.** Putting full declared mass into the activation
+   graph changed **zero of 210 top-1 answers.** The −6 therefore cannot be attributed to
+   call-site rows 1 or 3, and must arise in a channel present in (d) and absent from (c):
+   **inhibition** (row 2) or the **community structure** that `_compute_communities` now weights
+   by `S_eff` (row 3). Two mechanisms, two different knobs, and the run separated neither — which
+   is precisely what **MO-3** asked for. Lowering `declared_edge_strength` would damp a channel
+   measured inert in order to treat a channel never isolated.
+2. **The uncalibrated interaction that isolation points at, stated now so it is not discovered
+   later.** `inhib_gain = 0.7` predates this amendment and was set when an `inhibits` edge's `S`
+   was expected to be a *learned* value distributed over [0,1]. Call-site row 2 pins it to the top
+   of that range for **every** authored `inhibits` edge, so the shipped multiplier is
+   `1 − 1.0 × 0.7 = 0.3` — a **70% cut** of the inhibited node's activation from one unweighted
+   line of author YAML. **`inhib_gain` has never been calibrated for `S = 1.0`.** It is the
+   dedicated magnitude knob for that channel, and it is deliberately **not** touched here: moving
+   it on an unisolated six-query delta would be the same error at a different address.
+3. **The delta is at the edge of what a paired test could ever certify.** A net swing of 6 in 210
+   has a *maximum attainable* exact-binomial (McNemar) significance of **p = 0.031**, and only in
+   the degenerate case where all six discordant pairs run one way; with as few as four
+   discordances the other way (n = 14) it is **p ≈ 0.18**. The b−d gap this spec previously acted
+   on was 18 queries at p = 0.00053. **No paired test was run here**, and the ceiling on one is
+   marginal.
+4. **The cost of being wrong is asymmetric in the opposite direction from `w_retrieval`'s.**
+   `w_retrieval` at 0.05 forfeits nothing structural — `R` still contributes and no criterion
+   depends on its magnitude. `declared_edge_strength` at 0.0 **restores three of the four defects
+   this section exists to fix**: the inhibition pass is a numeric no-op again, so **AC-023 is
+   unreachable in production again** and AC-034 holds only because its test pins `1.0` explicitly;
+   declared `composes`/`depends_on` are dropped by `build_graph`'s `w <= 0` filter again, which
+   makes **AC-035's THEN false as written** (its `raw_weight > 0` clause fails at the shipped
+   default); and community structure loses declared edges outright, which is **worse than
+   pre-amendment**, because the `0.1` `_COMMUNITY_WEIGHT_FLOOR` this amendment deleted at least
+   kept them visible. Only `plan_confidence` survives a 0.0 default, and only because §3.3 step 10
+   was redefined structurally rather than left strength-weighted.
+5. **What this corpus can and cannot register.** The 210 queries are **single-target** retrieval
+   queries — three per engram, one gold answer each. Diffusion along a *correct* `needs`/`composes`
+   edge moves mass from the target toward its dependencies, which are by construction **not** the
+   gold answer. On this metric a correct composition edge can only be neutral or harmful. That is
+   a real limit and it is deliberately **not** used as a shield: it is why RC-3 below pre-registers
+   a compositional query set **with a decision rule attached**, and why (c)'s **0/210** is recorded
+   here as a **negative product finding in its own right** — H-BODY-b's design claim has now been
+   exercised for the first time and it did **not** improve routing.
+
+**An intermediate value was considered and rejected.** No point between 0.0 and 1.0 has been
+measured; both endpoints have. Interpolating toward the better endpoint without evidence
+re-introduces exactly the second magnitude knob underneath `type_gain` that this section rejects
+above, and damps the inert channel and the suspect channel together in unknown proportion.
+
+**Pre-registered reversal conditions — R12 stays OPEN at P1 until one is met.** These are decision
+rules, not intentions: whoever runs the experiment applies them without a further judgement call.
+
+| # | Experiment | Decision rule |
+|---|---|---|
+| **RC-1** | **MO-3, still owed.** `declared_edge_strength = 1.0` with `inhib_gain = 0.7` vs `inhib_gain = 0.0`, everything else fixed, same corpus and queries | If the inhibition arm accounts for the whole −0.0286 or more, the defect is the **inhibition magnitude**, not the authored channel: re-derive `inhib_gain` and leave `declared_edge_strength` at 1.0. If it accounts for none of it, the residual is the community re-clustering and **call-site row 3** is what gets revisited |
+| **RC-2** | A **second, independently-authored** registry — engrams and queries by different authors — plus a **paired McNemar test** on (d) at 1.0 vs 0.0 | If (d) at 1.0 is worse at **p < 0.05 paired**, `declared_edge_strength` ships at **0.0**: the mechanism stays implemented, verified and opt-in, and **AC-035 is restated** to name a non-zero strength in its GIVEN (the addendum is not frozen; the frozen 33 are untouched either way) |
+| **RC-3** | A **compositional** query set — H-COMPOSE is still **UNTESTED**, zero compositional queries have ever been run — scored on a composition-sensitive metric that is not a monotone re-encoding of Hit@1 | If declared mass does not improve it there either, the diffusion channel (rows 1 and 3) has **no measured benefit on any metric** and should ship off by default regardless of RC-1 |
+| **RC-4** | Any registry whose declared relations are **known-good by construction** | Removes the confound that this corpus's `needs`/`composes`/`inhibits` were authored by the same agent that wrote the queries, so a null here may be measuring poor input rather than the design |
+
+The full record — the channel isolation, the rejected options, the `w_retrieval` symmetry engaged
+in both directions, and what a re-verifier should check — is `decisions/R12-FIRED.md`.
 
 ```python
 # ── 2. load_skill_body ── R0 (hosts without filesystem access; progressive disclosure)
@@ -1687,7 +1787,7 @@ with ~87% package overlap. constraint_compliance 84 — every corpus P0 maps to 
 | R9 | **Cold start / small registries** — docs/07 honest limit: under ~50 skills native SKILL.md matching is fine and Magicite is overhead. | P2 | `route()` returns `registry_size`; `magicite doctor` states the break-even honestly rather than overselling. | Vivi (M2) |
 | R10 | **Hypothesis falsification** — H-BODY/H-SCALE/H-COMPOSE/H-LEARN come from UNVERIFIED-2026 sources; the engine's value proposition could fail its own benchmark. *(**This risk fired**, 2026-08-15, and the mitigation worked as designed — cheaply and early. On 70 engrams / 210 pre-registered queries: **H-BODY-a supported in direction** (+14.3pp Hit@1, p = 0.00064) though the registered ≥20pp effect size is **not demonstrated**; **H-BODY-b falsified as implemented** ((b) > (d), −0.0857, p = 0.00053); **H-SCALE mechanism falsified** at 70 skills with 5 real communities; **H-SCALE claim inconclusive**; **H-COMPOSE untested** — zero compositional queries were run and Plan F1 as implemented is a monotone re-encoding of Hit@1; **H-LEARN falsified as implemented under uniform demand**. Two routing defaults moved on that evidence — §3.3.1. The docs/01 Hypothesis Register and docs/07 corrections are routed to IDG as CF-1 in `decisions/DECLARED-EDGES-AMENDED.md`; `docs/` is outside RAMZA's write boundary.)* | P1 | The bench harness ships in v1 (M6) with baselines a–d so falsification is cheap and early; every claim in the README stays hypothesis-tagged until measured. **A measured falsification is the mitigation succeeding, not failing** — what it now requires is that the product claim be reframed to what the evidence licenses: a semantic skill router with a portable format, a lifecycle, governance, composition-plan expansion and an **instrumented learning substrate that is not yet demonstrated to improve routing**. | Kupo (verify) + Vivi (M6) |
 | R11 | **Critic independence** — this spec's critic pass ran in the same session as the author (no second agent was available to RAMZA), recorded as `ramza-maker` vs `ramza-critic` in `plan-state.json`. | P1 | Kupo is the genuinely independent checker at ESL `verify`; the critic record is disclosed, not laundered. Treat the frozen criteria hash, not the critic record, as the tamper-evidence anchor. | Kupo |
-| R12 | **Newly-live declared-edge mass is itself unmeasured** (added by DECLARED-EDGES-AMENDED, 2026-08-15). §3.3.1 puts declared `composes`/`depends_on` into the activation graph and makes inhibition arithmetically real for the first time — 11 declared `inhibits` relations in the 70-engram benchmark registry that have *never* had any effect now scale their targets' activation by 0.3. `ppr_restart = 0.85` was measured on the *old* graph, so its 0.5476 Hit@1 does not transfer unchanged; community structure re-clusters when `_COMMUNITY_WEIGHT_FLOOR` is deleted; and baseline (c)'s published numbers move. Shipping on an obsolete measurement is exactly the failure this amendment exists to correct. | P1 | The change is **one config scalar and exactly revertible**: `declared_edge_strength = 0.0` reproduces pre-amendment scores bit-for-bit (AC-039), so it is bisectable and can be backed out without a code change. Release obligation (§3.3.1): re-run the cold 210-query bench after implementation and **publish** the new (b)/(c)/(d) numbers, reporting the inhibition delta separately so the edge-weight change and the `ppr_restart` change are not conflated. Direction of travel is toward *less* diffusion overall — §3.3.1 puts authored structure in while `ppr_restart = 0.85` damps how far anything travels, which is deliberate. | Vivi (config) + Kupo (verify) |
+| R12 | **Newly-live declared-edge mass is itself unmeasured** (added by DECLARED-EDGES-AMENDED, 2026-08-15). *(**This risk fired**, 2026-08-15 — errata R12-FIRED — and the mitigation worked as designed: the release obligation forced the re-measurement before release rather than after. Outcome, published in §3.3.1: **`ppr_restart = 0.85` CONFIRMED on the new graph shape** — it is what recovers (c) 0.4333 → 0.5286 and (d) 0.4905 → 0.5476, so R12's stated worry about the obsolete 0.5476 does not materialise. **`declared_edge_strength = 1.0` measured −0.0286 Hit@1 in (d)** — 115 → 109 of 210, six queries, no paired test run and a ceiling of p = 0.031 on one — and **stays at 1.0**, because baseline (c) carries the same declared mass into the diffusion graph without inhibition or the community rerank and is **identical across both arms (0.5286, 111/210)**: the diffusion channel measured **exactly inert**, so the −6 arises in a channel the run never isolated. **R12 therefore stays OPEN, narrowed**: what is unmeasured is no longer 'declared-edge mass' in general but **the inhibition magnitude** — `inhib_gain = 0.7` was never calibrated for `S = 1.0`, where it cuts 70% of an inhibited node's activation from one line of author YAML — and the community re-clustering. **MO-3 is still owed.**)* | P1 | **Four pre-registered reversal conditions with decision rules attached (§3.3.1, RC-1…RC-4): RC-1 isolate inhibition (MO-3); RC-2 a second independently-authored corpus plus a paired McNemar test — at p < 0.05 against, `declared_edge_strength` ships at 0.0 and AC-035 is restated; RC-3 a compositional query set (H-COMPOSE is still UNTESTED); RC-4 a known-good declared-relation registry.** The change remains **one config scalar and exactly revertible** — `declared_edge_strength = 0.0` reproduces pre-amendment scores bit-for-bit (AC-039) — so any reversal is a config line, not a code change. Recorded against 0.0 as a shipped default: it makes AC-023 unreachable in production again, makes **AC-035's THEN false as written**, and drops declared edges from community structure entirely, which is worse than pre-amendment now that `_COMMUNITY_WEIGHT_FLOOR` is deleted. | Vivi (config) + Kupo (verify) |
 
 ---
 
@@ -1701,8 +1801,12 @@ with ~87% package overlap. constraint_compliance 84 — every corpus P0 maps to 
 - **What this amendment obliges before release:** the DECLARED-EDGES-AMENDED change is the first
   errata on this spec that alters **executable behaviour** — `plan_confidence` values change,
   declared edges enter the activation graph, inhibition becomes live, communities re-cluster, and
-  two routing defaults move. All nine VG commands must be re-run after implementation, and the
-  cold 210-query bench re-run and published (§3.3.1, R12).
+  two routing defaults move. All nine VG commands must be re-run after implementation. The cold
+  210-query bench obligation is **discharged** — re-run at `2d25abb`, numbers published in §3.3.1
+  (errata R12-FIRED): MO-1 and MO-2 closed, `ppr_restart = 0.85` confirmed on the new graph shape,
+  `declared_edge_strength` confirmed at `1.0`. **What is still owed before release: MO-3** — the
+  inhibition delta isolated and reported separately (§3.3.1 RC-1). R12 stays open at P1, narrowed
+  to the inhibition magnitude and the community re-clustering.
 - **Declared execution scope** (drift watch): `src/magicite/*`, `tests/*`, `pyproject.toml`,
   `uv.lock`, `Dockerfile*`, `.dockerignore`, `.github/workflows/*`, `README.md`, `docs/adapters/*`,
   `docs/operations.md`. Anything else Vivi touches is drift and needs an amendment.
