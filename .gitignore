@@ -3,7 +3,8 @@
 eidolons.mcp.lock
 
 # Eidolons scratch state
-.atlas/memex/
+# .atlas/ is entirely generated scout state (symbol index, graph db, locks)
+.atlas/
 .eidolons/.context/
 .eidolons/memories/
 
