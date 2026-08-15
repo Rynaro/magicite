@@ -10,16 +10,25 @@ inside a live ``serve`` process by default, which is why the M4
 fd-diversion/``multiprocessing`` question (flagged by FORGE) does not apply
 here: see the M4 report for the full statement.
 
-``nucleate()``/distillation (``core/distill.py``) lands in M6; still raises
-a typed ``not_implemented``.
+M6: ``nucleate()`` is real, backed by ``core/distill.py::
+run_distillation`` -- the same function Dream's own Phase 5
+(``core/dream.py``) now calls automatically. Both are proposal-only
+(CR-3): this tool creates ``approval`` rows and returns candidates; it
+never writes an engram.
 """
 
 from __future__ import annotations
 
+from magicite.core import distill as distill_mod
 from magicite.core import dream as dream_mod
-from magicite.errors import NotImplementedToolError
 from magicite.mcp.registry import ToolContext, magicite_tool
-from magicite.mcp.schemas import ConsolidateInput, ConsolidateOutput, NucleateInput, NucleateOutput
+from magicite.mcp.schemas import (
+    ConsolidateInput,
+    ConsolidateOutput,
+    NucleateCandidate,
+    NucleateInput,
+    NucleateOutput,
+)
 
 
 @magicite_tool(
@@ -62,6 +71,25 @@ def consolidate(ctx: ToolContext, params: ConsolidateInput) -> ConsolidateOutput
     ),
 )
 def nucleate(ctx: ToolContext, params: NucleateInput) -> NucleateOutput:
-    raise NotImplementedToolError(
-        "frequent-path distillation lands in M6 (core/distill.py)",
+    outcome = distill_mod.run_distillation(
+        ctx.cfg,
+        ctx.conn,
+        min_support=params.min_support,
+        session_ids=params.trace_ids,
+        proposed_by="nucleate-tool",
+    )
+    return NucleateOutput(
+        candidates=[
+            NucleateCandidate(
+                proposal_id=approval_id,
+                path_names=cand.path_names,
+                support=cand.support,
+                mean_valence=cand.mean_valence,
+                trace_ir=cand.trace_ir,
+                draft_skeleton=cand.draft_skeleton,
+            )
+            for approval_id, cand in zip(outcome.approval_ids, outcome.candidates, strict=True)
+        ],
+        approval_ids=outcome.approval_ids,
+        note=outcome.note,
     )

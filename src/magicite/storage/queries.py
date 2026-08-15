@@ -15,7 +15,10 @@ helper the invariant test diffs" the M1 story action plan names) and
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+from magicite.core.decay_math import effective_value
 
 
 def registry_summary(conn: sqlite3.Connection, *, embedding_model: str, autonomous: bool) -> dict[str, Any]:
@@ -100,6 +103,86 @@ def skill_detail(conn: sqlite3.Connection, skill_id_or_name: str) -> dict[str, A
             "live_tags": 0,
             "pending_dw": 0.0,
         },
+    }
+
+
+def dead_candidates(
+    conn: sqlite3.Connection, *, window_days: int, limit: int, lambda_r_per_day: float
+) -> dict[str, Any]:
+    """``flag_dead()`` (spec §3.3 tool 4, docs/07 "Silent Engram Report" /
+    M6's carried-forward defect #3 -- the last ``not_implemented`` tool
+    body in the 16-tool surface).
+
+    "Dead" (docs/07: "stored but never retrieved in last N days") covers
+    two cases, both driven by ``eph_bookkeeping.last_activated`` (bumped
+    by every ``route()`` return, CR-1's own accumulator -- see
+    ``storage.ephemeral.bump_route_bookkeeping``): never routed at all
+    (``last_activated IS NULL``), or routed, but not within
+    ``window_days``. Archived engrams are excluded (the same convention
+    ``core/audit.py``'s silent-engram check already uses -- an archived
+    engram not being routed is not a routing-cue problem, it is the
+    intended outcome of archival).
+
+    ``retrieval_strength`` is R decayed **at read time** (spec §6.1: "R
+    ... Evaluated lazily at read time"), the same
+    ``core.decay_math.effective_value`` primitive ``core/router.py``
+    already reads with, so a stale, undecayed R never inflates a
+    candidate's reported strength.
+
+    Returns ``{"candidates": [...], "silent_pct": float, "total_dead":
+    int}`` -- ``silent_pct`` is computed over *every* dead candidate
+    before ``limit`` truncates the returned list (docs/07's KPI is "% of
+    registry flagged silent", not "% of the page returned").
+    """
+    now_dt = datetime.now(UTC)
+    now = now_dt.isoformat()
+    cutoff = now_dt - timedelta(days=window_days)
+
+    rows = conn.execute(
+        """
+        SELECT e.id, e.name, b.last_activated,
+               COALESCE(r.r, 0.0) AS r, r.r_decayed_at
+        FROM engram e
+        LEFT JOIN eph_bookkeeping b ON b.engram_id = e.id
+        LEFT JOIN eph_retrieval r ON r.engram_id = e.id
+        WHERE e.status != 'archived'
+        ORDER BY e.name
+        """
+    ).fetchall()
+
+    dead: list[dict[str, Any]] = []
+    for row in rows:
+        last_activated = row["last_activated"]
+        if last_activated is None:
+            reason = "never routed"
+        elif datetime.fromisoformat(str(last_activated)) < cutoff:
+            reason = f"not routed in the last {window_days} day(s) (last: {last_activated})"
+        else:
+            continue  # routed recently enough -- not a candidate
+
+        r_effective = effective_value(float(row["r"]), row["r_decayed_at"], now, lambda_r_per_day)
+        dead.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "last_routed": last_activated,
+                "retrieval_strength": round(r_effective, 4),
+                "reason": reason,
+            }
+        )
+
+    # Never-routed candidates (last_routed=None) sort first (the worst
+    # offenders -- no evidence at all), then oldest-last-routed first,
+    # name as the final deterministic tiebreak.
+    dead.sort(key=lambda c: (c["last_routed"] is not None, c["last_routed"] or "", c["name"]))
+
+    registry_size = len(rows)
+    silent_pct = (len(dead) / registry_size) if registry_size else 0.0
+
+    return {
+        "candidates": dead[:limit],
+        "silent_pct": round(silent_pct, 4),
+        "total_dead": len(dead),
     }
 
 

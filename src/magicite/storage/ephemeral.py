@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 
@@ -62,6 +62,36 @@ def bump_route_bookkeeping(conn: sqlite3.Connection, engram_id: str) -> None:
           route_returns = eph_bookkeeping.route_returns + 1
         """,
         (engram_id, now),
+    )
+
+
+def get_potentiation_anchor(conn: sqlite3.Connection, engram_id: str) -> str | None:
+    """M6 defect fix (write_ratio churn): Dream Phase 2's spacing-effect
+    dt anchor for a node, read from Tier C (never the file-mirrored
+    ``engram.last_applied``) -- see :func:`set_potentiation_anchor` and
+    ``storage/migrations/001_init.sql``'s ``eph_bookkeeping.
+    last_dw_input_at`` column comment."""
+    row = conn.execute(
+        "SELECT last_dw_input_at FROM eph_bookkeeping WHERE engram_id = ?", (engram_id,)
+    ).fetchone()
+    return str(row["last_dw_input_at"]) if row is not None and row["last_dw_input_at"] is not None else None
+
+
+def set_potentiation_anchor(conn: sqlite3.Connection, engram_id: str, at: str) -> None:
+    """Advance the Tier-C spacing anchor unconditionally -- called for
+    *every* processed node tag (committed or not), so a zero-dw
+    observation still establishes the timing anchor a later, properly
+    spaced observation needs, without ever touching the file-mirrored
+    ``engram.last_applied`` column (that one only moves on a real
+    commit -- ``core/dream.py``'s job, not this module's)."""
+    conn.execute(
+        """
+        INSERT INTO eph_bookkeeping
+          (engram_id, exposure_delta, last_activated, route_returns, last_dw_input_at)
+        VALUES (?, 0, NULL, 0, ?)
+        ON CONFLICT(engram_id) DO UPDATE SET last_dw_input_at = excluded.last_dw_input_at
+        """,
+        (engram_id, at),
     )
 
 
@@ -261,7 +291,9 @@ def capture_node_tag(
     )
 
 
-def expire_session_tags(conn: sqlite3.Connection, *, session_id: str, now: str) -> int:
+def expire_session_tags(
+    conn: sqlite3.Connection, *, session_id: str, now: str, grace_s: float = 0.0
+) -> int:
     """spec §3.3 tool 7: "expires its tags (retained for the next Dream
     run)" -- pulls every still-live, **not-yet-captured** tag's
     ``expires_at`` forward to ``now`` rather than deleting rows (deletion
@@ -281,11 +313,39 @@ def expire_session_tags(conn: sqlite3.Connection, *, session_id: str, now: str) 
     (the co-activation/retroactive-credit "is this tag live" checks) *do*
     key on ``expires_at`` alone, so closing a session must never be able to
     retroactively suppress a signal that has already been captured.
+
+    M6 hardening (carried-forward defect #1, "session-suppression
+    hijack"): ``session_id`` is not a capability -- *any* caller that
+    names it can call ``session_end`` on it, including a caller that is
+    not its owner (spec §3.3 forbids server-side session minting/auth, so
+    there is no principal to check here). ``grace_s`` (``cfg.
+    session_end_tag_grace_s``) bounds the *effect* instead: a tag is only
+    eligible to have its expiry pulled forward once it is already at
+    least ``grace_s`` seconds old, measured from its immutable ``set_at``
+    (never touched by this function or by anything else after insertion).
+    A freshly-set, not-yet-captured tag therefore survives an out-of-band
+    ``session_end`` call -- whether it is the owner's own legitimate call
+    racing a same-turn ``signal_outcome()``, or a stranger's -- for at
+    least ``grace_s`` seconds, closing the realistic
+    "``signal_use()`` -> [session_end elsewhere] -> ``signal_outcome()``"
+    suppression window. This bounds the blast radius; it does not
+    eliminate it (``grace_s=0`` reproduces the exploitable M4 behaviour
+    exactly -- see ``tests/unit/storage/test_ephemeral.py``'s mutation
+    check).
     """
-    cur = conn.execute(
-        "UPDATE eph_tag SET expires_at = ? WHERE session_id = ? AND expires_at > ? AND captured_at IS NULL",
-        (now, session_id, now),
-    )
+    if grace_s > 0:
+        cutoff = (datetime.fromisoformat(now) - timedelta(seconds=grace_s)).isoformat()
+        cur = conn.execute(
+            "UPDATE eph_tag SET expires_at = ? WHERE session_id = ? AND expires_at > ? "
+            "AND captured_at IS NULL AND set_at <= ?",
+            (now, session_id, now, cutoff),
+        )
+    else:
+        cur = conn.execute(
+            "UPDATE eph_tag SET expires_at = ? WHERE session_id = ? AND expires_at > ? "
+            "AND captured_at IS NULL",
+            (now, session_id, now),
+        )
     return int(cur.rowcount)
 
 
@@ -355,6 +415,29 @@ def pending_captured_node_tags(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         "capture_valence, capture_salience, capture_weight FROM eph_tag "
         "WHERE subject_kind = 'node' AND captured_at IS NOT NULL AND consumed_run_id IS NULL "
         "ORDER BY captured_at, id"
+    ).fetchall()
+
+
+def all_captured_node_tags(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """``core/distill.py``'s frequent-path mining input (spec §4.3 Phase 5
+    / M6): every captured node tag, **regardless of ``consumed_run_id``**
+    -- unlike :func:`pending_captured_node_tags` (Dream Phase 2's S-update
+    input, which must stop seeing a tag once it has been folded into a
+    Δw), distillation needs the full session history of "what sequence of
+    skills, together, produced a captured outcome" to detect a frequent
+    path, and a tag already consumed by an earlier potentiation run is
+    still perfectly good evidence of that. Tags are purged only by Dream's
+    retention window (spec §6.1, ``core/decay.py::purge_retention``), so
+    this is bounded by ``retention_days``, not unbounded history.
+
+    Ordered by ``(session_id, set_at)`` so a caller can group by session
+    and read off each session's tagged-skill sequence in the order it was
+    actually applied.
+    """
+    return conn.execute(
+        "SELECT id, session_id, engram_id, set_at, captured_at, capture_valence FROM eph_tag "
+        "WHERE subject_kind = 'node' AND captured_at IS NOT NULL "
+        "ORDER BY session_id, set_at, id"
     ).fetchall()
 
 

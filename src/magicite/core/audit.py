@@ -23,7 +23,7 @@ from magicite.config import Config
 #: docs/07: "Black-hole hub detection ... usage PageRank p95 + traffic-share
 #: KPI (<30%)". Not a plasticity/decay tunable (those live in Config); a
 #: fixed docs/07 KPI target.
-_HUB_TRAFFIC_SHARE_CAP = 0.30
+HUB_TRAFFIC_SHARE_CAP = 0.30
 
 
 def _now() -> str:
@@ -77,7 +77,7 @@ class AuditReport:
         }
 
 
-def _silent_engrams(conn: sqlite3.Connection) -> list[str]:
+def silent_engrams(conn: sqlite3.Connection) -> list[str]:
     """docs/07: "stored but never retrieved in last T sessions" -- v1's
     honest cut (matching ``storage.queries.skill_detail``'s existing
     ``silent_engram_flag``): never routed at all, ever, rather than a
@@ -93,10 +93,10 @@ def _silent_engrams(conn: sqlite3.Connection) -> list[str]:
     return [str(r["name"]) for r in rows]
 
 
-def _hub_candidates(conn: sqlite3.Connection, *, percentile: float) -> tuple[list[str], float]:
+def hub_candidates(conn: sqlite3.Connection, *, percentile: float) -> tuple[list[str], float]:
     """docs/07 "black-hole hub" heuristic: engrams at/above the
     ``percentile``-th route-traffic mark, flagged only if that set actually
-    monopolizes traffic (share >= :data:`_HUB_TRAFFIC_SHARE_CAP`). This is
+    monopolizes traffic (share >= :data:`HUB_TRAFFIC_SHARE_CAP`). This is
     an honest, deliberately simple usage-share heuristic over
     ``eph_bookkeeping.route_returns`` -- not a full usage-weighted-edge
     PageRank recomputation (that belongs to ``core/router.py``/
@@ -120,12 +120,12 @@ def _hub_candidates(conn: sqlite3.Connection, *, percentile: float) -> tuple[lis
     candidates = sorted(str(r["name"]) for r in rows if int(r["returns"]) >= threshold)
     candidate_traffic = sum(int(r["returns"]) for r in rows if str(r["name"]) in candidates)
     share = candidate_traffic / total
-    if share < _HUB_TRAFFIC_SHARE_CAP:
+    if share < HUB_TRAFFIC_SHARE_CAP:
         return [], share
     return candidates, share
 
 
-def _coverage_gaps(conn: sqlite3.Connection) -> list[str]:
+def coverage_gaps(conn: sqlite3.Connection) -> list[str]:
     """docs/03 phase 6: "Coverage gaps: `needs` with no provider engram ->
     nucleation candidates" -- dangling ``depends_on`` edges (spec §2.2:
     ``needs`` renders to ``type='depends_on'``, ``storage.durable.
@@ -140,18 +140,18 @@ def _coverage_gaps(conn: sqlite3.Connection) -> list[str]:
 def run_audit(cfg: Config, conn: sqlite3.Connection, *, run_id: str) -> AuditReport:
     generated_at = _now()
     registry_size = int(conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"])
-    silent = _silent_engrams(conn)
-    hub_candidates, hub_share = _hub_candidates(conn, percentile=cfg.hub_penalty_percentile)
-    coverage_gaps = _coverage_gaps(conn)
+    silent = silent_engrams(conn)
+    hubs, hub_share = hub_candidates(conn, percentile=cfg.hub_penalty_percentile)
+    gaps = coverage_gaps(conn)
 
     report = AuditReport(
         run_id=run_id,
         generated_at=generated_at,
         registry_size=registry_size,
         silent_engrams=silent,
-        hub_candidates=hub_candidates,
+        hub_candidates=hubs,
         hub_traffic_share=hub_share,
-        coverage_gaps=coverage_gaps,
+        coverage_gaps=gaps,
     )
 
     cfg.runtime_dir.mkdir(parents=True, exist_ok=True)

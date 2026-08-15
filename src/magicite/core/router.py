@@ -341,8 +341,12 @@ def route(
     kept_ids = [nid for nid in node_ids if nid not in excluded_ids]
     scores_by_id = {nid: float(score[i]) for i, nid in enumerate(node_ids)}
 
-    # step 8: community rerank
-    kept_ids = _community_rerank(conn, kept_ids, scores_by_id)
+    # step 8: community rerank (M6 ablation switch, spec §7.3: "driven
+    # from magicite.toml" -- cfg.ablation_no_communities skips the
+    # top-2-communities filter entirely, the H-SCALE ablation eval/
+    # ablations.py::run_no_communities compares against baseline (d)).
+    if not cfg.ablation_no_communities:
+        kept_ids = _community_rerank(conn, kept_ids, scores_by_id)
 
     # final ranking + truncation to k (deterministic tie-break by name)
     ranked = sorted(kept_ids, key=lambda nid: (-scores_by_id[nid], row_by_id[nid]["name"]))

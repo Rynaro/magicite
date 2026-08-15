@@ -22,6 +22,7 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4", "mypy>=1.10", "pytest-c
 
 [project.scripts]
 magicite = "magicite.__main__:cli"
+magicite-bench = "magicite.eval.bench:main"
 
 [build-system]
 requires = ["hatchling"]

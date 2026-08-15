@@ -110,7 +110,21 @@ CREATE TABLE IF NOT EXISTS eph_session (
 
 CREATE TABLE IF NOT EXISTS eph_bookkeeping (                     -- CR-1: hot-path counters, checkpointed to Tier A
   engram_id TEXT PRIMARY KEY, exposure_delta INTEGER NOT NULL DEFAULT 0,
-  last_activated TEXT, route_returns INTEGER NOT NULL DEFAULT 0
+  last_activated TEXT, route_returns INTEGER NOT NULL DEFAULT 0,
+  -- M6 defect fix (write_ratio churn, spec R3 <5% target): Dream Phase 2's
+  -- spacing-effect input needs an anchor timestamp advanced on *every*
+  -- processed node tag (committed or not), or a first, spacing=0
+  -- observation would leave the anchor null forever and permanently block
+  -- potentiation (see core/dream.py::_phase2_potentiate's node-loop
+  -- docstring). That anchor must NOT be the file-mirrored
+  -- `engram.last_applied` column -- advancing a Tier-A/file field on a
+  -- zero-dw observation makes a checkpoint candidate byte-differ from the
+  -- file on `last_applied` alone, forcing a rewrite even though nothing
+  -- was actually learned. `last_dw_input_at` is the Tier-C-only home for
+  -- that anchor (lost on rebuild, which is safe/conservative -- it just
+  -- resets ramp-up to "first observation" again); `engram.last_applied`
+  -- is now advanced only on a real commit.
+  last_dw_input_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS eph_retrieval (                       -- R: retrieval strength, fast decay

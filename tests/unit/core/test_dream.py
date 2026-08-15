@@ -122,6 +122,31 @@ def test_run_reports_every_phase_in_stats(cfg, db_conn, registered) -> None:
         assert phase in result.stats, f"missing phase stats: {phase}"
 
 
+def test_run_phase5_distill_proposes_a_frequent_uncovered_path(cfg, db_conn, registered) -> None:
+    """M6: Phase 5 is no longer a stub -- a real frequent, uncovered
+    session path proposes a nucleate() approval automatically, the same
+    ``core/distill.py::run_distillation`` the manual tool calls."""
+    names = ["nvidia-prime-render-offload", "lutris-wine-prefix-setup"]
+    for i in range(5):
+        sid = f"auto-nuc-{i}"
+        signals_mod.signal_use(cfg, db_conn, skill_ids=names, session_id=sid)
+        signals_mod.signal_outcome(
+            cfg, db_conn, valence=0.9, salience=0.9, skill_ids=names, session_id=sid
+        )
+
+    result = dream_mod.run(cfg, db_conn, trigger="manual")
+
+    assert result.stats["distill"]["candidates"] == 1
+    approval_ids = result.stats["distill"]["approval_ids"]
+    assert len(approval_ids) == 1
+    row = db_conn.execute(
+        "SELECT state, op, proposed_by FROM approval WHERE id = ?", (approval_ids[0],)
+    ).fetchone()
+    assert row["state"] == "proposed"
+    assert row["op"] == "nucleate"
+    assert row["proposed_by"] == "dream-worker"
+
+
 def test_run_marks_state_succeeded(cfg, db_conn, registered) -> None:
     result = dream_mod.run(cfg, db_conn, trigger="manual")
     assert result.state == "succeeded"
@@ -169,6 +194,81 @@ def test_second_run_over_unchanged_state_writes_zero_files(cfg, db_conn, registe
     second = dream_mod.run(cfg, db_conn, trigger="manual")
     assert second.checkpoint_write_ratio == 0.0
     assert second.modified_engrams == []
+
+
+# ── M6 carried-forward defect #2: a zero-ΔS burst must not force a
+#    full-registry checkpoint rewrite (R3's <5% write_ratio target) ────
+
+
+def test_zero_delta_s_burst_does_not_force_full_checkpoint_rewrite(cfg, db_conn, registered) -> None:
+    """Every node tag captured in this burst is each engram's *first-ever*
+    observation (``dt_since_last_update_s is None`` -> spacing=0 ->
+    dw=0.0 exactly, ``core/plasticity.py::compute_eta_eff_untiered``): no
+    engram's storage_strength moves (``committed_nodes == 0``). Before the
+    fix, Dream's node loop still unconditionally advanced the
+    file-mirrored ``engram.last_applied`` column on every processed tag
+    (even a non-committing one) purely to anchor the *next* observation's
+    spacing calculation -- which made every touched engram's checkpoint
+    candidate byte-differ from the file on `last_applied` alone and forced
+    a full rewrite (`write_ratio == 1.0`) despite zero real learning. The
+    fix moves that anchor to a Tier-C-only column (``eph_bookkeeping.
+    last_dw_input_at``, never checkpointed) so a zero-ΔS burst leaves
+    every file untouched.
+
+    The first Dream run for a registry that declares ``needs``/
+    ``inhibits`` edges legitimately populates those two engrams'
+    ``synapses:`` block for the first time (unrelated to any signal,
+    reproducible even with zero signal_use/signal_outcome calls at all --
+    a one-time declared-composition sync, not this defect) -- this test
+    runs *that* pass first so its assertion below is isolated to the
+    steady-state property the defect is actually about: repeated
+    zero-learning bursts after the registry has already been checkpointed
+    once.
+    """
+    dream_mod.run(cfg, db_conn, trigger="manual")  # absorb the one-time declared-edge sync
+
+    names = [
+        str(r["name"]) for r in db_conn.execute("SELECT name FROM engram").fetchall()
+    ]
+    signals_mod.signal_use(cfg, db_conn, skill_ids=names, session_id="zero-delta-burst")
+    signals_mod.signal_outcome(
+        cfg, db_conn, valence=0.9, salience=0.9, skill_ids=names, session_id="zero-delta-burst"
+    )
+
+    result = dream_mod.run(cfg, db_conn, trigger="manual")
+    assert result.stats["potentiate"]["committed_nodes"] == 0, "the burst must produce zero ΔS"
+    assert result.checkpoint_write_ratio == 0.0
+    assert result.modified_engrams == []
+
+
+def test_zero_delta_s_burst_still_anchors_spacing_for_a_later_real_commit(cfg, db_conn, registered) -> None:
+    """The fix must not silently break potentiation itself -- only the
+    spacing anchor's *home* moved (Tier C, not the file-mirrored column).
+    A properly time-spaced second burst must still be able to commit."""
+    dream_mod.run(cfg, db_conn, trigger="manual")
+    proton_id = _engram_id(db_conn, PROTON)
+
+    signals_mod.signal_use(cfg, db_conn, skill_ids=[PROTON], session_id="anchor-1")
+    signals_mod.signal_outcome(
+        cfg, db_conn, valence=0.9, salience=0.9, skill_ids=[PROTON], session_id="anchor-1"
+    )
+    dream_mod.run(cfg, db_conn, trigger="manual")  # establishes the Tier-C anchor, commits nothing
+
+    past = (datetime.now(UTC) - timedelta(hours=8)).isoformat()
+    db_conn.execute(
+        "UPDATE eph_bookkeeping SET last_dw_input_at = ? WHERE engram_id = ?", (past, proton_id)
+    )
+    signals_mod.signal_use(cfg, db_conn, skill_ids=[PROTON], session_id="anchor-2")
+    signals_mod.signal_outcome(
+        cfg, db_conn, valence=0.9, salience=0.9, skill_ids=[PROTON], session_id="anchor-2"
+    )
+    result = dream_mod.run(cfg, db_conn, trigger="manual")
+    assert result.stats["potentiate"]["committed_nodes"] >= 1
+    row = db_conn.execute(
+        "SELECT storage_strength, last_applied FROM engram WHERE id = ?", (proton_id,)
+    ).fetchone()
+    assert row["storage_strength"] > 0.0
+    assert row["last_applied"] is not None
 
 
 # ── R1 hardening: eph_event is never a plasticity-S input ──────────────

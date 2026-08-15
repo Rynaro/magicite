@@ -5,20 +5,21 @@ shapes (``storage/queries.py``). Its ``consolidation_id`` branch has
 nothing to look up yet (no Dream in M0) and returns ``not_found`` rather
 than fabricating a run.
 
-``flag_dead`` needs ``eph_retrieval``/session history, which M3
-(``core/signals.py``) starts populating -- but the tool itself (the
-"silent engram" standing-KPI shape, docs/07) is spec's own M5 action item
-(spec Stories, M5: "...``flag_dead``; rollback runbook..."), alongside
-``core/fitness.py`` and the audit machinery it reports against. It raises a
-typed ``not_implemented`` for now, not because the M3 signal ladder is
-missing, but because M5 owns this tool.
+M6 (carried-forward defect #3, the last ``not_implemented`` tool body in
+the 16-tool surface): ``flag_dead`` is now real, backed by
+``storage.queries.dead_candidates`` (docs/07 "Silent Engram Report" --
+skills stored but never routed within ``window_days``). M6 also wires
+``introspect(include_health=True)`` to the standing-KPI computation in
+``obs/kpi.py`` (silent-engram %, hub/black-hole traffic share, skill-
+fitness distribution, the honest registry_size/cold-start note, R9).
 """
 
 from __future__ import annotations
 
-from magicite.errors import NotFoundError, NotImplementedToolError
+from magicite.errors import NotFoundError
 from magicite.mcp.registry import ToolContext, magicite_tool
 from magicite.mcp.schemas import (
+    DeadCandidate,
     EdgeOut,
     FlagDeadInput,
     FlagDeadOutput,
@@ -29,6 +30,7 @@ from magicite.mcp.schemas import (
     SkillIntrospect,
     TierState,
 )
+from magicite.obs import kpi as kpi_mod
 from magicite.storage import queries as queries_mod
 
 
@@ -64,7 +66,8 @@ def introspect(ctx: ToolContext, params: IntrospectInput) -> IntrospectOutput:
     summary = queries_mod.registry_summary(
         ctx.conn, embedding_model=ctx.embedder.model_name, autonomous=ctx.cfg.autonomous
     )
-    return IntrospectOutput(registry_summary=RegistrySummary(**summary))
+    health = kpi_mod.compute_standing_kpis(ctx.cfg, ctx.conn) if params.include_health else None
+    return IntrospectOutput(registry_summary=RegistrySummary(**summary), health=health)
 
 
 @magicite_tool(
@@ -77,7 +80,31 @@ def introspect(ctx: ToolContext, params: IntrospectInput) -> IntrospectOutput:
     description="Find silent engrams: stored but never routed in the last N days.",
 )
 def flag_dead(ctx: ToolContext, params: FlagDeadInput) -> FlagDeadOutput:
-    raise NotImplementedToolError(
-        "flag_dead() needs decayed retrieval strength over real session history; "
-        "it lands in M3 alongside core/signals.py",
+    result = queries_mod.dead_candidates(
+        ctx.conn,
+        window_days=params.window_days,
+        limit=params.limit,
+        lambda_r_per_day=ctx.cfg.lambda_r_per_day,
+    )
+    silent_pct = float(result["silent_pct"])
+    # docs/07 §Silent Engram Report KPI: target <10%; ">20% indicates
+    # routing cues are systematically poor" -- verbatim thresholds.
+    if silent_pct > 0.20:
+        recommendation = (
+            f"{silent_pct:.0%} of the registry is silent (>20%): routing cues are "
+            "systematically poor (docs/07) -- review triggers/descriptions broadly, "
+            "not just for the individually flagged candidates."
+        )
+    elif silent_pct > 0.10:
+        recommendation = (
+            f"{silent_pct:.0%} of the registry is silent (above the <10% target, docs/07): "
+            "review the flagged candidates' triggers and descriptions; sharpen() or archive() "
+            "the ones that are genuinely unreachable."
+        )
+    else:
+        recommendation = f"{silent_pct:.0%} silent -- within the docs/07 <10% target."
+    return FlagDeadOutput(
+        candidates=[DeadCandidate(**c) for c in result["candidates"]],
+        recommendation=recommendation,
+        silent_pct=silent_pct,
     )

@@ -95,6 +95,32 @@ class Config:
     #: Recency weighting (``capture_weight``) already makes tags older than
     #: this near-zero-weight, so capping loses little signal.
     retroactive_credit_max: int = 10
+    #: M6 hardening (carried-forward defect #1, "session-suppression
+    #: hijack"): ``session_id`` carries no capability/identity (spec §3.3
+    #: forbids server-side session minting/auth), so *any* caller that
+    #: names a session_id can call ``session_end`` on it -- including a
+    #: caller that is not the session's own owner. Before this fix,
+    #: ``session_end`` could pull a not-yet-captured tag's ``expires_at``
+    #: forward to "now" unconditionally, so a same-instant
+    #: ``session_end(<id>)`` call raced ahead of (or substituted for) the
+    #: legitimate owner's own ``signal_outcome()`` call and silently made
+    #: it capture 0 -- a stranger (or a confused/injected tool call)
+    #: naming a guessed or leaked session_id could suppress a signal that
+    #: was never actually reported as failed. Per the mission brief, the
+    #: fix bounds the *effect*, not the principal (identity is explicitly
+    #: out of scope): ``session_end`` may only pull a tag's expiry forward
+    #: once it is already at least this many seconds old (measured from
+    #: its immutable ``set_at``, which ``session_end`` never touches), so
+    #: a freshly-set tag survives an out-of-band ``session_end`` call long
+    #: enough for the realistic same-turn
+    #: ``signal_use() -> signal_outcome()`` pattern to complete. This
+    #: bounds the blast radius; it does not eliminate it -- the same
+    #: "bounded, not eliminated" posture R1 already takes elsewhere in
+    #: this codebase (a sufficiently patient, repeated attacker can still
+    #: eventually suppress an old-enough, still-uncaptured tag). 0
+    #: disables the floor (M4's prior, fully exploitable-by-timing
+    #: behaviour).
+    session_end_tag_grace_s: float = 60.0
 
     # ── dream trigger tunables (spec §4.1) ──────────────────────────────
     dream_on_session_end: bool = True
@@ -127,6 +153,17 @@ class Config:
     autonomous: bool = False
     hook_token: str | None = None
     commit_db: bool = False
+
+    # ── M6 ablation switches (spec §7.3 ship list: "no-decay,
+    # no-tag-capture, no-communities | ship as config switches | driven
+    # from magicite.toml") ────────────────────────────────────────────
+    # no-decay: set lambda_r_per_day = lambda_s_per_day = 0 directly
+    # (the two fields above already ARE the switch; no separate flag
+    # needed). no-tag-capture is deliberately NOT a Config field at all
+    # -- see eval/ablations.py's module docstring for why (P0).
+    #: spec §3.3 step 8's community rerank, disabled when set. Read only
+    #: by ``core/router.py::route()``; never touches G1/G2/G3.
+    ablation_no_communities: bool = False
 
     # ── logging ───────────────────────────────────────────────────────────
     log_level: str = "INFO"

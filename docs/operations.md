@@ -230,3 +230,64 @@ later.
 `magicite.toml` tunables relevant to this document: `[dream] idempotency_ttl_s`
 (§4), `[plasticity] floor_archived` (§7, the peak-based gate compares against this
 same value), `[governance] autonomous` (§1, TOML equivalent of the env var above).
+
+---
+
+## 11. The `magicite-bench` harness, standing KPIs, and ablations (M6)
+
+`magicite-bench` is a separate console script (`eval/bench.py`), not one of the
+16 MCP tools — it is docs/07's offline evaluation harness (AC-029), run by an
+operator or CI job against a project's own registry, never called from inside a
+live `serve` process.
+
+```sh
+magicite-bench --project-root . --queries .spectra/bench/queries.jsonl \
+  --baseline b --baseline d
+```
+
+Emits Hit@1/3/5, MRR and Plan F1 for whichever of the four docs/07 baselines
+(`a` native lexical, `b` dense embedding, `c` embedding+structural-graph, `d` the
+real `route()`) are requested (`--baseline`, repeatable; default: all four).
+`--sync/--no-sync` (default on) runs `sync()` first so embeddings/communities are
+current. This is the harness that makes H-BODY/H-SCALE/H-COMPOSE/H-LEARN
+falsifiable (risk R10) — it reports whatever the numbers actually are, including a
+baseline ordering that inverts the docs/07 hypothesis (this happened on the
+toy registry with the `hashing` embedder in Vivi's own M6 verification run; see the
+M6 delivery report for the exact figures and the honest reading of them).
+
+`eval/ablations.py` ships three switches (spec §7.3's "ship as config switches"
+list): `no_decay` (zeroes `lambda_r_per_day`/`lambda_s_per_day` for the bench run),
+`no_communities` (`cfg.ablation_no_communities = true`, also a real
+`core/router.py::route()` switch — set it in `magicite.toml`'s `[routing]` table
+to run a live server with community reranking disabled), and `no_tag_capture`
+(simulated entirely offline inside `eval/ablations.py` — it never touches the live
+two-phase-commit path, so P0 is unaffected regardless of any config).
+
+`introspect(include_health=true)` (`obs/kpi.py`) reports the standing KPIs docs/07
+names: silent-engram % (target <10%, ">20% ⇒ routing cues are systematically
+poor"), skill-fitness distribution (S_node histogram), black-hole hub / top-5
+traffic-share concentration, and the honest cold-start signal — `registry_size`
+below ~50 skills (risk R9) is called out explicitly rather than buried.
+`flag_dead(window_days, limit)` is now implemented (the last `not_implemented` tool
+body in the 16-tool surface): it lists engrams never routed, or not routed within
+`window_days`, ordered worst-first.
+
+---
+
+## 12. Session-suppression hardening (`session_end_tag_grace_s`)
+
+`session_end(session_id)` accepts a caller-supplied `session_id` with no
+authentication (spec §3.3 forbids server-side session minting) — any caller that
+names a session_id, including one it does not own, can end it. Before M6, that
+call could pull a not-yet-captured tag's expiry forward to "now" unconditionally,
+which let a same-instant `session_end(<id>)` call (a stranger's, or a race with the
+owner's own) silently make a subsequent `signal_outcome()` capture 0.
+
+`cfg.session_end_tag_grace_s` (default `60.0`, `magicite.toml`
+`[signals] session_end_tag_grace_s`) bounds this: `session_end()` may only pull a
+tag's expiry forward once it is already at least this many seconds old (measured
+from its immutable `set_at`). This closes the realistic same-turn
+`signal_use() → signal_outcome()` race without adding caller identity — it bounds
+the effect, not the principal, and does not claim to eliminate a sufficiently
+patient, repeated attacker (the same "bounded, not eliminated" posture R1 already
+takes elsewhere). Set to `0` to restore the pre-M6 behaviour.

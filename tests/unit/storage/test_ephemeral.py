@@ -131,8 +131,79 @@ def test_expire_session_tags_still_expires_uncaptured_tags(cfg, db_conn, embedde
     ephemeral_mod.insert_node_tag(
         db_conn, session_id="sY", engram_id=engram_id, signal_tier=1, set_at=now, expires_at=future
     )
+    # grace_s defaults to 0.0 here -- this test documents expire_session_
+    # tags' bare primitive behaviour (no grace floor applied), unrelated
+    # to the M6 grace-floor hardening below.
     changed = ephemeral_mod.expire_session_tags(db_conn, session_id="sY", now=now)
     assert changed == 1
+
+
+# ── M6 hardening: expire_session_tags' grace floor (carried-forward
+#    defect #1, "session-suppression hijack") ──────────────────────────
+
+
+def test_expire_session_tags_grace_floor_protects_a_fresh_tag(cfg, db_conn, embedder) -> None:
+    """A tag younger than ``grace_s`` (measured from its immutable
+    ``set_at``) must not have its expiry pulled forward -- this is the
+    primitive the still-live suppression exploit (a stranger's, or a
+    race with the owner's own, ``session_end(<id>)`` call landing between
+    ``signal_use()`` and ``signal_outcome()``) is bounded by."""
+    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
+    now_dt = datetime.now(UTC)
+    now = _iso(now_dt)
+    future = _iso(now_dt + timedelta(hours=2))
+    ephemeral_mod.insert_node_tag(
+        db_conn, session_id="sZ", engram_id=engram_id, signal_tier=1, set_at=now, expires_at=future
+    )
+
+    changed = ephemeral_mod.expire_session_tags(db_conn, session_id="sZ", now=now, grace_s=60.0)
+
+    assert changed == 0, "a tag set 'now' must survive a 60s grace floor"
+    row = db_conn.execute(
+        "SELECT expires_at FROM eph_tag WHERE session_id = 'sZ' AND engram_id = ?", (engram_id,)
+    ).fetchone()
+    assert row["expires_at"] == future
+
+
+def test_expire_session_tags_grace_floor_still_expires_a_stale_tag(cfg, db_conn, embedder) -> None:
+    """The floor bounds the effect, it does not disable session_end() for
+    tags that really are old enough -- the "genuinely stale, uncaptured
+    tag" case must still expire, or session_end() would stop doing its
+    spec-named job at all."""
+    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
+    now_dt = datetime.now(UTC)
+    now = _iso(now_dt)
+    stale_set_at = _iso(now_dt - timedelta(seconds=90))
+    future = _iso(now_dt + timedelta(hours=2))
+    ephemeral_mod.insert_node_tag(
+        db_conn, session_id="sZ", engram_id=engram_id, signal_tier=1, set_at=stale_set_at, expires_at=future
+    )
+
+    changed = ephemeral_mod.expire_session_tags(db_conn, session_id="sZ", now=now, grace_s=60.0)
+
+    assert changed == 1, "a tag already older than the grace floor must still expire"
+
+
+def test_expire_session_tags_grace_floor_mutation_check(cfg, db_conn, embedder) -> None:
+    """Mutation check: ``grace_s=0.0`` (the default, and what M4 shipped)
+    must reproduce the exploitable behaviour exactly -- the identical
+    fresh tag from the "protects a fresh tag" test above IS suppressed
+    when the floor is disabled, proving that test's green result actually
+    depends on the floor being > 0 and not on some other, coincidental
+    reason."""
+    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
+    now = _iso(datetime.now(UTC))
+    future = _iso(datetime.now(UTC) + timedelta(hours=2))
+    ephemeral_mod.insert_node_tag(
+        db_conn, session_id="sZ", engram_id=engram_id, signal_tier=1, set_at=now, expires_at=future
+    )
+
+    changed = ephemeral_mod.expire_session_tags(db_conn, session_id="sZ", now=now, grace_s=0.0)
+
+    assert changed == 1, "grace_s=0.0 must reproduce the pre-M6 suppression of a fresh tag"
 
 
 # ── retroactive credit: bounded, most-recent-first ──────────────────────

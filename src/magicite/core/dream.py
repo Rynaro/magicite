@@ -50,6 +50,7 @@ from typing import Any, cast
 from magicite.config import Config
 from magicite.core import audit as audit_mod
 from magicite.core import decay as decay_mod
+from magicite.core import distill as distill_mod
 from magicite.core import plasticity as plasticity_mod
 from magicite.engram import parser as parser_mod
 from magicite.engram import writer as writer_mod
@@ -257,7 +258,7 @@ def _phase2_potentiate(
     for tag in trace.node_tags:
         engram_id = str(tag["engram_id"])
         row = conn.execute(
-            "SELECT storage_strength, last_applied FROM engram WHERE id = ?", (engram_id,)
+            "SELECT storage_strength FROM engram WHERE id = ?", (engram_id,)
         ).fetchone()
         if row is None:
             ephemeral_mod.mark_tag_consumed(conn, int(tag["id"]), run_id=run_id)
@@ -267,12 +268,17 @@ def _phase2_potentiate(
         valence = float(tag["capture_valence"] or 0.0)
         capture_weight = float(tag["capture_weight"] or 0.0)
         tier = int(tag["signal_tier"])
+        # M6 defect fix (write_ratio churn, R3's <5% target): the spacing
+        # dt input is read from the Tier-C anchor (never the file-mirrored
+        # `engram.last_applied`) -- see storage.ephemeral.
+        # get_potentiation_anchor's docstring.
+        anchor = ephemeral_mod.get_potentiation_anchor(conn, engram_id)
         magnitude = plasticity_mod.compute_dw_magnitude(
             eta=cfg.eta,
             w_max=cfg.w_max,
             tau_spacing_hours=cfg.tau_spacing_hours,
             current_w=current_s,
-            dt_since_last_update_s=_dt_seconds(row["last_applied"], str(tag["captured_at"])),
+            dt_since_last_update_s=_dt_seconds(anchor, str(tag["captured_at"])),
             mean_outcome=valence,
             capture_weight=capture_weight,
         )
@@ -290,17 +296,21 @@ def _phase2_potentiate(
             )
             committed_nodes += 1
             dominant_tier[engram_id] = max(dominant_tier.get(engram_id, 0), tier)
-        else:
-            # Advance the spacing anchor even when this observation did not
-            # itself commit a material dw (e.g. its dt_since_last_update_s
-            # was None -- the very first observation, spacing=0 by design,
-            # see core/plasticity.py::compute_eta_eff_untiered). Without
-            # this, last_applied would stay NULL forever and every future
-            # observation would also see dt=None, permanently blocking
-            # potentiation for this engram.
-            conn.execute(
-                "UPDATE engram SET last_applied = ? WHERE id = ?", (tag["captured_at"], engram_id)
-            )
+        # Advance the Tier-C spacing anchor unconditionally -- including
+        # (especially) when this observation did not itself commit a
+        # material dw (e.g. its dt_since_last_update_s was None -- the
+        # very first observation, spacing=0 by design, see core/
+        # plasticity.py::compute_eta_eff_untiered). Without this, the
+        # anchor would stay null forever and every future observation
+        # would also see dt=None, permanently blocking potentiation for
+        # this engram. Unlike the pre-M6 behaviour, this NEVER touches
+        # the file-mirrored `engram.last_applied` column on a
+        # non-committing observation -- that column only advances inside
+        # the commit branch above, so a checkpoint candidate whose S
+        # (and everything else spec §4.5's dirty() enumerates) did not
+        # actually change renders byte-identical to the file on disk,
+        # instead of differing on `last_applied` alone.
+        ephemeral_mod.set_potentiation_anchor(conn, engram_id, str(tag["captured_at"]))
         ephemeral_mod.mark_tag_consumed(conn, int(tag["id"]), run_id=run_id)
 
     for tag in trace.edge_tags:
@@ -437,14 +447,25 @@ def _phase4_renormalise(conn: sqlite3.Connection, cfg: Config) -> dict[str, int]
     return {"nodes_scaled": scaled_nodes}
 
 
-# ── Phase 5: Distil (stub -- M6) ──────────────────────────────────────────
+# ── Phase 5: Distil ─────────────────────────────────────────────────────
 
 
-def _phase5_distill_stub() -> dict[str, Any]:
-    """spec §4.3 Phase 5 / Story M6: frequent-path distillation
-    (``core/distill.py``) is explicitly M6 scope. Honestly reports zero
-    candidates rather than fabricating induction logic (INV-4)."""
-    return {"candidates": 0, "note": "frequent-path distillation lands in M6 (core/distill.py)"}
+def _phase5_distill(cfg: Config, conn: sqlite3.Connection, *, run_id: str) -> dict[str, Any]:
+    """spec §4.3 Phase 5: "TraceIR frequent paths -> approval rows
+    (op='nucleate') + candidates payload; (-- proposals only)". Delegates
+    to ``core/distill.py::run_distillation`` -- the same function
+    ``nucleate()`` (the manual trigger, ``mcp/bind_dream.py``) calls, so
+    Dream's automatic pass and an operator's on-demand one are exactly one
+    implementation. Proposal-only (CR-3): writes ``approval`` rows,
+    never an engram."""
+    outcome = distill_mod.run_distillation(
+        cfg, conn, proposed_by="dream-worker", session_ids=None
+    )
+    return {
+        "candidates": len(outcome.candidates),
+        "approval_ids": outcome.approval_ids,
+        "note": outcome.note,
+    }
 
 
 # ── Phase 7: Checkpoint ────────────────────────────────────────────────────
@@ -830,7 +851,7 @@ def run(cfg: Config, conn: sqlite3.Connection, *, trigger: str = "manual") -> Dr
                 stats["renormalise"] = _phase4_renormalise(conn, cfg)
 
                 conn.execute("UPDATE consolidation_run SET phase = 'distill' WHERE id = ?", (run_id,))
-                stats["distill"] = _phase5_distill_stub()
+                stats["distill"] = _phase5_distill(cfg, conn, run_id=run_id)
 
                 conn.execute("UPDATE consolidation_run SET phase = 'audit' WHERE id = ?", (run_id,))
                 audit_report = audit_mod.run_audit(cfg, conn, run_id=run_id)

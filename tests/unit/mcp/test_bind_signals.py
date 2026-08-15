@@ -56,6 +56,16 @@ def test_session_end_tool_closes_session(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     bind_signals.signal_use(ctx, SignalUseInput(skill_ids=[PROTON], session_id="s1"))
+    # M6 fix (carried-forward defect #1): session_end() no longer
+    # suppresses a tag younger than cfg.session_end_tag_grace_s (see
+    # core/session.py / storage/ephemeral.py::expire_session_tags) --
+    # back the tag's set_at beyond the grace floor so this "wiring" test
+    # still exercises the tags_expired == 1 path honestly, rather than
+    # asserting the now-fixed suppression-on-a-fresh-tag behaviour.
+    from datetime import UTC, datetime, timedelta
+
+    stale = (datetime.now(UTC) - timedelta(seconds=cfg.session_end_tag_grace_s + 5)).isoformat()
+    db_conn.execute("UPDATE eph_tag SET set_at = ? WHERE session_id = 's1'", (stale,))
 
     out = bind_signals.session_end(ctx, SessionEndInput(session_id="s1", reason="task done"))
 

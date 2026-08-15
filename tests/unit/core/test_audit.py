@@ -52,6 +52,35 @@ def test_audit_writes_a_json_report_file(cfg, db_conn, embedder) -> None:
     assert payload["registry_size"] == 7
 
 
+def test_hub_detection(cfg, db_conn, embedder) -> None:
+    """AC-030: GIVEN a registry where one engram absorbs more than 50% of
+    routing traffic WHEN the audit phase runs THEN the audit report SHALL
+    flag that engram as a black-hole hub."""
+    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
+    other_ids = [
+        str(r["id"])
+        for r in db_conn.execute("SELECT id FROM engram WHERE name != ?", (PROTON,)).fetchall()
+    ]
+    # PROTON absorbs 60 of 100 total route returns (60% > the AC-030
+    # 50% bar, and above the docs/07 <30% traffic-share KPI target too).
+    db_conn.execute(
+        "INSERT INTO eph_bookkeeping (engram_id, exposure_delta, route_returns) VALUES (?, 0, 60)",
+        (proton_id,),
+    )
+    per_other = 40 // len(other_ids)
+    for oid in other_ids:
+        db_conn.execute(
+            "INSERT INTO eph_bookkeeping (engram_id, exposure_delta, route_returns) VALUES (?, 0, ?)",
+            (oid, per_other),
+        )
+
+    report = audit_mod.run_audit(cfg, db_conn, run_id="dream_hub_test")
+
+    assert PROTON in report.hub_candidates
+    assert report.hub_traffic_share >= 0.5
+
+
 def test_audit_coverage_gaps_report_dangling_needs(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
     # proton-ge-proton-downgrade declares needs: [steam-prefix-access] which

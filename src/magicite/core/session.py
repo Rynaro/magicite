@@ -140,7 +140,13 @@ def session_end(
     now = now_dt.isoformat()
 
     closed = ephemeral_mod.close_session(conn, session_id)
-    tags_expired = ephemeral_mod.expire_session_tags(conn, session_id=session_id, now=now)
+    # M6 defect fix (carried-forward defect #1, "session-suppression
+    # hijack"): bound -- never eliminate -- how aggressively this call can
+    # suppress a not-yet-captured tag; see storage.ephemeral.
+    # expire_session_tags's docstring and cfg.session_end_tag_grace_s.
+    tags_expired = ephemeral_mod.expire_session_tags(
+        conn, session_id=session_id, now=now, grace_s=cfg.session_end_tag_grace_s
+    )
     captured_pending = ephemeral_mod.count_pending_captured_tags(conn, session_id=session_id)
 
     ephemeral_mod.append_event(
