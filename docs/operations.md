@@ -3,7 +3,7 @@
 **Status:** v1 (M5) · **Audience:** operators running `magicite serve` against a real
 project registry. For design rationale see `docs/02-architecture.md` (storage),
 `docs/03-learning-model.md` (decay/forgetting), `docs/06-trust-governance-lifecycle.md`
-(trust/governance) and the implementation spec (`.spectra/changes/magicite-v1-implementation/spec.md`).
+(trust/governance) and the implementation spec (`.spectra/changes/archive/2026-08-15-magicite-v1-implementation/spec.md`).
 This document is operational detail on top of those, not a restatement of them.
 
 ---
