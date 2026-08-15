@@ -1,7 +1,10 @@
 """``consolidate``/``nucleate`` (spec §3.3 tools 12-13).
 
-M0: the Dream worker (``core/dream.py``, ``storage/lease.py``) lands in
-M4; distillation (``core/distill.py``) lands in M6. Registered here with
+M0/M1: the Dream worker orchestrator (``core/dream.py``, its seven
+phases) lands in M4; distillation (``core/distill.py``) lands in M6.
+``storage/lease.py``'s in-process ``WriterLease`` already exists as of
+M1 (spec §6.2 G2) -- M4 upgrades it to the full flock+DB-row lease with
+TTL/heartbeat, it does not create it from scratch. Registered here with
 their final, frozen schemas; every body raises a typed ``not_implemented``.
 """
 
@@ -22,7 +25,7 @@ from magicite.mcp.schemas import ConsolidateInput, ConsolidateOutput, NucleateIn
 )
 def consolidate(ctx: ToolContext, params: ConsolidateInput) -> ConsolidateOutput:
     raise NotImplementedToolError(
-        "the Dream worker lands in M4 (storage/lease.py, core/dream.py)",
+        "the Dream worker orchestrator lands in M4 (core/dream.py)",
     )
 
 

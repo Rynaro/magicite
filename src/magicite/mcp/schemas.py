@@ -55,6 +55,7 @@ class EdgeOut(MagiciteModel):
 
 
 class HistoryEntry(MagiciteModel):
+    version: int
     event: str
     timestamp: str
     author: str

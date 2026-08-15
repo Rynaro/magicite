@@ -17,23 +17,18 @@ this module MUST NOT import ``magicite.storage.durable`` or
 
 from __future__ import annotations
 
-import json
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 
 import numpy as np
 
 from magicite.config import Config
 from magicite.embeddings.base import Embedder
 from magicite.engram.model import ROUTABLE_STATUSES
+from magicite.storage import ephemeral as ephemeral_mod
 
 INTENT_TRUNCATE = 200
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 @dataclass
@@ -67,22 +62,6 @@ ROUTE_INSTRUCTIONS = (
     "outcome is known (tests pass, user confirms), call signal_outcome(valence, "
     "skill_ids) to drive learning."
 )
-
-
-def _upsert_session(conn: sqlite3.Connection, session_id: str) -> None:
-    now = _now()
-    row = conn.execute(
-        "SELECT session_id FROM eph_session WHERE session_id = ?", (session_id,)
-    ).fetchone()
-    if row is None:
-        conn.execute(
-            "INSERT INTO eph_session (session_id, started_at, last_seen_at) VALUES (?,?,?)",
-            (session_id, now, now),
-        )
-    else:
-        conn.execute(
-            "UPDATE eph_session SET last_seen_at = ? WHERE session_id = ?", (now, session_id)
-        )
 
 
 def _fetch_seeds(conn: sqlite3.Connection, model_name: str) -> list[sqlite3.Row]:
@@ -155,7 +134,7 @@ def route(
     session_id: str | None = None,
 ) -> RouteOutcome:
     sid = session_id or str(uuid.uuid4())
-    _upsert_session(conn, sid)
+    ephemeral_mod.upsert_session(conn, sid)
 
     qvec = embedder.embed(query)
     rows = _fetch_seeds(conn, embedder.model_name)
@@ -185,29 +164,15 @@ def route(
 
     composition_plan: list[str] = []
     plan_confidence = 0.0
-    now = _now()
     for c in candidates:
-        conn.execute(
-            """
-            INSERT INTO eph_bookkeeping (engram_id, exposure_delta, last_activated, route_returns)
-            VALUES (?, 1, ?, 1)
-            ON CONFLICT(engram_id) DO UPDATE SET
-              exposure_delta = eph_bookkeeping.exposure_delta + 1,
-              last_activated = excluded.last_activated,
-              route_returns = eph_bookkeeping.route_returns + 1
-            """,
-            (c.id, now),
-        )
-    conn.execute(
-        "INSERT INTO eph_event (ts, session_id, tool, signal_tier, engram_id, payload_json) "
-        "VALUES (?,?,?,0,?,?)",
-        (
-            now,
-            sid,
-            "route",
-            candidates[0].id if candidates else None,
-            json.dumps({"query": query, "k": k, "candidate_ids": [c.id for c in candidates]}),
-        ),
+        ephemeral_mod.bump_route_bookkeeping(conn, c.id)
+    ephemeral_mod.append_event(
+        conn,
+        session_id=sid,
+        tool="route",
+        signal_tier=0,
+        engram_id=candidates[0].id if candidates else None,
+        payload={"query": query, "k": k, "candidate_ids": [c.id for c in candidates]},
     )
 
     if candidates:

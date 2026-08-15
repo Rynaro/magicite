@@ -8,12 +8,16 @@ Determinism (AC-021): floats render to 4 decimals, the ``synapses:`` list
 sorts by ``(type, target)``, LF endings, no trailing whitespace — two
 checkpoints of identical state produce byte-identical files.
 
-M0 note: G2 (lease assertion) and G3 (Dream-context assertion) are real
-guards from M1 (``storage/durable.py``) and M4 (``core/dream.py``)
-onward. Here they are stubs that always allow the write — the walking
-skeleton has no lease/no Dream context yet, so there is nothing to
-assert against. Call sites do not change shape when the stubs are
-replaced.
+M1 note: G2 (lease assertion, spec §6.2) is real from M1 onward --
+``atomic_write()`` asserts ``storage.lease.assert_single_writer()``, so
+every caller (``register()``/``sync()``/``export()`` in ``core/registry.py``)
+must hold ``storage.lease.writer_lease()`` around the call. G3 (the
+Dream-context assertion) stays a no-op stub until M4 defines
+``core.dream.assert_dream_context()`` -- it is scoped to the specific
+plasticity/synapses-rendering functions Dream's checkpoint phase calls,
+not to this generic atomic-replace primitive (see ``storage/lease.py``'s
+module docstring for the full rationale). Call sites do not change shape
+when G3 lands for real.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from magicite.engram.model import Engram, EngramBody
+from magicite.storage.lease import assert_single_writer
 
 _yaml = YAML(typ="rt")
 _yaml.preserve_quotes = True
@@ -34,19 +39,20 @@ _yaml.default_flow_style = False
 _yaml.width = 100000
 
 
-def assert_single_writer_stub() -> None:
-    """M0 stub for G2. Becomes ``storage.durable.assert_single_writer()`` in M1."""
-    return None
-
-
 def assert_dream_context_stub() -> None:
-    """M0 stub for G3. Becomes ``core.dream.assert_dream_context()`` in M4."""
+    """M0/M1 stub for G3. Becomes ``core.dream.assert_dream_context()`` in M4."""
     return None
 
 
 def atomic_write(path: str | Path, content: str) -> None:
-    """Replace ``path`` with ``content`` atomically. Never leaves a partial file."""
-    assert_single_writer_stub()
+    """Replace ``path`` with ``content`` atomically. Never leaves a partial file.
+
+    G2 (spec §6.2): raises :class:`magicite.storage.lease.WriterLeaseError`
+    unless the caller holds ``storage.lease.writer_lease()`` (AC-007's
+    "only ever replaced atomically" is necessary but not sufficient --
+    it must also only ever happen under the single-writer lease).
+    """
+    assert_single_writer()
     assert_dream_context_stub()
 
     path = Path(path)
@@ -240,9 +246,23 @@ def render_body(body: EngramBody) -> str:
 
 
 def render_document(engram: Engram, frontmatter_doc: Any | None = None) -> str:
+    """Assemble the full ``---\\nfrontmatter\\n---\\nbody`` document.
+
+    Exactly **one** newline separates the closing frontmatter fence from
+    the body -- matching both docs/04's canonical File Anatomy example and
+    ``engram/parser.py::split_frontmatter``'s fence regex (which consumes
+    exactly one trailing newline). A second, "for readability" newline
+    here would round-trip fine for humans but would make
+    ``render_body(engram.body)`` (what gets hashed into ``body_sha256`` at
+    write time) byte-*different* from what a later ``parser.parse_file()``
+    of that same written file re-extracts as its body text -- silently
+    breaking ``body_sha256``-based staleness detection for any file this
+    module writes (as opposed to a hand-authored fixture, which already
+    has the single-newline separator and never hit this).
+    """
     fm_text = render_frontmatter(engram, frontmatter_doc)
     body_text = render_body(engram.body)
-    return f"---\n{fm_text}\n---\n\n{body_text}"
+    return f"---\n{fm_text}\n---\n{body_text}"
 
 
 def write_engram(path: str | Path, engram: Engram, frontmatter_doc: Any | None = None) -> None:

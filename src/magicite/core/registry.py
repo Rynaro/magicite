@@ -1,20 +1,25 @@
-"""register()/sync() orchestration (spec §2.6, §5.3).
+"""register()/sync()/export() orchestration (spec §2.6, §5.3, §5.4).
 
-Ties together ``engram`` (parse/lint/ids), ``storage`` (the durable
-mirror) and ``embeddings`` (Tier-C vectors) for the two ingestion tools.
-Framework-free (INV-1): no MCP import here; ``magicite.mcp.bind_registry``
-adapts this module's plain dataclasses onto the pydantic tool schemas.
+Ties together ``engram`` (parse/lint/ids/skillmd/writer), ``storage``
+(the durable mirror + Tier-C cache) and ``embeddings`` (Tier-C vectors)
+for the ingestion + compile-target tools. Framework-free (INV-1): no MCP
+import here; ``magicite.mcp.bind_registry`` adapts this module's plain
+dataclasses onto the pydantic tool schemas.
 
-M0 scope note: this is the "reduced" ingestion path the M0 story
-describes. It implements §2.6 steps 1-7 (scan/parse/validate/lint, upsert
-engram + declared edges, resolve dangling, embed) against the
-``strict`` lint profile only. Steps 8-9 (derived ``similar_to`` kNN edges,
-community detection) land in M2 alongside ``core/activation.py`` and
-``core/communities.py`` -- this module reports ``detector="none"``
-honestly rather than faking a detector that does not exist yet. SKILL.md
-import (``format="skill"``) is M1's ``engram/skillmd.py``; until then
-``register()`` raises a typed ``not_implemented`` for that path rather
-than silently no-oping.
+This module is the *orchestrator*: every durable write goes through
+``storage.durable`` (which asserts G2, spec §6.2) inside one
+``storage.lease.writer_lease()`` acquisition per call (spec §2.6 step 1),
+and every Tier-C write goes through ``storage.ephemeral``. Nothing here
+issues raw ``INSERT``/``UPDATE``/``DELETE`` SQL against a non-``eph_``
+table directly.
+
+M1 scope: §2.6 steps 1-7 (scan/parse/validate/lint, upsert engram +
+declared edges + journal, resolve dangling, embed) plus the ``import``
+lint profile SKILL.md path (§5.3) and the ``export()`` compile-target
+render (§5.4). Steps 8-9 of ``sync()`` (derived ``similar_to`` kNN edges,
+community detection) land in M2 alongside ``core/activation.py``/
+``core/communities.py`` -- this module honestly reports
+``detector="none"`` rather than faking a detector that does not exist yet.
 """
 
 from __future__ import annotations
@@ -29,18 +34,15 @@ from magicite.embeddings.base import Embedder
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
 from magicite.engram import parser as parser_mod
+from magicite.engram import skillmd as skillmd_mod
+from magicite.engram import writer as writer_mod
 from magicite.engram.model import Engram
-from magicite.errors import (
-    InvalidInputError,
-    NotImplementedToolError,
-    PathOutsideProjectError,
-)
+from magicite.errors import InvalidInputError, PathOutsideProjectError
+from magicite.storage import durable as durable_mod
+from magicite.storage import ephemeral as ephemeral_mod
+from magicite.storage import lease as lease_mod
 
-_EDGE_TYPE_FOR_FIELD = {
-    "needs": "depends_on",
-    "composes": "composes",
-    "inhibits": "inhibits",
-}
+_EXPORT_STATUS_RANK: dict[str, int] = {"consolidated": 0, "promoted": 1}
 
 
 def _now() -> str:
@@ -104,6 +106,14 @@ class SyncOutcome:
     consolidation_scheduled: bool = False
 
 
+@dataclass
+class ExportOutcome:
+    exported: int
+    target_dir: str
+    format: str
+    note: str
+
+
 def _resolve_scan_root(project_root: Path, path: str) -> Path:
     candidate = (project_root / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
     try:
@@ -129,13 +139,9 @@ def _discover_files(scan_root: Path, fmt: str) -> tuple[list[Path], list[Path]]:
     return egr_files, skill_files
 
 
-def _upsert_engram_row(conn: sqlite3.Connection, engram: Engram, *, registry_dir: Path) -> str:
+def _identity_hash(engram: Engram) -> str:
     fm = engram.frontmatter
-    now = _now()
-    plasticity = fm.plasticity
-    trust = fm.trust
-
-    identity_hash = ids_mod.identity_sha256(
+    return ids_mod.identity_sha256(
         ids_mod.identity_routing_payload(
             fm.name,
             fm.intent.does,
@@ -146,158 +152,41 @@ def _upsert_engram_row(conn: sqlite3.Connection, engram: Engram, *, registry_dir
         )
     )
 
-    existing = conn.execute("SELECT created_at FROM engram WHERE id = ?", (fm.id,)).fetchone()
-    created_at = existing["created_at"] if existing else now
-
-    conn.execute(
-        """
-        INSERT INTO engram (
-          id, name, path, spec_version, version, origin, verification_status, status,
-          intent_does, intent_use_when, intent_not_when,
-          storage_strength, s_decayed_at, exposure_count, success_count, failure_count,
-          excitability, last_applied, last_checkpoint,
-          embedding_model, embedding_ref, embedding_refreshed_at,
-          has_exec_blocks, identity_sha256, content_sha256, body_sha256, file_mtime_ns,
-          created_at, updated_at
-        ) VALUES (?,?,?,?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?,?, ?,?)
-        ON CONFLICT(id) DO UPDATE SET
-          name=excluded.name, path=excluded.path, spec_version=excluded.spec_version,
-          version=excluded.version, origin=excluded.origin,
-          verification_status=excluded.verification_status, status=excluded.status,
-          intent_does=excluded.intent_does, intent_use_when=excluded.intent_use_when,
-          intent_not_when=excluded.intent_not_when,
-          storage_strength=excluded.storage_strength, exposure_count=excluded.exposure_count,
-          success_count=excluded.success_count, failure_count=excluded.failure_count,
-          excitability=excluded.excitability, last_applied=excluded.last_applied,
-          last_checkpoint=excluded.last_checkpoint,
-          has_exec_blocks=excluded.has_exec_blocks, identity_sha256=excluded.identity_sha256,
-          content_sha256=excluded.content_sha256, body_sha256=excluded.body_sha256,
-          file_mtime_ns=excluded.file_mtime_ns, updated_at=excluded.updated_at
-        """,
-        (
-            fm.id,
-            fm.name,
-            engram.path,
-            fm.spec,
-            fm.version,
-            fm.provenance,
-            trust.verification_status if trust else "pending",
-            plasticity.status if plasticity else "nascent",
-            fm.intent.does,
-            fm.intent.use_when,
-            fm.intent.not_when,
-            plasticity.storage_strength if plasticity else 0.0,
-            now,
-            plasticity.exposure_count if plasticity else 0,
-            plasticity.outcome.success if plasticity else 0,
-            plasticity.outcome.failure if plasticity else 0,
-            plasticity.excitability if plasticity else 0.05,
-            plasticity.last_applied if plasticity else None,
-            plasticity.last_checkpoint if plasticity else None,
-            None,
-            None,
-            None,
-            int(bool(engram.body.exec_blocks)),
-            identity_hash,
-            engram.content_sha256,
-            engram.body_sha256,
-            engram.file_mtime_ns,
-            created_at,
-            now,
-        ),
-    )
-
-    conn.execute("DELETE FROM engram_step WHERE engram_id = ?", (fm.id,))
-    for step in engram.body.procedure:
-        conn.execute(
-            "INSERT INTO engram_step (engram_id, step_no, text, ok_count, total_count) "
-            "VALUES (?,?,?,?,?)",
-            (fm.id, step.step_no, step.text, step.ok_count, step.total_count),
-        )
-
-    conn.execute("DELETE FROM engram_trigger WHERE engram_id = ?", (fm.id,))
-    for ordinal, text in enumerate(fm.triggers.positive):
-        conn.execute(
-            "INSERT INTO engram_trigger (engram_id, polarity, ord, text) VALUES (?,?,?,?)",
-            (fm.id, "positive", ordinal, text),
-        )
-    for ordinal, text in enumerate(fm.triggers.negative):
-        conn.execute(
-            "INSERT INTO engram_trigger (engram_id, polarity, ord, text) VALUES (?,?,?,?)",
-            (fm.id, "negative", ordinal, text),
-        )
-
-    return fm.id
-
-
-def _wire_context_affinity(conn: sqlite3.Connection, engram: Engram) -> None:
-    fm = engram.frontmatter
-    names = sorted(set(fm.context_affinity) | set(fm.affinity))
-    conn.execute("DELETE FROM engram_context WHERE engram_id = ?", (fm.id,))
-    for name in names:
-        row = conn.execute("SELECT id FROM context_node WHERE name = ?", (name,)).fetchone()
-        if row is None:
-            context_id = f"ctx_{name}"
-            conn.execute(
-                "INSERT OR IGNORE INTO context_node (id, name, kind) VALUES (?,?,?)",
-                (context_id, name, "project"),
-            )
-        else:
-            context_id = row["id"]
-        conn.execute(
-            "INSERT OR REPLACE INTO engram_context (engram_id, context_id, weight) VALUES (?,?,1.0)",
-            (fm.id, context_id),
-        )
-
-
-def _wire_declared_edges(conn: sqlite3.Connection, engram: Engram) -> list[str]:
-    fm = engram.frontmatter
-    dangling: list[str] = []
-    now = _now()
-    for field_name, edge_type in _EDGE_TYPE_FOR_FIELD.items():
-        for target_name in getattr(fm, field_name):
-            target = conn.execute("SELECT id FROM engram WHERE name = ?", (target_name,)).fetchone()
-            dst_id = target["id"] if target else None
-            is_dangling = dst_id is None
-            if is_dangling:
-                dangling.append(target_name)
-            conn.execute(
-                """
-                INSERT INTO edge (
-                  src_id, dst_name, dst_id, type, storage_strength, s_decayed_at,
-                  evidence_count, provenance, first_observed, dangling
-                ) VALUES (?,?,?,?, 0.0, ?, 0, 'declared', ?, ?)
-                ON CONFLICT(src_id, dst_name, type) DO UPDATE SET
-                  dst_id=excluded.dst_id, dangling=excluded.dangling
-                """,
-                (fm.id, target_name, dst_id, edge_type, now, now, int(is_dangling)),
-            )
-    # Resolve any pre-existing dangling edges that now point at this newly-registered name.
-    conn.execute(
-        "UPDATE edge SET dst_id = ?, dangling = 0 WHERE dst_name = ? AND dangling = 1",
-        (fm.id, fm.name),
-    )
-    return dangling
-
 
 def _embed_and_store(conn: sqlite3.Connection, embedder: Embedder, engram: Engram) -> None:
     text = embeddable_text(engram)
     vec = embedder.embed(text)
-    now = _now()
-    conn.execute(
-        """
-        INSERT INTO eph_embedding (engram_id, model, dim, vec, source_sha256, created_at)
-        VALUES (?,?,?,?,?,?)
-        ON CONFLICT(engram_id, model) DO UPDATE SET
-          dim=excluded.dim, vec=excluded.vec, source_sha256=excluded.source_sha256,
-          created_at=excluded.created_at
-        """,
-        (engram.id, embedder.model_name, embedder.dim, vec.tobytes(), engram.body_sha256, now),
+    ephemeral_mod.upsert_embedding(
+        conn,
+        engram_id=engram.id,
+        model_name=embedder.model_name,
+        dim=embedder.dim,
+        vec=vec,
+        source_sha256=engram.body_sha256,
     )
-    conn.execute(
-        "UPDATE engram SET embedding_model=?, embedding_ref=?, embedding_refreshed_at=? WHERE id=?",
-        (embedder.model_name, engram.body_sha256, now, engram.id),
+    durable_mod.set_embedding_ref(
+        conn, engram_id=engram.id, model_name=embedder.model_name, source_sha256=engram.body_sha256
     )
+
+
+def _lint_profile_for(engram: Engram) -> str:
+    """CR-4: an imported engram's *file* keeps the lenient ``import`` lint
+    profile on every subsequent parse -- register()'s native-``.egr.md``
+    path re-scanning it, and sync()'s full-registry rebuild scan -- not
+    just at the moment of conversion.
+
+    Without this, a freshly-imported draft's own file would hard-fail
+    ``strict`` re-lint (e.g. ``negative_triggers`` is always unmet, by
+    design, for an import) on the very next ``sync()``, and since a
+    ``strict``-failed ``_ingest_one`` never upserts, the engram would
+    simply never re-appear after a DB rebuild -- silently contradicting
+    both CR-4 ("nothing is silently accepted... or rejected") and the
+    rebuild invariant (AC-009) for every imported engram. ``provenance``
+    is itself durable, file-level, spec-defined content (§2.2's
+    ``origin`` column), so keying the profile off it is a read of the
+    file, not an invented side channel.
+    """
+    return "import" if engram.frontmatter.provenance == "imported" else "strict"
 
 
 def _ingest_one(
@@ -320,9 +209,9 @@ def _ingest_one(
     if existing is not None and existing["content_sha256"] == engram.content_sha256:
         return None, None, True, []
 
-    _upsert_engram_row(conn, engram, registry_dir=registry_dir)
-    _wire_context_affinity(conn, engram)
-    dangling = _wire_declared_edges(conn, engram)
+    durable_mod.upsert_engram(conn, engram, identity_sha256=_identity_hash(engram))
+    durable_mod.wire_context_affinity(conn, engram)
+    dangling = durable_mod.wire_declared_edges(conn, engram)
     _embed_and_store(conn, embedder, engram)
 
     fm = engram.frontmatter
@@ -336,6 +225,65 @@ def _ingest_one(
         warnings=warnings,
     )
     return entry, None, False, dangling
+
+
+def _ingest_skillmd_one(
+    conn: sqlite3.Connection,
+    embedder: Embedder,
+    path: Path,
+    *,
+    project_root: Path,
+    registry_dir: Path,
+    actor: str = "register",
+) -> tuple[RegisteredEntry | None, ValidationError | None, bool, list[str]]:
+    """SKILL.md ingestion (spec §5.3 steps 3-9): convert -> lint(import) ->
+    write -> index. Returns the same shape as :func:`_ingest_one`."""
+    raw_text = path.read_text(encoding="utf-8")
+    try:
+        source = skillmd_mod.parse_source(raw_text)
+    except skillmd_mod.SkillMdParseError as exc:
+        return None, ValidationError(path=str(path), message=str(exc)), False, []
+
+    target_path = registry_dir / f"{source.name}.egr.md"
+    target_relpath = str(target_path.relative_to(project_root))
+    engram = skillmd_mod.to_engram(source, target_relpath=target_relpath, actor=actor)
+
+    existing_by_id = conn.execute("SELECT id FROM engram WHERE id = ?", (engram.id,)).fetchone()
+    if existing_by_id is not None:
+        # CR-8 duplicate-import detection (AC-018): identical identity+routing
+        # content (name/intent/triggers) is already registered under this id.
+        # A freshly re-derived provenance_journal timestamp is not "changed
+        # content" for this purpose -- content_sha256 would spuriously differ
+        # on every re-import, so the id (a content hash of identity+routing
+        # only) is the correct dedup key here, not the whole-file digest.
+        return None, None, True, []
+
+    existing_by_name = conn.execute(
+        "SELECT id FROM engram WHERE name = ?", (engram.name,)
+    ).fetchone()
+    if existing_by_name is not None:
+        return (
+            None,
+            ValidationError(
+                path=str(path),
+                message=(
+                    f"{engram.name!r} is already registered under a different identity "
+                    f"({existing_by_name['id']} != {engram.id}); re-importing changed "
+                    "SKILL.md content under an existing name is not supported in v1 -- "
+                    "use sharpen() instead"
+                ),
+            ),
+            False,
+            [],
+        )
+
+    # spec §5.3 step 6: write before step 7 (index).
+    writer_mod.write_engram(target_path, engram)
+
+    entry, verr, _skipped, dangling = _ingest_one(
+        conn, embedder, engram, profile="import", registry_dir=registry_dir
+    )
+    return entry, verr, False, dangling
 
 
 def _ensure_registry_gitignore(cfg: Config) -> None:
@@ -363,31 +311,46 @@ def register(
     scan_root = _resolve_scan_root(project_root, path)
     egr_files, skill_files = _discover_files(scan_root, fmt)
 
-    if skill_files:
-        raise NotImplementedToolError(
-            "SKILL.md import lands in M1 (engram/skillmd.py); register() only ingests "
-            "native .egr.md files in M0",
-            hint="pass format='egr' or point at a directory containing only .egr.md files",
-        )
-
     outcome = IngestOutcome()
-    for file_path in egr_files:
-        try:
-            parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-        except parser_mod.EngramParseError as exc:
-            outcome.validation_errors.append(ValidationError(path=str(file_path), message=str(exc)))
-            continue
+    with lease_mod.writer_lease():
+        for file_path in egr_files:
+            try:
+                parsed = parser_mod.parse_file(file_path, registry_root=project_root)
+            except parser_mod.EngramParseError as exc:
+                outcome.validation_errors.append(ValidationError(path=str(file_path), message=str(exc)))
+                continue
 
-        entry, verr, skipped, dangling = _ingest_one(
-            conn, embedder, parsed.engram, profile="strict", registry_dir=cfg.registry_dir
-        )
-        if verr:
-            outcome.validation_errors.append(verr)
-        if entry:
-            outcome.registered.append(entry)
-        if skipped:
-            outcome.skipped_unchanged += 1
-        outcome.dangling.extend(dangling)
+            entry, verr, skipped, dangling = _ingest_one(
+                conn,
+                embedder,
+                parsed.engram,
+                profile=_lint_profile_for(parsed.engram),
+                registry_dir=cfg.registry_dir,
+            )
+            if verr:
+                outcome.validation_errors.append(verr)
+            if entry:
+                outcome.registered.append(entry)
+            if skipped:
+                outcome.skipped_unchanged += 1
+            outcome.dangling.extend(dangling)
+
+        for file_path in skill_files:
+            entry, verr, skipped, dangling = _ingest_skillmd_one(
+                conn,
+                embedder,
+                file_path,
+                project_root=project_root,
+                registry_dir=cfg.registry_dir,
+                actor="register",
+            )
+            if verr:
+                outcome.validation_errors.append(verr)
+            if entry:
+                outcome.registered.append(entry)
+            if skipped:
+                outcome.skipped_unchanged += 1
+            outcome.dangling.extend(dangling)
 
     return RegisterOutcome(
         ingested=len(outcome.registered),
@@ -406,33 +369,38 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
     on_disk_paths: set[str] = set()
     outcome = IngestOutcome()
 
-    for file_path in sorted(registry_dir.rglob("*.egr.md")):
-        relpath = str(file_path.resolve().relative_to(project_root))
-        on_disk_paths.add(relpath)
-        try:
-            parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-        except parser_mod.EngramParseError as exc:
-            outcome.validation_errors.append(ValidationError(path=relpath, message=str(exc)))
-            continue
+    with lease_mod.writer_lease():
+        for file_path in sorted(registry_dir.rglob("*.egr.md")):
+            relpath = str(file_path.resolve().relative_to(project_root))
+            on_disk_paths.add(relpath)
+            try:
+                parsed = parser_mod.parse_file(file_path, registry_root=project_root)
+            except parser_mod.EngramParseError as exc:
+                outcome.validation_errors.append(ValidationError(path=relpath, message=str(exc)))
+                continue
 
-        _entry, verr, _skipped, dangling = _ingest_one(
-            conn, embedder, parsed.engram, profile="strict", registry_dir=registry_dir
-        )
-        if verr:
-            outcome.validation_errors.append(verr)
-        outcome.dangling.extend(dangling)
+            _entry, verr, _skipped, _dangling = _ingest_one(
+                conn,
+                embedder,
+                parsed.engram,
+                profile=_lint_profile_for(parsed.engram),
+                registry_dir=registry_dir,
+            )
+            if verr:
+                outcome.validation_errors.append(verr)
 
-    removed: list[str] = []
-    for row in conn.execute("SELECT id, name, path FROM engram").fetchall():
-        if row["path"] not in on_disk_paths:
-            conn.execute("DELETE FROM engram WHERE id = ?", (row["id"],))
-            removed.append(row["name"])
+        removed: list[str] = []
+        for row in conn.execute("SELECT id, name, path FROM engram").fetchall():
+            if row["path"] not in on_disk_paths:
+                durable_mod.delete_engram(conn, row["id"])
+                removed.append(row["name"])
 
-    conn.execute(
-        "INSERT INTO schema_meta (key, value) VALUES ('last_sync', ?) "
-        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        (_now(),),
-    )
+        # spec §2.6 step 6: one comprehensive dangling-resolution pass,
+        # after deletions, independent of file processing order (see
+        # storage.durable.recompute_dangling's docstring).
+        dangling = durable_mod.recompute_dangling(conn)
+
+        durable_mod.write_schema_meta(conn, "last_sync", _now())
 
     synced = conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"]
 
@@ -440,7 +408,43 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
         synced=synced,
         removed=removed,
         validation_errors=outcome.validation_errors,
-        dangling=sorted(set(outcome.dangling)),
+        dangling=dangling,
         detector="none",  # core/communities.py (leiden | label_propagation) lands in M2
         consolidation_scheduled=False,
+    )
+
+
+def export(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    out_dir: str,
+    min_status: str = "consolidated",
+) -> ExportOutcome:
+    """spec §5.4: render ``out_dir/<name>/SKILL.md`` shims for every engram
+    at ``min_status`` or above -- the inverse of SKILL.md import."""
+    project_root = cfg.project_root.resolve()
+    target_root = _resolve_scan_root(project_root, out_dir)
+    min_rank = _EXPORT_STATUS_RANK[min_status]
+
+    rows = conn.execute(
+        "SELECT name, path, status FROM engram ORDER BY name"
+    ).fetchall()
+    eligible = [r for r in rows if _EXPORT_STATUS_RANK.get(r["status"], -1) >= min_rank]
+
+    exported = 0
+    with lease_mod.writer_lease():
+        for row in eligible:
+            file_path = project_root / row["path"]
+            parsed = parser_mod.parse_file(file_path, registry_root=project_root)
+            skillmd_text = skillmd_mod.render_skillmd(parsed.engram)
+            target = target_root / row["name"] / "SKILL.md"
+            writer_mod.atomic_write(target, skillmd_text)
+            exported += 1
+
+    return ExportOutcome(
+        exported=exported,
+        target_dir=str(target_root),
+        format="skill",
+        note=f"rendered {exported} SKILL.md shim(s) at status >= {min_status!r}",
     )

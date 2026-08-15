@@ -71,9 +71,24 @@ def dream_cmd(once: bool, autonomous: bool) -> None:
 @cli.command(name="export")
 @click.option("--out-dir", required=True)
 @click.option("--project-root", default=".", show_default=True)
-def export_cmd(out_dir: str, project_root: str) -> None:
-    """Render SKILL.md shims from consolidated+ engrams."""
-    raise click.ClickException("magicite export lands in M1 (engram/skillmd.py)")
+@click.option(
+    "--min-status",
+    default="consolidated",
+    type=click.Choice(["consolidated", "promoted"]),
+    show_default=True,
+)
+def export_cmd(out_dir: str, project_root: str, min_status: str) -> None:
+    """Render SKILL.md shims from consolidated+ engrams (spec §5.4)."""
+    from dataclasses import asdict
+
+    from magicite.core import registry as registry_mod
+    from magicite.storage import db as db_mod
+
+    cfg = Config.load(project_root)
+    cfg.ensure_dirs()
+    conn = db_mod.connect(cfg.db_path)
+    outcome = registry_mod.export(cfg, conn, out_dir=out_dir, min_status=min_status)
+    click.echo(json.dumps(asdict(outcome), indent=2, default=str))
 
 
 @cli.command(name="doctor")

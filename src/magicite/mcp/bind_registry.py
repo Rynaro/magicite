@@ -1,9 +1,11 @@
 """``register``/``sync``/``checkpoint``/``export`` (spec §3.3 tools 8-11).
 
-M0: ``register`` and ``sync`` are implemented (native ``.egr.md`` only,
-spec §2.6 steps 1-7). ``checkpoint``/``export`` are Dream-checkpoint (M4)
-and export-compile-target (M1) territory respectively; both raise a
-typed ``not_implemented`` rather than a stub success (INV-4).
+M1: ``register`` (native ``.egr.md`` *and* SKILL.md import, spec §5.3),
+``sync`` (spec §2.6) and ``export`` (spec §5.4, the SKILL.md compile
+target) are all implemented. ``checkpoint`` is Dream's phase-7 writer
+path (M4); it still raises a typed ``not_implemented`` rather than a stub
+success (INV-4) since there is no plasticity/synapses state to checkpoint
+until Dream exists.
 """
 
 from __future__ import annotations
@@ -102,6 +104,10 @@ def checkpoint(ctx: ToolContext, params: CheckpointInput) -> CheckpointOutput:
     description="Render SKILL.md shims from consolidated+ engrams (the export compile target).",
 )
 def export(ctx: ToolContext, params: ExportInput) -> ExportOutput:
-    raise NotImplementedToolError(
-        "export() is SKILL.md's compile-target renderer; it lands in M1 (engram/skillmd.py)",
+    outcome = registry_mod.export(ctx.cfg, ctx.conn, out_dir=params.out_dir, min_status=params.min_status)
+    return ExportOutput(
+        exported=outcome.exported,
+        target_dir=outcome.target_dir,
+        format=outcome.format,
+        note=outcome.note,
     )

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from magicite.core import registry as registry_mod
-from magicite.errors import NotImplementedToolError, PathOutsideProjectError
+from magicite.errors import PathOutsideProjectError
 
 
 def test_register_rejects_path_outside_project(cfg, db_conn, embedder, tmp_path) -> None:
@@ -50,14 +50,32 @@ def test_register_reports_dangling_edge_for_unregistered_target(cfg, db_conn, em
     assert row["dangling"] == 1
 
 
-def test_register_skill_format_not_implemented_in_m0(cfg, db_conn, embedder, toy_registry_dir) -> None:
+def test_register_skill_format_ingests_via_import_pipeline(cfg, db_conn, embedder, toy_registry_dir) -> None:
+    """M1: SKILL.md import is real (spec §5.3); superseded the M0
+    not_implemented placeholder this test used to assert. Full CR-4/AC-008
+    coverage lives in tests/integration/test_register_import.py."""
     skills_dir = cfg.project_root / "skills"
     import shutil
 
     shutil.copytree(toy_registry_dir / "skills", skills_dir)
 
-    with pytest.raises(NotImplementedToolError):
-        registry_mod.register(cfg, db_conn, embedder, path="skills", fmt="skill")
+    outcome = registry_mod.register(cfg, db_conn, embedder, path="skills", fmt="skill")
+    assert outcome.ingested == 3
+    assert outcome.validation_errors == []
+    names = {e.name for e in outcome.registered}
+    assert names == {
+        "proton-battleye-eac-toggle",
+        "steam-download-region-fix",
+        "wine-dxvk-cache-clear",
+    }
+    for entry in outcome.registered:
+        assert entry.origin == "imported"
+        assert entry.verification_status == "pending"
+        assert entry.status == "draft"  # negative triggers are always [] on import (CR-4)
+        assert entry.warnings, "expected at least the negative_triggers import-profile warning"
+
+    egr_files = sorted(p.name for p in cfg.registry_dir.glob("*.egr.md"))
+    assert "proton-battleye-eac-toggle.egr.md" in egr_files
 
 
 def test_sync_removes_rows_for_deleted_files(cfg, db_conn, embedder) -> None:
