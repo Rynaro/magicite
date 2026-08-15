@@ -75,7 +75,7 @@ The hot path (per-query routing, per-event signaling) is where **noisy, adversar
 - A single negative example should not flip a weight trained on hundreds of successes.
 - Transient network blips, timeout errors, and user cancellations are noise.
 
-**Principle:** Durable weight changes (to S) happen ONLY in the offline Dream cycle, after outcomes are logged and verified. Hot-path signals set **ephemeral tags** and boost **short-term retrieval strength (R)** — both are reversible and expire naturally.
+**Principle:** Durable weight changes (to S) happen ONLY in the offline Dream cycle, after outcomes are logged and verified. Hot-path signals set **ephemeral tags** and boost **short-term retrieval strength (R)** — both are reversible; expiry depends on decay being applied at read (scheduled for M4).
 
 **Benefit:** Separates cheap, reversible in-session state from outcome-gated commits. Makes the system robust to single-session noise and mild adversarial confusion. Allows metaplastic saturation and rate-limiting to work without deadlocking the learning loop.
 

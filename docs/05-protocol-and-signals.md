@@ -450,19 +450,21 @@ The exploratory proposal had 8 tools (proposal IV.6); engram-format had 8 additi
 | Tier | Mechanism | Availability | Provenance | Confidence | Weight Cap |
 |---|---|---|---|---|---|
 | **0** | Passive server-side inference from tool calls (route, exposure, co-retrieval, implicit-negative, idle gaps) | GUARANTEED on any host | `inferred` | Low (50–70%) | Learning on R only; never S |
-| **1** | Tool-mediated self-report: `signal_use` + `signal_outcome` called by agent following instructions | Any host; probabilistic compliance (60–80%) | `self_reported` | Medium (70–85%) | Capped per-session; can update S via Dream |
+| **1** | Tool-mediated self-report: `signal_use` + `signal_outcome` called by agent following instructions | Any host; probabilistic compliance (60–80%) | `self_reported` | Medium (70–85%) | Rate-capped per skill per session *and* per wall-clock window (see below); can update S via Dream at 0.6 weight |
 | **2** | Host hook adapters: Claude Code constructs (SessionStart, PreToolUse, PostToolUse), local filesystem ops | Host-specific, optional acceleration | `hook_verified` | High (85–95%) | Full Δw weight; highest priority in Dream |
 
 ### How Plasticity Scales Across Tiers
 
 Every signal carries its **provenance tier** (assigned server-side, not claimed by caller). During Dream consolidation:
 
-1. **Tier-0 signals** (inferred): Adjust R (retrieval strength) and bookkeeping (exposure_count, co-occurrence edges). Never touch S (storage strength). Prevents the index from reinforcing its own retrieval bias.
+1. **Tier-0 signals** (inferred): Adjust R (retrieval strength) and bookkeeping (exposure_count, co-occurrence edges). Never touch S (storage strength). Tier-0 evidence moves **R**, and R is itself a routing input (`w_retrieval`=0.15). "Never S" bounds **durability**, not **routing influence** — R-mediated retrieval bias is bounded by decay and rate limits, not by the tier gate.
 
-2. **Tier-1 signals** (self_reported): Can update both R and S via Δw, but:
-   - Capped per session: max 3 Δw events per skill per session (anti-poisoning)
-   - Weighted lower than Tier-2: η_eff ← η × 0.6 for Tier-1 vs η × 1.0 for Tier-2
-   - Metaplastic saturation still applies
+2. **Tier-1 signals** (self_reported): can update both R and S via Δw, subject to:
+   - **Rate bounds, not identity bounds.** At most `per_skill_session_cap` (default 3) Δw events per skill per session, **and** at most `per_skill_window_cap` per skill per rolling `signal_window` across *all* sessions. The per-session cap is **runaway protection, not an anti-poisoning control**: under the local-first (stdio) profile `session_id` is caller-supplied and unauthenticated — it is a continuity key, not an identity — so a caller can always start a new session, including by omitting `session_id`, which mints one per call. The bound that holds regardless is the per-skill wall-clock window bound, which requires no caller identity.
+   - **Weighted lower than Tier-2:** η_eff ← η × 0.6 for Tier-1 vs η × 1.0 for Tier-2.
+   - **Metaplastic saturation still applies** — note it bounds the *per-event step*, not the *number of events*.
+
+> **What Tier 1 does not defend against.** A persistent self-reporting caller can drive a skill's R toward saturation and accumulate Tier-1 Δw over wall-clock time. No local-first mechanism can distinguish "used often" from "reported as used often" — that distinction is exactly what Tier 2 buys. The v1 guarantee is **temporal**: Tier-1 influence accrues no faster than elapsed time allows, and decays back toward baseline without continued input.
 
 3. **Tier-2 signals** (hook_verified): Full weight Δw. No cap (verified externally).
 
