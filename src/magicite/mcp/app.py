@@ -1,12 +1,13 @@
-"""FastMCP instance + lifespan (spec §1, §3.1).
+"""Low-level ``mcp.server.lowlevel.Server`` instance + lifespan (spec §1, §3.1; A1-REVISED).
 
 ``magicite.mcp`` is the ~300-line shim INV-1 describes: this module wires
 the 16-tool ``TOOL_REGISTRY`` (populated by importing every ``bind_*``
-module below) onto the MCP stdio transport. FastMCP's own per-function
-signature-derived schema/validation pipeline is intentionally bypassed
-(see the module docstring in ``registry.py``): ``list_tools``/``call_tool``
-are re-registered directly on the low-level ``mcp.server.lowlevel.Server``
-FastMCP wraps, so that:
+module below) onto the MCP stdio transport. The high-level server's own
+per-function signature-derived schema/validation pipeline is intentionally
+bypassed (see the module docstring in ``registry.py``): ``list_tools``/
+``call_tool`` are registered directly as ``on_list_tools=``/``on_call_tool=``
+constructor kwargs on ``mcp.server.lowlevel.Server`` -- a public API, not a
+reach-through into a private attribute of a high-level wrapper -- so that:
 
 - the wire ``inputSchema``/``outputSchema`` are always exactly
   ``TOOL_REGISTRY``'s strict (``extra="forbid"``) pydantic schemas
@@ -18,7 +19,10 @@ FastMCP wraps, so that:
 
 ``obs.logging.configure()`` is imported and called **first**, before the
 MCP SDK, so stdout is never touched by anything but protocol frames
-(AC-002) even if a dependency misbehaves during import.
+(AC-002) even if a dependency misbehaves during import. On ``mcp>=2.0``
+``stdio_server()`` additionally diverts fd 1 to stderr for the whole
+serving window (framework-enforced, not just discipline) -- see
+``run_stdio`` below.
 """
 
 from __future__ import annotations
@@ -34,8 +38,15 @@ from magicite.obs.logging import configure as _configure_logging
 
 _configure_logging()
 
-from mcp.server.fastmcp import FastMCP  # noqa: E402
-from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations  # noqa: E402
+from mcp.server.lowlevel.server import Server  # noqa: E402
+from mcp.server.stdio import stdio_server  # noqa: E402
+from mcp.types import (  # noqa: E402
+    CallToolResult,
+    ListToolsResult,
+    TextContent,
+    Tool,
+    ToolAnnotations,
+)
 
 from magicite.config import Config  # noqa: E402
 from magicite.embeddings.hashing_provider import get_embedder  # noqa: E402
@@ -73,9 +84,9 @@ def build_state(cfg: Config) -> ServerState:
 
 def _tool_annotations(meta: Any) -> ToolAnnotations:
     return ToolAnnotations(
-        readOnlyHint=meta.read_only,
-        destructiveHint=meta.destructive,
-        idempotentHint=meta.idempotent,
+        read_only_hint=meta.read_only,
+        destructive_hint=meta.destructive,
+        idempotent_hint=meta.idempotent,
     )
 
 
@@ -97,15 +108,11 @@ def build_mcp_tools() -> list[Tool]:
         tool = Tool(
             name=meta.name,
             description=meta.description,
-            inputSchema=meta.input_model.model_json_schema(),
-            outputSchema=meta.output_model.model_json_schema(),
+            input_schema=meta.input_model.model_json_schema(),
+            output_schema=meta.output_model.model_json_schema(),
             annotations=_tool_annotations(meta),
+            _meta=_tool_meta_dict(meta),
         )
-        # `meta`'s wire alias is `_meta`; setting the attribute post-construction
-        # sidesteps a pydantic/mypy constructor-signature mismatch (the field
-        # *is* settable as `meta` -- confirmed against the installed mcp==1.29.0
-        # -- this is purely a static-typing quirk, not a runtime one).
-        tool.meta = _tool_meta_dict(meta)
         tools.append(tool)
     return tools
 
@@ -119,8 +126,8 @@ def _error_result(error: MagiciteError) -> CallToolResult:
     envelope = error.to_dict()
     return CallToolResult(
         content=[TextContent(type="text", text=json.dumps(envelope))],
-        structuredContent=envelope,
-        isError=True,
+        structured_content=envelope,
+        is_error=True,
     )
 
 
@@ -163,8 +170,8 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
             payload = json.loads(cached["response_json"])
             return CallToolResult(
                 content=[TextContent(type="text", text=json.dumps(payload))],
-                structuredContent=payload,
-                isError=False,
+                structured_content=payload,
+                is_error=False,
             )
 
     session_id = getattr(params, "session_id", None)
@@ -195,31 +202,30 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
 
     return CallToolResult(
         content=[TextContent(type="text", text=json.dumps(payload))],
-        structuredContent=payload,
-        isError=False,
+        structured_content=payload,
+        is_error=False,
     )
 
 
-def build_app(cfg: Config) -> tuple[FastMCP, ServerState]:
+def build_app(cfg: Config) -> tuple[Server, ServerState]:
     state = build_state(cfg)
-    app: FastMCP = FastMCP(name=SERVER_NAME)
 
-    async def list_tools_handler() -> list[Tool]:
-        return build_mcp_tools()
+    async def list_tools_handler(ctx: Any, params: Any) -> ListToolsResult:
+        return ListToolsResult(tools=build_mcp_tools())
 
-    async def call_tool_handler(name: str, arguments: dict[str, Any]) -> CallToolResult:
-        return dispatch_call(state, name, arguments)
+    async def call_tool_handler(ctx: Any, params: Any) -> CallToolResult:
+        return dispatch_call(state, params.name, params.arguments or {})
 
-    # Replace FastMCP's own signature-derived handlers with ours (see module
-    # docstring). This is a plain dict assignment inside the low-level
-    # Server (mcp/server/lowlevel/server.py); re-registering after FastMCP's
-    # constructor has run is the supported way to override a handler.
-    app._mcp_server.list_tools()(list_tools_handler)
-    app._mcp_server.call_tool(validate_input=False)(call_tool_handler)
+    # `on_list_tools=`/`on_call_tool=` are public constructor kwargs on the
+    # low-level Server (see module docstring) -- no private-attribute
+    # reach-through and no framework-derived schema/validation pipeline to
+    # opt out of.
+    server = Server(SERVER_NAME, on_list_tools=list_tools_handler, on_call_tool=call_tool_handler)
 
-    return app, state
+    return server, state
 
 
 async def run_stdio(cfg: Config) -> None:
-    app, _state = build_app(cfg)
-    await app.run_stdio_async()
+    server, _state = build_app(cfg)
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(read_stream, write_stream, server.create_initialization_options())

@@ -51,17 +51,17 @@ async def test_register_route_introspect_over_mcp(project_root) -> None:
             await session.initialize()
 
             reg = await session.call_tool("register", {"path": ".spectra/engrams"})
-            assert reg.isError is False, reg.structuredContent
-            assert reg.structuredContent["ingested"] == 7
+            assert reg.is_error is False, reg.structured_content
+            assert reg.structured_content["ingested"] == 7
 
             rt = await session.call_tool(
                 "route", {"query": "rollback proton for a steam game", "k": 5}
             )
-            assert rt.isError is False, rt.structuredContent
-            assert rt.structuredContent["candidates"][0]["name"] == "proton-ge-proton-downgrade"
+            assert rt.is_error is False, rt.structured_content
+            assert rt.structured_content["candidates"][0]["name"] == "proton-ge-proton-downgrade"
 
             intro = await session.call_tool(
                 "introspect", {"skill_id": "proton-ge-proton-downgrade"}
             )
-            assert intro.isError is False, intro.structuredContent
-            assert intro.structuredContent["skill"]["name"] == "proton-ge-proton-downgrade"
+            assert intro.is_error is False, intro.structured_content
+            assert intro.structured_content["skill"]["name"] == "proton-ge-proton-downgrade"
