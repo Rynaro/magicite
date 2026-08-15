@@ -49,6 +49,7 @@ __all__ = [
     "purge_retention",
     "ArchivedEntry",
     "archive_below_floor",
+    "archive_one",
 ]
 
 
@@ -131,13 +132,18 @@ class RetentionStats:
     events_deleted: int
     tags_deleted: int
     candidate_edges_deleted: int
+    idempotency_rows_deleted: int = 0
 
 
 def purge_retention(conn, cfg: Config, *, now: str) -> RetentionStats:  # noqa: ANN001
     """spec §6.1: "eph_event and consumed eph_tag rows older than
     retention_days (default 30) are deleted in phase 3; candidate edges idle
     >30 days are dropped. This is the only deletion in the system and it
-    touches no learned durable state.\""""
+    touches no learned durable state." M5 security fix #2 extends this: an
+    ``eph_idempotency`` row past its real TTL (``mcp/app.py`` now writes
+    ``expires_at = created_at + cfg.idempotency_ttl_s`` instead of an
+    already-expired timestamp) is purged here too -- the fix's other half
+    ("Rows are also written already-expired and never purged")."""
     cutoff = (datetime.fromisoformat(now) - timedelta(days=cfg.retention_days)).isoformat()
     events = conn.execute("DELETE FROM eph_event WHERE ts < ?", (cutoff,))
     tags = conn.execute(
@@ -146,10 +152,12 @@ def purge_retention(conn, cfg: Config, *, now: str) -> RetentionStats:  # noqa: 
         (cutoff,),
     )
     candidates = conn.execute("DELETE FROM eph_candidate_edge WHERE last_updated < ?", (cutoff,))
+    idempotency = conn.execute("DELETE FROM eph_idempotency WHERE expires_at < ?", (now,))
     return RetentionStats(
         events_deleted=events.rowcount,
         tags_deleted=tags.rowcount,
         candidate_edges_deleted=candidates.rowcount,
+        idempotency_rows_deleted=idempotency.rowcount,
     )
 
 
@@ -162,6 +170,80 @@ class ArchivedEntry:
     storage_strength: float
 
 
+def archive_one(
+    cfg: Config, conn, *, row, now: str, note: str, author: str = "dream-worker"  # noqa: ANN001
+) -> ArchivedEntry | None:
+    """The shared per-engram archival mechanics (file move + DB flip),
+    factored out of :func:`archive_below_floor` so M5's explicit
+    ``archive()`` tool (spec §5.1 "any(!=draft) -> archived | ... |
+    operator call") can reuse the exact same file-write/DB-write sequence
+    for an operator-named engram instead of a decay-floor-crossing one --
+    see ``core/dream.py::archive_engram``, the only other caller. MUST be
+    invoked from inside ``core.dream.checkpoint_phase()`` (G3: it writes
+    the ``plasticity:`` block) and ``storage.lease.writer_lease()`` (G2)
+    -- both asserted transitively by ``engram.writer.write_plasticity``/
+    ``write_engram``, not re-asserted here. Returns ``None`` (skip, not an
+    error) if the engram's file has already vanished from disk -- the same
+    "``sync()`` reconciles the stale DB row, not Dream's job" carve-out
+    :func:`archive_below_floor` always had.
+    """
+    project_root = cfg.project_root.resolve()
+    file_path = project_root / row["path"]
+    if not file_path.is_file():
+        return None
+
+    parsed = parser_mod.parse_file(file_path, registry_root=project_root)
+    engram = parsed.engram
+    s_eff = effective_value(row["storage_strength"], row["s_decayed_at"], now, cfg.lambda_s_per_day)
+    plasticity = engram.frontmatter.plasticity
+    base_plasticity = plasticity.model_copy() if plasticity is not None else None
+    new_plasticity = (base_plasticity or _default_plasticity()).model_copy(
+        update={"storage_strength": round(s_eff, 4), "status": "archived", "last_checkpoint": now}
+    )
+
+    candidate = engram.model_copy(deep=True)
+    candidate.frontmatter.plasticity = new_plasticity
+    candidate.frontmatter.provenance_journal = [
+        *candidate.frontmatter.provenance_journal,
+        ProvenanceJournalEntry(
+            version=engram.frontmatter.version,
+            timestamp=now,
+            author=author,
+            event="archived",
+            note=note,
+            base_version=engram.frontmatter.version,
+        ),
+    ]
+
+    archive_name = f"{now[:10]}-{engram.name}.egr.md"
+    archive_path = cfg.archive_dir / archive_name
+
+    # G3 gate: only reachable from inside core.dream.checkpoint_phase().
+    writer_mod.write_plasticity(candidate)
+    writer_mod.write_synapses(candidate)
+    writer_mod.write_engram(archive_path, candidate, parsed.frontmatter_doc)
+
+    # The archive copy is durably on disk before we touch the registry
+    # copy -- "never deleted" holds even if the process dies here.
+    os.remove(file_path)
+
+    durable_mod.mark_archived(
+        conn,
+        engram_id=engram.id,
+        storage_strength=s_eff,
+        archive_path=str(archive_path.relative_to(project_root)),
+    )
+    durable_mod.upsert_journal(conn, candidate)
+
+    return ArchivedEntry(
+        engram_id=engram.id,
+        name=engram.name,
+        old_path=row["path"],
+        archive_path=str(archive_path.relative_to(project_root)),
+        storage_strength=s_eff,
+    )
+
+
 def archive_below_floor(cfg: Config, conn, *, now: str) -> list[ArchivedEntry]:  # noqa: ANN001
     """AC-033: any routable engram whose *effective* S has decayed below
     ``floor_archived`` is moved -- never deleted -- to
@@ -170,7 +252,6 @@ def archive_below_floor(cfg: Config, conn, *, now: str) -> list[ArchivedEntry]: 
     the ``plasticity:`` block via the G3-gated ``engram.writer`` functions)
     and inside the writer lease (G2, for the file move + DB write).
     """
-    project_root = cfg.project_root.resolve()
     floor = cfg.floor_archived
     placeholders = ",".join("?" for _ in ROUTABLE_STATUSES)
     # docs/03 §Revival and Archival: "Skills *reaching* S < floor_archived
@@ -197,10 +278,24 @@ def archive_below_floor(cfg: Config, conn, *, now: str) -> list[ArchivedEntry]: 
     # *reaches*/*has decayed* below the floor -- language for something
     # that accumulated real standing first, not a novice skill that never
     # had the chance.
+    #
+    # M5 data-integrity fix (defect confirmed by adversarial re-test): the
+    # evidence-count gate above is *necessary but not sufficient*. It
+    # distinguishes "has evidence" from "has none" -- but a skill can
+    # honestly accumulate >=3 positive outcomes while its (saturation- and
+    # spacing-damped, spec §4.3) S is *still climbing toward* the floor,
+    # never having crossed it. Requiring `peak_storage_strength >=
+    # floor_archived` too is what actually encodes "reaching"/"has
+    # decayed below" -- a value that WAS at or above the floor and has
+    # since fallen under it, not merely grown to some point below it.
+    # Without this, ordinary successful use (no adversary required)
+    # archives a skill the moment it happens to cross the >=3-outcomes
+    # bar below S=0.2, which is a plain data-loss bug, not a security one.
     rows = conn.execute(
         f"SELECT id, name, path, version, storage_strength, s_decayed_at FROM engram "
-        f"WHERE status IN ({placeholders}) AND (success_count + failure_count) >= 3",
-        tuple(ROUTABLE_STATUSES),
+        f"WHERE status IN ({placeholders}) AND (success_count + failure_count) >= 3 "
+        f"AND peak_storage_strength >= ?",
+        (*ROUTABLE_STATUSES, floor),
     ).fetchall()
 
     archived: list[ArchivedEntry] = []
@@ -208,62 +303,10 @@ def archive_below_floor(cfg: Config, conn, *, now: str) -> list[ArchivedEntry]: 
         s_eff = effective_value(row["storage_strength"], row["s_decayed_at"], now, cfg.lambda_s_per_day)
         if s_eff >= floor:
             continue
-
-        file_path = project_root / row["path"]
-        if not file_path.is_file():
-            continue  # already gone; sync() reconciles the stale DB row, not Dream's job
-
-        parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-        engram = parsed.engram
-        plasticity = engram.frontmatter.plasticity
-        base_plasticity = plasticity.model_copy() if plasticity is not None else None
-        new_plasticity = (base_plasticity or _default_plasticity()).model_copy(
-            update={"storage_strength": round(s_eff, 4), "status": "archived", "last_checkpoint": now}
-        )
-
-        candidate = engram.model_copy(deep=True)
-        candidate.frontmatter.plasticity = new_plasticity
-        candidate.frontmatter.provenance_journal = [
-            *candidate.frontmatter.provenance_journal,
-            ProvenanceJournalEntry(
-                version=engram.frontmatter.version,
-                timestamp=now,
-                author="dream-worker",
-                event="archived",
-                note=f"auto-archived: storage_strength {s_eff:.4f} < floor_archived {floor:.4f}",
-                base_version=engram.frontmatter.version,
-            ),
-        ]
-
-        archive_name = f"{now[:10]}-{engram.name}.egr.md"
-        archive_path = cfg.archive_dir / archive_name
-
-        # G3 gate: only reachable from inside core.dream.checkpoint_phase().
-        writer_mod.write_plasticity(candidate)
-        writer_mod.write_synapses(candidate)
-        writer_mod.write_engram(archive_path, candidate, parsed.frontmatter_doc)
-
-        # The archive copy is durably on disk before we touch the registry
-        # copy -- "never deleted" holds even if the process dies here.
-        os.remove(file_path)
-
-        durable_mod.mark_archived(
-            conn,
-            engram_id=engram.id,
-            storage_strength=s_eff,
-            archive_path=str(archive_path.relative_to(project_root)),
-        )
-        durable_mod.upsert_journal(conn, candidate)
-
-        archived.append(
-            ArchivedEntry(
-                engram_id=engram.id,
-                name=engram.name,
-                old_path=row["path"],
-                archive_path=str(archive_path.relative_to(project_root)),
-                storage_strength=s_eff,
-            )
-        )
+        note = f"auto-archived: storage_strength {s_eff:.4f} < floor_archived {floor:.4f}"
+        entry = archive_one(cfg, conn, row=row, now=now, note=note, author="dream-worker")
+        if entry is not None:
+            archived.append(entry)
     return archived
 
 

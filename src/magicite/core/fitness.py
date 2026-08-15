@@ -2,17 +2,18 @@
 free (spec §1: ``core/fitness.py``, "docs/07 gate functions (pure,
 side-effect free)").
 
-**Scope note (read before extending):** this ships the evidence-bar gate
-functions AC-016 needs as a P0/R1 defense-in-depth check (a poisoned or
-merely optimistic caller cannot promote an engram past a hard, mechanical
-bar no matter how many Tier-1/2 signals accumulated first). The **rest** of
-the lifecycle FSM -- approvals wiring, the ``nascent→probation`` rubric/
-injection-scan guard's actual invocation, autonomous-mode bypass, and every
-``promote``/``sharpen``/``archive`` **tool** body -- is explicitly M5's job
-(spec Stories M5; ``mcp/bind_lifecycle.py``'s own docstring: "the lifecycle
-FSM and approval machinery ... land in M5"). Nothing in this module reads a
-live DB row or calls ``storage.durable``; callers build an :class:`Evidence`
-snapshot themselves.
+**M4 shipped** the evidence-bar gate functions AC-016 needs as a P0/R1
+defense-in-depth check (a poisoned or merely optimistic caller cannot
+promote an engram past a hard, mechanical bar no matter how many Tier-1/2
+signals accumulated first). **M5 adds** :func:`structural_rubric_score`
+(the deterministic 12-point rubric ``nascent_to_probation_gate`` consumes,
+CR-3) -- the approvals wiring, evidence-gathering-from-a-live-connection,
+autonomous-mode bypass, and every ``promote``/``sharpen``/``archive``
+**tool** body itself live in ``core/lifecycle.py``/``core/approvals.py``/
+``mcp/bind_lifecycle.py``, not here: this module stays pure. Nothing here
+reads a live DB row or calls ``storage.durable``; callers build an
+:class:`Evidence` snapshot (or an :class:`~magicite.engram.model.Engram`,
+for the rubric) themselves.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from magicite.config import Config
+from magicite.engram.model import Engram
 
 
 @dataclass(frozen=True)
@@ -87,3 +89,71 @@ def consolidated_to_promoted_gate(
     if not no_evidence_decay:
         unmet.append("evidence has decayed since the last checkpoint")
     return unmet
+
+
+# ── the docs/07 structural rubric (M5; CR-3's "deterministic 12-point
+# structural rubric", the ≥8/12 bar nascent_to_probation_gate consumes) ──
+
+#: docs/07 §Gate requirement: "Rubric score: Triggers (>=3 positive, >=1
+#: negative, distinct), Procedure (clear steps, no circular dependencies),
+#: Pitfalls (grounded in observed failures), Examples (positive + negative
+#: cases present)." Four categories, three points each -- deterministic,
+#: no LLM (CR-3: the v1 server ships no generative model; `rubric_provider
+#: =host` reserves the LLM-judge path for a future, out-of-scope provider).
+#: This is intentionally a *structural* proxy for each category (the same
+#: kind of check `engram/lint.py` already runs), not a semantic-quality
+#: judgement -- "grounded in observed failures" in particular cannot be
+#: verified mechanically, so the pitfalls category scores document
+#: *presence and volume* of pitfall entries, not their factual accuracy.
+RUBRIC_MAX = 12
+
+
+def structural_rubric_score(engram: Engram) -> int:
+    """docs/07's deterministic rubric, 0-12. Each of the four categories
+    below contributes up to 3 points; ``nascent_to_probation_gate`` (this
+    module) checks the result against the >=8/12 bar (docs/07 §Gate
+    requirement: "Rubric score >= 8/12 (two-thirds pass)")."""
+    fm = engram.frontmatter
+    body = engram.body
+    score = 0
+
+    # Triggers: >=3 positive, >=1 negative, all distinct (case-insensitive).
+    if len(fm.triggers.positive) >= 3:
+        score += 1
+    if len(fm.triggers.negative) >= 1:
+        score += 1
+    all_triggers = [t.lower() for t in (*fm.triggers.positive, *fm.triggers.negative)]
+    if all_triggers and len(all_triggers) == len(set(all_triggers)):
+        score += 1
+
+    # Procedure: has numbered steps, no leftover unstructured text (engram/
+    # lint.py's own `procedure_numbered` rule), and does not declare itself
+    # as a dependency of itself (the one circularity a single engram's own
+    # frontmatter can express; cross-engram cycles are `core/composition
+    # .py`'s concern at routing time, not this file's).
+    if body.procedure:
+        score += 1
+    if body.procedure and not body.procedure_raw.strip():
+        score += 1
+    self_referential = fm.name in (*fm.needs, *fm.composes, *fm.inhibits)
+    if not self_referential:
+        score += 1
+
+    # Pitfalls: present, non-trivial text, more than one documented.
+    if body.pitfalls:
+        score += 1
+    if any(len(p.text.strip()) >= 10 for p in body.pitfalls):
+        score += 1
+    if len(body.pitfalls) >= 2:
+        score += 1
+
+    # Examples: at least one positive case, at least one negative case,
+    # and at least two total (docs/07: "positive + negative cases present").
+    if any(e.positive for e in body.examples):
+        score += 1
+    if any(not e.positive for e in body.examples):
+        score += 1
+    if len(body.examples) >= 2:
+        score += 1
+
+    return score

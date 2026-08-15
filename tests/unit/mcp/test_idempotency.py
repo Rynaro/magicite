@@ -73,6 +73,57 @@ def test_replay_with_different_arguments_conflicts(cfg, embedder) -> None:
         state.writer_conn.close()
 
 
+def test_idempotency_is_keyed_by_tool_not_just_request_id(cfg, embedder) -> None:
+    """M5 security fix #2: before the fix, ``eph_idempotency`` was keyed
+    on ``request_id`` alone. ``sync``/``checkpoint``/``consolidate`` are
+    all near-argument-less beyond ``request_id``, so a caller reusing the
+    same ``request_id`` across tools produced an identical ``args_sha256``
+    -- the lookup, ignoring the tool name, then replayed whichever tool
+    ran *first*'s cached response verbatim for every subsequent tool that
+    reused the id: ``checkpoint()``/``consolidate()`` silently returned
+    ``sync()``'s payload, no-op'ing their own real side effect while
+    reporting success (breaking AC-019's "identical arguments" contract
+    and letting a caller pre-burn a request_id to no-op a later,
+    legitimate call to a different tool)."""
+    state = app_mod.build_state(cfg)
+    try:
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+
+        sync_result = app_mod.dispatch_call(state, "sync", {"request_id": "shared-id"})
+        assert sync_result.is_error is False
+        assert "synced" in sync_result.structured_content
+
+        checkpoint_result = app_mod.dispatch_call(state, "checkpoint", {"request_id": "shared-id"})
+        assert checkpoint_result.is_error is False
+        assert "checkpointed" in checkpoint_result.structured_content
+        assert "synced" not in checkpoint_result.structured_content, (
+            "checkpoint() must not silently replay sync()'s cached response"
+        )
+
+        consolidate_result = app_mod.dispatch_call(state, "consolidate", {"request_id": "shared-id"})
+        assert consolidate_result.is_error is False
+        assert "consolidation_id" in consolidate_result.structured_content
+        assert "checkpointed" not in consolidate_result.structured_content
+    finally:
+        state.conn.close()
+        state.writer_conn.close()
+
+
+def test_idempotency_replay_still_works_within_the_same_tool(cfg, embedder) -> None:
+    """The other half of the fix: replay is still correct WITHIN one tool
+    reusing a request_id (AC-019 is unaffected by the tool-keying)."""
+    state = app_mod.build_state(cfg)
+    try:
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        first = app_mod.dispatch_call(state, "sync", {"request_id": "req-x"})
+        second = app_mod.dispatch_call(state, "sync", {"request_id": "req-x"})
+        assert first.is_error is False
+        assert second.structured_content == first.structured_content
+    finally:
+        state.conn.close()
+        state.writer_conn.close()
+
+
 def test_replay_without_request_id_repeats_the_side_effect(cfg, embedder) -> None:
     """Negative control: omitting request_id is NOT idempotent -- two calls
     with identical arguments but no request_id both execute (this is what

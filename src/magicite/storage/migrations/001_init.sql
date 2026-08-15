@@ -5,11 +5,11 @@
 -- migration; the DB is a rebuildable index (INV-3) so there is no
 -- meaningful "v0 -> v1" data migration path to preserve, only the DDL.
 
-CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 -- ── durable mirror (rebuildable from .egr.md) ──────────────────────────
 
-CREATE TABLE engram (
+CREATE TABLE IF NOT EXISTS engram (
   id                  TEXT PRIMARY KEY,            -- egr_<8 hex>, content hash of identity+routing
   name                TEXT NOT NULL UNIQUE,        -- == filename stem, [a-z0-9-]{1,64}
   path                TEXT NOT NULL,               -- registry-relative
@@ -23,6 +23,14 @@ CREATE TABLE engram (
   intent_not_when     TEXT,
   -- Tier A mirror (authoritative copy lives in the file; refreshed by sync, written by Dream)
   storage_strength    REAL NOT NULL DEFAULT 0.0,
+  -- M5 data-integrity fix: the high-water mark storage_strength has ever
+  -- reached. archive_below_floor's eligibility gate needs this in
+  -- addition to "(success_count + failure_count) >= 3" -- evidence alone
+  -- does not prove the engram ever *had* standing to decay away from; a
+  -- skill that has only ever grown toward the floor (never crossed it)
+  -- is a novice, not a decayed veteran (docs/03 "reaching"/AC-033
+  -- "decayed below" both presuppose a prior peak >= floor_archived).
+  peak_storage_strength REAL NOT NULL DEFAULT 0.0,
   s_decayed_at        TEXT NOT NULL,               -- anchor for lazy S decay
   exposure_count      INTEGER NOT NULL DEFAULT 0,  -- value at last checkpoint (see eph_bookkeeping)
   success_count       INTEGER NOT NULL DEFAULT 0,
@@ -37,9 +45,9 @@ CREATE TABLE engram (
   file_mtime_ns       INTEGER NOT NULL,
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
-CREATE INDEX engram_status_idx ON engram(status, verification_status);
+CREATE INDEX IF NOT EXISTS engram_status_idx ON engram(status, verification_status);
 
-CREATE TABLE engram_step (
+CREATE TABLE IF NOT EXISTS engram_step (
   engram_id TEXT NOT NULL REFERENCES engram(id) ON DELETE CASCADE,
   step_no INTEGER NOT NULL, text TEXT NOT NULL,
   ok_count INTEGER NOT NULL DEFAULT 0, total_count INTEGER NOT NULL DEFAULT 0,
@@ -47,14 +55,14 @@ CREATE TABLE engram_step (
   PRIMARY KEY (engram_id, step_no)
 );
 
-CREATE TABLE engram_trigger (
+CREATE TABLE IF NOT EXISTS engram_trigger (
   engram_id TEXT NOT NULL REFERENCES engram(id) ON DELETE CASCADE,
   polarity TEXT NOT NULL CHECK (polarity IN ('positive','negative')),
   ord INTEGER NOT NULL, text TEXT NOT NULL,
   PRIMARY KEY (engram_id, polarity, ord)
 );
 
-CREATE TABLE edge (                                -- Tier B + declared composition edges
+CREATE TABLE IF NOT EXISTS edge (                                -- Tier B + declared composition edges
   src_id           TEXT NOT NULL REFERENCES engram(id) ON DELETE CASCADE,
   dst_name         TEXT NOT NULL,                  -- name, not id: dangling targets are legal
   dst_id           TEXT REFERENCES engram(id) ON DELETE SET NULL,
@@ -69,24 +77,24 @@ CREATE TABLE edge (                                -- Tier B + declared composit
   dangling         INTEGER NOT NULL DEFAULT 0,     -- 1 => inert, excluded from routing
   PRIMARY KEY (src_id, dst_name, type)
 );
-CREATE INDEX edge_dst_idx ON edge(dst_id, type);
+CREATE INDEX IF NOT EXISTS edge_dst_idx ON edge(dst_id, type);
 
-CREATE TABLE context_node (                        -- docs/03 Class C row 15: renamed astroengrams
+CREATE TABLE IF NOT EXISTS context_node (                        -- docs/03 Class C row 15: renamed astroengrams
   id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL  -- project|toolchain|error_class
 );
-CREATE TABLE engram_context (
+CREATE TABLE IF NOT EXISTS engram_context (
   engram_id TEXT NOT NULL REFERENCES engram(id) ON DELETE CASCADE,
   context_id TEXT NOT NULL REFERENCES context_node(id) ON DELETE CASCADE,
   weight REAL NOT NULL DEFAULT 1.0,
   PRIMARY KEY (engram_id, context_id)
 );
 
-CREATE TABLE engram_community (                    -- derived index; rebuilt, never checkpointed
+CREATE TABLE IF NOT EXISTS engram_community (                    -- derived index; rebuilt, never checkpointed
   engram_id TEXT PRIMARY KEY REFERENCES engram(id) ON DELETE CASCADE,
   community_id INTEGER NOT NULL, algo TEXT NOT NULL, computed_at TEXT NOT NULL
 );
 
-CREATE TABLE engram_journal (                      -- mirror of the file's provenance journal
+CREATE TABLE IF NOT EXISTS engram_journal (                      -- mirror of the file's provenance journal
   engram_id TEXT NOT NULL REFERENCES engram(id) ON DELETE CASCADE,
   version INTEGER NOT NULL, ts TEXT NOT NULL, author TEXT NOT NULL,
   event TEXT NOT NULL, note TEXT, signal_tier TEXT, base_version INTEGER,
@@ -95,21 +103,21 @@ CREATE TABLE engram_journal (                      -- mirror of the file's prove
 
 -- ── Tier C (ephemeral; lost on rebuild, by design) ─────────────────────
 
-CREATE TABLE eph_session (
+CREATE TABLE IF NOT EXISTS eph_session (
   session_id TEXT PRIMARY KEY, started_at TEXT NOT NULL, last_seen_at TEXT NOT NULL,
   ended_at TEXT, host TEXT, adapter_verified INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE eph_bookkeeping (                     -- CR-1: hot-path counters, checkpointed to Tier A
+CREATE TABLE IF NOT EXISTS eph_bookkeeping (                     -- CR-1: hot-path counters, checkpointed to Tier A
   engram_id TEXT PRIMARY KEY, exposure_delta INTEGER NOT NULL DEFAULT 0,
   last_activated TEXT, route_returns INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE eph_retrieval (                       -- R: retrieval strength, fast decay
+CREATE TABLE IF NOT EXISTS eph_retrieval (                       -- R: retrieval strength, fast decay
   engram_id TEXT PRIMARY KEY, r REAL NOT NULL DEFAULT 0.0, r_decayed_at TEXT NOT NULL
 );
 
-CREATE TABLE eph_tag (                             -- synaptic tags, two-phase commit
+CREATE TABLE IF NOT EXISTS eph_tag (                             -- synaptic tags, two-phase commit
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id TEXT NOT NULL, subject_kind TEXT NOT NULL CHECK (subject_kind IN ('node','edge')),
   engram_id TEXT, edge_src TEXT, edge_dst TEXT, edge_type TEXT,
@@ -118,47 +126,59 @@ CREATE TABLE eph_tag (                             -- synaptic tags, two-phase c
   captured_at TEXT, capture_valence REAL, capture_salience REAL, capture_weight REAL,
   capped INTEGER NOT NULL DEFAULT 0, consumed_run_id TEXT
 );
-CREATE INDEX eph_tag_live_idx ON eph_tag(session_id, expires_at, captured_at);
+CREATE INDEX IF NOT EXISTS eph_tag_live_idx ON eph_tag(session_id, expires_at, captured_at);
 
-CREATE TABLE eph_candidate_edge (                  -- sub-threshold edges (Tier C)
+CREATE TABLE IF NOT EXISTS eph_candidate_edge (                  -- sub-threshold edges (Tier C)
   src_id TEXT NOT NULL, dst_id TEXT NOT NULL, type TEXT NOT NULL,
   pending_dw REAL NOT NULL DEFAULT 0.0, evidence_count INTEGER NOT NULL DEFAULT 0,
   first_observed TEXT NOT NULL, last_updated TEXT NOT NULL,
   PRIMARY KEY (src_id, dst_id, type)
 );
 
-CREATE TABLE eph_embedding (
+CREATE TABLE IF NOT EXISTS eph_embedding (
   engram_id TEXT NOT NULL, model TEXT NOT NULL, dim INTEGER NOT NULL,
   vec BLOB NOT NULL,                               -- float32 little-endian, L2-normalised
   source_sha256 TEXT NOT NULL, created_at TEXT NOT NULL,
   PRIMARY KEY (engram_id, model)
 );
 
-CREATE TABLE eph_event (                           -- episodic ledger = Dream input + audit trail
+CREATE TABLE IF NOT EXISTS eph_event (                           -- episodic ledger = Dream input + audit trail
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, session_id TEXT,
   tool TEXT NOT NULL, signal_tier INTEGER, engram_id TEXT,
   valence REAL, salience REAL, payload_json TEXT NOT NULL
 );
-CREATE INDEX eph_event_ts_idx ON eph_event(id, ts);
+CREATE INDEX IF NOT EXISTS eph_event_ts_idx ON eph_event(id, ts);
 
-CREATE TABLE eph_idempotency (                     -- docs/02 discipline 4
-  request_id TEXT PRIMARY KEY, tool TEXT NOT NULL, args_sha256 TEXT NOT NULL,
-  response_json TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL
+-- docs/02 discipline 4. M5 security fix #2: keyed on (tool, request_id) --
+-- NOT request_id alone -- so two different tools sharing a caller-chosen
+-- request_id (e.g. `checkpoint` and `consolidate`, both near-argument-less)
+-- never collide: an idempotency lookup that ignored the tool name would
+-- either replay a *different* tool's cached response verbatim (breaking
+-- AC-005/AC-019's "identical arguments" contract) or let a caller pre-burn
+-- a request_id under one tool to silently no-op a later, legitimate call
+-- to another. `expires_at` is a real TTL (`mcp/app.py` sets it to
+-- `created_at + cfg.idempotency_ttl_s`, not `created_at` itself); rows
+-- past it are purged by `core/decay.py::purge_retention` (Dream phase 3).
+CREATE TABLE IF NOT EXISTS eph_idempotency (
+  tool TEXT NOT NULL, request_id TEXT NOT NULL, args_sha256 TEXT NOT NULL,
+  response_json TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+  PRIMARY KEY (tool, request_id)
 );
+CREATE INDEX IF NOT EXISTS eph_idempotency_expires_idx ON eph_idempotency(expires_at);
 
 -- ── operational (not learned state, not checkpointed) ──────────────────
 
-CREATE TABLE writer_lease (
+CREATE TABLE IF NOT EXISTS writer_lease (
   id INTEGER PRIMARY KEY CHECK (id = 1), holder TEXT NOT NULL, pid INTEGER NOT NULL,
   acquired_at TEXT NOT NULL, heartbeat_at TEXT NOT NULL, expires_at TEXT NOT NULL
 );
-CREATE TABLE consolidation_run (
+CREATE TABLE IF NOT EXISTS consolidation_run (
   id TEXT PRIMARY KEY, trigger TEXT NOT NULL,      -- manual|session_end|cli|idle
   state TEXT NOT NULL,                             -- queued|running|succeeded|failed
   phase TEXT, started_at TEXT, finished_at TEXT,
   watermark_event_id INTEGER NOT NULL DEFAULT 0, stats_json TEXT, error TEXT
 );
-CREATE TABLE approval (
+CREATE TABLE IF NOT EXISTS approval (
   id TEXT PRIMARY KEY, op TEXT NOT NULL, target_name TEXT NOT NULL, payload_json TEXT NOT NULL,
   state TEXT NOT NULL,                             -- proposed|approved|rejected|executed|failed
   proposed_by TEXT NOT NULL, proposed_at TEXT NOT NULL,

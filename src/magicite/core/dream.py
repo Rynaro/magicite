@@ -61,6 +61,7 @@ from magicite.engram.model import (
     ProvenanceJournalEntry,
     Synapse,
 )
+from magicite.errors import NotFoundError, TransitionDeniedError
 from magicite.storage import ephemeral as ephemeral_mod
 from magicite.storage import lease as lease_mod
 
@@ -282,9 +283,10 @@ def _phase2_potentiate(
             success_inc = 1 if valence > 0 else 0
             failure_inc = 1 if valence < 0 else 0
             conn.execute(
-                "UPDATE engram SET storage_strength = ?, last_applied = ?, "
+                "UPDATE engram SET storage_strength = ?, "
+                "peak_storage_strength = MAX(peak_storage_strength, ?), last_applied = ?, "
                 "success_count = success_count + ?, failure_count = failure_count + ? WHERE id = ?",
-                (new_s, tag["captured_at"], success_inc, failure_inc, engram_id),
+                (new_s, new_s, tag["captured_at"], success_inc, failure_inc, engram_id),
             )
             committed_nodes += 1
             dominant_tier[engram_id] = max(dominant_tier.get(engram_id, 0), tier)
@@ -652,6 +654,61 @@ def run_checkpoint_only(cfg: Config, conn: sqlite3.Connection) -> CheckpointStat
     with cross_lease.acquire():
         with lease_mod.writer_lease(holder="checkpoint"):
             return _phase7_checkpoint(cfg, conn, project_root)
+
+
+# ── Explicit archive (M5; spec §5.1 "any(!=draft) -> archived | ... | operator call") ──
+
+#: The FSM's own restriction: "any(!=draft)" -- `draft` was never routable
+#: to begin with, and `archived` is not a legal *source* of this same
+#: transition (revival is the *separate* `archived -> probation` row).
+NOT_ARCHIVABLE_STATUSES: frozenset[str] = frozenset({"draft", "archived"})
+
+
+def archive_engram(
+    cfg: Config, conn: sqlite3.Connection, *, name: str, reason: str | None, actor: str
+) -> decay_mod.ArchivedEntry:
+    """The ``archive()`` tool's actual execution path (spec §5.1's
+    "operator call" trigger) -- reuses :func:`core.decay.archive_one`, the
+    same file-move/DB-flip mechanics ``archive_below_floor`` (Dream's own
+    auto-archive) already uses, so there is exactly one way an engram ever
+    becomes ``archived`` on disk. G3 (the ``plasticity:`` block) requires
+    :func:`checkpoint_phase`; this is the second, non-decay-floor caller of
+    it (the module docstring's "the `checkpoint()` tool and `magicite dream
+    --once` reach learned state through that same function" now has a
+    third member: the ``archive()`` tool).
+    """
+    row = conn.execute(
+        "SELECT id, name, path, version, storage_strength, s_decayed_at, status FROM engram WHERE name = ?",
+        (name,),
+    ).fetchone()
+    if row is None:
+        raise NotFoundError(f"no engram named {name!r}")
+    if row["status"] in NOT_ARCHIVABLE_STATUSES:
+        raise TransitionDeniedError(
+            f"cannot archive {name!r}: status {row['status']!r} is not a legal source "
+            "for the any(!=draft) -> archived transition",
+            unmet=[f"status {row['status']!r} is excluded (draft was never routable; "
+                   "archived is already archived)"],
+        )
+
+    now = _now()
+    note = f"explicit archive: {reason}" if reason else "explicit archive (no reason given)"
+    cfg.ensure_dirs()
+    # M5 data-integrity fix (same defect class as register()/sync()/
+    # export(), spec §4.2): the explicit archive() path is a second,
+    # independent writer of durable engram state and must not interleave
+    # with a running Dream cycle either -- the cross-process lease, not
+    # just G2's in-process one.
+    cross_lease = lease_mod.CrossProcessLease(
+        lock_path=cfg.dream_lock_path, conn=conn, holder=f"archive-tool:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+    )
+    with cross_lease.acquire():
+        with lease_mod.writer_lease(holder="archive-tool"):
+            with checkpoint_phase():
+                entry = decay_mod.archive_one(cfg, conn, row=row, now=now, note=note, author=actor)
+    if entry is None:
+        raise NotFoundError(f"{name!r}'s file is missing on disk; cannot archive")
+    return entry
 
 
 # ── The orchestrator ───────────────────────────────────────────────────────

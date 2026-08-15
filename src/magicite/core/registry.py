@@ -25,7 +25,9 @@ honestly reports whichever :class:`~magicite.core.communities
 
 from __future__ import annotations
 
+import os
 import sqlite3
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -33,14 +35,16 @@ from pathlib import Path
 import numpy as np
 
 from magicite.config import Config
+from magicite.core import approvals as approvals_mod
 from magicite.core import communities as communities_mod
+from magicite.core import lifecycle as lifecycle_mod
 from magicite.embeddings.base import Embedder
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
 from magicite.engram import parser as parser_mod
 from magicite.engram import skillmd as skillmd_mod
 from magicite.engram import writer as writer_mod
-from magicite.engram.model import Engram
+from magicite.engram.model import Engram, Trust
 from magicite.errors import InvalidInputError, PathOutsideProjectError
 from magicite.storage import durable as durable_mod
 from magicite.storage import ephemeral as ephemeral_mod
@@ -161,7 +165,7 @@ def _discover_files(scan_root: Path, fmt: str) -> tuple[list[Path], list[Path]]:
     return egr_files, skill_files
 
 
-def _identity_hash(engram: Engram) -> str:
+def identity_hash(engram: Engram) -> str:
     fm = engram.frontmatter
     return ids_mod.identity_sha256(
         ids_mod.identity_routing_payload(
@@ -175,7 +179,7 @@ def _identity_hash(engram: Engram) -> str:
     )
 
 
-def _embed_and_store(conn: sqlite3.Connection, embedder: Embedder, engram: Engram) -> None:
+def embed_and_store(conn: sqlite3.Connection, embedder: Embedder, engram: Engram) -> None:
     text = embeddable_text(engram)
     vec = embedder.embed(text)
     ephemeral_mod.upsert_embedding(
@@ -231,19 +235,52 @@ def _ingest_one(
     if existing is not None and existing["content_sha256"] == engram.content_sha256:
         return None, None, True, []
 
-    durable_mod.upsert_engram(conn, engram, identity_sha256=_identity_hash(engram))
+    # M5 security fix #1 + AC-028 (docs/06 §Injection-Surface Analysis):
+    # verification_status is SERVER-ASSIGNED here, never read from the
+    # file's own `trust.verification_status` -- an engram whose frontmatter
+    # declares `verification_status: verified` must not be accepted
+    # verbatim (that is the exact enabler a planted, "pre-verified" import
+    # would need). The scan also runs on every native `.egr.md` re-scan,
+    # not just first import, so an engram edited on disk to add an exec
+    # block after registration is caught on the next register()/sync()
+    # pass, not only at first ingestion.
+    scan = lint_mod.injection_scan(engram)
+    verification_status = lifecycle_mod.initial_verification_status(
+        origin=engram.frontmatter.provenance, lint_ok=result.ok, scan=scan
+    )
+    fm = engram.frontmatter
+    if fm.trust is None:
+        # Trust.origin has no "sharpened" literal (spec's Trust.origin is a
+        # 3-way subset of the 4-way Engram.provenance enum); fall back to
+        # "authored" for that one case rather than widen the trust schema
+        # for a cosmetic field this fix does not touch.
+        trust_origin = fm.provenance if fm.provenance in ("authored", "imported", "distilled") else "authored"
+        fm.trust = Trust(origin=trust_origin, verification_status=verification_status)
+    else:
+        fm.trust = fm.trust.model_copy(update={"verification_status": verification_status})
+
+    durable_mod.upsert_engram(conn, engram, identity_sha256=identity_hash(engram))
     durable_mod.wire_context_affinity(conn, engram)
     dangling = durable_mod.wire_declared_edges(conn, engram)
-    _embed_and_store(conn, embedder, engram)
+    embed_and_store(conn, embedder, engram)
 
-    fm = engram.frontmatter
     warnings = [w.message for w in result.warnings]
+    if scan.quarantine_recommended:
+        reasons = []
+        if scan.has_exec_blocks:
+            reasons.append("exec block(s) present")
+        if scan.over_broad_triggers:
+            reasons.append("over-broad triggers")
+        if scan.suspicious_pitfalls:
+            reasons.append("suspicious pitfall text")
+        warnings.append(f"quarantined by injection scan: {', '.join(reasons)}")
+
     entry = RegisteredEntry(
         id=fm.id,
         name=fm.name,
         origin=fm.provenance,
         status=fm.plasticity.status if fm.plasticity else "nascent",
-        verification_status=fm.trust.verification_status if fm.trust else "pending",
+        verification_status=verification_status,
         warnings=warnings,
     )
     return entry, None, False, dangling
@@ -308,6 +345,31 @@ def _ingest_skillmd_one(
     return entry, verr, False, dangling
 
 
+def _cross_process_lease(
+    cfg: Config, conn: sqlite3.Connection, holder_prefix: str
+) -> lease_mod.CrossProcessLease:
+    """M5 data-integrity fix (defect confirmed by adversarial re-test):
+    ``register()``/``sync()``/``export()`` previously held only the
+    *logical*, in-process G2 lease (``storage.lease.writer_lease()``) --
+    never the *cross-process* ``WriterLease`` (spec §4.2) Dream's own
+    ``run()``/``run_checkpoint_only()`` already acquire. A concurrent
+    ``sync()`` in a second process (or a second `magicite serve`) could
+    therefore run **while Dream held the cross-process lease**, read the
+    file Dream had not yet checkpointed its in-memory commits to, and
+    re-ingest it -- silently clobbering just-committed learned state
+    (S, success/failure counts, `last_applied`) with the stale on-disk
+    values, with Dream then checkpointing *that* clobbered state and
+    reporting success. Every durable-write entry point in this module now
+    acquires the same cross-process lease Dream does, first -- one real,
+    OS-and-DB-backed single-writer guarantee, not two independently
+    partial ones."""
+    return lease_mod.CrossProcessLease(
+        lock_path=cfg.dream_lock_path,
+        conn=conn,
+        holder=f"{holder_prefix}:{os.getpid()}:{uuid.uuid4().hex[:6]}",
+    )
+
+
 def _ensure_registry_gitignore(cfg: Config) -> None:
     """spec §1: register() writes a .gitignore into .spectra/engrams/ on first
     run excluding the rebuildable DB (CR-2); MAGICITE_COMMIT_DB=1 opts out."""
@@ -328,13 +390,15 @@ def register(
     path: str,
     fmt: str = "auto",
 ) -> RegisterOutcome:
+    cfg.ensure_dirs()
     project_root = cfg.project_root.resolve()
     _ensure_registry_gitignore(cfg)
     scan_root = _resolve_scan_root(project_root, path)
     egr_files, skill_files = _discover_files(scan_root, fmt)
 
     outcome = IngestOutcome()
-    with lease_mod.writer_lease():
+    cross_lease = _cross_process_lease(cfg, conn, "register")
+    with cross_lease.acquire(), lease_mod.writer_lease():
         for file_path in egr_files:
             try:
                 parsed = parser_mod.parse_file(file_path, registry_root=project_root)
@@ -452,6 +516,7 @@ def _compute_communities(conn: sqlite3.Connection) -> str:
 
 
 def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutcome:
+    cfg.ensure_dirs()
     registry_dir = cfg.registry_dir
     registry_dir.mkdir(parents=True, exist_ok=True)
     project_root = cfg.project_root.resolve()
@@ -459,7 +524,8 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
     on_disk_paths: set[str] = set()
     outcome = IngestOutcome()
 
-    with lease_mod.writer_lease():
+    cross_lease = _cross_process_lease(cfg, conn, "sync")
+    with cross_lease.acquire(), lease_mod.writer_lease():
         for file_path in sorted(registry_dir.rglob("*.egr.md")):
             relpath = str(file_path.resolve().relative_to(project_root))
             on_disk_paths.add(relpath)
@@ -479,8 +545,18 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
             if verr:
                 outcome.validation_errors.append(verr)
 
+        # M5 data-integrity fix: an archived engram's DB row legitimately
+        # points at `.spectra/archive/...`, outside `registry_dir` -- this
+        # loop must not treat that as "the file vanished". Before this
+        # fix, `sync()` deleted every archived engram's row on the very
+        # next call (no restoration action required to trigger it),
+        # silently losing its index/history/edges even though the file
+        # itself was correctly still sitting in `.spectra/archive/`
+        # ("archive, never delete" held for the file but not the index).
         removed: list[str] = []
-        for row in conn.execute("SELECT id, name, path FROM engram").fetchall():
+        for row in conn.execute("SELECT id, name, path, status FROM engram").fetchall():
+            if row["status"] == "archived":
+                continue
             if row["path"] not in on_disk_paths:
                 durable_mod.delete_engram(conn, row["id"])
                 removed.append(row["name"])
@@ -500,6 +576,13 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
         detector_name = _compute_communities(conn)
 
         durable_mod.write_schema_meta(conn, "last_sync", _now())
+
+        # spec §5.2: approvals are "durable outside the rebuildable DB...
+        # reloaded on sync()". A deleted-and-rebuilt skill-graph.db (this
+        # very function's own AC-009 scenario) starts with an empty
+        # `approval` table; this repopulates it from the JSON mirror so a
+        # rebuild never silently drops pending/decided governance state.
+        approvals_mod.reload_from_mirror(cfg, conn)
 
     synced = conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"]
 
@@ -522,6 +605,7 @@ def export(
 ) -> ExportOutcome:
     """spec §5.4: render ``out_dir/<name>/SKILL.md`` shims for every engram
     at ``min_status`` or above -- the inverse of SKILL.md import."""
+    cfg.ensure_dirs()
     project_root = cfg.project_root.resolve()
     target_root = _resolve_scan_root(project_root, out_dir)
     min_rank = _EXPORT_STATUS_RANK[min_status]
@@ -532,7 +616,8 @@ def export(
     eligible = [r for r in rows if _EXPORT_STATUS_RANK.get(r["status"], -1) >= min_rank]
 
     exported = 0
-    with lease_mod.writer_lease():
+    cross_lease = _cross_process_lease(cfg, conn, "export")
+    with cross_lease.acquire(), lease_mod.writer_lease():
         for row in eligible:
             file_path = project_root / row["path"]
             parsed = parser_mod.parse_file(file_path, registry_root=project_root)

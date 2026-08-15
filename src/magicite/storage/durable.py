@@ -46,24 +46,27 @@ def upsert_engram(conn: sqlite3.Connection, engram: Engram, *, identity_sha256: 
     existing = conn.execute("SELECT created_at FROM engram WHERE id = ?", (fm.id,)).fetchone()
     created_at = existing["created_at"] if existing else now
 
+    incoming_s = plasticity.storage_strength if plasticity else 0.0
     conn.execute(
         """
         INSERT INTO engram (
           id, name, path, spec_version, version, origin, verification_status, status,
           intent_does, intent_use_when, intent_not_when,
-          storage_strength, s_decayed_at, exposure_count, success_count, failure_count,
-          excitability, last_applied, last_checkpoint,
+          storage_strength, peak_storage_strength, s_decayed_at, exposure_count, success_count,
+          failure_count, excitability, last_applied, last_checkpoint,
           embedding_model, embedding_ref, embedding_refreshed_at,
           has_exec_blocks, identity_sha256, content_sha256, body_sha256, file_mtime_ns,
           created_at, updated_at
-        ) VALUES (?,?,?,?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?,?, ?,?)
+        ) VALUES (?,?,?,?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?)
         ON CONFLICT(id) DO UPDATE SET
           name=excluded.name, path=excluded.path, spec_version=excluded.spec_version,
           version=excluded.version, origin=excluded.origin,
           verification_status=excluded.verification_status, status=excluded.status,
           intent_does=excluded.intent_does, intent_use_when=excluded.intent_use_when,
           intent_not_when=excluded.intent_not_when,
-          storage_strength=excluded.storage_strength, exposure_count=excluded.exposure_count,
+          storage_strength=excluded.storage_strength,
+          peak_storage_strength=MAX(engram.peak_storage_strength, excluded.peak_storage_strength),
+          exposure_count=excluded.exposure_count,
           success_count=excluded.success_count, failure_count=excluded.failure_count,
           excitability=excluded.excitability, last_applied=excluded.last_applied,
           last_checkpoint=excluded.last_checkpoint,
@@ -83,7 +86,8 @@ def upsert_engram(conn: sqlite3.Connection, engram: Engram, *, identity_sha256: 
             fm.intent.does,
             fm.intent.use_when,
             fm.intent.not_when,
-            plasticity.storage_strength if plasticity else 0.0,
+            incoming_s,
+            incoming_s,  # peak_storage_strength: file wins on ingest, MAX()'d against the DB's own peak above
             now,
             plasticity.exposure_count if plasticity else 0,
             plasticity.outcome.success if plasticity else 0,
@@ -321,6 +325,60 @@ def replace_similar_to_edges(
                 """,
                 (src_id, dst_name, dst_id, round(cosine, 6), now, now),
             )
+
+
+def set_status(conn: sqlite3.Connection, *, engram_id: str, to_status: str) -> None:
+    """spec §5.1: "nothing else assigns [``engram.status``]" -- the
+    ``promote()``/``archive()`` lifecycle-transition write path
+    (``core/lifecycle.py`` validates the transition *before* ever calling
+    this; see that module's docstring for why the guard lives there
+    instead of here, mirroring the existing :func:`mark_archived`
+    convention). Deliberately guard-free, like every other function in
+    this module -- callers decide, this module only writes."""
+    assert_single_writer()
+    conn.execute(
+        "UPDATE engram SET status = ?, updated_at = ? WHERE id = ?", (to_status, _now(), engram_id)
+    )
+
+
+def set_verification_status(conn: sqlite3.Connection, *, engram_id: str, to_status: str) -> None:
+    """spec §5.1's ``any -> quarantined`` row (safety direction is free,
+    no approval) and the M5 security fix #1's server-assigned trust axis.
+    Symmetric to :func:`set_status`, on the orthogonal axis (spec §5.1:
+    "status ... orthogonal to verification_status")."""
+    assert_single_writer()
+    conn.execute(
+        "UPDATE engram SET verification_status = ?, updated_at = ? WHERE id = ?",
+        (to_status, _now(), engram_id),
+    )
+
+
+def append_transition_journal(
+    conn: sqlite3.Connection,
+    *,
+    engram_id: str,
+    version: int,
+    author: str,
+    event: str,
+    note: str | None = None,
+    base_version: int | None = None,
+) -> None:
+    """spec §5.1: "Every transition appends an engram_journal row[.] ...
+    at the next checkpoint, a provenance-journal entry in the file." This
+    is the immediate DB-side half; Dream's own checkpoint phase (already
+    unconditional for any dirty engram, ``core/dream.py::_phase7_
+    checkpoint``) writes the file-side entry the next time it runs -- a
+    status change alone is enough to make an engram's rendered candidate
+    differ from what is on disk, so no special-casing is needed there."""
+    assert_single_writer()
+    conn.execute(
+        """
+        INSERT INTO engram_journal (engram_id, version, ts, author, event, note, signal_tier, base_version)
+        VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(engram_id, version, ts) DO NOTHING
+        """,
+        (engram_id, version, _now(), author, event, note, None, base_version),
+    )
 
 
 def upsert_communities(conn: sqlite3.Connection, assignments: dict[str, int], *, algo: str) -> None:

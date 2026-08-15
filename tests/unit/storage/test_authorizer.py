@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -23,10 +24,46 @@ INSERT INTO engram (
 )
 """
 
+#: M5 test-quality fix (mutation testing found this the hard way): a valid,
+#: constraint-satisfying ``INSERT`` per non-``eph_`` table -- one that
+#: would actually **succeed** if the authorizer were removed entirely.
+#: ``INSERT INTO <table> DEFAULT VALUES`` (the pre-M5 shape of this test)
+#: happens to violate a NOT NULL constraint on every one of these tables
+#: regardless of any authorizer, so `pytest.raises(sqlite3.DatabaseError)`
+#: passed for the wrong reason on all six: removing the authorizer
+#: entirely still passed the old test (``sqlite3.IntegrityError`` is a
+#: ``DatabaseError`` subclass), giving G1's actual DENY behaviour zero real
+#: coverage from this table. ``edge`` additionally needs a real ``engram``
+#: row to reference (``PRAGMA foreign_keys=ON``) or the insert would fail
+#: on the FK instead -- seeded via a writer connection in the test itself.
+_VALID_INSERTS: dict[str, str] = {
+    "engram": _MINIMAL_ENGRAM_INSERT,
+    "schema_meta": "INSERT INTO schema_meta (key, value) VALUES ('k', 'v')",
+    "consolidation_run": (
+        "INSERT INTO consolidation_run (id, trigger, state) VALUES ('c1', 'manual', 'queued')"
+    ),
+    "writer_lease": (
+        "INSERT INTO writer_lease (id, holder, pid, acquired_at, heartbeat_at, expires_at) "
+        "VALUES (1, 'h', 1, 't', 't', 't')"
+    ),
+    "approval": (
+        "INSERT INTO approval (id, op, target_name, payload_json, state, proposed_by, proposed_at) "
+        "VALUES ('a1', 'archive', 'n', '{}', 'proposed', 'x', 't')"
+    ),
+    "edge": (
+        "INSERT INTO edge (src_id, dst_name, dst_id, type, s_decayed_at, provenance, first_observed) "
+        "VALUES ('egr_x', 'n2', NULL, 'composes', 't', 'declared', 't')"
+    ),
+}
+
 
 @pytest.fixture
-def ephemeral_conn(tmp_path) -> sqlite3.Connection:
-    db_path = tmp_path / "skill-graph.db"
+def db_path(tmp_path) -> Path:
+    return tmp_path / "skill-graph.db"
+
+
+@pytest.fixture
+def ephemeral_conn(db_path: Path) -> sqlite3.Connection:
     # migrate=True here (test-local convenience): production always migrates
     # via the writer connection first (mcp/app.py::build_state).
     conn = authorizer_mod.ephemeral_connection(db_path, migrate=True)
@@ -38,8 +75,29 @@ def ephemeral_conn(tmp_path) -> sqlite3.Connection:
     "table", ["engram", "edge", "consolidation_run", "writer_lease", "approval", "schema_meta"]
 )
 def test_insert_denied_on_non_eph_tables(ephemeral_conn: sqlite3.Connection, table: str) -> None:
+    """Cheap smoke test: every non-eph_ table denies a bare ``DEFAULT
+    VALUES`` insert too (whatever the reason). The real, authorizer-
+    specific proof is :func:`test_insert_denied_on_non_eph_tables_with_
+    valid_rows` below."""
     with pytest.raises(sqlite3.DatabaseError):
         ephemeral_conn.execute(f"INSERT INTO {table} DEFAULT VALUES")
+
+
+@pytest.mark.parametrize("table", sorted(_VALID_INSERTS))
+def test_insert_denied_on_non_eph_tables_with_valid_rows(
+    db_path: Path, ephemeral_conn: sqlite3.Connection, table: str
+) -> None:
+    if table == "edge":
+        writer_conn = authorizer_mod.writer_connection(db_path)
+        try:
+            writer_conn.execute(_MINIMAL_ENGRAM_INSERT)
+        finally:
+            writer_conn.close()
+
+    with pytest.raises(sqlite3.DatabaseError):
+        ephemeral_conn.execute(_VALID_INSERTS[table])
+    row = ephemeral_conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()
+    assert row["n"] == 0
 
 
 def test_insert_denied_on_engram_with_real_columns(ephemeral_conn: sqlite3.Connection) -> None:
@@ -47,6 +105,45 @@ def test_insert_denied_on_engram_with_real_columns(ephemeral_conn: sqlite3.Conne
         ephemeral_conn.execute(_MINIMAL_ENGRAM_INSERT)
     row = ephemeral_conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()
     assert row["n"] == 0
+
+
+# ── M5 security fix #3: SQLITE_PRAGMA / SQLITE_ATTACH ──────────────────
+
+
+def test_pragma_denied_on_ephemeral_connection(ephemeral_conn: sqlite3.Connection) -> None:
+    """No tool exposes PRAGMA today (latent, not reachable) -- denying it
+    anyway removes the ``PRAGMA user_version=0`` failure mode entirely:
+    that statement would otherwise desync the writer connection's
+    migration bookkeeping from the actual schema and (pre-``IF NOT
+    EXISTS``) permanently brick boot on the next migration run."""
+    with pytest.raises(sqlite3.DatabaseError):
+        ephemeral_conn.execute("PRAGMA user_version=0")
+    # A bare read-form PRAGMA is denied too (spec: "deny SQLITE_PRAGMA...
+    # on hot-path connections", no read/write carve-out) -- but nothing in
+    # the hot path ever needs one, so this is a pure hardening, not a
+    # functional loss.
+    with pytest.raises(sqlite3.DatabaseError):
+        ephemeral_conn.execute("PRAGMA user_version")
+
+
+def test_attach_denied_on_ephemeral_connection(ephemeral_conn: sqlite3.Connection, tmp_path: Path) -> None:
+    other_db = tmp_path / "other.db"
+    with pytest.raises(sqlite3.DatabaseError):
+        ephemeral_conn.execute(f"ATTACH DATABASE '{other_db}' AS other")
+
+
+def test_writer_connection_pragma_and_attach_are_not_denied(tmp_path: Path) -> None:
+    """G1 constrains the hot path, not the writer path (module docstring:
+    "G1 exists to constrain the hot path, not to strangle the writer/
+    Dream path"). No authorizer at all is installed on this connection."""
+    conn = authorizer_mod.writer_connection(tmp_path / "skill-graph.db")
+    try:
+        conn.execute("PRAGMA user_version")
+        other_db = tmp_path / "other.db"
+        conn.execute(f"ATTACH DATABASE '{other_db}' AS other")
+        conn.execute("DETACH DATABASE other")
+    finally:
+        conn.close()
 
 
 def test_update_denied_on_non_eph_table(ephemeral_conn: sqlite3.Connection) -> None:

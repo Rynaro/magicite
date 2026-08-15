@@ -100,6 +100,13 @@ def test_a_failed_call_does_not_append_a_ledger_row(cfg) -> None:
 
 
 def test_hot_path_tools_get_the_ephemeral_connection(cfg) -> None:
+    """A static metadata check only -- it would still pass even if
+    ``dispatch_call`` ignored ``_WRITER_CONNECTION_TOOLS`` entirely (a
+    mutation-testing finding, M5). The behavioural proof that
+    ``dispatch_call`` actually *honours* this set -- dispatching a real
+    write through it and observing the write's outcome differ by routing
+    -- is ``tests/acceptance/test_p0_hot_path.py::
+    test_connection_split_actually_gates_durable_writes``."""
     state = app_mod.build_state(cfg)
     try:
         assert "introspect" not in app_mod._WRITER_CONNECTION_TOOLS

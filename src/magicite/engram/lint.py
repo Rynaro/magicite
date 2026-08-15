@@ -132,7 +132,7 @@ def lint_import(engram: Engram) -> LintResult:
     return lint(engram, profile="import")
 
 
-# ── injection scan (docs/06 §Injection Surfaces; wired by register() in M1/M5) ──
+# ── injection scan (docs/06 §Injection Surfaces; wired into register() at M5, AC-028) ──
 
 _SUSPICIOUS_PHRASES = (
     "ignore previous instructions",
@@ -142,6 +142,37 @@ _SUSPICIOUS_PHRASES = (
     "system prompt",
     "act as",
     "reveal your instructions",
+)
+
+#: spec §5.3 step 5: "over-broad triggers (matching >30% of a stock query
+#: probe set)". register() runs in production against arbitrary registries,
+#: not just the test fixtures' ``queries.jsonl`` -- so the scan needs a
+#: probe set that ships with the package rather than depending on a test
+#: fixture being present. This is a small, generic set of common developer-
+#: task phrasings; callers that have a better domain-specific probe corpus
+#: (e.g. the toy registry's own labelled queries) may still pass one in
+#: explicitly via ``probe_queries``.
+DEFAULT_PROBE_QUERIES: tuple[str, ...] = (
+    "how do I fix this bug",
+    "help me write a test",
+    "explain this error message",
+    "set up my development environment",
+    "review this pull request",
+    "deploy the application",
+    "debug a crash",
+    "refactor this function",
+    "add a new feature",
+    "write documentation for this module",
+    "optimize this query",
+    "configure the build system",
+    "install a dependency",
+    "run the test suite",
+    "format this code",
+    "investigate a memory leak",
+    "update the changelog",
+    "resolve a merge conflict",
+    "check the logs for errors",
+    "roll back a bad deployment",
 )
 
 
@@ -157,17 +188,24 @@ class InjectionScanResult:
 
 
 def injection_scan(engram: Engram, probe_queries: list[str] | None = None) -> InjectionScanResult:
+    """docs/06 §Injection-Surface Analysis, spec §5.3 step 5: exec blocks,
+    over-broad triggers, and suspicious imperative text in pitfalls are the
+    three quarantine triggers. ``probe_queries=None`` falls back to
+    :data:`DEFAULT_PROBE_QUERIES` (an explicit empty list still disables
+    the over-broad-trigger check, matching the previous "no probe set ->
+    skip" behaviour for callers that intentionally opt out)."""
     has_exec_blocks = bool(engram.body.exec_blocks)
 
+    probes = DEFAULT_PROBE_QUERIES if probe_queries is None else probe_queries
     over_broad = False
-    if probe_queries:
+    if probes:
         triggers = [t.lower() for t in engram.frontmatter.triggers.positive]
         hits = sum(
             1
-            for q in probe_queries
+            for q in probes
             if any(t and t in q.lower() for t in triggers)
         )
-        over_broad = (hits / len(probe_queries)) > 0.3
+        over_broad = (hits / len(probes)) > 0.3
 
     suspicious = [
         p.text

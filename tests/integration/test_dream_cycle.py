@@ -137,10 +137,13 @@ def test_decay_floor_archives_never_deletes(cfg, db_conn, embedder) -> None:
     assert original_path.is_file()
 
     # Simulate "has decayed below the floor" -- real, accumulated evidence
-    # (>=3 outcomes, per core/decay.py's eligibility gate) whose S has
-    # since fallen under floor_archived (0.2).
+    # (>=3 outcomes, per core/decay.py's eligibility gate) AND a genuine
+    # prior peak >= floor_archived (M5 data-integrity fix: evidence alone
+    # does not prove the engram ever *had* standing to decay away from)
+    # whose S has since fallen under floor_archived (0.2).
     db_conn.execute(
-        "UPDATE engram SET storage_strength = 0.05, success_count = 3, last_applied = ? WHERE id = ?",
+        "UPDATE engram SET storage_strength = 0.05, peak_storage_strength = 0.6, "
+        "success_count = 3, last_applied = ? WHERE id = ?",
         (_iso_now(), engram_id),
     )
 
@@ -156,3 +159,15 @@ def test_decay_floor_archives_never_deletes(cfg, db_conn, embedder) -> None:
 
     row = db_conn.execute("SELECT status FROM engram WHERE id = ?", (engram_id,)).fetchone()
     assert row["status"] == "archived"
+
+    # M5 data-integrity fix, strengthening AC-033: a plain re-sync() must
+    # not delete the archived row just because its (correct) path now
+    # points outside the scanned registry_dir -- "archive, never delete"
+    # has to hold at the index level, not just for the file on disk.
+    sync_outcome = registry_mod.sync(cfg, db_conn, embedder)
+    assert PROTON not in sync_outcome.removed
+    row_after_sync = db_conn.execute(
+        "SELECT status FROM engram WHERE id = ?", (engram_id,)
+    ).fetchone()
+    assert row_after_sync is not None, "sync() must not delete an archived engram's row"
+    assert row_after_sync["status"] == "archived"

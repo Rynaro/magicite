@@ -11,6 +11,7 @@ import pytest
 from magicite.config import Config
 from magicite.core import fitness as fitness_mod
 from magicite.core import lifecycle as lifecycle_mod
+from magicite.engram.lint import InjectionScanResult
 from magicite.errors import TransitionDeniedError
 
 
@@ -61,3 +62,48 @@ def test_nascent_to_probation_denial_names_guards() -> None:
             injection_scan_clean=True,
         )
     assert excinfo.value.unmet == ["rubric_score 5 < 8"]
+
+
+# ── initial_verification_status (M5 security fix #1) ─────────────────────
+
+_CLEAN_SCAN = InjectionScanResult(has_exec_blocks=False, over_broad_triggers=False, suspicious_pitfalls=[])
+_DIRTY_SCAN = InjectionScanResult(has_exec_blocks=True, over_broad_triggers=False, suspicious_pitfalls=[])
+
+
+def test_verification_status_quarantine_outranks_everything() -> None:
+    """"any -> quarantined" is unconditional (spec §5.1) -- even an
+    authored, lint-clean engram is quarantined if the scan flags it."""
+    assert (
+        lifecycle_mod.initial_verification_status(origin="authored", lint_ok=True, scan=_DIRTY_SCAN)
+        == "quarantined"
+    )
+
+
+def test_verification_status_authored_lint_clean_scan_clean_is_verified() -> None:
+    assert (
+        lifecycle_mod.initial_verification_status(origin="authored", lint_ok=True, scan=_CLEAN_SCAN)
+        == "verified"
+    )
+
+
+@pytest.mark.parametrize("origin", ["imported", "distilled"])
+def test_verification_status_imported_or_distilled_is_always_pending(origin: str) -> None:
+    """Even lint-clean, scan-clean content from these origins starts
+    pending -- docs/06 tiers 3-4 require the explicit manual review path,
+    never an automatic 'verified' (spec §5.1's own "(imports, distilled)"
+    qualifier on the pending -> verified FSM row)."""
+    assert (
+        lifecycle_mod.initial_verification_status(origin=origin, lint_ok=True, scan=_CLEAN_SCAN)
+        == "pending"
+    )
+
+
+def test_verification_status_never_reads_a_caller_supplied_value() -> None:
+    """The security property, stated directly: the function's signature
+    has no parameter through which a caller-authored `trust.
+    verification_status` value could even be passed in -- it is
+    structurally impossible for this function to echo one back."""
+    import inspect
+
+    sig = inspect.signature(lifecycle_mod.initial_verification_status)
+    assert set(sig.parameters) == {"origin", "lint_ok", "scan"}

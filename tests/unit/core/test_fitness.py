@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from magicite.config import Config
 from magicite.core import fitness as fitness_mod
+from magicite.engram import parser as parser_mod
 
 
 def _evidence(**kw: object) -> fitness_mod.Evidence:
@@ -88,3 +89,95 @@ def test_consolidated_to_promoted_fails_on_evidence_decay() -> None:
     ev = _evidence(storage_strength=0.9, pass_rate=0.99, distinct_sessions=20)
     unmet = fitness_mod.consolidated_to_promoted_gate(ev, no_evidence_decay=False)
     assert unmet == ["evidence has decayed since the last checkpoint"]
+
+
+# ── structural_rubric_score (M5, CR-3's deterministic 12-point rubric) ──
+
+
+def _full_marks_engram_text() -> str:
+    """Every rubric category maxed: 3 distinct positive + 1 negative
+    trigger, a clean numbered procedure with no self-reference, 2+
+    non-trivial pitfalls, and both a positive and a negative example."""
+    return (
+        "---\n"
+        "spec: engram/0.2\n"
+        "name: sample\n"
+        "id: egr_00000001\n"
+        "version: 1\n"
+        "provenance: authored\n"
+        "intent:\n"
+        "  does: does something\n"
+        "  use_when: when needed\n"
+        "  not_when: never\n"
+        "triggers:\n"
+        '  positive: ["alpha trigger", "beta trigger", "gamma trigger"]\n'
+        '  negative: ["not this one"]\n'
+        "---\n"
+        "## Procedure\n"
+        "1. Do the first thing carefully.\n"
+        "2. Do the second thing carefully.\n"
+        "\n"
+        "## Pitfalls\n"
+        "- Forgetting to check the prefix first causes silent failures.\n"
+        "- Running this twice in a row corrupts the cache.\n"
+        "\n"
+        "## Examples\n"
+        "+ a worked positive example\n"
+        "- a worked negative example\n"
+    )
+
+
+def test_structural_rubric_full_marks() -> None:
+    parsed = parser_mod.parse_text(_full_marks_engram_text(), relpath="x.egr.md")
+    assert fitness_mod.structural_rubric_score(parsed.engram) == fitness_mod.RUBRIC_MAX
+
+
+def test_structural_rubric_penalizes_missing_negative_trigger_and_thin_pitfalls() -> None:
+    text = (
+        "---\n"
+        "spec: engram/0.2\n"
+        "name: sample\n"
+        "id: egr_00000001\n"
+        "version: 1\n"
+        "provenance: authored\n"
+        "intent:\n"
+        "  does: does something\n"
+        "  use_when: when needed\n"
+        "  not_when: never\n"
+        "triggers:\n"
+        '  positive: ["alpha trigger", "beta trigger", "gamma trigger"]\n'
+        "  negative: []\n"
+        "---\n"
+        "## Procedure\n"
+        "1. Do it.\n"
+        "\n"
+        "## Pitfalls\n"
+        "\n"
+        "## Examples\n"
+    )
+    parsed = parser_mod.parse_text(text, relpath="x.egr.md")
+    score = fitness_mod.structural_rubric_score(parsed.engram)
+    assert score < fitness_mod.RUBRIC_MAX
+    # missing negative trigger (1), missing distinctness point still holds,
+    # zero pitfalls (2 points lost), zero examples (3 points lost).
+    assert score <= fitness_mod.RUBRIC_MAX - 6
+
+
+def test_structural_rubric_penalizes_self_referential_composition() -> None:
+    text = _full_marks_engram_text().replace(
+        "provenance: authored\n", "provenance: authored\nneeds: [sample]\n"
+    )
+    parsed = parser_mod.parse_text(text, relpath="x.egr.md")
+    full = fitness_mod.structural_rubric_score(
+        parser_mod.parse_text(_full_marks_engram_text(), relpath="x.egr.md").engram
+    )
+    self_ref = fitness_mod.structural_rubric_score(parsed.engram)
+    assert self_ref == full - 1
+
+
+def test_structural_rubric_meets_nascent_to_probation_bar_at_full_marks() -> None:
+    """The rubric and the gate agree: full marks clears the >=8/12 bar
+    (docs/07 §Gate requirement) with a comfortable margin."""
+    parsed = parser_mod.parse_text(_full_marks_engram_text(), relpath="x.egr.md")
+    score = fitness_mod.structural_rubric_score(parsed.engram)
+    assert fitness_mod.nascent_to_probation_gate(rubric_score=score, injection_scan_clean=True) == []

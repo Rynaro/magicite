@@ -128,19 +128,52 @@ def test_purge_retention_deletes_only_old_rows(cfg, db_conn, registered) -> None
     assert remaining == 1
 
 
+def test_purge_retention_deletes_expired_idempotency_rows(cfg, db_conn, registered) -> None:
+    """M5 security fix #2's other half: ``eph_idempotency`` rows past
+    ``expires_at`` are purged in Dream phase 3 -- previously nothing ever
+    purged them (and they were written already-expired, compounding the
+    problem)."""
+    now = datetime.now(UTC)
+    expired_at = _iso(now - timedelta(hours=1))
+    live_at = _iso(now + timedelta(hours=1))
+    db_conn.execute(
+        "INSERT INTO eph_idempotency (tool, request_id, args_sha256, response_json, created_at, expires_at) "
+        "VALUES ('sync', 'r-expired', 'h1', '{}', ?, ?)",
+        (_iso(now - timedelta(hours=2)), expired_at),
+    )
+    db_conn.execute(
+        "INSERT INTO eph_idempotency (tool, request_id, args_sha256, response_json, created_at, expires_at) "
+        "VALUES ('sync', 'r-live', 'h2', '{}', ?, ?)",
+        (_iso(now), live_at),
+    )
+    stats = decay_mod.purge_retention(db_conn, cfg, now=_iso(now))
+    assert stats.idempotency_rows_deleted == 1
+    remaining = db_conn.execute("SELECT request_id FROM eph_idempotency").fetchall()
+    assert [r["request_id"] for r in remaining] == ["r-live"]
+
+
 # ── archive_below_floor: AC-033 ──────────────────────────────────────────
 
 
-def _seed_evidenced_engram(db_conn, name: str, *, storage_strength: float) -> str:
+def _seed_evidenced_engram(
+    db_conn, name: str, *, storage_strength: float, peak_storage_strength: float | None = None
+) -> str:
     """Simulate "an engram with real, accumulated evidence" (spec's own
     docs/03 framing: archival is for a skill that *reaches*/*has decayed*
-    below the floor, not a brand-new one) -- >=3 recorded outcomes and a
-    real S value, exactly AC-033's GIVEN precondition."""
+    below the floor, not a brand-new one) -- >=3 recorded outcomes, a real
+    S value, AND (M5 fix) a genuine prior peak >= floor_archived, exactly
+    AC-033's GIVEN precondition ("has decayed below the floor" presupposes
+    having once been at or above it). ``peak_storage_strength`` defaults
+    to a value comfortably above the default 0.2 floor when the caller
+    does not care about that axis specifically."""
+    if peak_storage_strength is None:
+        peak_storage_strength = max(storage_strength, 0.25)
     row = db_conn.execute("SELECT id FROM engram WHERE name = ?", (name,)).fetchone()
     engram_id = row["id"]
     db_conn.execute(
-        "UPDATE engram SET storage_strength = ?, success_count = 3, last_applied = ? WHERE id = ?",
-        (storage_strength, _iso(datetime.now(UTC)), engram_id),
+        "UPDATE engram SET storage_strength = ?, peak_storage_strength = ?, success_count = 3, "
+        "last_applied = ? WHERE id = ?",
+        (storage_strength, peak_storage_strength, _iso(datetime.now(UTC)), engram_id),
     )
     return str(engram_id)
 
@@ -195,3 +228,41 @@ def test_brand_new_engram_is_never_archived_on_first_dream_run(cfg, db_conn, reg
     with lease_mod.writer_lease(), checkpoint_phase():
         archived = decay_mod.archive_below_floor(cfg, db_conn, now=_iso(datetime.now(UTC)))
     assert archived == []
+
+
+def test_engram_that_never_crossed_the_floor_is_never_archived(cfg, db_conn, registered) -> None:
+    """M5 data-integrity fix (confirmed by adversarial re-test): a skill
+    honestly praised >=3 times whose S has only ever *grown toward* the
+    floor -- never reaching it -- must NOT be archived. Evidence count
+    alone (the pre-fix gate) cannot tell "has decayed below the floor"
+    apart from "is a novice still climbing toward it"; only a genuine
+    prior peak >= floor_archived can. Reproduces the reported repro
+    shape: S=0.1348, 3+ positive outcomes, peak == current S (never
+    higher)."""
+    _seed_evidenced_engram(db_conn, PROTON, storage_strength=0.1348, peak_storage_strength=0.1348)
+
+    from magicite.core.dream import checkpoint_phase
+    from magicite.storage import lease as lease_mod
+
+    with lease_mod.writer_lease(), checkpoint_phase():
+        archived = decay_mod.archive_below_floor(cfg, db_conn, now=_iso(datetime.now(UTC)))
+    assert archived == [], "a skill that never crossed floor_archived must not be auto-archived"
+
+    row = db_conn.execute("SELECT status FROM engram WHERE name = ?", (PROTON,)).fetchone()
+    assert row["status"] != "archived"
+
+
+def test_engram_that_truly_decayed_below_the_floor_is_still_archived(cfg, db_conn, registered) -> None:
+    """The positive control for the fix above: real prior standing
+    (peak_storage_strength above the floor) that has since decayed under
+    it is still archived exactly as AC-033 requires -- the fix narrows
+    eligibility, it does not disable archival."""
+    _seed_evidenced_engram(db_conn, PROTON, storage_strength=0.05, peak_storage_strength=0.6)
+
+    from magicite.core.dream import checkpoint_phase
+    from magicite.storage import lease as lease_mod
+
+    with lease_mod.writer_lease(), checkpoint_phase():
+        archived = decay_mod.archive_below_floor(cfg, db_conn, now=_iso(datetime.now(UTC)))
+    assert len(archived) == 1
+    assert archived[0].name == PROTON

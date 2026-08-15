@@ -78,12 +78,19 @@ def dream_cmd(once: bool, autonomous: bool, project_root: str) -> None:
 
     if not once:
         raise click.ClickException("magicite dream currently only supports --once (spec §4.1 v1 scope)")
-    if autonomous:
-        raise click.ClickException(
-            "--autonomous gates R3 approval auto-approval (docs/06); that machinery lands in M5"
-        )
 
     cfg = Config.load(project_root)
+    # M5: the approval machinery (core/approvals.py) and its autonomous-mode
+    # bypass (docs/06 §Autonomous Mode) now exist. Dream's own phases never
+    # call nucleate()/sharpen()/promote()/archive() directly in v1 (the one
+    # auto lifecycle transition Dream performs -- the decay-floor archive,
+    # AC-033 -- has no approval gate to begin with: spec §5.1 "auto on decay
+    # floor"), so this flag has no *currently observable* effect from the
+    # CLI alone; it is wired through cfg.autonomous anyway so a future Dream
+    # phase that does create R3 proposals inherits the same governance
+    # switch the MCP tools already honor (docs/operations.md §9).
+    if autonomous:
+        cfg.autonomous = True
     cfg.ensure_dirs()
     conn = authorizer_mod.writer_connection(cfg.db_path)
     result = dream_mod.run(cfg, conn, trigger="cli")

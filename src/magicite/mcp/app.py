@@ -45,7 +45,7 @@ import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from magicite.obs.logging import configure as _configure_logging
@@ -233,9 +233,19 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
     request_id = getattr(params, "request_id", None)
     args_hash = _args_sha256(arguments)
     if request_id:
+        # M5 security fix #2: keyed on (tool, request_id) -- NOT request_id
+        # alone. Before this fix, `checkpoint` and `consolidate` (both
+        # effectively argument-less beyond request_id, so their
+        # `args_sha256` values could coincide) sharing a caller-chosen
+        # request_id meant whichever tool ran first "owned" that id: the
+        # second tool's call was treated as a replay of the FIRST tool's
+        # response, silently no-op'ing the second call's real side effect
+        # while still reporting success -- and breaking AC-019/AC-005's
+        # "identical arguments" replay contract, since the two calls were
+        # never actually the same request.
         cached = state.conn.execute(
-            "SELECT args_sha256, response_json FROM eph_idempotency WHERE request_id = ?",
-            (request_id,),
+            "SELECT args_sha256, response_json FROM eph_idempotency WHERE tool = ? AND request_id = ?",
+            (tool_name, request_id),
         ).fetchone()
         if cached is not None:
             if cached["args_sha256"] != args_hash:
@@ -295,13 +305,20 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
     )
 
     if request_id:
-        now = datetime.now(UTC).isoformat()
+        now_dt = datetime.now(UTC)
+        now = now_dt.isoformat()
+        # M5 security fix #2: a real TTL (previously `expires_at` was set
+        # equal to `created_at` -- already-expired the instant it was
+        # written -- and nothing ever purged rows anyway, so replay rows
+        # accumulated forever). `core/decay.py::purge_retention` (Dream
+        # phase 3) now actually deletes rows past `expires_at`.
+        expires_at = (now_dt + timedelta(seconds=state.cfg.idempotency_ttl_s)).isoformat()
         state.conn.execute(
             """
-            INSERT INTO eph_idempotency (request_id, tool, args_sha256, response_json, created_at, expires_at)
+            INSERT INTO eph_idempotency (tool, request_id, args_sha256, response_json, created_at, expires_at)
             VALUES (?,?,?,?,?,?)
             """,
-            (request_id, tool_name, args_hash, json.dumps(payload), now, now),
+            (tool_name, request_id, args_hash, json.dumps(payload), now, expires_at),
         )
 
     logger.info("tool_call", tool=tool_name, risk=meta.risk)

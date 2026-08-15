@@ -101,6 +101,13 @@ class Config:
     dream_min_interval_s: float = 300.0
     dream_idle_poll_s: float = 0.0
     retention_days: int = 30
+    #: docs/02 discipline 4 / M5 security fix #2: how long a
+    #: ``request_id -> response`` idempotency-replay row stays valid.
+    #: Previously rows were written already-expired (``expires_at`` equal
+    #: to ``created_at``) and nothing ever purged them; both halves are
+    #: fixed at M5 -- a real TTL here, and ``core/decay.py::purge_retention``
+    #: (Dream phase 3) actually deletes rows past it.
+    idempotency_ttl_s: float = 86400.0
 
     # ── embeddings (CR-6) ────────────────────────────────────────────────
     #: spec §1: fastembed (ONNX BAAI/bge-small-en-v1.5) is the v1 default;

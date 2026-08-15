@@ -58,6 +58,26 @@ _GUARDED_ACTIONS: frozenset[int] = frozenset(
 #: durable or operational, hot-path-writes DENY unconditionally).
 _ALLOWED_PREFIX = "eph_"
 
+#: M5 security fix #3: no tool exposes ``PRAGMA``/``ATTACH`` today (a
+#: hot-path handler would have to reach for raw SQL no ``bind_*.py``
+#: module currently does), so this is latent, not reachable -- but it is
+#: cheap and removes an otherwise-unrecoverable failure mode: a
+#: ``PRAGMA user_version=0`` from a hot-path connection would desync the
+#: writer connection's migration bookkeeping from the actual schema, and
+#: (before the accompanying ``IF NOT EXISTS`` migration fix) the next
+#: ``run_migrations()`` call would then re-run ``CREATE TABLE`` statements
+#: against an already-populated schema and fail outright, permanently
+#: bricking boot. ``ATTACH`` is denied for the same "no legitimate
+#: hot-path use, non-zero blast radius" reasoning -- it would let a
+#: hot-path statement reach an entirely different on-disk database file,
+#: which is a strictly larger escape than anything the eph_ prefix check
+#: was ever meant to bound. Unlike ``_GUARDED_ACTIONS`` these two are
+#: denied unconditionally: there is no table name to check them against
+#: (``arg1`` is the pragma/database name, not an ``eph_`` candidate), and
+#: no eph_-prefixed pragma or attached database is a legitimate hot-path
+#: need.
+_ALWAYS_DENIED_ACTIONS: frozenset[int] = frozenset({sqlite3.SQLITE_PRAGMA, sqlite3.SQLITE_ATTACH})
+
 
 def _guarded_table_name(action: int, arg1: str | None, arg2: str | None) -> str | None:
     """Which table name a given authorizer callback invocation is *about*.
@@ -82,6 +102,8 @@ def _authorizer_callback(
     dbname: str | None,
     source: str | None,
 ) -> int:
+    if action in _ALWAYS_DENIED_ACTIONS:
+        return sqlite3.SQLITE_DENY
     if action not in _GUARDED_ACTIONS:
         return sqlite3.SQLITE_OK
     table = _guarded_table_name(action, arg1, arg2)
