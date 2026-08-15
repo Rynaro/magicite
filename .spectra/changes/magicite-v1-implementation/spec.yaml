@@ -302,6 +302,112 @@ errata:
     maker_checker_disclosure: "This errata CONFIRMS A DEFAULT RAMZA SET, on evidence that arrived after it was set - a maker evaluating their own work, disclosed rather than laundered, the same posture as R11. Bounded three ways: the decision rules are PRE-REGISTERED (RC-1...RC-4) so the next person applies them without re-litigating the judgement, and RC-3 can retire the diffusion claim WITHOUT requiring RC-2 to reach significance; the negative finding is recorded at full strength, including that the best (d) ever measured is measured with declared edges OFF; and the strongest argument against RAMZA's own key evidence is recorded in caveat_on_own_evidence with an instruction to check it first. Kupo attests RC-1's outcome at ESL verify; the frozen criteria hash, not this record, is the tamper anchor."
     verified_status_impact: "None from this errata on its own - no behaviour changes, no default moves, no criterion changes. The change remains in_progress from the DECLARED-EDGES-AMENDED drift escalation and that record's re-verification requirements stand. What a re-verifier should check independently here is the hash chain, which moved by design: spec.md e9efab60... -> 757313fc..., mirrored in artifacts[], spec.envelope.json (artifact.sha256 / integrity.value / x_ramza_amendment[3]) and plan-state.json errata[3]."
     human_confirmation: "RECOMMENDED BEFORE RELEASE, and sharper than DECLARED-EDGES-AMENDED's was. (1) declared_edge_strength=1.0 is confirmed against a six-query regression whose responsible channel was never isolated; a human may reasonably prefer to hold release until RC-1 (= MO-3, already owed) runs, since it is one cheap arm and it decides which knob is even under discussion. (2) The product claim that authored graph structure improves routing now has ZERO supporting measurements and TWO non-supporting ones, and any release note must say so without hedging - that is a claim-scope decision, not a knob. (3) w_retrieval 0.15 -> 0.05 remains explicitly precautionary pending D1/D2. None of the three blocks implementation."
+  - id: INHIB-GAIN-RECALIBRATED
+    at: "2026-08-15"
+    record: .spectra/changes/magicite-v1-implementation/decisions/INHIB-GAIN-RECALIBRATED.md
+    disposition: "ROUTING DEFAULT CHANGED on a DERIVED magnitude, after RC-1 discharged both halves. inhib_gain 0.7 -> 0.245 (= theta_synapse 0.35 * 0.7), PRECAUTIONARY PENDING RC-2. declared_edge_strength = 1.0 stands CONFIRMED by RC-1b. No rule change, no acceptance-criteria change, no code change implied, no re-plan, no re-scoring, no phase re-walk. R12-FIRED is NOT superseded - its declared_edge_strength ruling is CONFIRMED by this run."
+    authorizing_trigger: "RC-1, the reversal condition pre-registered WITH ITS DECISION RULE by errata R12-FIRED (spec.md section 3.3.1), run by the orchestrator at commit 9963b89. No new external verdict was needed: this is the pre-registered rule being applied."
+    trigger: >-
+      RC-1b (the caveat R12-FIRED raised AGAINST ITS OWN key argument, with an instruction to check it
+      first): (c) Hit@1 is 0.5286 at declared_edge_strength 0.0, 0.5286 at 1.0 and 0.5333 at the
+      extreme 5.0 - so (c) DOES respond to the knob and its 0.0-vs-1.0 invariance is a REAL PROPERTY OF
+      THE CORPUS, not a harness artefact. At 5.0 the two arms move in OPPOSITE directions ((c) up, (d)
+      0.5048 down), consistent with the harm living in a channel (c) does not have. RC-1a at
+      declared_edge_strength=1.0: inhib_gain=0.7 gives (d) 0.5190, inhib_gain=0.0 gives 0.5429 - 0.0239
+      of the 0.0286 gap, 84%, residual one query (community re-clustering or noise, not separately
+      resolvable on this corpus). Sweep (Hit@1 / Hit@3 / MRR): 0.0 = 0.5429/0.7429/0.6381; 0.1 =
+      0.5333/0.7429/0.6348; 0.2 = 0.5333/0.7476/0.6335; 0.3 = 0.5286/0.7571/0.6358; 0.5 =
+      0.5095/0.7524/0.6260; 0.7 (shipped) = 0.5190/0.7333/0.6227. Arithmetic correction to the RC-1
+      report: with inhibition off, (d) 0.5429 trails (b) 0.5476 by ONE query at n=210 (114 vs 115), not
+      two.
+    ruling: >-
+      THE QUESTION WAS CORRECTLY SPLIT by the orchestrator into "is 0.7 defensible" and "what replaces
+      it", which carry different evidentiary standards; conflating them is what produces argmax-chasing.
+      (1) 0.7 IS NOT DEFENSIBLE, on three grounds none of which is an argmax. (a) It is
+      PARETO-DOMINATED BY FOUR OF THE FIVE ALTERNATIVES SWEPT: 0.7 = (109, 154, 0.6227) is worse than
+      0.0, 0.1, 0.2 AND 0.3 on Hit@1, Hit@3 and MRR SIMULTANEOUSLY, and is the worst value in the sweep
+      on both Hit@3 and MRR; only 0.5 fails to dominate it, and 0.5 is itself dominated by 0.3. This is
+      METRIC-INDEPENDENT and ARGMAX-INDEPENDENT, and it is a WITHIN-SWEEP comparison - the design in
+      which the single-author confound CANCELS ACROSS ARMS, the same property that made the ppr_restart
+      sweep acceptable evidence. The confound attacks absolute levels and argmax selection; it does NOT
+      attack dominance ordering. (b) It NEVER HAD ANY EVIDENCE FOR IT, IN ANY REGIME: until
+      DECLARED-EDGES-AMENDED the inhibition pass was a NUMERIC NO-OP, so 0.7 was a plausible-looking
+      constant IN A DEAD CODE PATH, never measured against anything, and its first exposure to
+      measurement Pareto-dominates it away. "Do not change on weak evidence" protects incumbents that
+      EARNED standing; it is not a licence to keep whatever is currently written down. (c) The
+      mis-calibration is DIAGNOSABLE FROM THE DESIGN'S OWN CONSTANTS without any corpus: theta_synapse
+      = 0.35 is the strength at which an edge becomes a GENUINE SYNAPSE (core/dream.py:503,515), so for
+      a LEARNED inhibits edge the intended effect S*inhib_gain ranged over [0.245, 0.7] - "just became a
+      synapse" to "maximally reinforced" - and section 3.3.1 pins S_eff=1.0 for EVERY authored inhibits
+      edge on DAY ZERO, granting an assertion with no accumulated evidence the effect reserved for a
+      maximally-potentiated synapse. (2) THE REPLACEMENT IS DERIVED, NOT SELECTED: inhib_gain =
+      theta_synapse * inhib_gain_learned = 0.35 * 0.7 = 0.245, so an authored assertion enters at the
+      BOTTOM of the intended range. Multiplier 1 - 1.0*0.245 = 0.755 (was 0.3). Deliberately NOT rounded
+      to 0.25 - the un-round figure is the audit trail. If theta_synapse ever moves this is RE-DERIVED,
+      not re-tuned. The magnitude comes from constants that PREDATE the amendment and did NOT come from
+      this corpus; the corpus CORROBORATES rather than selects (0.245 falls between the swept 0.2 and
+      0.3, both on the constrained Pareto frontier, and is the ARGMAX OF NOTHING). (3) inhib_gain=0.0 is
+      FORBIDDEN, and it is the corpus's own Hit@1 ARGMAX: it makes AC-023 and AC-034 arithmetically
+      UNPROVABLE - the identical argument that rejected w_activation=0 for a 0.0048 Hit@1 gain - and
+      would ship an "inhibition" mechanism that does not inhibit. A NON-CORPUS CONSTRAINT thus excludes
+      the corpus's own maximiser.
+    consistency_with_r12_fired: >-
+      Same TEST, opposite inputs, opposite answer - which is what consistency actually requires, rather
+      than returning the same answer twice. R12-FIRED's test was: is the mechanism identified? does the
+      value have prior standing? what does reversal forfeit? For declared_edge_strength: mechanism NOT
+      identified (the isolated channel measured exactly inert), value DERIVED from an existing knob
+      (S_eff * type_gain at 1.0 IS type_gain), reversal forfeits three shipped behaviours and makes
+      AC-035 false -> KEEP. For inhib_gain: mechanism identified AND PRE-REGISTERED (named in R12-FIRED
+      section 4.1 before RC-1 ran, then confirmed at 84%), value has NO standing in the regime it
+      operates in, reversal forfeits nothing structural provided it stays > 0 -> CHANGE.
+    what_this_does_not_rescue: >-
+      EVEN WITH INHIBITION ENTIRELY OFF, (d) = 0.5429 IS STILL BELOW (b) = 0.5476 by one query. Turning
+      inhibition down makes the full pipeline STOP LOSING BY MUCH; it does not make it win. H-BODY-b IS
+      NOT RESCUED and R12-FIRED's negative finding stands UNALTERED: at full authored mass the diffusion
+      channel changed ZERO of 210 top-1 answers, and the claim that authored graph structure improves
+      routing still has ZERO supporting measurements. This record repairs a constant that was actively
+      degrading the pipeline; that is a defect repair, not evidence for the thesis.
+    rc_5_new: >-
+      THE Hit@1/Hit@3 DIVERGENCE, pre-registered rather than resolved. Hit@1 falls roughly monotonically
+      with inhibition while Hit@3 PEAKS AT 0.3 (0.7571), ABOVE dense embedding's 0.7429 - the FIRST
+      measurement in this project of the graph layer beating the embedding baseline at anything.
+      Mechanistically coherent (suppressing a competitor improves the candidate SET while risking the
+      TOP-1 pick where the gold answer is what got suppressed), but six numbers from one corpus, and
+      Hit@1 is NOT monotone across it (0.5 gives 107 while 0.7 gives 109) - a noise signature that
+      should temper any reading of fine structure. DECISION RULE, metric named in advance so it cannot
+      be chosen after the fact: HIT@1 IS THE METRIC OF RECORD (it is what the Hypothesis Register uses
+      and what H-BODY was adjudicated on), so a HIT@3-ONLY improvement does NOT justify raising
+      inhib_gain. If RC-2 reproduces the Hit@3 peak AND Hit@1 is flat across that region, the question
+      stops being a knob and becomes a PRODUCT DECISION - top-1 pick or candidate set? - and goes to the
+      HUMAN, not to RAMZA.
+    what_rc2_rc3_must_now_answer: >-
+      RC-1's outcome CHANGES THE JOB of the remaining conditions. RC-2 must now test THREE things: (i)
+      (d) at declared_edge_strength 1.0 vs 0.0, paired; (ii) the DERIVED inhib_gain=0.245 against its
+      swept neighbourhood - and if it loses at p<0.05 paired on Hit@1, the DERIVATION is wrong and the
+      value is RE-DERIVED, NOT replaced by that corpus's argmax either; (iii) whether RC-5's divergence
+      reproduces. RC-3 is RAISED IN PRIORITY: inhibition's claimed benefit is suppressing
+      mutually-exclusive competitors, which should register in CANDIDATE-SET quality, and RC-5's Hit@3
+      peak is the first sign of it - RC-3 is now the most likely place for the design's claim to be
+      SUPPORTED rather than merely not-falsified. RC-4 unchanged. INDEPENDENCE REQUIREMENT restated:
+      RC-2's second corpus must be independent in the AUTHORSHIP OF THE DECLARED RELATIONS, not merely
+      of the queries.
+    options_rejected:
+      - "SHIP 0.7 UNCHANGED AND LET RC-2 SETTLE IT: considered seriously - the orchestrator explicitly offered it and was not fishing. Rejected per consistency_with_r12_fired: keeping 0.7 would mean defending a number Pareto-dominated by four of five alternatives, never measured in any regime, and now known mis-calibrated by a mechanism named in advance."
+      - "0.3 (the Hit@3 argmax): the overfitting the orchestrator flagged, and he is right - six numbers from one corpus whose relations and queries share an author. That 0.245 lands near 0.3 is CORROBORATION, not the reason for it; had the derivation pointed at 0.5 this record would have said 0.5."
+      - "0.0 (the Hit@1 argmax): FORBIDDEN - it makes AC-023 and AC-034 unprovable."
+      - "0.25 (a rounded 0.245): cosmetic rounding would obscure the one thing that makes the value defensible - that it was computed, not chosen."
+      - "RE-DERIVE theta_synapse TOO: out of scope and unmeasured; it governs Dream's synapses: membership, not routing."
+    acceptance_criteria_impact: "NO criterion added, edited or removed. AC-023 (frozen) HOLDS at 0.245 - multiplier 0.755 < 1 strictly; its fixture injects storage_strength=0.8 by direct SQL and S_eff = max(0.8, 1.0) = 1.0, unchanged. AC-034 HOLDS - strictly lower than the declared_edge_strength=0.0 run, by a smaller but non-zero margin. AC-039 UNAFFECTED - at declared_edge_strength=0.0 the multiplier is 1 for any gain. AC-035/036/037/038/040/041/042 UNAFFECTED. VERIFICATION OBLIGATION VO-1: AC-023 and AC-034 MUST BE RE-ATTESTED at 0.245; both are satisfiable by construction, but if either holds only BY A HAIR rather than robustly, that is evidence the magnitude is too low and MUST BE REPORTED, NOT ABSORBED."
+    spec_md_sha256: {prev: 757313fc568c2b2332d67e255f25b493b7f03c16583fb6a8e1693b4e29200440, new: 6d3bff8e6a4507b4afc758d843c85075e7cd3e5da1b14117909c13579138c4fe}
+    spec_md_locations: "eight located patches: the errata banner; section 3.3 route STEP 5 pseudocode (inhib_gain=0.7 -> 0.245, superseded value struck in-comment); the routing-defaults table (new inhib_gain row); section 3.3.1 ground 2's closing sentence; the RC table (RC-1 DISCHARGED, RC-2/RC-3 sharpened, RC-5 ADDED); the NEW normative section 3.3.2 'Inhibition magnitude'; the section Risks R12 row; the Handoff bullet."
+    envelope_integrity_restamped: true
+    behaviour_change: "YES, via ONE CONFIG LINE: magicite.toml inhib_gain = 0.7 -> 0.245. No code change is implied (inhib_gain is already read from config at core/router.py:342-345). No criterion text changes. VO-1 applies."
+    config_change_implied: "magicite.toml [routing] inhib_gain 0.7 -> 0.245. Vivi's to apply; magicite.toml is outside RAMZA's write boundary."
+    unchanged: "declared_edge_strength = 1.0 - CONFIRMED by RC-1b, not merely retained; R12-FIRED is NOT superseded. S_eff = max(storage_strength, w_authored), w_authored, all seven call sites, the withheld hub-penalty PageRank, the read-time/never-stored property. theta_synapse = 0.35 - the SOURCE of the derivation, not a subject of it. ppr_restart = 0.85, w_activation, w_similarity, w_retrieval, type_gain, hub_penalty, w_max and every plasticity constant. acceptance_criteria.sha256 (7bd3d184..., byte-identical, NOT re-frozen, amendments[] still empty, criteria_sha256 untouched, AC-023 not edited) and acceptance-criteria-addendum.md (28888863..., byte-identical). The 16-tool surface, INV-1...INV-4, the P0 guards, the Tier A/B/C split, all nine validation_gates, milestones, corpus_contradictions; every ramza.scores value, the critic record and the phase walk - not re-run and not re-scored; src/, tests/, docs/, change.json."
+    carry_forward: "CF-1...CF-7 all carried unchanged from R12-FIRED. CF-5 gains a CONFIRMED second instance: this record IS the repair of an uncalibrated combination-rule constant (inhib_gain set against one implicit distribution and silently re-pointed at another), and the repair METHOD - derive from an existing constant rather than tune - is the pattern CF-5's eventual fix should generalise. CF-3 gains a rider: if the earnable-declared-edge path is ever built, a POTENTIATED inhibits edge would exceed the authored floor while inhib_gain remains a single GLOBAL gain, so the authored/learned split would need revisiting then."
+    maker_checker_disclosure: "RAMZA is changing a constant on evidence RAMZA asked for, having named the mechanism in advance. A prediction confirmed is stronger than a claim asserted - AND IT IS ALSO THE SHAPE A MOTIVATED REASONER PRODUCES. So the scepticism is handed forward explicitly: THE DERIVATION IS THE PART TO ATTACK. inhib_gain_authored = theta_synapse * inhib_gain_learned treats the PRODUCT S*inhib_gain as the calibrated quantity and reads theta_synapse as the entry point of the intended range; that is defensible but it is a RECONSTRUCTION OF INTENT, not a documented derivation, because the original 0.7 came with no recorded rationale at all. If a reader rejects the reconstruction, what survives UNAFFECTED is the dominance argument (0.7 is Pareto-dominated by four of five swept alternatives and never had evidence in any regime). The derivation only answers 'then what instead?', and its wrongness is caught by RC-2's rule, which RE-DERIVES rather than re-tunes."
+    verified_status_impact: "This errata DOES change executable behaviour, via one config line. The change remains in_progress. AC-023 and AC-034 must be re-attested at 0.245 (VO-1) and the routing-sensitive validation gates re-run; no criterion text changes, so the frozen 33 and the addendum's 9 are attested as written. What a re-verifier should check independently is the hash chain, which moved by design: spec.md 757313fc... -> 6d3bff8e..., mirrored in artifacts[], spec.envelope.json (artifact.sha256 / integrity.value / x_ramza_amendment[4]) and plan-state.json errata[4]."
+    human_confirmation: "RECOMMENDED BEFORE RELEASE. (1) inhib_gain 0.7 -> 0.245 is DERIVED from theta_synapse, not measured - corroborated by the sweep but not selected by it, and the derivation is a reconstruction of intent a human may want to sanity-check (see maker_checker_disclosure). (2) The product claim is UNCHANGED: even with inhibition off the full pipeline still trails dense embedding by one query, so H-BODY-b is not rescued and any release note must still say the routing claim has zero supporting measurements. (3) RC-5 flags that Hit@3 peaks ABOVE the embedding baseline at inhib_gain=0.3 - the first sign of the graph layer beating embeddings at anything - and if it reproduces on a second corpus, whether the product is the top-1 pick or the candidate set is a HUMAN decision, not RAMZA's. (4) w_retrieval 0.15 -> 0.05 remains precautionary pending D1/D2. None blocks implementation."
 
 # ── stack decisions (fixed upstream; A1 reopened once — see errata A1-REVISED) ─
 stack:
@@ -611,9 +717,9 @@ risks:
     added_by: DECLARED-EDGES-AMENDED
     fired: true
     fired_at: "2026-08-15"
-    status: "OPEN, NARROWED (errata R12-FIRED)"
-    risk: "Newly-live declared-edge mass is itself unmeasured. Section 3.3.1 puts declared composes/depends_on into the activation graph and makes inhibition arithmetically real for the first time - 11 declared inhibits relations in the 70-engram benchmark registry that have NEVER had any effect now scale their targets' activation by 0.3. ppr_restart=0.85 was measured on the OLD graph, so its 0.5476 Hit@1 does not transfer unchanged; community structure re-clusters once _COMMUNITY_WEIGHT_FLOOR is deleted; and baseline (c)'s published numbers move. Shipping on an obsolete measurement is exactly the failure this amendment exists to correct. [FIRED 2026-08-15, errata R12-FIRED - the mitigation worked as designed: the release obligation forced the re-measurement BEFORE release. Outcome, published in spec.md section 3.3.1 at commit 2d25abb: ppr_restart=0.85 is CONFIRMED on the new graph shape (it is what recovers (c) 0.4333 -> 0.5286 and (d) 0.4905 -> 0.5476), so that clause is CLOSED. declared_edge_strength=1.0 measured -0.0286 Hit@1 in (d) - 115 -> 109 of 210, six queries, no paired test run, ceiling p=0.031 - and STAYS AT 1.0, because baseline (c) carries the same declared mass into the diffusion graph without inhibition or the community rerank and is IDENTICAL across both arms (0.5286, 111/210): the diffusion channel measured EXACTLY INERT, so the -6 arises in a channel the run never isolated. WHAT REMAINS UNMEASURED IS THEREFORE NARROWER: the INHIBITION MAGNITUDE - inhib_gain=0.7 predates the amendment, was set for a LEARNED S over [0,1], and now cuts 70% of an inhibited node's activation from one line of author YAML at S=1.0 - and the COMMUNITY RE-CLUSTERING. MO-3 is still owed.]"
-    mitigation: "FOUR PRE-REGISTERED REVERSAL CONDITIONS WITH DECISION RULES ATTACHED (spec.md section 3.3.1, RC-1...RC-4), applied without a further judgement call. RC-1 (= MO-3, already owed): isolate inhibition (inhib_gain 0.7 vs 0.0 at declared_edge_strength=1.0) - if it accounts for the whole -0.0286 the defect is the inhibition magnitude, not the authored channel; if none of it, call-site row 3's community re-clustering is what gets revisited. RC-2: a SECOND, INDEPENDENTLY-AUTHORED corpus plus a PAIRED McNEMAR test - at p < 0.05 against, declared_edge_strength ships at 0.0 (mechanism implemented, verified, opt-in) and AC-035 is restated. RC-3 (= CF-7): a compositional query set - H-COMPOSE is still UNTESTED - and a null there retires the diffusion claim regardless of RC-1. RC-4: a known-good declared-relation registry, to remove the single-author confound. The change remains ONE CONFIG SCALAR AND EXACTLY REVERTIBLE - declared_edge_strength=0.0 reproduces pre-amendment scores bit-for-bit (AC-039, whose proving unit pins 0.0 explicitly and is therefore satisfiable at ANY shipped default) - so every reversal is a config line, not a code change. RECORDED AGAINST 0.0 AS A SHIPPED DEFAULT: it makes AC-023 unreachable in production again, makes AC-035's THEN FALSE AS WRITTEN (raw weight 0.0, build_graph drops w<=0, and the proving unit's 'assert raw_weight > 0' fails at the default - so it needs an AC-035 restatement plus a tests/ change), and drops declared edges from community structure entirely, which is WORSE than pre-amendment now that _COMMUNITY_WEIGHT_FLOOR is deleted. NOT sufficient as evidence: more queries on the SAME corpus - the confound is not statistical."
+    status: "OPEN, NARROWED TWICE (errata R12-FIRED, then INHIB-GAIN-RECALIBRATED). What remains open is SINGLE-CORPUS GENERALISATION ONLY, owned by RC-2/RC-3/RC-5."
+    risk: "Newly-live declared-edge mass is itself unmeasured. Section 3.3.1 puts declared composes/depends_on into the activation graph and makes inhibition arithmetically real for the first time - 11 declared inhibits relations in the 70-engram benchmark registry that have NEVER had any effect now scale their targets' activation by 0.3. ppr_restart=0.85 was measured on the OLD graph, so its 0.5476 Hit@1 does not transfer unchanged; community structure re-clusters once _COMMUNITY_WEIGHT_FLOOR is deleted; and baseline (c)'s published numbers move. Shipping on an obsolete measurement is exactly the failure this amendment exists to correct. [FIRED 2026-08-15, errata R12-FIRED - the mitigation worked as designed: the release obligation forced the re-measurement BEFORE release. Outcome, published in spec.md section 3.3.1 at commit 2d25abb: ppr_restart=0.85 is CONFIRMED on the new graph shape (it is what recovers (c) 0.4333 -> 0.5286 and (d) 0.4905 -> 0.5476), so that clause is CLOSED. declared_edge_strength=1.0 measured -0.0286 Hit@1 in (d) - 115 -> 109 of 210, six queries, no paired test run, ceiling p=0.031 - and STAYS AT 1.0, because baseline (c) carries the same declared mass into the diffusion graph without inhibition or the community rerank and is IDENTICAL across both arms (0.5286, 111/210): the diffusion channel measured EXACTLY INERT, so the -6 arises in a channel the run never isolated. WHAT REMAINS UNMEASURED IS THEREFORE NARROWER: the INHIBITION MAGNITUDE - inhib_gain=0.7 predates the amendment, was set for a LEARNED S over [0,1], and now cuts 70% of an inhibited node's activation from one line of author YAML at S=1.0 - and the COMMUNITY RE-CLUSTERING. MO-3 is still owed. || RC-1 FIRED AND WAS DISCHARGED, BOTH HALVES, 2026-08-15, errata INHIB-GAIN-RECALIBRATED. RC-1b: baseline (c) DOES respond to declared_edge_strength (it moves at 5.0), so its 0.0-vs-1.0 invariance is a REAL PROPERTY OF THE CORPUS, not a harness artefact - declared_edge_strength = 1.0 STANDS CONFIRMED. RC-1a: INHIBITION IS THE CHANNEL - inhib_gain=0.0 gives (d) 0.5429 against 0.5190 at 0.7, 84% of the gap, residual one query. MO-3 IS THEREFORE DISCHARGED. inhib_gain moves 0.7 -> 0.245, DERIVED as theta_synapse * inhib_gain and NOT selected from the sweep: 0.7 is PARETO-DOMINATED BY FOUR OF FIVE alternatives on Hit@1, Hit@3 and MRR simultaneously and NEVER HAD ANY EVIDENCE FOR IT IN ANY REGIME, the inhibition pass having been a numeric no-op until this amendment. inhib_gain=0.0, the corpus's own Hit@1 argmax, is FORBIDDEN: it makes AC-023 and AC-034 unprovable. WHAT REMAINS OPEN IN R12 IS NOW ONLY SINGLE-CORPUS GENERALISATION, owned by RC-2/RC-3/RC-5.]"
+    mitigation: "FIVE PRE-REGISTERED REVERSAL CONDITIONS WITH DECISION RULES ATTACHED (spec.md sections 3.3.1 and 3.3.2, RC-1...RC-5), applied without a further judgement call. RC-1 is DISCHARGED; RC-5 is new and pre-registers the Hit@1/Hit@3 divergence with HIT@1 NAMED AS THE METRIC OF RECORD, so the metric cannot be chosen after the fact. RC-1 (DISCHARGED 2026-08-15): isolate inhibition (inhib_gain 0.7 vs 0.0 at declared_edge_strength=1.0) - if it accounts for the whole -0.0286 the defect is the inhibition magnitude, not the authored channel; if none of it, call-site row 3's community re-clustering is what gets revisited. RC-2: a SECOND, INDEPENDENTLY-AUTHORED corpus plus a PAIRED McNEMAR test - at p < 0.05 against, declared_edge_strength ships at 0.0 (mechanism implemented, verified, opt-in) and AC-035 is restated. RC-3 (= CF-7): a compositional query set - H-COMPOSE is still UNTESTED - and a null there retires the diffusion claim regardless of RC-1. RC-4: a known-good declared-relation registry, to remove the single-author confound. The change remains ONE CONFIG SCALAR AND EXACTLY REVERTIBLE - declared_edge_strength=0.0 reproduces pre-amendment scores bit-for-bit (AC-039, whose proving unit pins 0.0 explicitly and is therefore satisfiable at ANY shipped default) - so every reversal is a config line, not a code change. RECORDED AGAINST 0.0 AS A SHIPPED DEFAULT: it makes AC-023 unreachable in production again, makes AC-035's THEN FALSE AS WRITTEN (raw weight 0.0, build_graph drops w<=0, and the proving unit's 'assert raw_weight > 0' fails at the default - so it needs an AC-035 restatement plus a tests/ change), and drops declared edges from community structure entirely, which is WORSE than pre-amendment now that _COMMUNITY_WEIGHT_FLOOR is deleted. NOT sufficient as evidence: more queries on the SAME corpus - the confound is not statistical."
 
 # ── corpus contradictions resolved unilaterally (spec section 9) ───────────
 corpus_contradictions:
@@ -669,20 +775,20 @@ declared_scope:
 # ── artifacts (hashes as emitted at Assemble; spec.yaml is a projection) ───
 artifacts:
   - path: ".spectra/changes/magicite-v1-implementation/spec.md"
-    sha256: 757313fc568c2b2332d67e255f25b493b7f03c16583fb6a8e1693b4e29200440
-    role: "normative spec (payload of the ECL envelope); rehashed 2026-08-15 by errata R12-FIRED (was e9efab60…, itself rehashed 2026-08-15 by DECLARED-EDGES-AMENDED from 57148a2d…, itself rehashed 2026-08-15 by R1-RESTATED from 9fca1c08…, itself rehashed 2026-08-14 by A1-REVISED from 92372ad6…). Five links in the chain."
+    sha256: 6d3bff8e6a4507b4afc758d843c85075e7cd3e5da1b14117909c13579138c4fe
+    role: "normative spec (payload of the ECL envelope); rehashed 2026-08-15 by errata INHIB-GAIN-RECALIBRATED (was 757313fc…, itself rehashed by R12-FIRED from e9efab60…, itself rehashed by DECLARED-EDGES-AMENDED from 57148a2d…, itself rehashed by R1-RESTATED from 9fca1c08…, itself rehashed 2026-08-14 by A1-REVISED from 92372ad6…). Six links in the chain."
   - path: ".spectra/changes/magicite-v1-implementation/acceptance-criteria.md"
     sha256: 7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448
-    role: "frozen EARS criteria (ramza-freeze). BYTE-IDENTICAL through all FOUR errata; never re-frozen. This is the tamper anchor — if this hash ever moves without a recorded plan-state amendments[] entry, that is tamper evidence."
+    role: "frozen EARS criteria (ramza-freeze). BYTE-IDENTICAL through all FIVE errata; never re-frozen. This is the tamper anchor — if this hash ever moves without a recorded plan-state amendments[] entry, that is tamper evidence."
   - path: ".spectra/changes/magicite-v1-implementation/acceptance-criteria-addendum.md"
     sha256: 2888886351b9d658ab98bf1d2e94d77e43850201130a15b26be9c63f3e27ef02
-    role: "AC-034 … AC-042 (9), added 2026-08-15 by DECLARED-EDGES-AMENDED. NOT frozen and NOT merged into the frozen file; this hash is their tamper anchor. ramza-ears-lint 9/9 pass. BYTE-IDENTICAL through errata R12-FIRED — no criterion was added, edited or removed; AC-039 is satisfiable at any shipped declared_edge_strength because its proving unit pins 0.0 explicitly, and AC-035's dependence on a NON-ZERO default is recorded in that errata as a consequence of the rejected 0.0 option, not acted on."
+    role: "AC-034 … AC-042 (9), added 2026-08-15 by DECLARED-EDGES-AMENDED. NOT frozen and NOT merged into the frozen file; this hash is their tamper anchor. ramza-ears-lint 9/9 pass. BYTE-IDENTICAL through errata R12-FIRED and INHIB-GAIN-RECALIBRATED — no criterion was added, edited or removed; AC-039 is satisfiable at any shipped declared_edge_strength because its proving unit pins 0.0 explicitly, and AC-035's dependence on a NON-ZERO default is recorded in that errata as a consequence of the rejected 0.0 option, not acted on."
   - path: ".spectra/changes/magicite-v1-implementation/plan-state.json"
-    sha256: abfc21fe9a026d66a0dbc7e594c8709ae71f969f33fabae20385fb24ef481646
-    role: "tamper-evident audit trail (ramza/plan-state.v1); rehashed 2026-08-15 — FOURTH errata[] entry appended, pure append verified against HEAD, 0 deletions (was 5d1483b5…; amendments[] still empty, criteria_sha256 untouched)"
+    sha256: 85d727668fac09adb342f18b55db6e79a3c4d24996b92383907083bf809fbdfa
+    role: "tamper-evident audit trail (ramza/plan-state.v1); rehashed 2026-08-15 — FIFTH errata[] entry appended, pure append, 0 deletions (was abfc21fe…; amendments[] still empty, criteria_sha256 untouched)"
   - path: ".spectra/changes/magicite-v1-implementation/spec.envelope.json"
-    sha256: a8d3cce827952af9056526cd61178d782b116f5193eaedeb63087fc34527d6f1
-    role: "ECL v2.0 PROPOSE envelope -> vivi; integrity tag re-stamped 2026-08-15 over the amended spec.md, FOURTH x_ramza_amendment entry appended so the envelope carries the full chain 92372ad6… -> 9fca1c08… -> 57148a2d… -> e9efab60… -> 757313fc… (was 108704ba…). ramza-verify-emit green."
+    sha256: b6a33a71770357169593b6e85ade2ec43b94ead8733755e7ea7fba7efa348a9d
+    role: "ECL v2.0 PROPOSE envelope -> vivi; integrity tag re-stamped 2026-08-15 over the amended spec.md, FIFTH x_ramza_amendment entry appended so the envelope carries the full chain 92372ad6… -> 9fca1c08… -> 57148a2d… -> e9efab60… -> 757313fc… -> 6d3bff8e… (was a8d3cce8…). ramza-verify-emit green."
   - path: ".spectra/changes/magicite-v1-implementation/decisions/A1-REVISED.md"
     sha256: a5801a0c9210f59740f42c082707318ec2e80d122c86ef5ec6d96a1691ea3d39
     role: "append-only decision record for the A1 revision (2026-08-14); untouched by errata R1-RESTATED, hash re-verified on disk"
@@ -694,7 +800,10 @@ artifacts:
     role: "append-only decision record for the declared-edge weight amendment and the two evidence-driven routing defaults (2026-08-15); untouched by errata R12-FIRED and NOT superseded by it, hash re-verified on disk"
   - path: ".spectra/changes/magicite-v1-implementation/decisions/R12-FIRED.md"
     sha256: b58302a63a875d31f98a8f5c83e421e36e1a147afb4262529e4703f1ad8b8504
-    role: "append-only decision record for R12 firing: the published re-measurement, ppr_restart=0.85 CONFIRMED on the new graph shape, declared_edge_strength CONFIRMED at 1.0, the (c)-invariance channel isolation, the negative product finding on H-BODY-b as designed, and the four pre-registered reversal conditions RC-1…RC-4 (2026-08-15)"
+    role: "append-only decision record for R12 firing: the published re-measurement, ppr_restart=0.85 CONFIRMED on the new graph shape, declared_edge_strength CONFIRMED at 1.0, the (c)-invariance channel isolation, the negative product finding on H-BODY-b as designed, and the four pre-registered reversal conditions RC-1…RC-4 (2026-08-15). NOT superseded by INHIB-GAIN-RECALIBRATED — RC-1b confirmed its declared_edge_strength ruling; hash re-verified on disk"
+  - path: ".spectra/changes/magicite-v1-implementation/decisions/INHIB-GAIN-RECALIBRATED.md"
+    sha256: 865c5b09e89ef07e783ba55b120dc88fe87bfb96d0ba47bbafd92ab6939a8e05
+    role: "append-only decision record for RC-1's discharge and the inhibition recalibration: RC-1b discharged RAMZA's self-caveat in its favour ((c) responds at 5.0), RC-1a attributed 84% of the gap to inhibition, inhib_gain 0.7 -> 0.245 DERIVED as theta_synapse × inhib_gain rather than selected from the sweep, inhib_gain=0.0 forbidden as it makes AC-023/AC-034 unprovable, and RC-5 pre-registers the Hit@1/Hit@3 divergence with Hit@1 as the metric of record (2026-08-15)"
   - path: ".spectra/changes/magicite-v1-implementation/ramza-calibration.jsonl"
     sha256: f2f3ac72015b57689210e55348e9f73c5e7e2ad6ca45df8ece22800c069a61c4
     role: "instrument-vs-outcome calibration log"

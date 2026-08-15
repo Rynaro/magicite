@@ -18,8 +18,8 @@
   "kind": "spec",
   "schema_version": "1.0",
   "path": ".spectra/changes/magicite-v1-implementation/spec.md",
-  "sha256": "757313fc568c2b2332d67e255f25b493b7f03c16583fb6a8e1693b4e29200440",
-  "size_bytes": 130531
+  "sha256": "6d3bff8e6a4507b4afc758d843c85075e7cd3e5da1b14117909c13579138c4fe",
+  "size_bytes": 143106
  },
  "context_delta": {
   "token_budget": 6000,
@@ -59,7 +59,7 @@
  "confidence": 0.85,
  "integrity": {
   "method": "sha256",
-  "value": "757313fc568c2b2332d67e255f25b493b7f03c16583fb6a8e1693b4e29200440"
+  "value": "6d3bff8e6a4507b4afc758d843c85075e7cd3e5da1b14117909c13579138c4fe"
  },
  "trace": {
   "ts": "2026-08-14T22:42:20Z",
@@ -172,6 +172,35 @@
     "the A1-REVISED, R1-RESTATED and DECLARED-EDGES-AMENDED x_ramza_amendment entries - append-only, left exactly as recorded",
     "declared_edge_strength = 1.0 and every other routing constant, including inhib_gain = 0.7 - deliberately not touched on an unisolated six-query delta",
     "objective and context_delta.summary - retained as sent; see spec.md section 3.3.1 for the authoritative measurement and decision",
+    "trace.ts - original emission timestamp, not backdated",
+    "message_id, thread_id, performative, from, to, confidence"
+   ]
+  },
+  {
+   "id": "INHIB-GAIN-RECALIBRATED",
+   "at": "2026-08-15",
+   "kind": "integrity_restamp",
+   "payload_path": ".spectra/changes/magicite-v1-implementation/spec.md",
+   "prev_sha256": "757313fc568c2b2332d67e255f25b493b7f03c16583fb6a8e1693b4e29200440",
+   "new_sha256": "6d3bff8e6a4507b4afc758d843c85075e7cd3e5da1b14117909c13579138c4fe",
+   "prev_size_bytes": 130531,
+   "new_size_bytes": 143106,
+   "reason": "spec.md was amended in place to land the INHIB-GAIN-RECALIBRATED errata after RC-1 - the reversal condition pre-registered by the R12-FIRED entry below - fired and discharged both halves. Eight located patches, including the new normative section 3.3.2 and a change to route step 5's pseudocode: inhib_gain 0.7 -> 0.245. Re-stamping keeps the ECL integrity tag tracking the current payload; leaving it stale would make every future receiver verification report a FALSE tamper alarm on an authorized, recorded change. Chain to date: 92372ad6... -> 9fca1c08... -> 57148a2d... -> e9efab60... -> 757313fc... -> 6d3bff8e...",
+   "authorizing_trigger": "RC-1, pre-registered with a decision rule by the R12-FIRED amendment entry (spec.md section 3.3.1). No new external verdict was needed: the condition and its rule were recorded in advance, and this is the rule being applied.",
+   "measurement": "RC-1b: (c) Hit@1 0.5286 at declared_edge_strength 0.0, 0.5286 at 1.0, 0.5333 at 5.0 - (c) DOES respond, so its 0.0-vs-1.0 invariance is a real property of the corpus. RC-1a at declared_edge_strength=1.0: inhib_gain 0.7 -> (d) 0.5190, inhib_gain 0.0 -> (d) 0.5429, i.e. 84% of the 0.0286 gap, residual one query. Sweep (Hit@1 / Hit@3 / MRR): 0.0 = 0.5429/0.7429/0.6381; 0.1 = 0.5333/0.7429/0.6348; 0.2 = 0.5333/0.7476/0.6335; 0.3 = 0.5286/0.7571/0.6358; 0.5 = 0.5095/0.7524/0.6260; 0.7 = 0.5190/0.7333/0.6227.",
+   "outcome": "(1) declared_edge_strength = 1.0 CONFIRMED - RC-1b discharged the self-caveat R12-FIRED raised against its own evidence, in RAMZA's favour. (2) inhib_gain 0.7 -> 0.245, DERIVED as theta_synapse (0.35) x 0.7 and NOT selected from the sweep: 0.7 is Pareto-dominated by four of five alternatives on Hit@1, Hit@3 and MRR simultaneously, is the worst value in the sweep on two of three, and NEVER HAD ANY EVIDENCE FOR IT IN ANY REGIME because the inhibition pass was a numeric no-op until DECLARED-EDGES-AMENDED. inhib_gain=0.0, the corpus's own Hit@1 argmax, is FORBIDDEN: it makes AC-023 and AC-034 arithmetically unprovable, the same argument that rejected w_activation=0. (3) MO-3 DISCHARGED; R12 narrowed again to single-corpus generalisation only. (4) NEW RC-5 pre-registers the Hit@1/Hit@3 divergence with Hit@1 named as the metric of record. (5) H-BODY-b is NOT rescued: even with inhibition off, (d) 0.5429 still trails (b) 0.5476 by one query.",
+   "decision_record": ".spectra/changes/magicite-v1-implementation/decisions/INHIB-GAIN-RECALIBRATED.md",
+   "behaviour_change": "YES, via ONE CONFIG LINE: magicite.toml inhib_gain = 0.7 -> 0.245. No code change is implied (inhib_gain is already read from config). No criterion text changes. AC-023 and AC-034 must be RE-ATTESTED at the new value (VO-1) - both remain satisfiable by construction, since the multiplier 0.755 is strictly < 1.",
+   "restamped_by": "ramza",
+   "mechanism": "targeted rewrite of artifact.sha256 / artifact.size_bytes / integrity.value plus a FIFTH appended x_ramza_amendment entry (the first four left intact so the envelope carries the full chain), verified afterwards by bin/ramza-verify-emit. ramza-freeze --amend was again deliberately NOT used: it amends the acceptance-criteria anchor, which must not move.",
+   "unchanged": [
+    "x_ramza_acceptance_criteria (7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448) - acceptance-criteria.md byte-identical, not re-frozen; AC-023 not edited",
+    "acceptance-criteria-addendum.md (2888886351b9d658ab98bf1d2e94d77e43850201130a15b26be9c63f3e27ef02) - byte-identical; no criterion added, edited or removed",
+    "declared_edge_strength = 1.0 - CONFIRMED by RC-1b; the R12-FIRED entry is NOT superseded",
+    "theta_synapse = 0.35 - the SOURCE of the derivation, not a subject of it",
+    "ppr_restart = 0.85, w_activation, w_similarity, w_retrieval, type_gain, hub_penalty, w_max and every plasticity constant",
+    "the A1-REVISED, R1-RESTATED, DECLARED-EDGES-AMENDED and R12-FIRED x_ramza_amendment entries - append-only, left exactly as recorded",
+    "objective and context_delta.summary - retained as sent; see spec.md section 3.3.2 for the authoritative statement",
     "trace.ts - original emission timestamp, not backdated",
     "message_id, thread_id, performative, from, to, confidence"
    ]

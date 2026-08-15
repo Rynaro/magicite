@@ -81,6 +81,26 @@ corpus: docs/01-vision-and-hypotheses.md .. docs/07-evaluation-and-observability
 > what changes here is the evidence record, R12's status, and four **pre-registered reversal
 > conditions** with decision rules attached. The diffusion channel's **0/210** is recorded as a
 > negative product finding in its own right. Permanent record: `decisions/R12-FIRED.md`.
+>
+> **Errata — INHIB-GAIN-RECALIBRATED (2026-08-15). One routing default moves.** RC-1 fired
+> immediately and **discharged both halves**. RC-1b: baseline (c) *does* respond to
+> `declared_edge_strength` (it moves at 5.0), so its invariance between 0.0 and 1.0 is a **real
+> property of the corpus, not a harness artefact** — full authored mass in the diffusion graph
+> genuinely changes zero of 210 top-1 answers, and `declared_edge_strength = 1.0` stands confirmed.
+> RC-1a: **inhibition is the channel** — at `declared_edge_strength = 1.0`, `inhib_gain = 0.0`
+> gives (d) 0.5429 against 0.5190 at 0.7, i.e. **84% of the entire gap**, with a residual of one
+> query. The mechanism named in advance in `decisions/R12-FIRED.md` §4.1 is confirmed:
+> **`inhib_gain = 0.7` was calibrated for a *learned* `S` and the authored floor pins `S_eff` at
+> 1.0.** `inhib_gain` therefore moves **0.7 → 0.245**, and the magnitude is **derived from this
+> design's own constants — `theta_synapse × inhib_gain` = 0.35 × 0.7 — not selected from the
+> sweep**, because picking the sweep's argmax off a single-author corpus is the overfitting this
+> spec has refused twice. The corpus **corroborates** rather than chooses it: 0.245 falls between
+> the swept points 0.2 and 0.3, both on the constrained Pareto frontier, and is the argmax of
+> nothing. `inhib_gain = 0.0` is **forbidden**, not merely worse: it makes AC-023 and AC-034
+> arithmetically **unprovable**, the same argument that rejected `w_activation = 0`. `S_eff`,
+> `declared_edge_strength = 1.0`, every call site and every acceptance criterion are **unchanged**;
+> `acceptance-criteria.md` is byte-identical. Permanent record:
+> `decisions/INHIB-GAIN-RECALIBRATED.md`.
 
 ---
 
@@ -633,12 +653,17 @@ state.
             #   declared edge forever, and build_graph drops w<=0, so declared composes/
             #   depends_on were ABSENT from the graph, not weak. See §3.3.1.
 5. inhibition: for every edge (j -> i, type='inhibits') with a_j > 0:
-            a_i *= (1 - S_eff_ji * inhib_gain=0.7)           # docs/01 negative intent
+            a_i *= (1 - S_eff_ji * inhib_gain=0.245)         # docs/01 negative intent
             #   S_eff, NOT S_edge (was `S_edge_ji`), and NOT multiplied by type_gain:
             #   type_gain['inhibits'] = 0.0 by design (an inhibits edge is never positive
-            #   diffusion mass). At defaults a declared inhibits scales the inhibited node's
-            #   activation by 1 - 1.0*0.7 = 0.3. Before this amendment the pass multiplied
-            #   by exactly 1.0 for every declared edge -- a numeric no-op. See §3.3.1.
+            #   diffusion mass). Before DECLARED-EDGES-AMENDED the pass multiplied by exactly
+            #   1.0 for every declared edge -- a numeric no-op. See §3.3.1.
+            #   [INHIB-GAIN-RECALIBRATED 2026-08-15] inhib_gain 0.7 -> 0.245 (= theta_synapse
+            #   0.35 * 0.7), DERIVED not tuned: 0.7 was set for a LEARNED S and the authored
+            #   floor pins S_eff at 1.0, so an assertion with zero evidence was being granted
+            #   the effect the design reserved for a maximally-potentiated synapse. A declared
+            #   inhibits now scales the inhibited node's activation by 1 - 1.0*0.245 = 0.755
+            #   (was 0.3). Strictly < 1, so AC-023/AC-034 stay PROVABLE. See §3.3.2.
 6. score_i = w_a*a_i + w_s*cos_i + w_r*R_i + w_e*excitability_i   # .45/.40/.05/.10 (magicite.toml)
             #   [DECLARED-EDGES-AMENDED 2026-08-15] w_s .30 -> .40 and w_r .15 -> .05,
             #   labelled PRECAUTIONARY PENDING FURTHER EXPERIMENT, not a measured optimum.
@@ -785,6 +810,7 @@ comments as well as here.
 | `ppr_restart` | 0.15 | **0.85** | **Measured.** Hit@1 0.4619 → **0.5476** (identical to embedding baseline (b)), Hit@3 0.7000 → **0.7476** (above (b)'s 0.7429), MRR 0.5913 → 0.6398. Diagnosis, also measured: at 0.15, **85% of activation mass** diffused along the 350 derived `similar_to` kNN edges, and the PPR term contributed 37% as much ranking spread as similarity — spread reflecting *neighbourhood mass*, not query match |
 | `w_similarity` | 0.30 | **0.40** | see below |
 | `w_retrieval` | 0.15 | **0.05** | **PRECAUTIONARY PENDING FURTHER EXPERIMENT — not a measured optimum, and must not be published as one.** The basis is an evidence-balance asymmetry, not a new tuned number: 0.15 has **one strong measurement against it and zero measurements ever for it.** Against: under an *oracle* teacher on a **matched** train/test distribution, held-out Hit@1 fell 0.4697 → **0.1061**; it degrades on its own training split too (0.4583 → 0.2847); the target-only variant (0 learned edges) still collapses to 0.1818. Mechanism, measured: `w_similarity·cosine` spread 0.0561 vs `w_retrieval·R` spread **0.0354 — 63% of the query-conditioned signal's amplitude** — contributed by a pure usage-frequency prior with *zero* query conditioning and no attenuation mechanism. Honest limit, carried: that workload is uniform, which makes a popularity prior maximally uninformative; under skewed real demand `R` would carry signal. Reverse it if component normalisation recovers cold-level held-out Hit@1 at 0.15 |
+| `inhib_gain` | 0.7 | **0.245** | **DERIVED, then corroborated — added 2026-08-15 by INHIB-GAIN-RECALIBRATED after RC-1. See §3.3.2.** `0.245 = theta_synapse (0.35) × 0.7`. Not selected from the sweep: the magnitude comes from constants that predate the amendment and cannot be contaminated by the corpus, and the corpus's role is confirmation only |
 
 **Why not `w_activation = 0`**, which measures 0.0048 Hit@1 *better* than `ppr_restart = 0.85`
 (0.5524 vs 0.5476): it would **break a frozen acceptance criterion to buy one query in 210.**
@@ -843,8 +869,10 @@ is answered on the record rather than waved off:
    of that range for **every** authored `inhibits` edge, so the shipped multiplier is
    `1 − 1.0 × 0.7 = 0.3` — a **70% cut** of the inhibited node's activation from one unweighted
    line of author YAML. **`inhib_gain` has never been calibrated for `S = 1.0`.** It is the
-   dedicated magnitude knob for that channel, and it is deliberately **not** touched here: moving
-   it on an unisolated six-query delta would be the same error at a different address.
+   dedicated magnitude knob for that channel, and it was deliberately **not** touched at the time:
+   moving it on an unisolated six-query delta would have been the same error at a different
+   address. **RC-1 has since fired and confirmed this mechanism at 84% — `inhib_gain` is now
+   0.245, derived rather than tuned. See §3.3.2.**
 3. **The delta is at the edge of what a paired test could ever certify.** A net swing of 6 in 210
    has a *maximum attainable* exact-binomial (McNemar) significance of **p = 0.031**, and only in
    the degenerate case where all six discordant pairs run one way; with as few as four
@@ -881,13 +909,115 @@ rules, not intentions: whoever runs the experiment applies them without a furthe
 
 | # | Experiment | Decision rule |
 |---|---|---|
-| **RC-1** | **MO-3, still owed.** `declared_edge_strength = 1.0` with `inhib_gain = 0.7` vs `inhib_gain = 0.0`, everything else fixed, same corpus and queries | If the inhibition arm accounts for the whole −0.0286 or more, the defect is the **inhibition magnitude**, not the authored channel: re-derive `inhib_gain` and leave `declared_edge_strength` at 1.0. If it accounts for none of it, the residual is the community re-clustering and **call-site row 3** is what gets revisited |
-| **RC-2** | A **second, independently-authored** registry — engrams and queries by different authors — plus a **paired McNemar test** on (d) at 1.0 vs 0.0 | If (d) at 1.0 is worse at **p < 0.05 paired**, `declared_edge_strength` ships at **0.0**: the mechanism stays implemented, verified and opt-in, and **AC-035 is restated** to name a non-zero strength in its GIVEN (the addendum is not frozen; the frozen 33 are untouched either way) |
-| **RC-3** | A **compositional** query set — H-COMPOSE is still **UNTESTED**, zero compositional queries have ever been run — scored on a composition-sensitive metric that is not a monotone re-encoding of Hit@1 | If declared mass does not improve it there either, the diffusion channel (rows 1 and 3) has **no measured benefit on any metric** and should ship off by default regardless of RC-1 |
+| **RC-1** | ~~MO-3~~ — **DISCHARGED 2026-08-15, both halves (§3.3.2).** RC-1a partitioned the gap; RC-1b answered the caveat this spec raised against its own evidence | **Fired.** Inhibition accounts for **84%** of the −0.0286 (residual: one query); (c) *does* respond to `declared_edge_strength`, so its 0.0-vs-1.0 invariance is real. Outcome: `declared_edge_strength = 1.0` **confirmed**, `inhib_gain` **0.7 → 0.245** |
+| **RC-2** | A **second, independently-authored** registry — engrams and queries by different authors — plus a **paired McNemar test**. It must now test **three** things, not one: (d) at `declared_edge_strength` 1.0 vs 0.0; the **derived `inhib_gain = 0.245`** against the sweep's neighbourhood; and whether the Hit@1/Hit@3 divergence (RC-5) reproduces | If (d) at 1.0 is worse at **p < 0.05 paired**, `declared_edge_strength` ships at **0.0** — mechanism implemented, verified, opt-in — and **AC-035 is restated** to name a non-zero strength in its GIVEN. If 0.245 is worse than a swept neighbour at **p < 0.05 paired** on Hit@1, the derivation is wrong and the value is re-derived — **not** replaced by that corpus's argmax either |
+| **RC-3** | A **compositional** query set — H-COMPOSE is still **UNTESTED**, zero compositional queries have ever been run — scored on a composition-sensitive metric that is not a monotone re-encoding of Hit@1. **Raised in priority by RC-1:** inhibition's claimed benefit is suppressing mutually-exclusive competitors, which should register in *candidate-set* quality, and the Hit@3 peak (RC-5) is the first sign of it | If declared mass does not improve it there either, the diffusion channel (rows 1 and 3) has **no measured benefit on any metric** and should ship off by default regardless of RC-1 |
 | **RC-4** | Any registry whose declared relations are **known-good by construction** | Removes the confound that this corpus's `needs`/`composes`/`inhibits` were authored by the same agent that wrote the queries, so a null here may be measuring poor input rather than the design |
+| **RC-5** | **New (RC-1).** The **Hit@1 / Hit@3 divergence**: across the `inhib_gain` sweep Hit@1 falls roughly monotonically while Hit@3 **peaks at 0.3 (0.7571), above dense embedding's 0.7429** — the first measurement in this project of the graph layer beating the embedding baseline at anything. Mechanistically coherent (suppressing competitors improves the candidate *set* while risking the top-1 pick when the gold answer is what got suppressed), but it is six numbers from one corpus | **Pre-registered so the metric cannot be chosen after the fact: Hit@1 is the metric of record** — it is what the Hypothesis Register uses and what H-BODY was adjudicated on — so a **Hit@3-only** improvement does **not** justify raising `inhib_gain`. If RC-2 reproduces the Hit@3 peak **and** Hit@1 is flat across that region, the question stops being a knob and becomes a product decision (is the deliverable the top-1 pick or the candidate set?) and goes to the **human**, not to RAMZA |
 
 The full record — the channel isolation, the rejected options, the `w_retrieval` symmetry engaged
 in both directions, and what a re-verifier should check — is `decisions/R12-FIRED.md`.
+
+#### 3.3.2 Inhibition magnitude — `inhib_gain` 0.7 → 0.245, derived (RC-1)
+
+> **Amendment, 2026-08-15 (INHIB-GAIN-RECALIBRATED).** RC-1 above fired immediately, discharging
+> both halves. This subsection is normative. Full record: `decisions/INHIB-GAIN-RECALIBRATED.md`.
+
+**RC-1b — the caveat §3.3.1 raised against its own evidence is discharged, in its favour.**
+Baseline (c) *does* respond to the knob: it moves at `declared_edge_strength = 5.0`
+(0.5286 → 0.5333). Its invariance between 0.0 and 1.0 is therefore a **real property of the
+corpus, not a harness artefact**. Full authored mass in the diffusion graph genuinely changes
+**zero of 210 top-1 answers** at the shipped magnitude, and **`declared_edge_strength = 1.0`
+stands confirmed** — refusing to damp an inert channel was correct.
+
+**RC-1a — inhibition is the channel.** At `declared_edge_strength = 1.0`: `inhib_gain = 0.7` gives
+(d) 0.5190, `inhib_gain = 0.0` gives **0.5429**. That is **0.0239 of the 0.0286 gap — 84%** — with
+a residual of **one query**, which is community re-clustering or noise and is not separately
+resolvable on this corpus. The mechanism named in advance in §3.3.1 ground 2 is confirmed exactly
+as stated.
+
+**Calibration sweep at `declared_edge_strength = 1.0`** (dense-embedding reference: Hit@1 0.5476,
+Hit@3 0.7429):
+
+| `inhib_gain` | Hit@1 | Hit@3 | MRR |
+|---|---|---|---|
+| 0.0 | **0.5429** (114/210) | 0.7429 (156) | **0.6381** |
+| 0.1 | 0.5333 (112) | 0.7429 (156) | 0.6348 |
+| 0.2 | 0.5333 (112) | 0.7476 (157) | 0.6335 |
+| 0.3 | 0.5286 (111) | **0.7571** (159) | 0.6358 |
+| 0.5 | 0.5095 (107) | 0.7524 (158) | 0.6260 |
+| **0.7 — shipped** | 0.5190 (109) | 0.7333 (154) | 0.6227 |
+
+**Why `0.7` is no longer defensible — three grounds, none of which is an argmax.**
+
+1. **It is Pareto-dominated by four of the five alternatives swept.** `0.7 = (109, 154, 0.6227)` is
+   worse than `0.0`, `0.1`, `0.2` **and** `0.3` on **Hit@1, Hit@3 and MRR simultaneously**; it is
+   the **worst value in the sweep** on both Hit@3 and MRR. Only `0.5` fails to dominate it, and
+   `0.5` is itself dominated by `0.3`. This statement is **metric-independent and
+   argmax-independent** — it does not require choosing which number matters, which is precisely
+   what makes it survive the single-author confound.
+2. **It never had any evidence for it, in any regime.** Until DECLARED-EDGES-AMENDED, the
+   inhibition pass was a **numeric no-op** — that is §3.3.1's founding finding. `inhib_gain = 0.7`
+   was therefore a plausible-looking constant in a **dead code path**, never measured against
+   anything. Its first exposure to measurement Pareto-dominates it away. The usual reason to keep
+   a default on weak evidence — that the incumbent earned its standing — **does not apply**: this
+   incumbent earned nothing.
+3. **The mis-calibration is diagnosable from the design's own constants, independently of any
+   corpus.** `theta_synapse = 0.35` is the strength at which an edge becomes a **genuine synapse**
+   (`core/dream.py:503,515`: candidates below it, or with `evidence_count < 3`, are excluded from
+   `synapses:`). So for a *learned* `inhibits` edge the design's intended effect
+   `S × inhib_gain` ranged over **[0.35 × 0.7, 1.0 × 0.7] = [0.245, 0.7]** — from "just became a
+   synapse" to "maximally reinforced". §3.3.1 pins `S_eff = 1.0` for **every** authored `inhibits`
+   edge on day zero, so an assertion **with no accumulated evidence at all** was being granted the
+   effect the design reserved for a **maximally-potentiated, sustained-evidence** synapse. That is
+   the error, and it is visible without running anything.
+
+**The correction, derived rather than tuned.** An authored assertion should enter at the magnitude
+the design assigns to an edge that has *just* become a genuine synapse — the **bottom** of the
+intended range, not the top:
+
+```
+inhib_gain = theta_synapse × inhib_gain_learned = 0.35 × 0.7 = 0.245
+```
+
+A declared `inhibits` now scales the inhibited node's activation by `1 − 1.0 × 0.245 = 0.755`
+(was `0.3`). The value is deliberately **not** rounded to `0.25`: the un-round figure is the
+audit trail. **If `theta_synapse` ever moves, this is re-derived, not re-tuned.**
+
+**Why this is not the overfitting this spec has twice refused.** The magnitude comes from
+`theta_synapse` and the original `inhib_gain`, **both of which predate the amendment and neither of
+which came from this corpus**. The corpus's role is **corroboration, not selection**: `0.245` falls
+between the swept points `0.2` and `0.3` — both on the constrained Pareto frontier — and it is the
+**argmax of nothing**. Taking the *mechanism* from the corpus (which the sweep establishes
+robustly, at 84%) while taking the *magnitude* from the design's own constants is the only move
+here that a single-author corpus cannot contaminate.
+
+**`inhib_gain = 0.0` is forbidden, not merely worse — and note it is the Hit@1 argmax.** At 0.0 the
+pass computes `a_i *= (1 − S·0) = 1`, so AC-023's *"the inhibited engram's score SHALL be strictly
+lower"* and AC-034's *"strictly lower than at `declared_edge_strength = 0.0`"* become
+arithmetically **unprovable** — not failing, *unprovable*. This is the identical argument that
+rejected `w_activation = 0` for a 0.0048 Hit@1 gain, and it is a **non-corpus constraint that
+excludes the corpus's own Hit@1-maximising answer.** At `0.245` both criteria stay **provable**
+(0.755 < 1 strictly).
+
+**What this does not rescue, stated so nobody reads it as a win.** Even with inhibition **off**,
+(d) = 0.5429 is still **below** (b) = 0.5476 — one query. Turning inhibition down makes the full
+pipeline **stop losing by much**; it does not make it win. **H-BODY-b is not rescued by this
+change**, and the negative finding in §3.3.1 ground 5 stands unaltered.
+
+**Statistical standing, stated to the same bar as everything else here.** The Hit@1 gap between
+`0.7` and `0.0` is a net swing of **5 in 210**, whose *maximum attainable* exact-binomial (McNemar)
+significance is `2 × 0.5⁵` = **p = 0.0625** — it **cannot reach p < 0.05 under any discordance
+pattern**. The case against `0.7` therefore rests **not** on the size of any single delta but on
+the three grounds above: a pre-registered mechanism confirmed at 84%, Pareto dominance across three
+metrics at once, and an incumbent with zero prior standing. Labelled **precautionary pending RC-2**
+in `magicite.toml`, in this spec and in the decision record — like `w_retrieval`, and for the same
+reason.
+
+**Verification obligation.** `inhib_gain` is a live routing default: **AC-023 and AC-034 must be
+re-attested at 0.245.** Both remain satisfiable by construction (0.755 < 1), but if either becomes
+true only by a hair rather than robustly, that is itself evidence the magnitude is too low and
+must be reported, not absorbed.
 
 ```python
 # ── 2. load_skill_body ── R0 (hosts without filesystem access; progressive disclosure)
@@ -1787,7 +1917,7 @@ with ~87% package overlap. constraint_compliance 84 — every corpus P0 maps to 
 | R9 | **Cold start / small registries** — docs/07 honest limit: under ~50 skills native SKILL.md matching is fine and Magicite is overhead. | P2 | `route()` returns `registry_size`; `magicite doctor` states the break-even honestly rather than overselling. | Vivi (M2) |
 | R10 | **Hypothesis falsification** — H-BODY/H-SCALE/H-COMPOSE/H-LEARN come from UNVERIFIED-2026 sources; the engine's value proposition could fail its own benchmark. *(**This risk fired**, 2026-08-15, and the mitigation worked as designed — cheaply and early. On 70 engrams / 210 pre-registered queries: **H-BODY-a supported in direction** (+14.3pp Hit@1, p = 0.00064) though the registered ≥20pp effect size is **not demonstrated**; **H-BODY-b falsified as implemented** ((b) > (d), −0.0857, p = 0.00053); **H-SCALE mechanism falsified** at 70 skills with 5 real communities; **H-SCALE claim inconclusive**; **H-COMPOSE untested** — zero compositional queries were run and Plan F1 as implemented is a monotone re-encoding of Hit@1; **H-LEARN falsified as implemented under uniform demand**. Two routing defaults moved on that evidence — §3.3.1. The docs/01 Hypothesis Register and docs/07 corrections are routed to IDG as CF-1 in `decisions/DECLARED-EDGES-AMENDED.md`; `docs/` is outside RAMZA's write boundary.)* | P1 | The bench harness ships in v1 (M6) with baselines a–d so falsification is cheap and early; every claim in the README stays hypothesis-tagged until measured. **A measured falsification is the mitigation succeeding, not failing** — what it now requires is that the product claim be reframed to what the evidence licenses: a semantic skill router with a portable format, a lifecycle, governance, composition-plan expansion and an **instrumented learning substrate that is not yet demonstrated to improve routing**. | Kupo (verify) + Vivi (M6) |
 | R11 | **Critic independence** — this spec's critic pass ran in the same session as the author (no second agent was available to RAMZA), recorded as `ramza-maker` vs `ramza-critic` in `plan-state.json`. | P1 | Kupo is the genuinely independent checker at ESL `verify`; the critic record is disclosed, not laundered. Treat the frozen criteria hash, not the critic record, as the tamper-evidence anchor. | Kupo |
-| R12 | **Newly-live declared-edge mass is itself unmeasured** (added by DECLARED-EDGES-AMENDED, 2026-08-15). *(**This risk fired**, 2026-08-15 — errata R12-FIRED — and the mitigation worked as designed: the release obligation forced the re-measurement before release rather than after. Outcome, published in §3.3.1: **`ppr_restart = 0.85` CONFIRMED on the new graph shape** — it is what recovers (c) 0.4333 → 0.5286 and (d) 0.4905 → 0.5476, so R12's stated worry about the obsolete 0.5476 does not materialise. **`declared_edge_strength = 1.0` measured −0.0286 Hit@1 in (d)** — 115 → 109 of 210, six queries, no paired test run and a ceiling of p = 0.031 on one — and **stays at 1.0**, because baseline (c) carries the same declared mass into the diffusion graph without inhibition or the community rerank and is **identical across both arms (0.5286, 111/210)**: the diffusion channel measured **exactly inert**, so the −6 arises in a channel the run never isolated. **R12 therefore stays OPEN, narrowed**: what is unmeasured is no longer 'declared-edge mass' in general but **the inhibition magnitude** — `inhib_gain = 0.7` was never calibrated for `S = 1.0`, where it cuts 70% of an inhibited node's activation from one line of author YAML — and the community re-clustering. **MO-3 is still owed.**)* | P1 | **Four pre-registered reversal conditions with decision rules attached (§3.3.1, RC-1…RC-4): RC-1 isolate inhibition (MO-3); RC-2 a second independently-authored corpus plus a paired McNemar test — at p < 0.05 against, `declared_edge_strength` ships at 0.0 and AC-035 is restated; RC-3 a compositional query set (H-COMPOSE is still UNTESTED); RC-4 a known-good declared-relation registry.** The change remains **one config scalar and exactly revertible** — `declared_edge_strength = 0.0` reproduces pre-amendment scores bit-for-bit (AC-039) — so any reversal is a config line, not a code change. Recorded against 0.0 as a shipped default: it makes AC-023 unreachable in production again, makes **AC-035's THEN false as written**, and drops declared edges from community structure entirely, which is worse than pre-amendment now that `_COMMUNITY_WEIGHT_FLOOR` is deleted. | Vivi (config) + Kupo (verify) |
+| R12 | **Newly-live declared-edge mass is itself unmeasured** (added by DECLARED-EDGES-AMENDED, 2026-08-15). *(**This risk fired**, 2026-08-15 — errata R12-FIRED — and the mitigation worked as designed: the release obligation forced the re-measurement before release rather than after. Outcome, published in §3.3.1: **`ppr_restart = 0.85` CONFIRMED on the new graph shape** — it is what recovers (c) 0.4333 → 0.5286 and (d) 0.4905 → 0.5476, so R12's stated worry about the obsolete 0.5476 does not materialise. **`declared_edge_strength = 1.0` measured −0.0286 Hit@1 in (d)** — 115 → 109 of 210, six queries, no paired test run and a ceiling of p = 0.031 on one — and **stays at 1.0**, because baseline (c) carries the same declared mass into the diffusion graph without inhibition or the community rerank and is **identical across both arms (0.5286, 111/210)**: the diffusion channel measured **exactly inert**, so the −6 arises in a channel the run never isolated. **R12 therefore stays OPEN, narrowed**: what is unmeasured is no longer 'declared-edge mass' in general but **the inhibition magnitude** — `inhib_gain = 0.7` was never calibrated for `S = 1.0`, where it cuts 70% of an inhibited node's activation from one line of author YAML — and the community re-clustering. **MO-3 is still owed.**)* *(**RC-1 fired and was discharged, both halves**, 2026-08-15 — errata INHIB-GAIN-RECALIBRATED. RC-1b: baseline (c) **does** respond to `declared_edge_strength` (it moves at 5.0), so its 0.0-vs-1.0 invariance is a **real property of the corpus, not a harness artefact** — `declared_edge_strength = 1.0` **stands confirmed**. RC-1a: **inhibition is the channel** — `inhib_gain = 0.0` gives (d) 0.5429 against 0.5190 at 0.7, **84% of the gap**, residual one query. **MO-3 is therefore DISCHARGED.** `inhib_gain` moves **0.7 → 0.245**, **derived** as `theta_synapse × inhib_gain` and **not** selected from the sweep, because 0.7 is **Pareto-dominated by four of five alternatives on Hit@1, Hit@3 and MRR simultaneously** and had **never had any evidence for it in any regime** — the inhibition pass was a numeric no-op until this amendment. `inhib_gain = 0.0`, the Hit@1 argmax, is **forbidden**: it makes AC-023 and AC-034 unprovable. **What remains open in R12 is now only single-corpus generalisation**, owned by RC-2/RC-3/RC-5.)* | P1 | **Four pre-registered reversal conditions with decision rules attached (§3.3.1, RC-1…RC-4): RC-1 isolate inhibition (MO-3); RC-2 a second independently-authored corpus plus a paired McNemar test — at p < 0.05 against, `declared_edge_strength` ships at 0.0 and AC-035 is restated; RC-3 a compositional query set (H-COMPOSE is still UNTESTED); RC-4 a known-good declared-relation registry.** The change remains **one config scalar and exactly revertible** — `declared_edge_strength = 0.0` reproduces pre-amendment scores bit-for-bit (AC-039) — so any reversal is a config line, not a code change. Recorded against 0.0 as a shipped default: it makes AC-023 unreachable in production again, makes **AC-035's THEN false as written**, and drops declared edges from community structure entirely, which is worse than pre-amendment now that `_COMMUNITY_WEIGHT_FLOOR` is deleted. | Vivi (config) + Kupo (verify) |
 
 ---
 
@@ -1805,8 +1935,14 @@ with ~87% package overlap. constraint_compliance 84 — every corpus P0 maps to 
   210-query bench obligation is **discharged** — re-run at `2d25abb`, numbers published in §3.3.1
   (errata R12-FIRED): MO-1 and MO-2 closed, `ppr_restart = 0.85` confirmed on the new graph shape,
   `declared_edge_strength` confirmed at `1.0`. **What is still owed before release: MO-3** — the
-  inhibition delta isolated and reported separately (§3.3.1 RC-1). R12 stays open at P1, narrowed
-  to the inhibition magnitude and the community re-clustering.
+  inhibition delta isolated and reported separately (§3.3.1 RC-1) — **which has since been run:
+  MO-3 is DISCHARGED** (§3.3.2, errata INHIB-GAIN-RECALIBRATED). Inhibition is the channel (84% of
+  the gap); `declared_edge_strength = 1.0` is confirmed; **`inhib_gain` moves 0.7 → 0.245,
+  derived** as `theta_synapse × inhib_gain`. **One config line changes in `magicite.toml`, and
+  AC-023 and AC-034 must be re-attested at the new value** — both stay provable by construction
+  (0.755 < 1), and if either holds only by a hair that must be reported, not absorbed. R12 stays
+  open at P1, narrowed again — what remains is **single-corpus generalisation only**, owned by
+  RC-2/RC-3/RC-5.
 - **Declared execution scope** (drift watch): `src/magicite/*`, `tests/*`, `pyproject.toml`,
   `uv.lock`, `Dockerfile*`, `.dockerignore`, `.github/workflows/*`, `README.md`, `docs/adapters/*`,
   `docs/operations.md`. Anything else Vivi touches is drift and needs an amendment.
