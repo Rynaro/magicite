@@ -1,129 +1,153 @@
 {
-  "envelope_version": "2.0",
-  "message_id": "01a00270-c5bd-74b1-999b-089d1f45df2e",
-  "thread_id": "01a00270-c5bd-7c82-9812-71812368c709",
-  "parent_id": null,
-  "from": {
-    "eidolon": "ramza",
-    "version": "1.0.0"
+ "envelope_version": "2.0",
+ "message_id": "01a00270-c5bd-74b1-999b-089d1f45df2e",
+ "thread_id": "01a00270-c5bd-7c82-9812-71812368c709",
+ "parent_id": null,
+ "from": {
+  "eidolon": "ramza",
+  "version": "1.0.0"
+ },
+ "to": {
+  "eidolon": "vivi",
+  "version": "n/a"
+ },
+ "performative": "PROPOSE",
+ "edge_origin": "roster",
+ "objective": "Propose the decision-ready v1 implementation spec for Magicite (Python + FastMCP, stdio, SQLite WAL, local embeddings) targeting ESL change magicite-v1-implementation.",
+ "artifact": {
+  "kind": "spec",
+  "schema_version": "1.0",
+  "path": ".spectra/changes/magicite-v1-implementation/spec.md",
+  "sha256": "e9efab604467129246e0b70fb25ed70a576bc4fee5934a243881e2151101dd8b",
+  "size_bytes": 119819
+ },
+ "context_delta": {
+  "token_budget": 6000,
+  "tokens_used": 0,
+  "input_handles": [
+   "docs/01-vision-and-hypotheses.md",
+   "docs/02-architecture.md",
+   "docs/03-learning-model.md",
+   "docs/04-engram-format.md",
+   "docs/05-protocol-and-signals.md",
+   "docs/06-trust-governance-lifecycle.md",
+   "docs/07-evaluation-and-observability.md",
+   "docs/README.md"
+  ],
+  "summary": "Construction spec for Magicite v1: repository/package layout, SQLite DDL with the Tier A/B/C split and the sync() rebuild procedure, the 16-tool FastMCP surface with risk-class and idempotency contracts, the seven-phase lease-arbitrated Dream worker and synapses: checkpoint, the lifecycle FSM with docs/06 approval gates, unified register()/SKILL.md ingestion, decay/forgetting semantics, the three-guard P0 enforcement point, test strategy with the acceptance checks Kupo runs, eight ordered milestones (walking skeleton first), 33 EARS acceptance criteria, a risks register and eight unilaterally resolved corpus contradictions."
+ },
+ "constraints": {
+  "trust_level": "standard"
+ },
+ "ise": {
+  "assertion_grade": "self-attested",
+  "provenance": {
+   "methodology_version": "ramza-1.0.0",
+   "tool_surface": [
+    "Read",
+    "Bash",
+    "crystalium.recall"
+   ],
+   "lateral_consults": []
   },
-  "to": {
-    "eidolon": "vivi",
-    "version": "n/a"
+  "receiver_authorization": {
+   "auto_route": true,
+   "auto_merge": false,
+   "auto_deploy": false
+  }
+ },
+ "confidence": 0.85,
+ "integrity": {
+  "method": "sha256",
+  "value": "e9efab604467129246e0b70fb25ed70a576bc4fee5934a243881e2151101dd8b"
+ },
+ "trace": {
+  "ts": "2026-08-14T22:42:20Z",
+  "host": "claude-code",
+  "model": "claude-opus-5",
+  "tier": "standard"
+ },
+ "x_ramza_acceptance_criteria": {
+  "path": ".spectra/changes/magicite-v1-implementation/acceptance-criteria.md",
+  "sha256": "7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448",
+  "count": 33
+ },
+ "x_ramza_amendment": [
+  {
+   "id": "A1-REVISED",
+   "at": "2026-08-14",
+   "kind": "integrity_restamp",
+   "payload_path": ".spectra/changes/magicite-v1-implementation/spec.md",
+   "prev_sha256": "92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b",
+   "new_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
+   "prev_size_bytes": 88404,
+   "new_size_bytes": 90934,
+   "reason": "spec.md was amended in place to land the A1-REVISED errata (MCP framework path: mcp.server.fastmcp.FastMCP on mcp>=1.12 -> mcp.server.lowlevel.Server on mcp>=2.0,<3.0). Re-stamping keeps the ECL integrity tag tracking the current payload; leaving it stale would make every future receiver verification report a false tamper alarm on an authorized, recorded change. The old->new transition is recorded here, in decisions/A1-REVISED.md, and in plan-state.json errata[], so the audit chain is extended rather than broken.",
+   "authorizing_verdict": "FORGE (Reasoner) - Magicite MCP SDK framework path (A1 re-adjudication), 2026-08-14, gate PASS, confidence 88%; governance ruling: within declared variance, record as an A1 revision",
+   "decision_record": ".spectra/changes/magicite-v1-implementation/decisions/A1-REVISED.md",
+   "implementing_commit": "2d12134",
+   "restamped_by": "ramza",
+   "mechanism": "targeted jq rewrite of artifact.sha256 / artifact.size_bytes / integrity.value, verified by bin/ramza-verify-emit; no canonical ramza-* envelope-amend command exists, and ramza-freeze --amend was deliberately NOT used because it amends the acceptance-criteria anchor, which must not move",
+   "unchanged": [
+    "x_ramza_acceptance_criteria (7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448) - acceptance-criteria.md is byte-identical",
+    "objective and context_delta.summary - retained as sent; see spec.md section Scope for the authoritative stack statement",
+    "trace.ts - original emission timestamp, not backdated",
+    "message_id, thread_id, performative, from, to, confidence"
+   ]
   },
-  "performative": "PROPOSE",
-  "edge_origin": "roster",
-  "objective": "Propose the decision-ready v1 implementation spec for Magicite (Python + FastMCP, stdio, SQLite WAL, local embeddings) targeting ESL change magicite-v1-implementation.",
-  "artifact": {
-    "kind": "spec",
-    "schema_version": "1.0",
-    "path": ".spectra/changes/magicite-v1-implementation/spec.md",
-    "sha256": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17",
-    "size_bytes": 94679
+  {
+   "id": "R1-RESTATED",
+   "at": "2026-08-15",
+   "kind": "integrity_restamp",
+   "payload_path": ".spectra/changes/magicite-v1-implementation/spec.md",
+   "prev_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
+   "new_sha256": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17",
+   "prev_size_bytes": 90934,
+   "new_size_bytes": 94679,
+   "reason": "spec.md was amended in place to land the R1-RESTATED errata: risk R1's mitigation cited a per-session Tier-1 dw cap (3/skill/session) as an anti-poisoning control, and an executed adversarial review drove 253 tags / 200 captures for a single skill against it. session_id is caller-supplied and unauthenticated and omitting it mints a fresh session per call, so the honest calling convention defeats the cap; under local-first stdio no per-subject quota can bind at all. The mitigation is restated as object-keyed and temporal (per-engram refractory on the R bump, spacing-gated potentiation, decay at read, bounded retroactive credit, eph_tag-only S input), with the per-session cap demoted to runaway protection and the residuals stated openly. Re-stamping keeps the ECL integrity tag tracking the current payload; leaving it stale would make every future receiver verification report a false tamper alarm on an authorized, recorded change. The old->new transition is recorded here, in decisions/R1-RESTATED.md, and in plan-state.json errata[], so the audit chain is extended rather than broken. Chain to date: 92372ad6... -> 9fca1c08... -> 57148a2d...",
+   "authorizing_verdict": "FORGE (Reasoner) - Magicite Signal Integrity and Identity Model, 2026-08-14, RISK-ASSESSMENT, 2 passes, gate PASS, confidence 86%, requires_checker false; section 5.2 routes the spec.yaml R1 mitigation restatement to SPECTRA/RAMZA as an A1-class revision",
+   "evidence": "m3-security-review.md F-1 (executed: 5 calls/1 session -> 3 tags; 200 minted session ids -> 253 tags; 50 calls with no session_id -> still 253; 200 captured) and m4-security-retest.md (post-fix, pinned commit 3660c5d: the same 253/200 reproduce exactly, while 200 captured Tier-1 tags move S by 0.000000000 and 100 planted Tier-2 valence=+1.0 eph_event rows move S by 0.0)",
+   "decision_record": ".spectra/changes/magicite-v1-implementation/decisions/R1-RESTATED.md",
+   "implementing_commits": [
+    "9044d1f (M3 signal ladder)",
+    "3660c5d (M4 signal hygiene: refractory, decay-at-read, spacing gate, retro-credit bound, eph_event test)",
+    "15eda70 (M5 data-loss fixes)",
+    "9f5deb3 (M6 session_end grace floor)",
+    "1ce6f99 (IDG docs correction, docs/05 + docs/03)"
+   ],
+   "restamped_by": "ramza",
+   "mechanism": "targeted rewrite of artifact.sha256 / artifact.size_bytes / integrity.value plus a SECOND appended x_ramza_amendment entry (the A1-REVISED entry is left intact so the envelope carries the full hash chain), verified by bin/ramza-verify-emit; no canonical ramza-* envelope-amend command exists, and ramza-freeze --amend was again deliberately NOT used because it amends the acceptance-criteria anchor, which must not move",
+   "unchanged": [
+    "x_ramza_acceptance_criteria (7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448) - acceptance-criteria.md is byte-identical and was not re-frozen",
+    "the A1-REVISED x_ramza_amendment entry - append-only, left exactly as recorded",
+    "objective and context_delta.summary - retained as sent; see spec.md section Risks R1 for the authoritative mitigation statement",
+    "trace.ts - original emission timestamp, not backdated",
+    "message_id, thread_id, performative, from, to, confidence"
+   ]
   },
-  "context_delta": {
-    "token_budget": 6000,
-    "tokens_used": 0,
-    "input_handles": [
-      "docs/01-vision-and-hypotheses.md",
-      "docs/02-architecture.md",
-      "docs/03-learning-model.md",
-      "docs/04-engram-format.md",
-      "docs/05-protocol-and-signals.md",
-      "docs/06-trust-governance-lifecycle.md",
-      "docs/07-evaluation-and-observability.md",
-      "docs/README.md"
-    ],
-    "summary": "Construction spec for Magicite v1: repository/package layout, SQLite DDL with the Tier A/B/C split and the sync() rebuild procedure, the 16-tool FastMCP surface with risk-class and idempotency contracts, the seven-phase lease-arbitrated Dream worker and synapses: checkpoint, the lifecycle FSM with docs/06 approval gates, unified register()/SKILL.md ingestion, decay/forgetting semantics, the three-guard P0 enforcement point, test strategy with the acceptance checks Kupo runs, eight ordered milestones (walking skeleton first), 33 EARS acceptance criteria, a risks register and eight unilaterally resolved corpus contradictions."
-  },
-  "constraints": {
-    "trust_level": "standard"
-  },
-  "ise": {
-    "assertion_grade": "self-attested",
-    "provenance": {
-      "methodology_version": "ramza-1.0.0",
-      "tool_surface": [
-        "Read",
-        "Bash",
-        "crystalium.recall"
-      ],
-      "lateral_consults": []
-    },
-    "receiver_authorization": {
-      "auto_route": true,
-      "auto_merge": false,
-      "auto_deploy": false
-    }
-  },
-  "confidence": 0.85,
-  "integrity": {
-    "method": "sha256",
-    "value": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17"
-  },
-  "trace": {
-    "ts": "2026-08-14T22:42:20Z",
-    "host": "claude-code",
-    "model": "claude-opus-5",
-    "tier": "standard"
-  },
-  "x_ramza_acceptance_criteria": {
-    "path": ".spectra/changes/magicite-v1-implementation/acceptance-criteria.md",
-    "sha256": "7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448",
-    "count": 33
-  },
-  "x_ramza_amendment": [
-    {
-      "id": "A1-REVISED",
-      "at": "2026-08-14",
-      "kind": "integrity_restamp",
-      "payload_path": ".spectra/changes/magicite-v1-implementation/spec.md",
-      "prev_sha256": "92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b",
-      "new_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
-      "prev_size_bytes": 88404,
-      "new_size_bytes": 90934,
-      "reason": "spec.md was amended in place to land the A1-REVISED errata (MCP framework path: mcp.server.fastmcp.FastMCP on mcp>=1.12 -> mcp.server.lowlevel.Server on mcp>=2.0,<3.0). Re-stamping keeps the ECL integrity tag tracking the current payload; leaving it stale would make every future receiver verification report a false tamper alarm on an authorized, recorded change. The old->new transition is recorded here, in decisions/A1-REVISED.md, and in plan-state.json errata[], so the audit chain is extended rather than broken.",
-      "authorizing_verdict": "FORGE (Reasoner) - Magicite MCP SDK framework path (A1 re-adjudication), 2026-08-14, gate PASS, confidence 88%; governance ruling: within declared variance, record as an A1 revision",
-      "decision_record": ".spectra/changes/magicite-v1-implementation/decisions/A1-REVISED.md",
-      "implementing_commit": "2d12134",
-      "restamped_by": "ramza",
-      "mechanism": "targeted jq rewrite of artifact.sha256 / artifact.size_bytes / integrity.value, verified by bin/ramza-verify-emit; no canonical ramza-* envelope-amend command exists, and ramza-freeze --amend was deliberately NOT used because it amends the acceptance-criteria anchor, which must not move",
-      "unchanged": [
-        "x_ramza_acceptance_criteria (7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448) - acceptance-criteria.md is byte-identical",
-        "objective and context_delta.summary - retained as sent; see spec.md section Scope for the authoritative stack statement",
-        "trace.ts - original emission timestamp, not backdated",
-        "message_id, thread_id, performative, from, to, confidence"
-      ]
-    },
-    {
-      "id": "R1-RESTATED",
-      "at": "2026-08-15",
-      "kind": "integrity_restamp",
-      "payload_path": ".spectra/changes/magicite-v1-implementation/spec.md",
-      "prev_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
-      "new_sha256": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17",
-      "prev_size_bytes": 90934,
-      "new_size_bytes": 94679,
-      "reason": "spec.md was amended in place to land the R1-RESTATED errata: risk R1's mitigation cited a per-session Tier-1 dw cap (3/skill/session) as an anti-poisoning control, and an executed adversarial review drove 253 tags / 200 captures for a single skill against it. session_id is caller-supplied and unauthenticated and omitting it mints a fresh session per call, so the honest calling convention defeats the cap; under local-first stdio no per-subject quota can bind at all. The mitigation is restated as object-keyed and temporal (per-engram refractory on the R bump, spacing-gated potentiation, decay at read, bounded retroactive credit, eph_tag-only S input), with the per-session cap demoted to runaway protection and the residuals stated openly. Re-stamping keeps the ECL integrity tag tracking the current payload; leaving it stale would make every future receiver verification report a false tamper alarm on an authorized, recorded change. The old->new transition is recorded here, in decisions/R1-RESTATED.md, and in plan-state.json errata[], so the audit chain is extended rather than broken. Chain to date: 92372ad6... -> 9fca1c08... -> 57148a2d...",
-      "authorizing_verdict": "FORGE (Reasoner) - Magicite Signal Integrity and Identity Model, 2026-08-14, RISK-ASSESSMENT, 2 passes, gate PASS, confidence 86%, requires_checker false; section 5.2 routes the spec.yaml R1 mitigation restatement to SPECTRA/RAMZA as an A1-class revision",
-      "evidence": "m3-security-review.md F-1 (executed: 5 calls/1 session -> 3 tags; 200 minted session ids -> 253 tags; 50 calls with no session_id -> still 253; 200 captured) and m4-security-retest.md (post-fix, pinned commit 3660c5d: the same 253/200 reproduce exactly, while 200 captured Tier-1 tags move S by 0.000000000 and 100 planted Tier-2 valence=+1.0 eph_event rows move S by 0.0)",
-      "decision_record": ".spectra/changes/magicite-v1-implementation/decisions/R1-RESTATED.md",
-      "implementing_commits": [
-        "9044d1f (M3 signal ladder)",
-        "3660c5d (M4 signal hygiene: refractory, decay-at-read, spacing gate, retro-credit bound, eph_event test)",
-        "15eda70 (M5 data-loss fixes)",
-        "9f5deb3 (M6 session_end grace floor)",
-        "1ce6f99 (IDG docs correction, docs/05 + docs/03)"
-      ],
-      "restamped_by": "ramza",
-      "mechanism": "targeted rewrite of artifact.sha256 / artifact.size_bytes / integrity.value plus a SECOND appended x_ramza_amendment entry (the A1-REVISED entry is left intact so the envelope carries the full hash chain), verified by bin/ramza-verify-emit; no canonical ramza-* envelope-amend command exists, and ramza-freeze --amend was again deliberately NOT used because it amends the acceptance-criteria anchor, which must not move",
-      "unchanged": [
-        "x_ramza_acceptance_criteria (7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448) - acceptance-criteria.md is byte-identical and was not re-frozen",
-        "the A1-REVISED x_ramza_amendment entry - append-only, left exactly as recorded",
-        "objective and context_delta.summary - retained as sent; see spec.md section Risks R1 for the authoritative mitigation statement",
-        "trace.ts - original emission timestamp, not backdated",
-        "message_id, thread_id, performative, from, to, confidence"
-      ]
-    }
-  ]
+  {
+   "id": "DECLARED-EDGES-AMENDED",
+   "at": "2026-08-15",
+   "kind": "integrity_restamp",
+   "payload_path": ".spectra/changes/magicite-v1-implementation/spec.md",
+   "prev_sha256": "57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17",
+   "new_sha256": "e9efab604467129246e0b70fb25ed70a576bc4fee5934a243881e2151101dd8b",
+   "prev_size_bytes": 94679,
+   "new_size_bytes": 119819,
+   "reason": "spec.md was amended in place to land the DECLARED-EDGES-AMENDED errata: a new normative section 3.3.1 stating where a declared edge's routing weight comes from (S_eff = max(storage_strength, w_authored), declared_edge_strength default 1.0, computed at read and never persisted), amended route steps 4/5/9/10 including a satisfiable plan_confidence, an amended section 2.6 step 9 community weighting, an introspect effective_strength field, and two evidence-driven routing defaults (ppr_restart 0.15 -> 0.85 measured; w_retrieval 0.15 -> 0.05 with w_similarity 0.30 -> 0.40, precautionary). Re-stamping keeps the ECL integrity tag tracking the current payload; leaving it stale would make every future receiver verification report a FALSE tamper alarm on an authorized, adjudicated, recorded change. The old->new transition is recorded here, in decisions/DECLARED-EDGES-AMENDED.md and in plan-state.json errata[], so the audit chain is extended rather than broken.",
+   "authorizing_verdict": "FORGE (Reasoner) - adjudicating the partial falsification of H-BODY, 2026-08-15, composite ROOT-CAUSE + TRADE-OFF + CONSTRAINT-SATISFACTION, requires_checker true; section 5 remedy (a)/(b)/(c): amend the spec, write a NEW AC whose GIVEN names the ingestion path, do NOT edit frozen AC-023",
+   "decision_record": ".spectra/changes/magicite-v1-implementation/decisions/DECLARED-EDGES-AMENDED.md",
+   "new_criteria": {
+    "path": ".spectra/changes/magicite-v1-implementation/acceptance-criteria-addendum.md",
+    "sha256": "2888886351b9d658ab98bf1d2e94d77e43850201130a15b26be9c63f3e27ef02",
+    "ids": "AC-034 ... AC-042",
+    "count": 9,
+    "frozen": false,
+    "note": "NOT merged into acceptance-criteria.md and NOT run through ramza-freeze: that tool writes plan-state.json criteria_sha256, which must keep naming the frozen 33. x_ramza_acceptance_criteria below is byte-unchanged."
+   },
+   "behaviour_change": "UNLIKE the A1-REVISED and R1-RESTATED restamps, this amendment changes executable behaviour: plan_confidence values change, declared edges enter the activation graph, inhibition becomes arithmetically live, communities re-cluster and two routing defaults move. All nine VG commands must be re-run after implementation.",
+   "restamped_by": "ramza",
+   "mechanism": "targeted rewrite of artifact.sha256 / artifact.size_bytes / integrity.value plus this third appended x_ramza_amendment entry; the first two entries are left intact so the envelope carries the full chain 92372ad6... -> 9fca1c08... -> 57148a2d... -> e9efab60... Verified afterwards by ramza-verify-emit --spec spec.md --envelope spec.envelope.json. objective, context_delta.summary, trace.ts and x_ramza_acceptance_criteria are left as sent: retroactively editing prose in a delivered ECL message would be rewriting history rather than amending it."
+  }
+ ]
 }

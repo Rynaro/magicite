@@ -42,6 +42,29 @@ corpus: docs/01-vision-and-hypotheses.md .. docs/07-evaluation-and-observability
 > eliminated"* — was right; only its bookkeeping was wrong. As with A1-REVISED: no acceptance
 > criterion, invariant, tool signature, validation-gate command, milestone, or §9 resolution was
 > touched, and nothing was re-scored.
+>
+> **Errata — DECLARED-EDGES-AMENDED (2026-08-15). This one changes behaviour.** Author-declared
+> edges (`needs`/`composes`/`inhibits`) carried **exactly zero** activation mass, permanently, and
+> no code path could ever raise them: they are written at `storage_strength = 0.0` and Dream can
+> only potentiate `co_activation`. Confirmed by execution — `route()` at spec defaults and
+> `route()` with every declared `type_gain` **and** `inhib_gain` zeroed returned **bit-identical
+> scores to 12 decimal places**. Three shipped behaviours were therefore mathematically dead: §3.3
+> step 10's `plan_confidence` was **permanently 0.0** for every multi-node plan (this spec asked
+> for something unsatisfiable as written), the inhibition pass was a numeric no-op, and declared
+> `composes`/`depends_on` were dropped from the activation graph entirely. The amendment separates
+> an edge's **authored** channel from its **learned** one — `S_eff = max(S_edge, w_authored)`,
+> **§3.3.1** — leaving "weight is earned, not assumed" true of `S_edge`, which is the channel it
+> was always about. §3.3 steps 4, 5, 9 and 10, §2.6 step 9's community weights, `introspect`'s edge
+> rows and `eval/bench.py`'s baseline (c) are amended; the hub-penalty PageRank deliberately is
+> **not**. Two routing defaults move on measurement: `ppr_restart` **0.15 → 0.85** and, as a
+> **precaution pending further experiment**, `w_retrieval` **0.15 → 0.05** with `w_similarity`
+> **0.30 → 0.40**. Nine new criteria (**AC-034 … AC-042**) land in
+> `acceptance-criteria-addendum.md`; **AC-023 is not edited** — it is provenance-underspecified in
+> its GIVEN, a coverage defect in the frozen set, and the remedy is AC-034, not a rewrite of a
+> frozen criterion. `acceptance-criteria.md` is byte-identical and was not re-frozen. Unlike the
+> two errata above, this one **does** change executable behaviour: every validation gate must be
+> re-run after implementation. Permanent record, evidence and carry-forwards:
+> `decisions/DECLARED-EDGES-AMENDED.md`.
 
 ---
 
@@ -310,7 +333,10 @@ CREATE TABLE edge (                                -- Tier B + declared composit
   dst_id           TEXT REFERENCES engram(id) ON DELETE SET NULL,
   type             TEXT NOT NULL CHECK (type IN
                      ('co_activation','composes','depends_on','similar_to','inhibits')),
-  storage_strength REAL NOT NULL DEFAULT 0.0,      -- S_edge
+  storage_strength REAL NOT NULL DEFAULT 0.0,      -- S_edge: the LEARNED channel ONLY.
+                                                   -- A declared edge stays at 0.0 here forever;
+                                                   -- its routing weight is computed, never
+                                                   -- stored (DECLARED-EDGES-AMENDED, §3.3.1).
   s_decayed_at     TEXT NOT NULL,
   evidence_count   INTEGER NOT NULL DEFAULT 0,
   provenance       TEXT NOT NULL CHECK (provenance IN ('declared','learned','distilled','derived')),
@@ -458,6 +484,15 @@ sync():
  returns {synced, removed, validation_errors[], dangling[], detector, consolidation_scheduled}
 ```
 
+**[DECLARED-EDGES-AMENDED 2026-08-15] Step 4 is unchanged, and that is deliberate.** A declared
+edge is still inserted at `storage_strength = 0.0`; the authored weight it routes with is
+*computed at read* (§3.3.1), never persisted. Nothing new enters the durable projection, so
+AC-009/AC-010 are untouched by the amendment — pinned by AC-036. **Step 9's community weights do
+change**: `max(S_edge, 0.1)` becomes `S_eff`, and the `_COMMUNITY_WEIGHT_FLOOR` workaround is
+deleted. Step 4's *other* half — "and the `synapses:` block (provenance from the file)" — is
+**still unimplemented** and is carried forward as CF-2 in the record; it is a separate defect
+(learned edge weights do not survive a DB rebuild) and is **not** fixed by this amendment.
+
 **Invariant (AC-009/AC-010):** for any registry `Rg`,
 `durable_projection(state_after(sync(Rg)))` is byte-equal whether the DB existed before or was
 deleted; only Tier C (R, tags, candidate edges, cached embeddings, event ledger) is lost, which
@@ -571,12 +606,27 @@ state.
             routable := status in (nascent, probation, consolidated, promoted)
                         AND verification_status = 'verified' AND NOT dangling-only
 3. p      = softmax(cos_sim(seeds) / temperature=0.07)       # personalisation vector
-4. a      = PPR(p, W, restart=0.15, max_iter=20, tol=1e-4)   # W row-normalised, positive edges
-            W_ij = S_edge_ij * type_gain[type]               # co_activation .8, composes 1.0,
+4. a      = PPR(p, W, restart=0.85, max_iter=20, tol=1e-4)   # W row-normalised, positive edges
+            #   [DECLARED-EDGES-AMENDED 2026-08-15] restart was 0.15. Measured, not guessed:
+            #   at 0.15, 85% of activation mass diffused along the derived similar_to kNN edges;
+            #   at 0.85 Hit@1 0.4619 -> 0.5476 (== baseline (b)) and Hit@3 0.7000 -> 0.7476
+            #   (> (b)'s 0.7429) on 70 engrams / 210 queries. See "Routing defaults" below.
+            W_ij = S_eff_ij * type_gain[type]                # co_activation .8, composes 1.0,
                                                              # depends_on 1.0, similar_to .6
+            #   S_eff, NOT S_edge (was `S_edge_ij * type_gain[type]`): S_edge is 0.0 for every
+            #   declared edge forever, and build_graph drops w<=0, so declared composes/
+            #   depends_on were ABSENT from the graph, not weak. See §3.3.1.
 5. inhibition: for every edge (j -> i, type='inhibits') with a_j > 0:
-            a_i *= (1 - S_edge_ji * inhib_gain=0.7)          # docs/01 negative intent
-6. score_i = w_a*a_i + w_s*cos_i + w_r*R_i + w_e*excitability_i   # .45/.30/.15/.10 (magicite.toml)
+            a_i *= (1 - S_eff_ji * inhib_gain=0.7)           # docs/01 negative intent
+            #   S_eff, NOT S_edge (was `S_edge_ji`), and NOT multiplied by type_gain:
+            #   type_gain['inhibits'] = 0.0 by design (an inhibits edge is never positive
+            #   diffusion mass). At defaults a declared inhibits scales the inhibited node's
+            #   activation by 1 - 1.0*0.7 = 0.3. Before this amendment the pass multiplied
+            #   by exactly 1.0 for every declared edge -- a numeric no-op. See §3.3.1.
+6. score_i = w_a*a_i + w_s*cos_i + w_r*R_i + w_e*excitability_i   # .45/.40/.05/.10 (magicite.toml)
+            #   [DECLARED-EDGES-AMENDED 2026-08-15] w_s .30 -> .40 and w_r .15 -> .05,
+            #   labelled PRECAUTIONARY PENDING FURTHER EXPERIMENT, not a measured optimum.
+            #   w_a and w_e are unchanged; the four still sum to 1.00. See "Routing defaults".
 7. hub penalty: if usage_pagerank_i > p95: score_i *= (1 - hub_penalty=0.15)   # docs/03 black holes
 7b. context conditioning (uses the `context` argument; docs/03 context nodes):
     project_tag      -> resolve to a context_node; engrams linked via engram_context get
@@ -590,13 +640,154 @@ state.
    keep the top-2 communities, then take the global top-k within them
 9. plan = composition.expand(winner): closure over resolved needs/composes edges,
    Kahn topological sort, cycle => break the weakest edge + warn, depth<=5, size<=8
-10. plan_confidence = mean(S_edge over plan edges) * (resolved_deps / declared_deps)
+   #   [DECLARED-EDGES-AMENDED 2026-08-15] "weakest" is now well-defined: break the edge
+   #   minimal under the TOTAL ORDER (S_eff, dep_name, dependent_name). Every declared plan
+   #   edge tied at 0.0 before (and ties at 1.0 after), so without the lexicographic tiebreak
+   #   "weakest" meant "whichever dict iteration hit first" and the plan was not reproducible.
+10. plan_confidence = |E_sat| / |E|  (structural satisfaction; 1.0 when |E| == 0), where
+        E     = every declared depends_on/composes edge whose src is a node in the emitted
+                plan (the bounded closure), dangling targets INCLUDED
+        E_sat = { e in E : e resolves (dangling = 0 AND dst_id IS NOT NULL)
+                           AND e.target appears in `order`
+                           AND `order` respects e (index(target) < index(src)) }
+    #   [DECLARED-EDGES-AMENDED 2026-08-15] WAS: mean(S_edge over plan edges) *
+    #   (resolved_deps / declared_deps). That was UNSATISFIABLE as written and is the clearest
+    #   proof this is a spec defect rather than a bug: plan edge types are depends_on/composes,
+    #   which are always provenance='declared', and Dream potentiates only co_activation --
+    #   so mean(S_edge) was a STRUCTURAL constant, 0.0 today and exactly 1.0 the moment §3.3.1
+    #   lands. A factor that can only ever be a constant carries no information in either
+    #   regime, so it is removed rather than floated. The old formula conflated "is this plan
+    #   complete?" with "are these edges strong?"; plan confidence is a statement about
+    #   structural completeness, never about Hebbian strength. The three ways a plan is
+    #   actually untrustworthy now fall out of one rule with no extra constants: a dangling
+    #   target fails clause 1, a target cut by plan_max_depth/plan_max_size fails clause 2, an
+    #   edge dropped by cycle-breaking fails clause 3. Round to 4 dp. NOTE the deliberate
+    #   behaviour change: the emitted implementation short-circuits len(order)<=1 -> 1.0; under
+    #   this rule a lone winner with two unresolvable `needs` reports 0.0, which is the honest
+    #   answer and exactly the case the short-circuit hid. Pinned by AC-037/AC-038.
 11. bookkeeping (Tier C ONLY): eph_bookkeeping.exposure_delta += 1, last_activated = now,
     eph_event row (tool='route', signal_tier=0). R and S are NOT touched (Principle 1).
 ```
 
 Latency budget (docs/07): embed ≤50ms + activation ≤30ms + assembly ≤20ms → **<100ms p95 at 10³ nodes**;
 asserted by `tests/integration/test_route_latency.py` on a generated 1000-node registry.
+
+#### 3.3.1 Effective edge weight `S_eff` — where a declared edge's weight comes from
+
+> **Amendment, 2026-08-15 (DECLARED-EDGES-AMENDED).** This subsection is normative and did not
+> exist in the emitted spec. Its absence is the defect: the spec named `S_edge` as an edge's
+> routing weight and never said where a *declared* edge's `S_edge` comes from. The answer the
+> implementation reached — hardcoded `0.0` forever, with the only potentiation path restricted to
+> `co_activation` — made three shipped behaviours mathematically dead. Full record, evidence and
+> the rejected alternatives: `decisions/DECLARED-EDGES-AMENDED.md`.
+
+**The rule.** An edge's routing weight has **two channels**, and `edge.storage_strength` is only
+the second one:
+
+```
+S_eff(edge) = max(edge.storage_strength, w_authored(edge))
+
+w_authored(edge) = declared_edge_strength   if edge.provenance == 'declared'
+                 = 0.0                      if edge.provenance in ('learned','derived','distilled')
+
+declared_edge_strength: float = 1.0     # magicite.toml [routing], ablation-switchable
+```
+
+An author's `needs:`/`composes:`/`inhibits:` is an **assertion**, not a statistic. "A inhibits B"
+is a statement about semantics; there is no observable whose accumulation makes it more true (and
+co-activation of A and B is evidence *against* it, not for it). `edge.storage_strength` remains
+the **learned (Hebbian) channel and nothing else** — it starts at 0.0 for a declared edge, only
+Dream may raise it, and only for the types Dream can potentiate. *"Weight is earned, not assumed"*
+(`storage/durable.py:304-309`) is therefore preserved verbatim **for the channel it was always
+about**; what was wrong was reading one column as an edge's whole routing weight.
+
+**Properties — all normative:**
+
+- **Computed at read, never stored.** No new column, no second migration, no checkpoint field, no
+  `synapses:` change. `wire_declared_edges` is unchanged and still writes the literal `0.0`.
+  Therefore the durable projection is unchanged (**AC-009/AC-010 untouched**, pinned by AC-036),
+  and Dream's Phase-3 decay, Phase-2 prune (`provenance='learned'` only) and Phase-4 renormalise
+  (`WHERE storage_strength > 0`) continue to operate on the learned column alone. **An authored
+  assertion can never be decayed, pruned or renormalised away** — it ends when the author deletes
+  the line, not when a scheduler forgets it.
+- **Floor, not replacement.** If a declared-provenance edge is ever potentiated above
+  `declared_edge_strength`, the learned value wins. Learning may exceed an assertion; it may not
+  erase one. This is also what keeps the *earnable-declared-edge* design open with no further spec
+  change.
+- **Range-preserving.** `S_eff ∈ [0,1]` given `S_edge ∈ [0, w_max=1.0]`, so every formula that
+  assumed an S in that range — notably `1 − S·inhib_gain > 0` — keeps its arithmetic.
+- **Exactly revertible.** `declared_edge_strength = 0.0` reproduces pre-amendment behaviour
+  bit-for-bit (`max(S,0) == S`). One config line, bisectable (**AC-039**).
+- **One implementation.** A single pure helper `core/edge_weight.py::effective_strength(...)` —
+  framework-free, no DB handle, importing neither `storage.durable` nor `engram.writer`, so
+  `core/router.py` may import it without breaching **AC-024**. Every consumer goes through it
+  (**AC-040**, an AST guard of the same shape as AC-024).
+- **`distilled` is 0.0 by explicit decision, not by omission.** No v1 path writes an edge row with
+  that provenance; a reserved-but-unused value must not silently acquire full authored weight the
+  day something starts emitting one. Distilled edges enter the authored channel only through the
+  docs/06 approval gate, and that is a separate amendment.
+
+**Why `1.0`, and why it is not a new magic number.** `S_eff × type_gain[type]` at `S_eff = 1.0`
+**is** `type_gain[type]`. The relative weighting *among* declared types is therefore expressed
+entirely by `type_gain` — the knob that already exists for exactly that, already carrying this
+spec's values. Any other value adds a second magnitude knob underneath the first, with no
+measurement to set it. It is also the convention this codebase already reached independently when
+it hit this same zero: the hub-penalty PageRank (`core/router.py:14-25`, "edge weight = `type_gain`
+only … an honest until-Dream-exists proxy") and `eval/bench.py:70-78` baseline (c) ("fixed
+`type_gain` … never `S_edge`"); `_COMMUNITY_WEIGHT_FLOOR = 0.1` (`core/registry.py:60-71`) chose
+the right *form* at an inert *magnitude*. This amendment promotes that convention from three local
+workarounds to one rule.
+
+A `0.1`-style floor was evaluated and **rejected on arithmetic**: at 0.1 the 35 declared edges of
+the 70-engram benchmark registry contribute ≈3.5 units against ≈126 for the 350 `similar_to` edges
+(≈2.7% of graph mass) — declared structure still would not participate. At 1.0 the same arithmetic
+gives ≈21.7% of global mass, and since `W` is **row-normalised** the governing figure is the
+per-row share: a node with one declared edge and five kNN neighbours gives the declared edge
+`1.0/(1.0 + 5×0.36) ≈ 36%` of its outflow; with two declared edges, ≈53%.
+
+**Call sites — exhaustive. Every one of these is normative; nothing else changes.**
+
+| # | Site | Rule |
+|---|---|---|
+| 1 | §3.3 step 4, activation graph | `W_ij = S_eff_ij × type_gain[type]` |
+| 2 | §3.3 step 5, inhibition | `a_i *= (1 − S_eff_ji × inhib_gain)` — `S_eff` **directly**, never × `type_gain`, since `type_gain['inhibits'] = 0.0` by design |
+| 3 | §2.6 step 9, community weights | `S_eff` replaces `max(S_edge, _COMMUNITY_WEIGHT_FLOOR)`; **delete `_COMMUNITY_WEIGHT_FLOOR`** — two competing floors is a maintenance trap. Low risk: the community rerank measures inert (ΔHit@1 = 0.0000, ΔHit@3 = 0.0000 with 5 real communities) |
+| 4 | §3.3 step 9, cycle-break | break the edge minimal under the total order `(S_eff, dep_name, dependent_name)` (**AC-042**) |
+| 5 | §3.3 step 10, `plan_confidence` | redefined structurally — see step 10 |
+| 6 | `introspect`/`inspect` edge rows | report **both** `storage_strength` (learned, still 0.0 for a declared edge) **and** a new additive `effective_strength` field (**AC-041**). No tool is added, removed, renamed or re-signatured: AC-003's 16 and INV-4 are untouched |
+| 7 | `eval/bench.py` baseline (c) | the same helper **with the learned channel suppressed**: `max(w_authored(edge), S_edge if provenance == 'derived' else 0.0) × type_gain`. Keeps docs/07's "no learned weights" true for (c) while giving kNN edges their cosine instead of a flat gain. **(c)'s published numbers move and must be re-published** |
+| — | §3.3 step 7, hub-penalty structural PageRank | **DELIBERATELY NOT CHANGED.** It keeps its `type_gain`-only weighting. Its docstring's stated reason ("S_edge would make it permanently inert") is now obsolete; its **restated** reason is that it is deliberately a *structural* centrality metric. It is the one graph mechanism measured to help (+0.0286 Hit@1, +0.0362 MRR), and whether it should instead be weighted by *learned* topology is an open experiment. Applying "one rule everywhere" here would be an unmeasured change to a measured-good path |
+| — | Dream Phases 2/3/4, `_build_synapses`, `obs/kpi.py` | **NOT CHANGED.** They read the learned column, which is exactly what they should read |
+
+**Routing defaults changed on evidence (same amendment).** Both come from a one-`Config`-field-at-
+a-time sweep on 70 engrams / 210 pre-registered queries, the arm-invariant measurement in that
+report; each default below ships with the measurement that produced it, in `magicite.toml`
+comments as well as here.
+
+| Knob | Was | Now | Basis |
+|---|---|---|---|
+| `ppr_restart` | 0.15 | **0.85** | **Measured.** Hit@1 0.4619 → **0.5476** (identical to embedding baseline (b)), Hit@3 0.7000 → **0.7476** (above (b)'s 0.7429), MRR 0.5913 → 0.6398. Diagnosis, also measured: at 0.15, **85% of activation mass** diffused along the 350 derived `similar_to` kNN edges, and the PPR term contributed 37% as much ranking spread as similarity — spread reflecting *neighbourhood mass*, not query match |
+| `w_similarity` | 0.30 | **0.40** | see below |
+| `w_retrieval` | 0.15 | **0.05** | **PRECAUTIONARY PENDING FURTHER EXPERIMENT — not a measured optimum, and must not be published as one.** The basis is an evidence-balance asymmetry, not a new tuned number: 0.15 has **one strong measurement against it and zero measurements ever for it.** Against: under an *oracle* teacher on a **matched** train/test distribution, held-out Hit@1 fell 0.4697 → **0.1061**; it degrades on its own training split too (0.4583 → 0.2847); the target-only variant (0 learned edges) still collapses to 0.1818. Mechanism, measured: `w_similarity·cosine` spread 0.0561 vs `w_retrieval·R` spread **0.0354 — 63% of the query-conditioned signal's amplitude** — contributed by a pure usage-frequency prior with *zero* query conditioning and no attenuation mechanism. Honest limit, carried: that workload is uniform, which makes a popularity prior maximally uninformative; under skewed real demand `R` would carry signal. Reverse it if component normalisation recovers cold-level held-out Hit@1 at 0.15 |
+
+**Why not `w_activation = 0`**, which measures 0.0048 Hit@1 *better* than `ppr_restart = 0.85`
+(0.5524 vs 0.5476): it would **break a frozen acceptance criterion to buy one query in 210.**
+Inhibition acts *only* on the activation vector (§3.3 step 5, applied before scoring), so zeroing
+`w_activation` makes AC-023's *"the inhibited engram's score SHALL be strictly lower"*
+arithmetically **unprovable** — not failing, unprovable. It would also turn 45% of the score into
+a constant zero (shipping "spreading activation" that spreads nothing) and take the hub penalty
+and community rerank down with it. 0.0048 Hit@1 is noise; a frozen criterion is the
+tamper-evidence anchor. `ppr_restart` keeps every graph path live and is a single scalar with a
+clear physical meaning that a larger registry can sweep.
+
+**Release obligation (not a new validation gate — the nine VG commands are unchanged, and the
+70-engram corpus is not in-repo).** `ppr_restart = 0.85` was measured on a graph in which declared
+edges were still inert, and this amendment changes that graph underneath it; inhibition is
+simultaneously live for the first time (11 declared `inhibits` relations that have never had any
+effect now scale their targets' activation by 0.3). The cold 210-query bench **must** be re-run
+after implementation and the new (b)/(c)/(d) numbers published, with the inhibition delta reported
+separately so the two changes are not conflated. A default that ships on an obsolete measurement
+is the failure mode this amendment exists to correct.
 
 ```python
 # ── 2. load_skill_body ── R0 (hosts without filesystem access; progressive disclosure)
@@ -611,6 +802,12 @@ def introspect(skill_id: str | None = None, consolidation_id: str | None = None,
                include_health: bool = False) -> IntrospectResult
 # skill_id  -> skill{...}, outbound_edges[], inbound_edges[], history[], silent_engram_flag,
 #              tier_state{S_node, S_effective_now, R, live_tags, pending_dw}
+#   [DECLARED-EDGES-AMENDED 2026-08-15] each edge row in outbound_edges[]/inbound_edges[]
+#   carries BOTH storage_strength (the learned channel -- still exactly 0.0 for a declared
+#   edge) AND a new additive field effective_strength = S_eff (§3.3.1). Without it the
+#   amendment would create a routing weight no operator can see: `inspect` would keep
+#   reporting 0.0 for an edge that now routes at 1.0. Additive field on one R0 read-only
+#   tool; no tool is added, removed, renamed or re-signatured (AC-003, INV-4 untouched).
 # consolidation_id -> run{state, phase, stats, audit_report}
 # neither   -> registry summary {counts by status, detector, last_sync, last_consolidation,
 #              registry_size, embedding_model, autonomous_mode}
@@ -764,6 +961,14 @@ prune:  S_edge < theta_prune (0.10) for >=3 consecutive runs -> archive row, dro
 Defaults (all in `magicite.toml`, all ablation-switchable): `eta=0.08`, `w_max=1.0`,
 `tau_spacing=6h`, `lambda_R=0.1/day`, `lambda_S=0.01/day`, `theta_salience=0.7`,
 `theta_synapse=0.35`, `theta_consolidate_status=0.6`, `floor_archived=0.2`, `epsilon_write=0.05`.
+
+**[DECLARED-EDGES-AMENDED 2026-08-15] Dream is untouched by the edge-weight amendment, by
+construction.** Phases 2, 3 and 4 read and write `edge.storage_strength` — the *learned* channel —
+and the authored channel is computed at read and never persisted (§3.3.1). So decay never erodes
+an authored assertion, prune (`provenance='learned'` only) never removes one, and Phase-4
+renormalisation (`WHERE storage_strength > 0`) never scales one. If Dream is ever taught to
+potentiate a declared type, the §3.3.1 floor already lets the learned value win once it exceeds
+the authored one, with no further spec change.
 
 ### 4.4 Run-level idempotency and reversibility
 
@@ -1181,6 +1386,12 @@ Proves: **AC-026, AC-031**.
 
 ## Acceptance Criteria
 
+> **AC-001 … AC-033 below are the frozen set** (`ramza-freeze`; authority is
+> `acceptance-criteria.md` at sha256 `7bd3d184…`, byte-identical and **not** re-frozen by any
+> errata). **Nine further criteria, AC-034 … AC-042, were added on 2026-08-15 by
+> DECLARED-EDGES-AMENDED** and live in a separate marked file,
+> `acceptance-criteria-addendum.md` — see the addendum note after AC-033.
+
 ### AC-001 (event-driven)
 GIVEN a project root containing `.spectra/engrams/` with the toy registry
 WHEN an MCP client sends `initialize` to `magicite serve` over stdio
@@ -1366,6 +1577,40 @@ GIVEN an engram whose effective storage strength has decayed below `floor_archiv
 THEN the next Dream run SHALL move its file into `.spectra/archive/` without deleting it
 VERIFY: test: tests/integration/test_dream_cycle.py::test_decay_floor_archives_never_deletes
 
+### Addendum — AC-034 … AC-042 (DECLARED-EDGES-AMENDED, 2026-08-15)
+
+**Nine new criteria are added by this amendment. They are NOT part of the frozen set and this
+file is not their authority.** They live in
+`.spectra/changes/magicite-v1-implementation/acceptance-criteria-addendum.md`, are linted by
+`ramza-ears-lint` (9/9 pass), and their tamper anchor is that file's own sha256 recorded in
+`spec.yaml artifacts[]`. They are deliberately **not** run through `ramza-freeze`, because that
+tool writes `plan-state.json criteria_sha256` and that pointer must keep naming the frozen 33.
+Kupo attests AC-034 … AC-042 alongside AC-001 … AC-033.
+
+| ID | Form | Pins |
+|---|---|---|
+| AC-034 | event-driven | **GIVEN names the `register()` ingestion path** — a registry ingested only through `register()` from frontmatter `inhibits:`; the competitor's score must be strictly lower than at `declared_edge_strength = 0.0` |
+| AC-035 | event-driven | a declared `needs:` edge is **present in the activation graph** at `declared_edge_strength × type_gain['depends_on']` |
+| AC-036 | state-driven | a never-potentiated declared edge's persisted `edge.storage_strength` is **still exactly 0.0** — the guard that keeps AC-009/AC-010 unmoved |
+| AC-037 | event-driven | `plan_confidence == 1.0` for a fully-resolved multi-node plan |
+| AC-038 | event-driven | `plan_confidence == 0.5` for one-of-two resolved |
+| AC-039 | unwanted-behavior | `declared_edge_strength = 0.0` is an **exact revert** |
+| AC-040 | ubiquitous | **no module outside `core.edge_weight` derives an edge routing weight from `edge.storage_strength`** — AST guard, same shape as AC-024; this is the criterion whose absence let the defect ship |
+| AC-041 | event-driven | `introspect` edge rows report `effective_strength` |
+| AC-042 | event-driven | cycle-breaking is deterministic across two expansions |
+
+**AC-023 is provenance-underspecified in its GIVEN, and is deliberately NOT edited.** Recorded
+here as a **coverage defect in the frozen criteria — not a checker failure and not a
+test-fidelity failure.** AC-023 says nothing about provenance or about how the `inhibits` edge
+came to exist; `tests/unit/core/test_router.py:80` inserts one at `storage_strength = 0.8` by
+direct SQL and the assertion then holds, so **the test proves the criterion exactly as written**
+and Kupo's 33/33 is not impeached. What the criterion never required is that the state it
+describes be **reachable by any production path** — and before this amendment it was not
+(`wire_declared_edges` hardcodes 0.0; Dream potentiates only `co_activation`), which made AC-023
+unreachable in production while passing in CI. The fault is in the GIVEN. The remedy is AC-034,
+whose GIVEN names `register()`; editing a frozen criterion to repair its own weakness would
+destroy the tamper-evidence anchor that makes the frozen set worth anything (R11).
+
 ---
 
 ## Confidence
@@ -1440,8 +1685,9 @@ with ~87% package overlap. constraint_compliance 84 — every corpus P0 maps to 
 | R7 | **Lock semantics on non-local filesystems** (NFS/CIFS bind mounts) breaking single-writer. | P2 | flock **plus** a DB `writer_lease` row with TTL/heartbeat; `magicite doctor` warns when the registry is not on a local FS; documented in `docs/operations.md`. | Vivi (M4/M7) |
 | R8 | **Distillation quality without an in-server LLM** (CR-3) — proposals may be low value. | P2 | Support/consistency thresholds (≥5 sessions, no failures), proposals are approval-gated and land `nascent`+`pending`, never routable until the rubric gate passes. Revisit only if proposal acceptance is < 30%. | Vivi (M6) |
 | R9 | **Cold start / small registries** — docs/07 honest limit: under ~50 skills native SKILL.md matching is fine and Magicite is overhead. | P2 | `route()` returns `registry_size`; `magicite doctor` states the break-even honestly rather than overselling. | Vivi (M2) |
-| R10 | **Hypothesis falsification** — H-BODY/H-SCALE/H-COMPOSE/H-LEARN come from UNVERIFIED-2026 sources; the engine's value proposition could fail its own benchmark. | P1 | The bench harness ships in v1 (M6) with baselines a–d so falsification is cheap and early; every claim in the README stays hypothesis-tagged until measured. | Kupo (verify) + Vivi (M6) |
+| R10 | **Hypothesis falsification** — H-BODY/H-SCALE/H-COMPOSE/H-LEARN come from UNVERIFIED-2026 sources; the engine's value proposition could fail its own benchmark. *(**This risk fired**, 2026-08-15, and the mitigation worked as designed — cheaply and early. On 70 engrams / 210 pre-registered queries: **H-BODY-a supported in direction** (+14.3pp Hit@1, p = 0.00064) though the registered ≥20pp effect size is **not demonstrated**; **H-BODY-b falsified as implemented** ((b) > (d), −0.0857, p = 0.00053); **H-SCALE mechanism falsified** at 70 skills with 5 real communities; **H-SCALE claim inconclusive**; **H-COMPOSE untested** — zero compositional queries were run and Plan F1 as implemented is a monotone re-encoding of Hit@1; **H-LEARN falsified as implemented under uniform demand**. Two routing defaults moved on that evidence — §3.3.1. The docs/01 Hypothesis Register and docs/07 corrections are routed to IDG as CF-1 in `decisions/DECLARED-EDGES-AMENDED.md`; `docs/` is outside RAMZA's write boundary.)* | P1 | The bench harness ships in v1 (M6) with baselines a–d so falsification is cheap and early; every claim in the README stays hypothesis-tagged until measured. **A measured falsification is the mitigation succeeding, not failing** — what it now requires is that the product claim be reframed to what the evidence licenses: a semantic skill router with a portable format, a lifecycle, governance, composition-plan expansion and an **instrumented learning substrate that is not yet demonstrated to improve routing**. | Kupo (verify) + Vivi (M6) |
 | R11 | **Critic independence** — this spec's critic pass ran in the same session as the author (no second agent was available to RAMZA), recorded as `ramza-maker` vs `ramza-critic` in `plan-state.json`. | P1 | Kupo is the genuinely independent checker at ESL `verify`; the critic record is disclosed, not laundered. Treat the frozen criteria hash, not the critic record, as the tamper-evidence anchor. | Kupo |
+| R12 | **Newly-live declared-edge mass is itself unmeasured** (added by DECLARED-EDGES-AMENDED, 2026-08-15). §3.3.1 puts declared `composes`/`depends_on` into the activation graph and makes inhibition arithmetically real for the first time — 11 declared `inhibits` relations in the 70-engram benchmark registry that have *never* had any effect now scale their targets' activation by 0.3. `ppr_restart = 0.85` was measured on the *old* graph, so its 0.5476 Hit@1 does not transfer unchanged; community structure re-clusters when `_COMMUNITY_WEIGHT_FLOOR` is deleted; and baseline (c)'s published numbers move. Shipping on an obsolete measurement is exactly the failure this amendment exists to correct. | P1 | The change is **one config scalar and exactly revertible**: `declared_edge_strength = 0.0` reproduces pre-amendment scores bit-for-bit (AC-039), so it is bisectable and can be backed out without a code change. Release obligation (§3.3.1): re-run the cold 210-query bench after implementation and **publish** the new (b)/(c)/(d) numbers, reporting the inhibition delta separately so the edge-weight change and the `ppr_restart` change are not conflated. Direction of travel is toward *less* diffusion overall — §3.3.1 puts authored structure in while `ppr_restart = 0.85` damps how far anything travels, which is deliberate. | Vivi (config) + Kupo (verify) |
 
 ---
 
@@ -1449,7 +1695,14 @@ with ~87% package overlap. constraint_compliance 84 — every corpus P0 maps to 
 
 - **Acceptance-check ids for `change.json`:** AC-001 … AC-033 (33 criteria, frozen via
   `ramza-freeze`; hash recorded in `plan-state.json` and on the ECL envelope as
-  `x_ramza_acceptance_criteria`).
+  `x_ramza_acceptance_criteria`) **plus AC-034 … AC-042** (nine added 2026-08-15 by
+  DECLARED-EDGES-AMENDED; authority `acceptance-criteria-addendum.md`, hash in `spec.yaml
+  artifacts[]`, **not** frozen and **not** merged into the frozen file).
+- **What this amendment obliges before release:** the DECLARED-EDGES-AMENDED change is the first
+  errata on this spec that alters **executable behaviour** — `plan_confidence` values change,
+  declared edges enter the activation graph, inhibition becomes live, communities re-cluster, and
+  two routing defaults move. All nine VG commands must be re-run after implementation, and the
+  cold 210-query bench re-run and published (§3.3.1, R12).
 - **Declared execution scope** (drift watch): `src/magicite/*`, `tests/*`, `pyproject.toml`,
   `uv.lock`, `Dockerfile*`, `.dockerignore`, `.github/workflows/*`, `README.md`, `docs/adapters/*`,
   `docs/operations.md`. Anything else Vivi touches is drift and needs an amendment.

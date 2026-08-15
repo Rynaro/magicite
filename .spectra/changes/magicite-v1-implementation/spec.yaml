@@ -83,6 +83,81 @@ errata:
     verification: "executed post-fix re-test against pinned commit 3660c5d: 253/200 reproduce exactly; 200 captured Tier-1 tags move S by 0.000000000; 4200 captured edge tags commit 0 edges; 100 planted Tier-2 eph_event rows move S by 0.0; R self-reverts to baseline after a 30d anchor; mutation spot-check 8/8 guards detected"
     verified_status_impact: "none — the criteria anchor did not move and no src/, tests/ or docs/ file was touched; see decisions/R1-RESTATED.md section 11"
     human_confirmation: "not required for the restatement; the inherited FORGE ask (confirm M7 packaging does not put the server behind a privilege boundary the client does not share) stands as CF-4"
+  - id: DECLARED-EDGES-AMENDED
+    at: "2026-08-15"
+    record: .spectra/changes/magicite-v1-implementation/decisions/DECLARED-EDGES-AMENDED.md
+    disposition: "FORMAL SPEC AMENDMENT - a design gap no code patch can legitimately close (spec.md:593 asked for a value that is unsatisfiable as written), plus two evidence-driven default changes. New criteria in a marked addendum; the frozen criteria file is byte-identical and was NOT re-frozen. No re-plan, no re-scoring, no phase re-walk. UNLIKE the two errata above, this one DOES change executable behaviour."
+    authorizing_verdict: "FORGE (Reasoner) - adjudicating the partial falsification of H-BODY, 2026-08-15, composite ROOT-CAUSE + TRADE-OFF + CONSTRAINT-SATISFACTION, standard depth, requires_checker true. Section 4 [VERDICT] 'Damp, don't amputate' (Tier-1 items 1-3); section 5 remedy (a) amend the spec to state where a declared edge's S_edge comes from, (b) write a NEW AC whose GIVEN names the ingestion path, (c) do it WITHOUT editing frozen AC-023."
+    trigger: >-
+      Confirmed BY EXECUTION (ATLAS): author-declared edges (needs->depends_on, composes, inhibits)
+      carry EXACTLY ZERO activation mass, permanently, and no code path can ever raise them.
+      route() at spec defaults and route() with every declared type_gain AND inhib_gain zeroed
+      return BIT-IDENTICAL scores to 12 decimal places; forcing a declared S_edge=0.9 DOES change
+      the ranking, so the path is live and simply never fed. storage/durable.py:203 inserts
+      declared edges at storage_strength=0.0 and the ON CONFLICT clause updates only
+      dst_id/dangling; core/dream.py:194 + core/signals.py:152-164 restrict potentiation to
+      co_activation, the only type ever tagged; core/activation.py:56 then DROPS edges with w<=0,
+      so declared edges are ABSENT from the graph rather than weak. Consequences that make this a
+      spec problem: plan_confidence (spec.md:593 section 3.3 step 10) is permanently 0.0 for every
+      multi-node plan and is client-visible; apply_inhibition is a numeric no-op, so AC-023 is
+      unreachable in production (it passes only because tests/unit/core/test_router.py:80 injects
+      storage_strength=0.8 by direct SQL); and declared composes/depends_on are silently removed
+      from routing.
+    ruling: >-
+      FORGE's position ADOPTED on substance (declared mutual exclusion and composition are AUTHORED
+      ASSERTIONS, not earned Hebbian weights) and SHARPENED on mechanism. (1) The category error was
+      the CONFLATION of two semantics in one column, not the 'earned' principle itself: S_eff =
+      max(edge.storage_strength, w_authored(edge)) keeps 'weight is earned, not assumed'
+      (storage/durable.py:304-309) true of storage_strength, which is the channel it was always
+      about. (2) A FLOOR, not FORGE's 'fixed gain independent of S_edge' - learning may exceed an
+      assertion, it may not erase one, and S_eff stays in [0,1] so 1 - S*inhib_gain stays positive.
+      (3) Scope is all authored types, not just inhibits. FORGE's arithmetic objection to a floor is
+      ANSWERED, not accepted: it targets the magnitude 0.1 (~2.7% of graph mass), not the form; at
+      the authored magnitude 1.0 the same arithmetic gives ~21.7% of global mass and, since W is
+      row-normalised, ~36-53% of a declared node's own outflow. WITHHELD: the hub-penalty structural
+      PageRank keeps type_gain-only weighting - it is the one graph mechanism measured to help
+      (+0.0286 Hit@1) and re-weighting it is FORGE's own open D3 experiment.
+    what_changed: >-
+      New normative spec.md section 3.3.1 'Effective edge weight': S_eff = max(storage_strength,
+      w_authored), w_authored = declared_edge_strength (new magicite.toml knob, default 1.0) for
+      provenance='declared' and 0.0 for learned/derived/distilled. Computed at READ, never stored -
+      no column, no second migration, no checkpoint field - so AC-009/AC-010 are untouched (pinned
+      by AC-036) and Dream's decay/prune/renormalise still operate on the learned column alone.
+      Exactly revertible at declared_edge_strength=0.0 (AC-039). One pure helper
+      core/edge_weight.py::effective_strength, guarded by an AST criterion (AC-040). Amended sites:
+      section 3.3 step 4 (W_ij = S_eff * type_gain), step 5 (a_i *= 1 - S_eff*inhib_gain, S_eff
+      DIRECTLY since type_gain['inhibits']=0.0 by design), step 9 (cycle-break becomes the total
+      order (S_eff, dep_name, dependent_name)), step 10 (plan_confidence redefined structurally),
+      section 2.6 step 9 (community weights use S_eff; _COMMUNITY_WEIGHT_FLOOR deleted), introspect
+      edge rows (additive effective_strength field), eval/bench.py baseline (c) (same helper with
+      the learned channel suppressed). Defaults: ppr_restart 0.15 -> 0.85 (MEASURED) and
+      w_retrieval 0.15 -> 0.05 with w_similarity 0.30 -> 0.40 (PRECAUTIONARY pending experiment).
+      Risks: R10 annotated as FIRED with its measured outcomes; new R12 for the newly-live,
+      unmeasured declared-edge mass.
+    plan_confidence_fix: >-
+      Section 3.3 step 10 WAS mean(S_edge over plan edges) * (resolved_deps/declared_deps), which
+      was unsatisfiable: plan edge types are depends_on/composes, always provenance='declared', and
+      Dream potentiates only co_activation, so mean(S_edge) was a STRUCTURAL constant. It is now
+      |E_sat|/|E| (1.0 when |E|==0) over the emitted plan's declared depends_on/composes edges,
+      where E_sat are those that resolve, whose target appears in `order`, and whose ordering
+      `order` respects. The S_edge factor is REMOVED rather than floated to 1.0 - a factor that can
+      only ever be a constant carries no information in either regime. Dangling targets, depth/size
+      truncation and cycle-breaking all fall out of one rule with no extra constants. Deliberate
+      behaviour change: the len(order)<=1 -> 1.0 short-circuit is gone, so a lone winner with two
+      unresolvable needs now honestly reports 0.0. Pinned by AC-037/AC-038.
+    defaults_changed:
+      - "ppr_restart 0.15 -> 0.85 (MEASURED, 70 engrams / 210 pre-registered queries, one Config field at a time): Hit@1 0.4619 -> 0.5476 (== embedding baseline (b)), Hit@3 0.7000 -> 0.7476 (> (b)'s 0.7429), MRR 0.5913 -> 0.6398. At 0.15, 85% of activation mass diffused along the 350 derived similar_to kNN edges. NOT w_activation=0 despite its 0.0048 better Hit@1: inhibition acts ONLY on the activation vector, so zeroing that weight makes AC-023 arithmetically UNPROVABLE - breaking a frozen criterion to buy one query in 210 - and turns 45% of the score into a constant zero, taking the hub penalty and community rerank with it."
+      - "w_retrieval 0.15 -> 0.05 and w_similarity 0.30 -> 0.40, PRECAUTIONARY PENDING FURTHER EXPERIMENT, explicitly not a measured optimum. Evidence-balance asymmetry, not a new magic number: 0.15 has one strong measurement against it (oracle teacher, MATCHED train/test distributions: held-out Hit@1 0.4697 -> 0.1061; train split 0.4583 -> 0.2847; target-only variant still 0.1818; w_retrieval*R spread = 63% of the query-conditioned signal's amplitude) and zero measurements ever for it. Honest limit carried: the workload is uniform, which makes a popularity prior maximally uninformative. w_activation and w_excitability unchanged; the four still sum to 1.00."
+    new_criteria: "AC-034 ... AC-042 in acceptance-criteria-addendum.md (9 criteria, ramza-ears-lint 9/9 pass). AC-034's GIVEN names the register() ingestion path, so it exercises a state production can actually reach. NOT frozen and NOT merged into acceptance-criteria.md: ramza-freeze writes plan-state.json criteria_sha256, which must keep naming the frozen 33."
+    ac_023: "PROVENANCE-UNDERSPECIFIED IN ITS GIVEN, and deliberately NOT edited. It says nothing about provenance, so tests/unit/core/test_router.py:80 (direct-SQL storage_strength=0.8) proves it exactly as written - a coverage defect in the frozen criteria, not a checker failure and not a test-fidelity failure. Remedy is AC-034, not a rewrite: editing a frozen criterion to repair its own weakness would destroy the tamper-evidence anchor (R11)."
+    spec_md_sha256: {prev: 57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17, new: e9efab604467129246e0b70fb25ed70a576bc4fee5934a243881e2151101dd8b}
+    spec_md_locations: "reading-contract errata banner; section 2.2 edge DDL comment; section 2.6 step 4 note; section 3.3 route steps 4/5/6/9/10 (superseded values struck in-comment, never deleted); NEW section 3.3.1 Effective edge weight (incl. the routing-defaults table and the release obligation); section 3.3 introspect note; section 4.3 Dream note; Acceptance Criteria pointer + the AC-034...AC-042 addendum block + the AC-023 coverage note; section Risks R10 (fired) and new R12; Handoff."
+    envelope_integrity_restamped: true
+    unchanged: "acceptance_criteria.sha256 (7bd3d184..., byte-identical, NOT re-frozen; amendments[] still empty; AC-023 not edited); AC-001...AC-033 text; validation_gates (all nine); invariants; tool_surface (introspect gains one ADDITIVE output field - no tool added, removed, renamed or re-signatured); milestones; corpus_contradictions; wire_declared_edges, the DDL and the single migration; Dream's phases and theta_* constants; the hub-penalty PageRank; w_activation/w_excitability/type_gain/inhib_gain/hub_penalty; every ramza.scores value"
+    measurement_obligations: "MO-1 re-run the cold 210-query bench after implementation and PUBLISH the new (b)/(c)/(d) numbers (ppr_restart=0.85 was measured on a graph in which declared edges were still inert); MO-2 baseline (c)'s published numbers move and must be re-published or marked superseded; MO-3 report the inhibition delta SEPARATELY - 11 declared inhibits relations that never had any effect now scale their targets' activation by 0.3"
+    carry_forward: "CF-1 FORGE section 6's docs/01 + docs/07 corrections are routed to IDG (docs/ is outside RAMZA's write boundary); CF-2 synapses: has no reader, so learned edge weights do NOT survive a DB rebuild and the next checkpoint erases the file's own record - a separate spec-conformance defect against section 2.6 step 4, NOT fixed here; CF-3 the earnable-declared-edge path stays open (the floor form accommodates it with no further spec change); CF-4 FORGE's D1/D2/D3; CF-5 the uncalibrated combination rule (four raw, un-normalised, differently-scaled terms at fixed weights); CF-6 R1-RESTATED's own CF-4/CF-5 remain open"
+    verified_status_impact: "The change was already escalated from verified to in_progress by a drift check before this record. UNLIKE the two prior errata this amendment DOES change executable behaviour, so every VG must be re-run after implementation and AC-034...AC-042 attested alongside AC-001...AC-033. AC-009/AC-010 are specifically protected by the read-time (never persisted) design and pinned by AC-036; AC-023 still passes."
+    human_confirmation: "recommended before release on two points: declared_edge_strength=1.0 makes authored structure route for the first time and its scale effect is unmeasured (R12; one revertible config scalar), and w_retrieval 0.15 -> 0.05 is explicitly precautionary pending D1/D2. Neither blocks implementation."
 
 # ── stack decisions (fixed upstream; A1 reopened once — see errata A1-REVISED) ─
 stack:
@@ -210,6 +285,28 @@ acceptance_criteria:
   source: .spectra/changes/magicite-v1-implementation/acceptance-criteria.md
   sha256: 7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448
   frozen_by: ramza-freeze
+  # ── addendum (DECLARED-EDGES-AMENDED, 2026-08-15): NINE additional criteria that are
+  #    NOT part of the frozen set and are NOT merged into it. ramza-freeze writes
+  #    plan-state.json criteria_sha256, and that pointer must keep naming the frozen 33.
+  addendum:
+    count: 9
+    source: .spectra/changes/magicite-v1-implementation/acceptance-criteria-addendum.md
+    sha256: 2888886351b9d658ab98bf1d2e94d77e43850201130a15b26be9c63f3e27ef02
+    frozen_by: null
+    lint: "ramza-ears-lint: 9/9 pass"
+    added_by: DECLARED-EDGES-AMENDED
+    attested_with: "AC-001 ... AC-033 (Kupo attests both sets)"
+    ac_023_note: "AC-023 is provenance-underspecified in its GIVEN - a coverage defect in the frozen set, not a checker failure. It is NOT edited; AC-034 is the criterion whose GIVEN names the register() ingestion path."
+    ids:
+      - {id: AC-034, form: event-driven, verify: "test: tests/acceptance/test_declared_edge_weight.py::test_inhibition_is_reachable_from_register"}
+      - {id: AC-035, form: event-driven, verify: "test: tests/unit/core/test_edge_weight.py::test_declared_edge_enters_the_activation_graph"}
+      - {id: AC-036, form: state-driven, verify: "test: tests/unit/storage/test_durable.py::test_authored_weight_is_never_persisted"}
+      - {id: AC-037, form: event-driven, verify: "test: tests/integration/test_route_end_to_end.py::test_plan_confidence_is_one_when_fully_resolved"}
+      - {id: AC-038, form: event-driven, verify: "test: tests/integration/test_route_end_to_end.py::test_plan_confidence_reports_the_unresolved_share"}
+      - {id: AC-039, form: unwanted-behavior, verify: "test: tests/unit/core/test_edge_weight.py::test_zero_declared_strength_is_an_exact_revert"}
+      - {id: AC-040, form: ubiquitous, verify: "test: tests/unit/test_p0_enforcement.py::test_edge_weight_helper_is_the_only_weighting_site"}
+      - {id: AC-041, form: event-driven, verify: "test: tests/unit/storage/test_queries.py::test_edge_rows_report_effective_strength"}
+      - {id: AC-042, form: event-driven, verify: "test: tests/unit/core/test_composition.py::test_cycle_break_is_deterministic"}
   ids:
     - {id: AC-001, form: event-driven, verify: "test: tests/acceptance/test_stdio_handshake.py::test_initialize"}
     - {id: AC-002, form: ubiquitous, verify: "test: tests/acceptance/test_stdio_handshake.py::test_stdout_is_protocol_only"}
@@ -353,14 +450,23 @@ risks:
     tag: P1
     owner: kupo+vivi
     milestone: "M6"
-    risk: "Hypothesis falsification (H-BODY/H-SCALE/H-COMPOSE/H-LEARN are UNVERIFIED-2026)"
-    mitigation: "bench harness with baselines a-d ships in v1 so falsification is early and cheap"
+    risk: "Hypothesis falsification (H-BODY/H-SCALE/H-COMPOSE/H-LEARN are UNVERIFIED-2026). FIRED 2026-08-15 on 70 engrams / 210 pre-registered queries: H-BODY-a supported in DIRECTION (+14.3pp Hit@1, p=0.00064) but the registered >=20pp effect size is NOT demonstrated; H-BODY-b FALSIFIED as implemented ((b) > (d), -0.0857, p=0.00053); H-SCALE mechanism FALSIFIED at 70 skills with 5 real communities; H-SCALE claim INCONCLUSIVE; H-COMPOSE UNTESTED (zero compositional queries were run and Plan F1 as implemented is a monotone re-encoding of Hit@1); H-LEARN FALSIFIED as implemented under uniform demand. The mitigation worked as designed - cheap and early."
+    mitigation: "bench harness with baselines a-d ships in v1 so falsification is early and cheap. A measured falsification is the mitigation SUCCEEDING: what it now requires is that the product claim be reframed to what the evidence licenses - a semantic skill router with a portable format, a lifecycle, governance, composition-plan expansion and an instrumented learning substrate that is NOT yet demonstrated to improve routing. Two routing defaults moved on that evidence (errata DECLARED-EDGES-AMENDED); the docs/01 + docs/07 corrections are routed to IDG as CF-1."
+    fired: true
+    fired_at: "2026-08-15"
   - id: R11
     tag: P1
     owner: kupo
     milestone: "verify"
     risk: "Critic independence \u2014 the critic pass ran in-session (no second agent available)"
     mitigation: "disclosed, not laundered; Kupo is the independent checker at ESL verify; frozen criteria hash is the tamper anchor"
+  - id: R12
+    tag: P1
+    owner: vivi+kupo
+    milestone: "M2,M6"
+    added_by: DECLARED-EDGES-AMENDED
+    risk: "Newly-live declared-edge mass is itself unmeasured. Section 3.3.1 puts declared composes/depends_on into the activation graph and makes inhibition arithmetically real for the first time - 11 declared inhibits relations in the 70-engram benchmark registry that have NEVER had any effect now scale their targets' activation by 0.3. ppr_restart=0.85 was measured on the OLD graph, so its 0.5476 Hit@1 does not transfer unchanged; community structure re-clusters once _COMMUNITY_WEIGHT_FLOOR is deleted; and baseline (c)'s published numbers move. Shipping on an obsolete measurement is exactly the failure this amendment exists to correct."
+    mitigation: "One config scalar and exactly revertible: declared_edge_strength=0.0 reproduces pre-amendment scores bit-for-bit (AC-039), so it is bisectable and can be backed out with no code change. Release obligation (section 3.3.1): re-run the cold 210-query bench after implementation and PUBLISH the new (b)/(c)/(d) numbers, reporting the inhibition delta separately so the edge-weight change and the ppr_restart change are not conflated. Direction of travel is toward LESS diffusion overall - section 3.3.1 puts authored structure in while ppr_restart=0.85 damps how far anything travels, which is deliberate."
 
 # ── corpus contradictions resolved unilaterally (spec section 9) ───────────
 corpus_contradictions:
@@ -416,23 +522,29 @@ declared_scope:
 # ── artifacts (hashes as emitted at Assemble; spec.yaml is a projection) ───
 artifacts:
   - path: ".spectra/changes/magicite-v1-implementation/spec.md"
-    sha256: 57148a2de70fa723b65cddbce2b57de98327a7ba44b272415101a9263aa79c17
-    role: "normative spec (payload of the ECL envelope); rehashed 2026-08-15 by errata R1-RESTATED (was 9fca1c08…, itself rehashed 2026-08-14 by A1-REVISED from 92372ad6…)"
+    sha256: e9efab604467129246e0b70fb25ed70a576bc4fee5934a243881e2151101dd8b
+    role: "normative spec (payload of the ECL envelope); rehashed 2026-08-15 by errata DECLARED-EDGES-AMENDED (was 57148a2d…, itself rehashed 2026-08-15 by R1-RESTATED from 9fca1c08…, itself rehashed 2026-08-14 by A1-REVISED from 92372ad6…)"
   - path: ".spectra/changes/magicite-v1-implementation/acceptance-criteria.md"
     sha256: 7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448
-    role: "frozen EARS criteria (ramza-freeze)"
+    role: "frozen EARS criteria (ramza-freeze). BYTE-IDENTICAL through all three errata; never re-frozen. This is the tamper anchor — if this hash ever moves without a recorded plan-state amendments[] entry, that is tamper evidence."
+  - path: ".spectra/changes/magicite-v1-implementation/acceptance-criteria-addendum.md"
+    sha256: 2888886351b9d658ab98bf1d2e94d77e43850201130a15b26be9c63f3e27ef02
+    role: "AC-034 … AC-042 (9), added 2026-08-15 by DECLARED-EDGES-AMENDED. NOT frozen and NOT merged into the frozen file; this hash is their tamper anchor. ramza-ears-lint 9/9 pass."
   - path: ".spectra/changes/magicite-v1-implementation/plan-state.json"
-    sha256: 836ec711b92202e3b0e95e2871c0624cd80728ac8f93f2a970c2fdb41e41e24a
-    role: "tamper-evident audit trail (ramza/plan-state.v1); rehashed 2026-08-15 — second errata[] entry appended (was 31a6c4b3…; amendments[] still empty, criteria_sha256 untouched)"
+    sha256: 5d1483b568402b83d74d0a2fe9e93fc272077dec07743c369fff00bc9ed150f4
+    role: "tamper-evident audit trail (ramza/plan-state.v1); rehashed 2026-08-15 — third errata[] entry appended (was 836ec711…; amendments[] still empty, criteria_sha256 untouched)"
   - path: ".spectra/changes/magicite-v1-implementation/spec.envelope.json"
-    sha256: 8f09bd2e46c6bac57e6bd883bcb522e82ea3b4ed0620c02999039658a64f27ab
-    role: "ECL v2.0 PROPOSE envelope -> vivi; integrity tag re-stamped 2026-08-15 over the amended spec.md, second x_ramza_amendment entry appended so the envelope carries the full chain 92372ad6… -> 9fca1c08… -> 57148a2d… (was c8024ceb…)"
+    sha256: 108704baf8bdf28b7266a727b7376ba0dea7c0f18ce98b33382f61b513987ac0
+    role: "ECL v2.0 PROPOSE envelope -> vivi; integrity tag re-stamped 2026-08-15 over the amended spec.md, third x_ramza_amendment entry appended so the envelope carries the full chain 92372ad6… -> 9fca1c08… -> 57148a2d… -> e9efab60… (was 8f09bd2e…). ramza-verify-emit green."
   - path: ".spectra/changes/magicite-v1-implementation/decisions/A1-REVISED.md"
     sha256: a5801a0c9210f59740f42c082707318ec2e80d122c86ef5ec6d96a1691ea3d39
     role: "append-only decision record for the A1 revision (2026-08-14); untouched by errata R1-RESTATED, hash re-verified on disk"
   - path: ".spectra/changes/magicite-v1-implementation/decisions/R1-RESTATED.md"
     sha256: 2b769225d06414b7d88e173dcc93e2c88aed5048b68f0bf7aeb571105dd96eb7
-    role: "append-only decision record for the R1 mitigation restatement (2026-08-15)"
+    role: "append-only decision record for the R1 mitigation restatement (2026-08-15); untouched by errata DECLARED-EDGES-AMENDED, hash re-verified on disk"
+  - path: ".spectra/changes/magicite-v1-implementation/decisions/DECLARED-EDGES-AMENDED.md"
+    sha256: aec7dd1cb1c5e2aa8cc17951215225cd9850b3198185d46ff768fca66422659e
+    role: "append-only decision record for the declared-edge weight amendment and the two evidence-driven routing defaults (2026-08-15)"
   - path: ".spectra/changes/magicite-v1-implementation/ramza-calibration.jsonl"
     sha256: f2f3ac72015b57689210e55348e9f73c5e7e2ad6ca45df8ece22800c069a61c4
     role: "instrument-vs-outcome calibration log"
