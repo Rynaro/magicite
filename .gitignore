@@ -25,6 +25,9 @@ skill-graph.db
 skill-graph.db-wal
 skill-graph.db-shm
 
+# Ephemeral worktrees used for fail-before/pass-after proofs
+.claude/worktrees/
+
 # The three directories Config.ensure_dirs() creates at every `magicite serve`
 # boot. Machine-local runtime state, not deliverables: approvals are pending
 # proposals awaiting a local decision, and committing them would invite another
