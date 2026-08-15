@@ -220,6 +220,40 @@ async def test_offline_register_uses_the_baked_model_with_egress_denied(project_
 
 
 @pytest.mark.asyncio
+async def test_offline_register_and_route_cycle(project_root: Path) -> None:
+    """v0.1.0 release verification (VIVI): the AC-026 offline guarantee is
+    only as good as what it actually lets a client *do* -- the tests above
+    prove the handshake and a bare ``register()`` call, but never a
+    ``route()`` (the tool that actually exercises the baked embedding model
+    against a live query, end to end). With ``--network none`` and no
+    embedding-provider override, THEN a full ``register()`` -> ``route()``
+    cycle SHALL complete and return a real candidate ranked against the
+    baked ``bge-small-en-v1.5`` model."""
+    proc = await _spawn_container(project_root=project_root)
+    try:
+        resp = await _initialize(proc)
+        assert "error" not in resp, resp
+
+        register_call = await _call_tool(proc, "register", {"path": ".spectra/engrams"}, id=2)
+        assert "error" not in register_call, register_call
+        register_result = register_call["result"]
+        assert register_result["isError"] is False, register_result
+        assert register_result["structuredContent"]["ingested"] >= 1, register_result
+
+        route_call = await _call_tool(
+            proc, "route", {"query": "steam game broke after a proton update"}, id=3
+        )
+        assert "error" not in route_call, route_call
+        route_result = route_call["result"]
+        assert route_result["isError"] is False, route_result
+        routed = route_result["structuredContent"]
+        assert routed["candidates"], "route() returned no candidates against the baked model"
+        assert routed["registry_size"] >= 1
+    finally:
+        await _terminate(proc)
+
+
+@pytest.mark.asyncio
 async def test_uid_override_preserves_host_file_ownership(project_root: Path) -> None:
     """M7 close-out item #4 (privilege-boundary finding), made mechanical:
     invoking with `--user <host-uid>:<host-gid>` (the house pattern this

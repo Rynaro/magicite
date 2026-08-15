@@ -1,0 +1,23 @@
+{
+  "envelope_version": "1.0",
+  "from": {
+    "eidolon": "vivi"
+  },
+  "to": {
+    "eidolon": "kupo"
+  },
+  "performative": "DELEGATE",
+  "objective": "Hand off magicite-v0-1-0-release from MAKER (vivi) to CHECKER (kupo) for verification. Implementation is green: provenance_journal persistence defect fixed and regression-proven (fail-before/pass-after against a dfe460c worktree); full suite (ruff, mypy, pytest --cov-fail-under=70, pytest -m acceptance, magicite tools==16) passes; CHANGELOG.md added; release.yml container path reviewed with findings reported to the human operator (not silently patched); offline container (--network none) handshake + register()/route() cycle verified against a locally built image. Vivi does not self-verify (maker != checker, C4) -- Kupo owns acceptance_checks AC-1..AC-5 verification next.",
+  "context_delta": {
+    "files_changed": [
+      "src/magicite/engram/writer.py",
+      "tests/acceptance/test_rebuild_invariant.py",
+      "tests/acceptance/test_docker_smoke.py",
+      "CHANGELOG.md"
+    ],
+    "image_built": "magicite:verify",
+    "image_size_bytes_total_layers": "~645MB (docker system df: 645MB total / 528.9MB unique / 116.2MB shared with locally-cached base layers)",
+    "new_test": "tests/acceptance/test_rebuild_invariant.py::test_checkpoint_persists_provenance_journal_to_file",
+    "release_yml_findings": "reported in completion summary -- GHCR GITHUB_TOKEN packages:write repo-setting ceiling, PyPI OIDC trusted-publisher pre-registration, GHCR package-visibility default -- none touched/modified, advisory only"
+  }
+}

@@ -170,23 +170,7 @@ def _fresh_doc(engram: Engram) -> CommentedMap:
     doc["affinity"] = list(fm.affinity)
 
     if fm.provenance_journal:
-        journal = CommentedSeq()
-        for entry in fm.provenance_journal:
-            item = CommentedMap()
-            item["version"] = entry.version
-            item["timestamp"] = entry.timestamp
-            item["author"] = entry.author
-            item["event"] = entry.event
-            if entry.note is not None:
-                item["note"] = entry.note
-            if entry.summary_of_change is not None:
-                item["summary_of_change"] = entry.summary_of_change
-            if entry.signal_tier is not None:
-                item["signal_tier"] = entry.signal_tier
-            if entry.base_version is not None:
-                item["base_version"] = entry.base_version
-            journal.append(item)
-        doc["provenance_journal"] = journal
+        doc["provenance_journal"] = _render_provenance_journal(fm.provenance_journal)
 
     if fm.trust is not None:
         trust: CommentedMap = CommentedMap()
@@ -217,6 +201,26 @@ def _render_plasticity(plasticity: Any) -> CommentedMap:
     node["last_checkpoint"] = plasticity.last_checkpoint
     node["status"] = plasticity.status
     return node
+
+
+def _render_provenance_journal(journal: list[Any]) -> CommentedSeq:
+    seq = CommentedSeq()
+    for entry in journal:
+        item: CommentedMap = CommentedMap()
+        item["version"] = entry.version
+        item["timestamp"] = entry.timestamp
+        item["author"] = entry.author
+        item["event"] = entry.event
+        if entry.note is not None:
+            item["note"] = entry.note
+        if entry.summary_of_change is not None:
+            item["summary_of_change"] = entry.summary_of_change
+        if entry.signal_tier is not None:
+            item["signal_tier"] = entry.signal_tier
+        if entry.base_version is not None:
+            item["base_version"] = entry.base_version
+        seq.append(item)
+    return seq
 
 
 def _render_synapses(synapses: list[Any]) -> CommentedSeq:
@@ -251,6 +255,19 @@ def render_frontmatter(engram: Engram, frontmatter_doc: Any | None = None) -> st
         # (the exact M5-adjacent rebuild-loss this field exists to close).
         doc["peak_storage_strength"] = _round4(engram.frontmatter.peak_storage_strength)
         doc["synapses"] = _render_synapses(engram.frontmatter.synapses)
+        # VIVI (v0.1.0-release conformance fix): provenance_journal is the
+        # audit trail docs/06 sells as the mechanism for autonomous-mutation
+        # governance -- it must be refreshed here for the exact same reason
+        # peak_storage_strength/synapses are above. Before this line, every
+        # other key on `doc` (including provenance_journal) was inherited
+        # verbatim from the original parse, so every Dream-checkpoint- or
+        # archive-appended journal entry (`event: consolidated`,
+        # `event: archived`, ...) was computed onto
+        # `engram.frontmatter.provenance_journal` in memory but silently
+        # never reached the file -- a governance feature that no-ops is the
+        # same failure class as a phantom config knob.
+        if engram.frontmatter.provenance_journal:
+            doc["provenance_journal"] = _render_provenance_journal(engram.frontmatter.provenance_journal)
     else:
         doc = _fresh_doc(engram)
 

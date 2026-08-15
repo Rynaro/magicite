@@ -25,6 +25,7 @@ import pytest
 from magicite.core import dream as dream_mod
 from magicite.core import registry as registry_mod
 from magicite.core import signals as signals_mod
+from magicite.engram import parser as parser_mod
 from magicite.storage import db as db_mod
 from magicite.storage import queries as queries_mod
 
@@ -365,3 +366,74 @@ def test_peak_storage_strength_and_content_sha256_survive_rebuild(cfg, db_conn, 
         assert after["content_sha256"] == real_sha256
     finally:
         rebuilt_conn.close()
+
+
+def test_checkpoint_persists_provenance_journal_to_file(cfg, db_conn, embedder) -> None:
+    """The defect VIVI found and empirically confirmed during the drift-fix
+    pass, then correctly left out of scope: ``engram/writer.py::
+    render_frontmatter``'s round-trip branch refreshes
+    ``version``/``plasticity``/``peak_storage_strength``/``synapses`` on
+    the ruamel carrier document but never ``provenance_journal`` -- so
+    every Dream-checkpoint-appended entry (``core/dream.py::
+    _phase7_checkpoint``'s ``event: consolidated``, ``core/decay.py``'s
+    ``event: archived``, ...) is computed onto
+    ``engram.frontmatter.provenance_journal`` in memory but never reaches
+    the file, even on a dirty checkpoint write. ``docs/06-trust-
+    governance-lifecycle.md`` sells the provenance trail as the audit
+    mechanism for autonomous mutation -- a governance feature that
+    silently no-ops is the same failure class as a phantom config knob.
+
+    This is the reason the invariant above (``durable_projection()``
+    before/after comparisons) structurally cannot catch it: the DB's own
+    ``engram_journal`` mirror is written by a *separate* path
+    (``storage/durable.py::upsert_journal``, called from
+    ``register()``/``decay.py``'s archive path -- never from Dream's
+    checkpoint phase), so a before/after DB projection stays
+    self-consistent whether or not the value ever reaches the file. The
+    only way to observe this bug is to read the real bytes Dream wrote to
+    disk (and re-parse them), which is what this test does instead of
+    extending the DB-projection-based tests above."""
+    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
+
+    # Force a genuinely dirty checkpoint the same way
+    # test_peak_storage_strength_and_content_sha256_survive_rebuild does --
+    # a changed storage_strength/peak_storage_strength is what makes Dream's
+    # Phase 7 decide this engram needs a checkpoint write at all.
+    db_conn.execute(
+        "UPDATE engram SET storage_strength = 0.25, peak_storage_strength = 0.6, "
+        "success_count = 3, last_applied = ? WHERE id = ?",
+        (datetime.now(UTC).isoformat(), engram_id),
+    )
+    result = dream_mod.run(cfg, db_conn, trigger="manual")
+    assert PROTON in result.modified_engrams, "the seeded S must actually trigger a checkpoint write"
+
+    file_path = cfg.project_root / db_conn.execute(
+        "SELECT path FROM engram WHERE id = ?", (engram_id,)
+    ).fetchone()["path"]
+    on_disk = file_path.read_text()
+
+    # The fixture's own pre-existing entry (event: authored) must still be
+    # there -- this bug is about the *new* entry never being added, not
+    # about the whole block disappearing.
+    assert "event: authored" in on_disk
+
+    assert "event: consolidated" in on_disk, (
+        "Dream's checkpoint-appended provenance_journal entry must be "
+        "persisted onto the .egr.md file's own bytes, not just computed "
+        "onto the in-memory Engram object"
+    )
+    assert "author: dream-worker" in on_disk
+
+    # And it must be real, round-trippable YAML -- not a coincidental
+    # substring match -- by re-parsing the exact file Dream just wrote.
+    reparsed = parser_mod.parse_file(file_path, registry_root=cfg.project_root.resolve())
+    events = [e.event for e in reparsed.engram.frontmatter.provenance_journal]
+    assert events == ["authored", "consolidated"], (
+        "the re-parsed file's own provenance_journal must carry both the "
+        "original fixture entry and the newly-appended checkpoint entry, "
+        "in append order"
+    )
+    consolidated_entry = reparsed.engram.frontmatter.provenance_journal[-1]
+    assert consolidated_entry.author == "dream-worker"
+    assert consolidated_entry.timestamp, "the persisted entry must carry a real checkpoint timestamp"
