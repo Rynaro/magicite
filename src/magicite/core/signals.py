@@ -130,7 +130,7 @@ def signal_use(
             set_at=now,
             expires_at=expires_at,
         )
-        ephemeral_mod.bump_retrieval(conn, engram_id, eta_r=cfg.eta_r)
+        ephemeral_mod.bump_retrieval(conn, engram_id, eta_r=cfg.eta_r, refractory_s=cfg.eta_r_refractory_s)
         tagged.append(engram_id)
 
     # spec §3.3 tool 5 step 5: "every pair of skills with live tags in this
@@ -240,8 +240,17 @@ def signal_outcome(
             credit_ids.append(str(row["id"]))
         note = "captured explicitly listed skill_ids"
     elif abs(valence) > cfg.theta_salience:
-        credit_ids = ephemeral_mod.live_tagged_engram_ids(conn, session_id=sid, now=now)
-        note = "high-salience outcome: retroactive credit to every live tag in the session window"
+        # M4 hardening: bounded to the N most-recently-tagged skills (see
+        # storage.ephemeral.live_tagged_engram_ids_recent's docstring) --
+        # spec §3.3's "every live tag in the session window" is otherwise
+        # an unbounded fan-out from a single call.
+        credit_ids = ephemeral_mod.live_tagged_engram_ids_recent(
+            conn, session_id=sid, now=now, limit=cfg.retroactive_credit_max
+        )
+        note = (
+            "high-salience outcome: retroactive credit to the "
+            f"{cfg.retroactive_credit_max} most recently live-tagged skill(s) in the session window"
+        )
     else:
         credit_ids = []
         note = (
@@ -269,6 +278,36 @@ def signal_outcome(
                 capture_weight=capture_weight,
             )
         skills_credited.append(engram_id)
+
+    # M4 carry-forward ("fold captured eph_tag rows into real edge ...
+    # updates"): a co_activation edge whose *either* endpoint is in this
+    # call's credit set gets the same outcome-linked, capped, two-phase
+    # capture the node side has always had -- M3 built insert_edge_tag()
+    # (the SET side) but never wired the CAPTURE side, so edges accumulated
+    # evidence_count via eph_candidate_edge but never an outcome-weighted
+    # Δw input. Still gated by the same credit-set rule (explicit skill_ids
+    # or high-salience retroactive window) and the same per-tag cap
+    # core/signals.py::signal_use() already enforces at SET time.
+    if credit_ids:
+        credit_set = set(credit_ids)
+        live_edge_keys = ephemeral_mod.live_tagged_edge_keys(conn, session_id=sid, now=now)
+        for edge_src, edge_dst, edge_type in live_edge_keys:
+            if edge_src not in credit_set and edge_dst not in credit_set:
+                continue
+            edge_tags = ephemeral_mod.live_uncaptured_edge_tags(
+                conn, session_id=sid, edge_src=edge_src, edge_dst=edge_dst, edge_type=edge_type, now=now
+            )
+            for tag_row in edge_tags:
+                dt_seconds = (now_dt - datetime.fromisoformat(str(tag_row["set_at"]))).total_seconds()
+                capture_weight = salience_value * math.exp(-max(dt_seconds, 0.0) / cfg.tau_credit_seconds)
+                ephemeral_mod.capture_edge_tag(
+                    conn,
+                    int(tag_row["id"]),
+                    captured_at=now,
+                    valence=valence,
+                    salience=salience_value,
+                    capture_weight=capture_weight,
+                )
 
     ephemeral_mod.append_event(
         conn,

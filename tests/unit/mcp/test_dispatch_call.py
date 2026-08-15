@@ -66,6 +66,28 @@ def test_idempotency_replay_does_not_append_a_second_ledger_row(cfg, embedder) -
         state.writer_conn.close()
 
 
+def test_route_ledger_row_uses_the_resolved_not_raw_session_id(cfg, embedder) -> None:
+    """M4 fix: a caller that omits session_id gets one server-minted
+    (spec §3.3's session resolution rule) -- the generic Tier-0 ledger row
+    dispatch_call writes for the call must be stamped with THAT resolved
+    id, not the raw (None) input, or the row is silently orphaned from the
+    session that actually produced it."""
+    state = app_mod.build_state(cfg)
+    try:
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        result = app_mod.dispatch_call(state, "route", {"query": "steam wont open", "k": 3})
+        assert result.is_error is False
+        minted_session_id = result.structured_content["session_id"]
+        assert minted_session_id  # a real uuid4, not empty/None
+
+        rows = _events(state.conn, "route")
+        assert len(rows) == 2
+        assert all(r["session_id"] == minted_session_id for r in rows)
+    finally:
+        state.conn.close()
+        state.writer_conn.close()
+
+
 def test_a_failed_call_does_not_append_a_ledger_row(cfg) -> None:
     state = app_mod.build_state(cfg)
     try:

@@ -6,7 +6,7 @@ is isolated from register()/embed() plumbing."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from magicite.core import router as router_mod
 from magicite.storage import ephemeral as ephemeral_mod
@@ -175,3 +175,33 @@ def test_recent_failures_boosts_matching_fault_class(cfg, db_conn, embedder) -> 
     b_score = next(c.score for c in result.candidates if c.name == "b")
     assert a_score > b_score
     assert result.unresolved_context == []
+
+
+def test_retrieval_strength_is_decayed_at_read_time(cfg, db_conn, embedder) -> None:
+    """M4 hardening: R contributes its *decayed* value to score_i at every
+    read (spec §6.1: "R ... Evaluated lazily at read time"), not the raw
+    stored value -- otherwise a stale R (set once, long ago) keeps
+    contributing full weight to routing indefinitely, which is exactly the
+    "R accumulates undamped" gap FORGE's review flagged as load-bearing for
+    ranking manipulation."""
+    _insert_engram(db_conn, "egr_a", "a")
+    _insert_engram(db_conn, "egr_b", "b")
+    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
+    _embed_and_store(db_conn, embedder, "egr_b", "shared text")
+
+    stale_anchor = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+    fresh_anchor = datetime.now(UTC).isoformat()
+    # Both start at the SAME raw R; "a"'s anchor is 60 days stale, "b"'s is
+    # fresh -- with decay-at-read wired in, "a"'s *effective* R must be
+    # lower, so its score must be lower too (all else identical).
+    db_conn.execute(
+        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_a', 1.0, ?)", (stale_anchor,)
+    )
+    db_conn.execute(
+        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_b', 1.0, ?)", (fresh_anchor,)
+    )
+
+    result = router_mod.route(cfg, db_conn, embedder, query="shared text", k=5)
+    a_score = next(c.score for c in result.candidates if c.name == "a")
+    b_score = next(c.score for c in result.candidates if c.name == "b")
+    assert a_score < b_score

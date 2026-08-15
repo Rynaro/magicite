@@ -81,3 +81,122 @@ def test_release_writer_lease_is_idempotent() -> None:
         pass
     lease.release_writer_lease()  # already released: still a no-op
     assert not lease.held_by_me()
+
+
+# ── G3: the Dream-context assertion (M4, spec §6.2) ─────────────────────
+
+
+def test_assert_dream_context_denies_outside_dream() -> None:
+    assert not lease.in_dream_context()
+    with pytest.raises(lease.DreamContextError):
+        lease.assert_dream_context()
+
+
+def test_dream_context_grants_and_releases() -> None:
+    assert not lease.in_dream_context()
+    with lease.dream_context():
+        assert lease.in_dream_context()
+        lease.assert_dream_context()  # does not raise
+    assert not lease.in_dream_context()
+    with pytest.raises(lease.DreamContextError):
+        lease.assert_dream_context()
+
+
+def test_dream_context_error_is_a_busy_error() -> None:
+    """Same remedy shape as G2: retry through the correct entry point."""
+    from magicite.errors import BusyError
+
+    assert issubclass(lease.DreamContextError, BusyError)
+
+
+# ── The real cross-process WriterLease (M4, spec §4.2, AC-025) ──────────
+
+
+@pytest.fixture
+def lease_conn(tmp_path):
+
+    from magicite.storage import db as db_mod
+
+    conn = db_mod.connect(tmp_path / "lease.db")
+    yield conn
+    conn.close()
+
+
+def test_cross_process_lease_acquire_and_release(tmp_path, lease_conn) -> None:
+    cp_lease = lease.CrossProcessLease(lock_path=tmp_path / "dream.lock", conn=lease_conn, holder="holder-a")
+    result = cp_lease.try_acquire()
+    assert result.holder == "holder-a"
+    assert not result.stolen
+    row = lease_conn.execute("SELECT holder FROM writer_lease WHERE id = 1").fetchone()
+    assert row["holder"] == "holder-a"
+    cp_lease.release()
+    assert lease_conn.execute("SELECT holder FROM writer_lease WHERE id = 1").fetchone() is None
+
+
+def test_cross_process_lease_contention_raises_busy(tmp_path, lease_conn) -> None:
+    """AC-025's own mechanism: a second holder attempting the SAME lock
+    path + DB row while the first is still held is denied, fast, without
+    writing any durable state -- and this is asserted against the real
+    ``writer_lease`` DB row (not a mock), so removing/weakening the guard
+    would make this test fail."""
+    first = lease.CrossProcessLease(lock_path=tmp_path / "dream.lock", conn=lease_conn, holder="holder-a")
+    first.try_acquire()
+    try:
+        second = lease.CrossProcessLease(
+            lock_path=tmp_path / "dream.lock", conn=lease_conn, holder="holder-b"
+        )
+        with pytest.raises(BusyError):
+            second.try_acquire()
+        # the losing side must not have touched the lease row.
+        row = lease_conn.execute("SELECT holder FROM writer_lease WHERE id = 1").fetchone()
+        assert row["holder"] == "holder-a"
+    finally:
+        first.release()
+
+
+def test_cross_process_lease_reclaims_an_expired_lease(tmp_path, lease_conn) -> None:
+    """spec §4.2: "a lease whose expires_at has passed is reclaimable"."""
+    import os
+    from datetime import UTC, datetime, timedelta
+
+    lease_conn.execute(
+        "INSERT INTO writer_lease (id, holder, pid, acquired_at, heartbeat_at, expires_at) "
+        "VALUES (1, 'stale-holder', 999999, ?, ?, ?)",
+        (
+            (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+            (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+            (datetime.now(UTC) - timedelta(minutes=5)).isoformat(),  # expired 5 minutes ago
+        ),
+    )
+    new_holder = lease.CrossProcessLease(
+        lock_path=tmp_path / "dream.lock", conn=lease_conn, holder=f"fresh:{os.getpid()}"
+    )
+    result = new_holder.try_acquire()
+    assert result.stolen is True
+    row = lease_conn.execute("SELECT holder FROM writer_lease WHERE id = 1").fetchone()
+    assert row["holder"] == new_holder.holder
+    new_holder.release()
+
+
+def test_cross_process_lease_heartbeat_extends_expiry(tmp_path, lease_conn) -> None:
+    cp_lease = lease.CrossProcessLease(
+        lock_path=tmp_path / "dream.lock", conn=lease_conn, holder="holder-a", ttl_s=60.0
+    )
+    cp_lease.try_acquire()
+    before = lease_conn.execute("SELECT expires_at FROM writer_lease WHERE id = 1").fetchone()["expires_at"]
+    cp_lease.heartbeat()
+    after = lease_conn.execute("SELECT expires_at FROM writer_lease WHERE id = 1").fetchone()["expires_at"]
+    assert after >= before
+    cp_lease.release()
+
+
+def test_cross_process_lease_context_manager_releases_on_exception(tmp_path, lease_conn) -> None:
+    cp_lease = lease.CrossProcessLease(lock_path=tmp_path / "dream.lock", conn=lease_conn, holder="holder-a")
+    with pytest.raises(RuntimeError):
+        with cp_lease.acquire():
+            raise RuntimeError("boom")
+    assert lease_conn.execute("SELECT holder FROM writer_lease WHERE id = 1").fetchone() is None
+    # a fresh acquire must now succeed -- proves the flock was released too.
+    other = lease.CrossProcessLease(lock_path=tmp_path / "dream.lock", conn=lease_conn, holder="holder-b")
+    other.try_acquire()
+    other.release()

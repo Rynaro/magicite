@@ -254,6 +254,68 @@ def test_signal_outcome_unknown_explicit_skill_id_is_rejected(cfg, db_conn, regi
         signals_mod.signal_outcome(cfg, db_conn, valence=1.0, skill_ids=["nope"], session_id="s1")
 
 
+def test_signal_outcome_retroactive_credit_is_bounded(cfg, db_conn, registered) -> None:
+    """M4 hardening: spec §3.3 tool 6's "capture(all_tags_alive_in_window)"
+    is bounded to cfg.retroactive_credit_max most-recently-tagged skills,
+    not literally every live tag -- an unbounded fan-out from one call."""
+    cfg.retroactive_credit_max = 2
+    all_names = [PROTON, STEAM_PREFIX, "proton-clean-install", "proton-verify-installation"]
+    signals_mod.signal_use(cfg, db_conn, skill_ids=all_names, session_id="s1")
+    outcome = signals_mod.signal_outcome(cfg, db_conn, valence=0.95, session_id="s1")
+    assert outcome.captured == 2
+    assert "2 most recently" in outcome.note
+
+
+def test_signal_outcome_captures_edge_tags_for_credited_pairs(cfg, db_conn, registered) -> None:
+    """M4 carry-forward: signal_outcome() now closes the CAPTURE side of
+    the edge two-phase commit M3 left built only for nodes -- a
+    co_activation edge tag whose endpoint is in the credit set gets
+    capture_valence/weight recorded too, so Dream (Phase 2) has real
+    outcome-linked evidence to potentiate S_edge from."""
+    signals_mod.signal_use(cfg, db_conn, skill_ids=[PROTON, STEAM_PREFIX], session_id="s1")
+    proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
+    steam_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (STEAM_PREFIX,)).fetchone()["id"]
+
+    edge_tags_before = db_conn.execute(
+        "SELECT COUNT(*) AS n FROM eph_tag WHERE subject_kind = 'edge' AND captured_at IS NOT NULL"
+    ).fetchone()["n"]
+    assert edge_tags_before == 0
+
+    signals_mod.signal_outcome(cfg, db_conn, valence=0.95, skill_ids=[proton_id], session_id="s1")
+
+    captured_edge_tags = db_conn.execute(
+        "SELECT edge_src, edge_dst, edge_type, capture_valence, capture_weight FROM eph_tag "
+        "WHERE subject_kind = 'edge' AND captured_at IS NOT NULL"
+    ).fetchall()
+    assert len(captured_edge_tags) >= 1
+    row = captured_edge_tags[0]
+    assert {row["edge_src"], row["edge_dst"]} == {proton_id, steam_id}
+    assert row["edge_type"] == "co_activation"
+    assert row["capture_valence"] == 0.95
+    assert row["capture_weight"] is not None
+
+
+def test_signal_outcome_does_not_capture_edges_unrelated_to_credit_set(cfg, db_conn, registered) -> None:
+    """An edge whose neither endpoint is in the credit set is left
+    uncaptured -- credit is scoped, not blanket."""
+    third = "proton-clean-install"
+    signals_mod.signal_use(cfg, db_conn, skill_ids=[PROTON, STEAM_PREFIX, third], session_id="s1")
+    third_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (third,)).fetchone()["id"]
+
+    # Credit ONLY `third` explicitly -- edges between PROTON/STEAM_PREFIX
+    # (neither of which is `third`) must not be captured.
+    signals_mod.signal_outcome(cfg, db_conn, valence=0.95, skill_ids=[third_id], session_id="s1")
+
+    proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
+    steam_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (STEAM_PREFIX,)).fetchone()["id"]
+    uncredited_edge_captured = db_conn.execute(
+        "SELECT COUNT(*) AS n FROM eph_tag WHERE subject_kind = 'edge' AND captured_at IS NOT NULL "
+        "AND ((edge_src = ? AND edge_dst = ?) OR (edge_src = ? AND edge_dst = ?))",
+        (proton_id, steam_id, steam_id, proton_id),
+    ).fetchone()["n"]
+    assert uncredited_edge_captured == 0
+
+
 def test_signal_outcome_never_writes_a_learned_S_value(cfg, db_conn, registered) -> None:
     """Belt-and-suspenders on AC-014 at the signals layer: signal_outcome()
     only ever touches eph_tag capture columns, never engram.storage_strength."""

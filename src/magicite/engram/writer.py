@@ -8,16 +8,22 @@ Determinism (AC-021): floats render to 4 decimals, the ``synapses:`` list
 sorts by ``(type, target)``, LF endings, no trailing whitespace — two
 checkpoints of identical state produce byte-identical files.
 
-M1 note: G2 (lease assertion, spec §6.2) is real from M1 onward --
-``atomic_write()`` asserts ``storage.lease.assert_single_writer()``, so
-every caller (``register()``/``sync()``/``export()`` in ``core/registry.py``)
-must hold ``storage.lease.writer_lease()`` around the call. G3 (the
-Dream-context assertion) stays a no-op stub until M4 defines
-``core.dream.assert_dream_context()`` -- it is scoped to the specific
-plasticity/synapses-rendering functions Dream's checkpoint phase calls,
-not to this generic atomic-replace primitive (see ``storage/lease.py``'s
-module docstring for the full rationale). Call sites do not change shape
-when G3 lands for real.
+G2 (lease assertion, spec §6.2) is real from M1 onward -- ``atomic_write()``
+asserts ``storage.lease.assert_single_writer()``, so every caller
+(``register()``/``sync()``/``export()`` in ``core/registry.py``, and Dream's
+checkpoint phase) must hold ``storage.lease.writer_lease()`` around the
+call.
+
+**G3 (M4)**, per ``storage/lease.py``'s module docstring, is scoped
+narrowly to :func:`write_plasticity`/:func:`write_synapses` -- **not** to
+this generic ``atomic_write()`` primitive, because ``register()``/
+``sharpen()`` legitimately write *authored* state (identity, routing, body)
+through ``atomic_write()`` without ever being inside Dream's checkpoint
+phase. Only the two functions that render the ``plasticity:``/``synapses:``
+blocks assert :func:`~magicite.storage.lease.assert_dream_context`; Dream's
+checkpoint phase (``core/dream.py``) calls them once each, right before the
+real ``write_engram()``/``atomic_write()`` call, so the gate is exercised on
+every learned-state write without constraining the write primitive itself.
 """
 
 from __future__ import annotations
@@ -31,7 +37,7 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 from magicite.engram.model import Engram, EngramBody
-from magicite.storage.lease import assert_single_writer
+from magicite.storage.lease import assert_dream_context, assert_single_writer
 
 _yaml = YAML(typ="rt")
 _yaml.preserve_quotes = True
@@ -39,9 +45,22 @@ _yaml.default_flow_style = False
 _yaml.width = 100000
 
 
-def assert_dream_context_stub() -> None:
-    """M0/M1 stub for G3. Becomes ``core.dream.assert_dream_context()`` in M4."""
-    return None
+def write_plasticity(engram: Engram) -> CommentedMap:
+    """G3: the **only** function that renders the ``plasticity:`` block for
+    a checkpoint write. Raises :class:`~magicite.storage.lease.DreamContextError`
+    unless called from inside ``core.dream.checkpoint_phase()`` (spec §6.2 G3).
+    """
+    assert_dream_context()
+    if engram.frontmatter.plasticity is None:
+        raise ValueError("engram has no plasticity block to checkpoint")
+    return _render_plasticity(engram.frontmatter.plasticity)
+
+
+def write_synapses(engram: Engram) -> CommentedSeq:
+    """G3: the **only** function that renders the ``synapses:`` block for a
+    checkpoint write. Same guard as :func:`write_plasticity`."""
+    assert_dream_context()
+    return _render_synapses(engram.frontmatter.synapses)
 
 
 def atomic_write(path: str | Path, content: str) -> None:
@@ -53,7 +72,6 @@ def atomic_write(path: str | Path, content: str) -> None:
     it must also only ever happen under the single-writer lease).
     """
     assert_single_writer()
-    assert_dream_context_stub()
 
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

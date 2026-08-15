@@ -41,6 +41,17 @@ class Config:
     theta_consolidate_status: float = 0.6
     floor_archived: float = 0.2
     epsilon_write: float = 0.05
+    #: spec §4.3 Phase 2 pseudocode: "commit if |dw| > theta_consolidate
+    #: (0.01)" -- named distinctly from ``theta_consolidate_status`` (the
+    #: *lifecycle* S>=0.6 bar) since spec's own prose overloads
+    #: "theta_consolidate" for two different constants; this is the dw
+    #: commit-noise floor, not a status threshold.
+    theta_dw_commit: float = 0.01
+    #: spec §4.3 Phase 2: "prune: S_edge < theta_prune (0.10) for >=3
+    #: consecutive runs -> archive row, drop from synapses". Named inline
+    #: in the pseudocode but omitted from the "Defaults" bullet list --
+    #: the inline value (0.10) is the only one given, so it is authoritative.
+    theta_prune: float = 0.10
 
     # ── routing tunables (spec §3.3) ────────────────────────────────────
     session_ttl_hours: float = 3.0
@@ -69,6 +80,21 @@ class Config:
     tau_credit_seconds: float = 1800.0
     #: spec §3.3 tool 5 step 4: "R nudge (Tier C): R <- min(1, R + eta_R*(1-R))".
     eta_r: float = 0.15
+    #: M4 hardening (input-hygiene, not spec-named): the minimum wall-clock
+    #: gap between two R "occasions" for the *same* engram, keyed on
+    #: engram_id (something a caller cannot forge or rotate away from,
+    #: unlike session_id) -- see ``storage.ephemeral.bump_retrieval``. A
+    #: buggy/runaway or adversarial caller cannot inflate R faster than
+    #: this regardless of how many signal_use calls or session ids it uses.
+    #: Not a spec constant; a conservative default (0 = off, matching M3's
+    #: prior behaviour) is deliberately *not* the default here.
+    eta_r_refractory_s: float = 30.0
+    #: M4 hardening: caps how many live tags one high-salience
+    #: ``signal_outcome()`` call can retroactively credit (spec §3.3 tool 6
+    #: rule 2's "all skills in last T minutes" is otherwise unbounded).
+    #: Recency weighting (``capture_weight``) already makes tags older than
+    #: this near-zero-weight, so capping loses little signal.
+    retroactive_credit_max: int = 10
 
     # ── dream trigger tunables (spec §4.1) ──────────────────────────────
     dream_on_session_end: bool = True

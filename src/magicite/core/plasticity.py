@@ -1,25 +1,33 @@
-"""dw rules (spec §4.3, §6.2's "Tier gate") -- the M3 slice.
+"""dw rules (spec §4.3, §6.2's "Tier gate") -- M3's tier gate plus M4's full
+metaplastic-saturation/spacing Δw formula.
 
-Full metaplastic-saturation/spacing Δw computation (spec §4.3 Phase 2:
-``eta_eff = eta * (1 - w/w_max) * tier_weight[tier] * (1 - exp(-dt/tau_spacing))``,
-``dw = eta_eff * mean_outcome * capture_weight``) is Dream's phase-2 update
-rule and lands with ``core/dream.py`` in M4, where ``dt_since_last_update``,
-``mean_outcome`` and a trace-replayed ``capture_weight`` are real quantities
-this module has no honest way to manufacture yet -- there is no Dream replay
-loop in this milestone to supply them. Claiming that formula is "implemented"
-here would be exactly the kind of overclaiming this milestone's own
-instructions warn against.
+M3 shipped the mechanical **tier gate** that makes "Tier-0 evidence may move
+R and bookkeeping only, never S" (docs/05 D3, spec §6.2) an enforced
+invariant rather than a comment -- :func:`apply` raising :class:`P0Violation`
+-- plus the ``TIER_WEIGHT`` table. That function and table are UNCHANGED
+here (AC-014's own tests still exercise exactly this shape).
 
-What ships now is the one piece M3's two P0 security risks actually depend
-on: the mechanical **tier gate** that makes "Tier-0 evidence may move R and
-bookkeeping only, never S" (docs/05 D3, spec §6.2) an enforced invariant
-rather than a comment -- :func:`apply` raising :class:`P0Violation` -- plus
-the ``TIER_WEIGHT`` table Dream's real Δw formula will read from, unchanged,
-once M4 builds it.
+M4 adds the rest of spec §4.3 Phase 2's formula:
+
+```
+eta_eff = eta * (1 - w / w_max)                      # metaplastic saturation
+        * tier_weight[tier]                          # 0 -> 0.0, 1 -> 0.6, 2 -> 1.0
+        * (1 - exp(-dt_since_last_update / tau_spacing))   # spacing effect
+dw      = eta_eff * mean_outcome * capture_weight    # capture_weight carries recency + salience
+```
+
+Composed as: :func:`compute_eta_eff_untiered` computes everything **except**
+``tier_weight`` (saturation * spacing only); the caller (``core/dream.py``'s
+Phase 2) passes the resulting magnitude into :func:`apply` via a
+:class:`PlasticityDelta`, and ``apply()`` is what multiplies by
+``TIER_WEIGHT[tier]`` (and refuses Tier-0 -> S outright). This split means
+the P0 gate (`apply()`) is exercised on *every* real Δw application -- not
+just conceptually -- with no risk of double-applying the tier weight.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Literal
 
@@ -80,3 +88,77 @@ def apply(current: float, delta: PlasticityDelta) -> float:
     if delta.tier not in TIER_WEIGHT:
         raise ValueError(f"unknown signal tier {delta.tier!r}")
     return current + delta.magnitude * TIER_WEIGHT[delta.tier]
+
+
+def compute_eta_eff_untiered(
+    *,
+    eta: float,
+    w_max: float,
+    tau_spacing_hours: float,
+    current_w: float,
+    dt_since_last_update_s: float | None,
+) -> float:
+    """spec §4.3 Phase 2, minus the ``tier_weight`` factor (applied
+    separately by :func:`apply`, see module docstring):
+    ``eta * (1 - w/w_max) * (1 - exp(-dt/tau_spacing))``.
+
+    ``dt_since_last_update_s=None`` means "no prior application (anchor)
+    exists yet" -- a node/edge's very first-ever observation. The spacing
+    factor is **0.0** in that case, not 1.0: a first observation establishes
+    the timing anchor (the caller is expected to still record
+    ``last_applied``/``last_updated`` even when this returns 0.0) but
+    contributes no weight itself. This closes an M4 input-hygiene gap:
+    treating a first observation as "fully spaced" (1.0) let a *single*
+    call that fans out into many simultaneous first-time observations --
+    e.g. ``signal_use()`` on 20 skill ids asserting up to 380 directed
+    co-activation facts in one call -- fully potentiate all of them at once
+    from a single burst. Requiring at least one prior, time-anchored
+    observation (i.e. evidence spanning >=2 genuinely separate moments)
+    before any weight is applied means a burst can establish anchors but
+    never move S; only repeated, separately-timed evidence can, and the
+    continuous ``1 - exp(-dt/tau_spacing)`` term still smoothly damps
+    evidence that returns before a real spacing interval has elapsed.
+    """
+    if w_max <= 0:
+        return 0.0
+    saturation = max(0.0, 1.0 - current_w / w_max)
+    if dt_since_last_update_s is None:
+        spacing = 0.0
+    else:
+        tau_spacing_s = tau_spacing_hours * 3600.0
+        if tau_spacing_s <= 0:
+            spacing = 1.0
+        else:
+            spacing = 1.0 - math.exp(-max(dt_since_last_update_s, 0.0) / tau_spacing_s)
+    return eta * saturation * spacing
+
+
+def compute_dw_magnitude(
+    *,
+    eta: float,
+    w_max: float,
+    tau_spacing_hours: float,
+    current_w: float,
+    dt_since_last_update_s: float | None,
+    mean_outcome: float,
+    capture_weight: float,
+) -> float:
+    """The un-tiered Δw magnitude (spec §4.3: ``dw = eta_eff * mean_outcome *
+    capture_weight``), still missing the ``tier_weight`` factor -- pass the
+    result as ``PlasticityDelta.magnitude`` into :func:`apply`, which
+    supplies it (and the Tier-0 refusal). Bounded: since ``mean_outcome`` is
+    a valence in ``[-1, 1]`` and ``capture_weight`` in ``[0, 1]`` (spec §3.3
+    tool 6: ``capture_weight = salience * exp(-dt/tau_credit)``, both
+    factors themselves in ``[0, 1]``), ``|dw_untiered| <= eta_eff <=
+    eta * (1 - w/w_max)`` -- which, combined with ``TIER_WEIGHT[tier] <=
+    1.0``, is exactly AC-017's bound: "increase by no more than
+    ``eta * (1 - w/w_max)`` per capture".
+    """
+    eta_eff = compute_eta_eff_untiered(
+        eta=eta,
+        w_max=w_max,
+        tau_spacing_hours=tau_spacing_hours,
+        current_w=current_w,
+        dt_since_last_update_s=dt_since_last_update_s,
+    )
+    return eta_eff * mean_outcome * capture_weight

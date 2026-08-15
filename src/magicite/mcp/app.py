@@ -63,6 +63,7 @@ from mcp.types import (  # noqa: E402
 )
 
 from magicite.config import Config  # noqa: E402
+from magicite.core import dream as dream_mod  # noqa: E402
 from magicite.embeddings import get_embedder  # noqa: E402
 from magicite.errors import IdempotencyKeyConflictError, MagiciteError  # noqa: E402
 from magicite.mcp import (  # noqa: E402, F401  (imports register tools onto TOOL_REGISTRY)
@@ -182,6 +183,31 @@ def _error_result(error: MagiciteError) -> CallToolResult:
     )
 
 
+def _apply_session_end_enqueue(state: ServerState, result: Any) -> Any:
+    """M4 carry-forward: ``core.session.session_end()`` -- one of G1's seven
+    hot-path-only tools (spec §6.2; it never opens a writer connection,
+    unchanged by M4) -- can only honestly *preview* whether Dream should be
+    enqueued; ``consolidation_run`` is not ``eph_``-prefixed, so G1 denies a
+    direct write there from the ephemeral connection it holds, exactly as
+    it denies one against ``engram``/``edge``. The dispatcher already owns
+    *both* connections (spec's own G1 wiring point, ``build_state``), so
+    the real enqueue write happens here -- through ``core.dream.enqueue()``
+    on the writer connection, itself just a single-row read + conditional
+    insert into an *operational* table (no G2/G3 lease needed, spec §2.4)
+    -- rather than by reaching around G1 to let the hot-path connection
+    write it directly.
+
+    AC-032 (debounce): ``core.dream.enqueue(..., apply_min_interval=True)``
+    is the same dedup+throttle path ``consolidate()`` uses (minus its own
+    min-interval exemption), so two ``session_end`` calls inside
+    ``dream.min_interval_s`` return the same ``dream_run_id``.
+    """
+    if not state.cfg.dream_on_session_end:
+        return result
+    outcome = dream_mod.enqueue(state.writer_conn, state.cfg, trigger="session_end", apply_min_interval=True)
+    return result.model_copy(update={"dream_run_id": outcome.consolidation_id, "enqueued": outcome.enqueued})
+
+
 def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any]) -> CallToolResult:
     """The single place every tool call passes through (spec §3.1's "the decorator").
 
@@ -242,6 +268,9 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
         logger.error("tool_internal_error", tool=tool_name, error=str(exc))
         return _error_result(MagiciteError(f"internal error in {tool_name}: {exc}"))
 
+    if tool_name == "session_end":
+        result = _apply_session_end_enqueue(state, result)
+
     payload = result.model_dump(mode="json")
 
     # Tier-0 passive-inference capture (spec §3.3, obs/events.py): every
@@ -249,7 +278,21 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
     # written on the ephemeral connection (eph_event is eph_-prefixed, so
     # either connection could write it; using the same one always keeps the
     # ledger's writer path singular regardless of which tool ran).
-    events_mod.record_tool_call(state.conn, session_id=session_id, tool=tool_name, arguments=arguments)
+    #
+    # M4 fix: use the tool's own *resolved* session_id when its output
+    # schema exposes one (currently `route`, whose caller-omitted
+    # session_id is server-minted, spec §3.3's session resolution rule) --
+    # the raw `session_id` local above is the caller's *input*, which is
+    # `None` on exactly the calls where minting happened, so the Tier-0
+    # ledger row was silently orphaned from the session that produced it.
+    # `signal_use`/`signal_outcome` do not echo a resolved session_id in
+    # their output schema (a tool-surface gap outside this milestone's
+    # mandate to change, spec §3.2's frozen 16-tool surface); they fall
+    # back to the same raw value as before.
+    resolved_session_id = getattr(result, "session_id", None) or session_id
+    events_mod.record_tool_call(
+        state.conn, session_id=resolved_session_id, tool=tool_name, arguments=arguments
+    )
 
     if request_id:
         now = datetime.now(UTC).isoformat()

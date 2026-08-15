@@ -63,9 +63,44 @@ def sync_cmd(project_root: str) -> None:
 @cli.command(name="dream")
 @click.option("--once", is_flag=True, default=False)
 @click.option("--autonomous", is_flag=True, default=False)
-def dream_cmd(once: bool, autonomous: bool) -> None:
-    """Run the Dream consolidation worker inline."""
-    raise click.ClickException("magicite dream lands in M4 (storage/lease.py, core/dream.py)")
+@click.option("--project-root", default=".", show_default=True, help="Registry project root.")
+def dream_cmd(once: bool, autonomous: bool, project_root: str) -> None:
+    """Run the Dream consolidation worker inline (spec §4.1: "CLI / cron /
+    container run: `magicite dream --once` runs the same orchestrator
+    inline"). This is a single, synchronous, single-process invocation --
+    it never shares a process with a live `magicite serve` (no in-v1 idle
+    poll, spec §4.1 "0 (off) in v1"), so it never runs *alongside* a live
+    ``stdio_server()`` in the same interpreter."""
+    import json as _json
+
+    from magicite.core import dream as dream_mod
+    from magicite.storage import authorizer as authorizer_mod
+
+    if not once:
+        raise click.ClickException("magicite dream currently only supports --once (spec §4.1 v1 scope)")
+    if autonomous:
+        raise click.ClickException(
+            "--autonomous gates R3 approval auto-approval (docs/06); that machinery lands in M5"
+        )
+
+    cfg = Config.load(project_root)
+    cfg.ensure_dirs()
+    conn = authorizer_mod.writer_connection(cfg.db_path)
+    result = dream_mod.run(cfg, conn, trigger="cli")
+    click.echo(
+        _json.dumps(
+            {
+                "run_id": result.run_id,
+                "state": result.state,
+                "checkpoint_write_ratio": result.checkpoint_write_ratio,
+                "modified_engrams": result.modified_engrams,
+                "archived_engrams": result.archived_engrams,
+                "stats": result.stats,
+            },
+            indent=2,
+            default=str,
+        )
+    )
 
 
 @cli.command(name="export")

@@ -223,6 +223,24 @@ def set_embedding_ref(
     )
 
 
+def mark_archived(
+    conn: sqlite3.Connection, *, engram_id: str, storage_strength: float, archive_path: str
+) -> None:
+    """spec §5.1 FSM row "any(≠draft) → archived | S_effective < 0.2 (auto)
+    | Dream, archive" -- the one lifecycle transition Dream itself performs
+    in M4 (AC-033). Deliberately narrow: this is not the general
+    ``set_status()`` the full FSM (M5) will own; it only ever moves a row to
+    ``status='archived'`` with the S value the decay floor check already
+    computed, from ``core/decay.py::archive_below_floor`` alone.
+    """
+    assert_single_writer()
+    conn.execute(
+        "UPDATE engram SET status = 'archived', storage_strength = ?, path = ?, updated_at = ? "
+        "WHERE id = ?",
+        (storage_strength, archive_path, _now(), engram_id),
+    )
+
+
 def delete_engram(conn: sqlite3.Connection, engram_id: str) -> None:
     """spec §2.6 step 5: delete durable rows whose file vanished."""
     assert_single_writer()

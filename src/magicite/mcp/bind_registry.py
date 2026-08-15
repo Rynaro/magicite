@@ -2,16 +2,14 @@
 
 M1: ``register`` (native ``.egr.md`` *and* SKILL.md import, spec §5.3),
 ``sync`` (spec §2.6) and ``export`` (spec §5.4, the SKILL.md compile
-target) are all implemented. ``checkpoint`` is Dream's phase-7 writer
-path (M4); it still raises a typed ``not_implemented`` rather than a stub
-success (INV-4) since there is no plasticity/synapses state to checkpoint
-until Dream exists.
+target) are all implemented. M4: ``checkpoint`` is Dream's phase-7 writer
+path (``core.dream.run_checkpoint_only``) run in isolation.
 """
 
 from __future__ import annotations
 
+from magicite.core import dream as dream_mod
 from magicite.core import registry as registry_mod
-from magicite.errors import NotImplementedToolError
 from magicite.mcp.registry import ToolContext, magicite_tool
 from magicite.mcp.schemas import (
     CheckpointInput,
@@ -89,9 +87,12 @@ def sync(ctx: ToolContext, params: SyncInput) -> SyncOutput:
     description="Idempotent DB -> file flush (Dream phase 7 in isolation).",
 )
 def checkpoint(ctx: ToolContext, params: CheckpointInput) -> CheckpointOutput:
-    raise NotImplementedToolError(
-        "checkpoint() is Dream's phase-7 writer path; it lands in M4 (core/dream.py)",
-        hint="M0 has no plasticity/synapses state to checkpoint yet",
+    stats = dream_mod.run_checkpoint_only(ctx.cfg, ctx.conn)
+    return CheckpointOutput(
+        checkpointed=stats.checkpointed,
+        modified_engrams=stats.modified_engrams,
+        write_ratio=stats.write_ratio,
+        timestamp=stats.timestamp,
     )
 
 

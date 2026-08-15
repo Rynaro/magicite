@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 import numpy as np
 
@@ -44,6 +45,7 @@ from magicite.config import Config
 from magicite.core import activation as activation_mod
 from magicite.core import composition as composition_mod
 from magicite.core import session as session_mod
+from magicite.core.decay_math import effective_value
 from magicite.embeddings.base import Embedder
 from magicite.engram.model import ROUTABLE_STATUSES
 from magicite.storage import ephemeral as ephemeral_mod
@@ -97,7 +99,7 @@ def _fetch_candidates(conn: sqlite3.Connection, model_name: str) -> list[sqlite3
         f"""
         SELECT e.id, e.name, e.intent_does, e.intent_use_when, e.status, e.exposure_count,
                e.path, e.excitability, x.vec, x.dim,
-               COALESCE(r.r, 0.0) AS retrieval_strength
+               COALESCE(r.r, 0.0) AS retrieval_strength, r.r_decayed_at AS retrieval_decayed_at
         FROM engram e
         JOIN eph_embedding x ON x.engram_id = e.id AND x.model = ?
         LEFT JOIN eph_retrieval r ON r.engram_id = e.id
@@ -236,6 +238,7 @@ def route(
     # session-participating tool follows (spec §3.3) -- mint/reuse/expire,
     # in one place, instead of route() rolling its own uuid4() + upsert.
     sid = session_mod.resolve_id(cfg, conn, session_id)
+    now = datetime.now(UTC).isoformat()
 
     qvec = embedder.embed(query)
     rows = _fetch_candidates(conn, embedder.model_name)
@@ -265,7 +268,17 @@ def route(
         id_by_name[row["name"]] = row["id"]
         row_by_id[row["id"]] = row
         cosine_list.append(float(np.dot(qvec, vec)))
-        retrieval_list.append(float(row["retrieval_strength"]))
+        # M4 hardening: R is decayed *at read time* (spec §6.1: "Evaluated
+        # lazily at read time"), not only when Dream's Phase 3 happens to
+        # materialise it -- otherwise a stale, undecayed R keeps
+        # contributing full weight to score_i between Dream runs, which is
+        # exactly the "reversible and expires naturally" property docs/03
+        # promises for R but that was not actually true until this read
+        # path decayed it too.
+        decayed_r = effective_value(
+            float(row["retrieval_strength"]), row["retrieval_decayed_at"], now, cfg.lambda_r_per_day
+        )
+        retrieval_list.append(decayed_r)
         excitability_list.append(float(row["excitability"]))
     cosine = np.array(cosine_list, dtype=np.float64)
 
