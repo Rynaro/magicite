@@ -1,0 +1,26 @@
+{
+  "envelope_version": "2.0",
+  "from": {
+    "eidolon": "idg"
+  },
+  "to": {
+    "eidolon": "orchestrator"
+  },
+  "performative": "INFORM",
+  "objective": "Archived ESL change magicite-v1-implementation: lifecycle chronicle and semantic promotion",
+  "context_delta": {
+    "amendments": [
+      "A1-REVISED",
+      "R1-RESTATED",
+      "DECLARED-EDGES-AMENDED",
+      "R12-FIRED",
+      "INHIB-GAIN-RECALIBRATED"
+    ],
+    "archive_path": "archive/2026-08-15-magicite-v1-implementation",
+    "change_id": "magicite-v1-implementation",
+    "conformance": "all 33 frozen + all 9 addendum criteria pass",
+    "frozen_criteria_anchor": "7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448",
+    "status": "archived",
+    "validity": "hypothesis H-BODY-b not supported"
+  }
+}

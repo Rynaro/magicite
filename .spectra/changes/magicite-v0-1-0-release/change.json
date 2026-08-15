@@ -1,0 +1,48 @@
+{
+  "esl_version": "1.1",
+  "change_id": "magicite-v0-1-0-release",
+  "status": "in_progress",
+  "tier": "lite",
+  "maker": "vivi",
+  "checker": "kupo",
+  "acceptance_checks": [
+    {
+      "id": "AC-1",
+      "given": "a registered engram with an existing provenance_journal entry",
+      "when": "a Dream checkpoint (or decay archive) appends a new entry and writes through render_document's round-trip branch",
+      "then": "the new entry's event/author/timestamp appears in the raw .egr.md file bytes and is readable back by a fresh parse",
+      "verify_method": "pytest tests/acceptance/test_rebuild_invariant.py::test_checkpoint_persists_provenance_journal_to_file (fail-before/pass-after proven against a dfe460c worktree)"
+    },
+    {
+      "id": "AC-2",
+      "given": "the fix is applied",
+      "when": "the full suite runs",
+      "then": "ruff check ./mypy src, pytest --cov-fail-under=70, and pytest -m acceptance all pass; magicite tools reports 16 tools",
+      "verify_method": "uv run ruff check . \u0026\u0026 uv run mypy src \u0026\u0026 uv run pytest -q --cov=src/magicite --cov-fail-under=70 \u0026\u0026 uv run pytest -q -m acceptance"
+    },
+    {
+      "id": "AC-3",
+      "given": "the v0.1.0 Docker image built from Dockerfile",
+      "when": "run with docker run --network none",
+      "then": "the MCP stdio handshake and a register()/route() cycle complete using the baked embedding model with no network access",
+      "verify_method": "docker build + docker run --network none manual handshake/register/route probe"
+    },
+    {
+      "id": "AC-4",
+      "given": ".github/workflows/release.yml's container job",
+      "when": "reviewed line-by-line",
+      "then": "any step likely to fail on a first never-executed run is identified and reported",
+      "verify_method": "manual review report"
+    },
+    {
+      "id": "AC-5",
+      "given": "CHANGELOG.md",
+      "when": "read",
+      "then": "it states the Hit@1 falsification numbers and the zero-supporting/two-non-supporting authored-graph-structure claim honestly, points at docs/01, and does not bump the version past 0.1.0",
+      "verify_method": "manual review"
+    }
+  ],
+  "spec_ref": ".spectra/changes/magicite-v0-1-0-release/spec.md",
+  "created_at": "2026-08-15",
+  "has_code": true
+}

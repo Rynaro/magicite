@@ -1,7 +1,7 @@
 {
   "esl_version": "1.1",
   "change_id": "magicite-v1-implementation",
-  "status": "verified",
+  "status": "archived",
   "tier": "full",
   "maker": "vivi",
   "checker": "kupo",
@@ -9,5 +9,6 @@
   "spec_ref": ".spectra/changes/magicite-v1-implementation/spec.md",
   "created_at": "2026-08-14",
   "drift_checked": true,
+  "archive_path": "archive/2026-08-15-magicite-v1-implementation",
   "has_code": true
 }
