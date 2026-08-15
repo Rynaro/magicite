@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 
 from magicite.config import Config
 from magicite.core.decay_math import effective_value
+from magicite.engram import ids as ids_mod
 from magicite.engram import parser as parser_mod
 from magicite.engram import writer as writer_mod
 from magicite.engram.model import ROUTABLE_STATUSES, ProvenanceJournalEntry
@@ -203,6 +204,19 @@ def archive_one(
 
     candidate = engram.model_copy(deep=True)
     candidate.frontmatter.plasticity = new_plasticity
+    # M7 conformance fix (parity with core/dream.py's checkpoint phase):
+    # carry the DB's *current* high-water mark into the archived copy's
+    # root-level peak_storage_strength -- the `row` this function receives
+    # does not select that column (archive_below_floor's/archive_engram's
+    # own SELECTs predate this field), so it is re-read here rather than
+    # trusted from the possibly-stale value the file parse just returned.
+    peak_row = conn.execute(
+        "SELECT peak_storage_strength FROM engram WHERE id = ?", (engram.id,)
+    ).fetchone()
+    if peak_row is not None:
+        candidate.frontmatter.peak_storage_strength = round(
+            max(float(peak_row["peak_storage_strength"]), s_eff, engram.frontmatter.peak_storage_strength), 4
+        )
     candidate.frontmatter.provenance_journal = [
         *candidate.frontmatter.provenance_journal,
         ProvenanceJournalEntry(
@@ -221,7 +235,16 @@ def archive_one(
     # G3 gate: only reachable from inside core.dream.checkpoint_phase().
     writer_mod.write_plasticity(candidate)
     writer_mod.write_synapses(candidate)
-    writer_mod.write_engram(archive_path, candidate, parsed.frontmatter_doc)
+    # Render once, write those exact bytes, hash those exact bytes -- same
+    # content_sha256/body_sha256-drift fix as core/dream.py's checkpoint
+    # phase (see that module's _phase7_checkpoint docstring comment); the
+    # archived row is part of durable_projection() too (it is not filtered
+    # by status), so a stale digest here would equally break the rebuild
+    # invariant for any registry that has ever auto-archived an engram.
+    final_text = writer_mod.render_document(candidate, parsed.frontmatter_doc)
+    writer_mod.atomic_write(archive_path, final_text)
+    new_content_sha256 = ids_mod.content_sha256(final_text.encode("utf-8"))
+    new_body_sha256 = ids_mod.body_sha256(writer_mod.render_body(candidate.body))
 
     # The archive copy is durably on disk before we touch the registry
     # copy -- "never deleted" holds even if the process dies here.
@@ -232,6 +255,8 @@ def archive_one(
         engram_id=engram.id,
         storage_strength=s_eff,
         archive_path=str(archive_path.relative_to(project_root)),
+        content_sha256=new_content_sha256,
+        body_sha256=new_body_sha256,
     )
     durable_mod.upsert_journal(conn, candidate)
 

@@ -122,7 +122,7 @@ def test_introspect_include_health_reports_standing_kpis(cfg, db_conn, embedder)
 
     assert out.health is not None
     assert out.health["registry_size"] == 7
-    assert out.health["cold_start"]["below_break_even"] is True
+    assert out.health["cold_start"]["below_reference_size"] is True
     assert "silent_engrams" in out.health
     assert "hub_detection" in out.health
     assert "fitness_distribution" in out.health

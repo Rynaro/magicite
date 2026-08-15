@@ -218,7 +218,12 @@ Operational guidance:
   synced. `doctor` is deliberately not reassuring: the cold-start section
   (risk R9) reports `registry_size < 50` as a warning, not a footnote — see
   `obs/kpi.py::cold_start_signal` for the exact wording, reused verbatim by
-  `doctor` rather than restated.
+  `doctor` rather than restated. That ~50-skill number is reported as a
+  cold-start **reference size**, not an established break-even: docs/01's
+  Falsification Record (measured 2026-08-15) tested a 70-skill registry —
+  above it — and found plain dense-embedding retrieval still beat the full
+  pipeline (p=0.00053), so crossing 50 is never reported as evidence that
+  hierarchy-aware routing has started paying for itself.
 
 ---
 

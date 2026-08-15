@@ -8,9 +8,15 @@ directive it must:
   ``fcntl.flock()`` is unreliable/a no-op on NFS/CIFS -- the two-layer
   ``storage/lease.py::CrossProcessLease`` design exists precisely because
   of this, docs/operations.md §8), and
-- state the cold-start break-even honestly (R9: under ~50 skills native
-  SKILL.md matching is competitive and Magicite is overhead) rather than
-  overselling.
+- report the registry's cold-start standing honestly (R9): registry size
+  and its position relative to the ~50-skill heuristic docs/07
+  originally proposed -- WITHOUT asserting that heuristic as an evidenced
+  break-even. docs/01's Falsification Record (measured 2026-08-15)
+  measured a 70-skill registry -- above the heuristic -- and found plain
+  dense-embedding retrieval still beat the full pipeline (p=0.00053); see
+  ``obs/kpi.py::cold_start_signal`` for the full reasoning. Overstating
+  this as a resolved threshold is exactly the overselling this module
+  must not do.
 
 Framework-free (INV-1: no MCP import here) and read-only: every check here
 either reads the filesystem/environment or opens a plain, non-authorizer
@@ -251,7 +257,7 @@ def run_doctor(cfg: Config) -> dict[str, Any]:
         warnings.append(f"[R7 lock semantics] {filesystem['note']}")
     elif filesystem["network_filesystem"] is None:
         warnings.append(f"[R7 lock semantics, unverified] {filesystem['note']}")
-    if cold_start["below_break_even"]:
+    if cold_start["below_reference_size"]:
         warnings.append(f"[R9 cold start] {cold_start['note']}")
     if registry["note"]:
         warnings.append(f"[registry] {registry['note']}")

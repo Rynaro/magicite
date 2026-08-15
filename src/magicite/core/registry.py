@@ -262,6 +262,13 @@ def _ingest_one(
     durable_mod.upsert_engram(conn, engram, identity_sha256=identity_hash(engram))
     durable_mod.wire_context_affinity(conn, engram)
     dangling = durable_mod.wire_declared_edges(conn, engram)
+    # spec §2.6 step 4, second half: upsert learned/declared-with-learned-
+    # weight edges from the file's own `synapses:` block, provenance from
+    # the file. Runs *after* wire_declared_edges -- see
+    # storage.durable.wire_synapse_edges's docstring for why the order is
+    # load-bearing (a checkpointed declared edge's real S/evidence_count
+    # must win over wire_declared_edges's S=0.0 baseline, not the reverse).
+    dangling = list(dict.fromkeys([*dangling, *durable_mod.wire_synapse_edges(conn, engram)]))
     embed_and_store(conn, embedder, engram)
 
     warnings = [w.message for w in result.warnings]

@@ -47,6 +47,16 @@ def upsert_engram(conn: sqlite3.Connection, engram: Engram, *, identity_sha256: 
     created_at = existing["created_at"] if existing else now
 
     incoming_s = plasticity.storage_strength if plasticity else 0.0
+    # M7 conformance fix: the file's own `peak_storage_strength` (root-level,
+    # see engram/model.py) is now real Tier A state -- read it here instead
+    # of implicitly re-deriving "peak == current S" (which is what silently
+    # reset the high-water mark to whatever S a rebuild happened to find,
+    # defeating archive_below_floor's peak-based eligibility gate the
+    # moment skill-graph.db was rebuilt). `max(incoming_s, ...)` is a
+    # defensive floor only -- a well-formed file's peak is already >= its
+    # own S by construction; this just refuses to accept a corrupt/
+    # hand-edited file's peak that is somehow lower than its own S.
+    incoming_peak = max(incoming_s, fm.peak_storage_strength)
     conn.execute(
         """
         INSERT INTO engram (
@@ -87,7 +97,7 @@ def upsert_engram(conn: sqlite3.Connection, engram: Engram, *, identity_sha256: 
             fm.intent.use_when,
             fm.intent.not_when,
             incoming_s,
-            incoming_s,  # peak_storage_strength: file wins on ingest, MAX()'d against the DB's own peak above
+            incoming_peak,  # file wins on ingest, MAX()'d against the DB's own peak above
             now,
             plasticity.exposure_count if plasticity else 0,
             plasticity.outcome.success if plasticity else 0,
@@ -214,6 +224,75 @@ def wire_declared_edges(conn: sqlite3.Connection, engram: Engram) -> list[str]:
     return dangling
 
 
+def wire_synapse_edges(conn: sqlite3.Connection, engram: Engram) -> list[str]:
+    """Upsert edge rows from the file's ``synapses:`` block -- spec §2.6
+    step 4's second half: "...and the synapses: block (provenance from the
+    file)". This is what makes the file the source of truth (INV-3) for
+    *learned* edge weight, not just node state: without it, deleting
+    ``skill-graph.db`` and re-running ``sync()`` silently discards every
+    Hebbian-learned ``storage_strength``/``evidence_count`` Dream ever
+    checkpointed, even though the node-level equivalent (``plasticity:``)
+    already survives the identical rebuild via :func:`upsert_engram`.
+
+    Callers (``core/registry.py::_ingest_one``) run this **after**
+    :func:`wire_declared_edges` in the same pass. Order matters: a
+    ``synapses:`` entry with ``provenance='declared'`` is the file's own
+    checkpoint of a *declared* edge's learned strength (spec §4.5's
+    ``_build_synapses`` keeps every declared-provenance row unconditionally,
+    un-thresholded, precisely so this round-trips) and must overwrite
+    :func:`wire_declared_edges`'s ``storage_strength=0.0``/
+    ``evidence_count=0`` baseline row for that same ``(src, dst, type)`` --
+    not the reverse. A ``learned``/``distilled``-provenance entry with no
+    corresponding ``needs``/``composes``/``inhibits`` declaration creates a
+    brand-new edge row outright (a pure Hebbian ``co_activation`` edge has
+    no declared counterpart at all). ``similar_to``/``derived`` edges never
+    appear in ``synapses:`` (spec §4.5 excludes ``provenance='derived'``
+    from the checkpoint; they are rebuilt from scratch every ``sync()`` by
+    :func:`replace_similar_to_edges` instead) -- nothing here special-cases
+    that type, it simply never occurs in practice.
+
+    Returns the list of target names still dangling after this pass (same
+    contract as :func:`wire_declared_edges`).
+    """
+    assert_single_writer()
+    fm = engram.frontmatter
+    dangling: list[str] = []
+    for synapse in fm.synapses:
+        target = conn.execute("SELECT id FROM engram WHERE name = ?", (synapse.target,)).fetchone()
+        dst_id = target["id"] if target else None
+        is_dangling = dst_id is None
+        if is_dangling:
+            dangling.append(synapse.target)
+        s_decayed_at = synapse.last_updated or synapse.first_observed
+        conn.execute(
+            """
+            INSERT INTO edge (
+              src_id, dst_name, dst_id, type, storage_strength, s_decayed_at,
+              evidence_count, provenance, first_observed, last_updated, dangling
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(src_id, dst_name, type) DO UPDATE SET
+              dst_id=excluded.dst_id, storage_strength=excluded.storage_strength,
+              s_decayed_at=excluded.s_decayed_at, evidence_count=excluded.evidence_count,
+              provenance=excluded.provenance, first_observed=excluded.first_observed,
+              last_updated=excluded.last_updated, dangling=excluded.dangling
+            """,
+            (
+                fm.id,
+                synapse.target,
+                dst_id,
+                synapse.type,
+                synapse.storage_strength,
+                s_decayed_at,
+                synapse.evidence_count,
+                synapse.provenance,
+                synapse.first_observed,
+                synapse.last_updated,
+                int(is_dangling),
+            ),
+        )
+    return dangling
+
+
 def set_embedding_ref(
     conn: sqlite3.Connection, *, engram_id: str, model_name: str, source_sha256: str
 ) -> None:
@@ -228,7 +307,13 @@ def set_embedding_ref(
 
 
 def mark_archived(
-    conn: sqlite3.Connection, *, engram_id: str, storage_strength: float, archive_path: str
+    conn: sqlite3.Connection,
+    *,
+    engram_id: str,
+    storage_strength: float,
+    archive_path: str,
+    content_sha256: str | None = None,
+    body_sha256: str | None = None,
 ) -> None:
     """spec §5.1 FSM row "any(≠draft) → archived | S_effective < 0.2 (auto)
     | Dream, archive" -- the one lifecycle transition Dream itself performs
@@ -236,13 +321,29 @@ def mark_archived(
     ``set_status()`` the full FSM (M5) will own; it only ever moves a row to
     ``status='archived'`` with the S value the decay floor check already
     computed, from ``core/decay.py::archive_below_floor`` alone.
+
+    ``content_sha256``/``body_sha256`` (M7 conformance fix): optional so a
+    caller with nothing new to report keeps working, but ``archive_one``
+    always passes both -- the archived file is rewritten (new
+    ``plasticity:``/``peak_storage_strength``/``provenance_journal``) as
+    part of this same transition, and ``durable_projection()`` includes
+    archived rows (it is not filtered by status), so leaving the old
+    digests in place here would reproduce the exact rebuild-invariant
+    drift the Dream-checkpoint content_sha256 fix closes.
     """
     assert_single_writer()
-    conn.execute(
-        "UPDATE engram SET status = 'archived', storage_strength = ?, path = ?, updated_at = ? "
-        "WHERE id = ?",
-        (storage_strength, archive_path, _now(), engram_id),
-    )
+    if content_sha256 is not None and body_sha256 is not None:
+        conn.execute(
+            "UPDATE engram SET status = 'archived', storage_strength = ?, path = ?, "
+            "content_sha256 = ?, body_sha256 = ?, updated_at = ? WHERE id = ?",
+            (storage_strength, archive_path, content_sha256, body_sha256, _now(), engram_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE engram SET status = 'archived', storage_strength = ?, path = ?, updated_at = ? "
+            "WHERE id = ?",
+            (storage_strength, archive_path, _now(), engram_id),
+        )
 
 
 def delete_engram(conn: sqlite3.Connection, engram_id: str) -> None:

@@ -8,16 +8,21 @@ from magicite.obs import kpi as kpi_mod
 PROTON = "proton-ge-proton-downgrade"
 
 
-def test_cold_start_signal_below_break_even() -> None:
+def test_cold_start_signal_below_reference_size() -> None:
     signal = kpi_mod.cold_start_signal(7)
-    assert signal["below_break_even"] is True
-    assert "overhead" in signal["note"]
+    assert signal["below_reference_size"] is True
+    assert signal["cold_start_reference_size"] == kpi_mod.COLD_START_REFERENCE_SIZE
+    assert "unevidenced" in signal["note"] or "no claim is made" in signal["note"]
 
 
-def test_cold_start_signal_at_or_above_break_even() -> None:
+def test_cold_start_signal_at_or_above_reference_size_does_not_assert_a_verdict() -> None:
+    """VIVI, M7 conformance fix: crossing the ~50-skill heuristic must
+    never be reported as a resolved break-even -- docs/01's Falsification
+    Record measured a 70-skill (above-reference) registry and found dense
+    embedding retrieval still beat the full pipeline (p=0.00053)."""
     signal = kpi_mod.cold_start_signal(200)
-    assert signal["below_break_even"] is False
-    assert "pay" in signal["note"] or "hierarchy" in signal["note"]
+    assert signal["below_reference_size"] is False
+    assert "not evidence" in signal["note"] or "no routing-quality verdict is inferred" in signal["note"]
 
 
 def test_fitness_distribution_buckets_by_storage_strength(cfg, db_conn, embedder) -> None:

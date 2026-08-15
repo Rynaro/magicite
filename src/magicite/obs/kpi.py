@@ -38,9 +38,22 @@ from typing import Any
 from magicite.config import Config
 from magicite.core import audit as audit_mod
 
-#: docs/07 §Cold start / risk R9: "If the registry stays under ~50
-#: skills, native SKILL.md matching is fine and Magicite is overhead."
-COLD_START_BREAK_EVEN = 50
+#: docs/07 §Cold start / risk R9's ORIGINAL, pre-measurement heuristic:
+#: "If the registry stays under ~50 skills, native SKILL.md matching is
+#: fine and Magicite is overhead." Named ``..._REFERENCE_SIZE``, not
+#: ``..._BREAK_EVEN`` (VIVI, M7 conformance fix): docs/01's Falsification
+#: Record (measured 2026-08-15) tested a registry of 70 skills -- ABOVE
+#: this number -- and found plain dense-embedding retrieval still beat
+#: the full Magicite pipeline (Hit@1 0.5476 vs 0.4619, p=0.00053); the
+#: claim that routing "pays off exactly where native routing breaks" is
+#: not evidenced at any size tested (13, 40, 70 -- docs/07 §4). The
+#: heuristic's own crossing point is separately unevidenced: a single,
+#: unreplicated 39-query-slice result that does not hold on the full
+#: 120-query set (docs/07's H-SCALE row: "INCONCLUSIVE"). Keeping the
+#: number only as a reporting anchor -- never as a resolved break-even a
+#: registry can be said to have "crossed" -- is what closes the drift
+#: between this module and README.md's "Honest limits" section.
+COLD_START_REFERENCE_SIZE = 50
 
 #: docs/07 §Skill Fitness Distribution buckets (S_node ranges) and their
 #: target share of the registry.
@@ -58,24 +71,36 @@ TOP_N_HUB_TRAFFIC = 5
 
 def cold_start_signal(registry_size: int) -> dict[str, Any]:
     """R9, honestly: ``route()`` already returns ``registry_size``; this
-    is the same number, plus the explicit "is Magicite overhead here"
-    verdict docs/07/R9 ask not to bury."""
-    below_break_even = registry_size < COLD_START_BREAK_EVEN
+    reports that number and this registry's position relative to the
+    ~50-skill heuristic docs/07 originally proposed -- WITHOUT asserting
+    that heuristic as a resolved, evidenced break-even (VIVI, M7
+    conformance fix). docs/01's Falsification Record measured routing
+    quality at 70 skills (above the heuristic) and found dense-embedding
+    retrieval still beat the full pipeline (p=0.00053); crossing the
+    heuristic is therefore not evidence anything "pays off". Reporting
+    the number honestly -- registry size plus its raw position, no
+    inferred verdict -- is what this function now does instead."""
+    below_reference = registry_size < COLD_START_REFERENCE_SIZE
     note = (
-        f"registry_size={registry_size} is below the ~{COLD_START_BREAK_EVEN}-skill "
-        "break-even (docs/07, risk R9): native SKILL.md matching is likely competitive "
-        "here and Magicite's routing machinery may be overhead."
-        if below_break_even
+        f"registry_size={registry_size}, below the ~{COLD_START_REFERENCE_SIZE}-skill "
+        "heuristic docs/07 originally proposed ('native SKILL.md matching is likely "
+        "competitive here'). That heuristic's own crossing point is itself unevidenced "
+        "(docs/01, measured 2026-08-15: a single unreplicated crossing on a 39-query "
+        "slice that does not hold on the full 120-query set) -- no claim is made about "
+        "whether Magicite's routing machinery is worth its overhead at this size."
+        if below_reference
         else (
-            f"registry_size={registry_size} is at/above the ~{COLD_START_BREAK_EVEN}-skill "
-            "break-even (docs/07, risk R9): this is the regime hierarchy-aware routing is "
-            "expected to start paying for itself."
+            f"registry_size={registry_size}, at/above the ~{COLD_START_REFERENCE_SIZE}-skill "
+            "heuristic -- but crossing it is NOT evidence that hierarchy-aware routing pays "
+            "off: at 70 skills (docs/01, measured 2026-08-15) plain dense-embedding retrieval "
+            "still beat the full Magicite pipeline (Hit@1 0.5476 vs 0.4619, p=0.00053). This "
+            "number is reported honestly; no routing-quality verdict is inferred from it."
         )
     )
     return {
         "registry_size": registry_size,
-        "break_even": COLD_START_BREAK_EVEN,
-        "below_break_even": below_break_even,
+        "cold_start_reference_size": COLD_START_REFERENCE_SIZE,
+        "below_reference_size": below_reference,
         "note": note,
     }
 

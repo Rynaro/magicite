@@ -210,6 +210,13 @@ def durable_projection(conn: sqlite3.Connection) -> dict[str, Any]:
       (a Tier-C cache pointer, re-derived on every re-embed). Excluding
       these is what makes "byte-identical projection" an honest,
       achievable assertion about *content* rather than a wall-clock race.
+
+    Includes ``peak_storage_strength`` (M7 conformance fix): now that it
+    has a root-level file representation (``engram/model.py``'s
+    ``EngramFrontmatter.peak_storage_strength``, checkpointed by Dream
+    same as every other Tier A field), it is real durable state and the
+    invariant should catch a regression in it exactly like it already
+    does for ``storage_strength``.
     """
     engrams = [
         dict(row)
@@ -217,8 +224,8 @@ def durable_projection(conn: sqlite3.Connection) -> dict[str, Any]:
             """
             SELECT id, name, path, spec_version, version, origin, verification_status, status,
                    intent_does, intent_use_when, intent_not_when,
-                   storage_strength, exposure_count, success_count, failure_count,
-                   excitability, last_applied, last_checkpoint,
+                   storage_strength, peak_storage_strength, exposure_count, success_count,
+                   failure_count, excitability, last_applied, last_checkpoint,
                    has_exec_blocks, identity_sha256, content_sha256, body_sha256
             FROM engram ORDER BY id
             """

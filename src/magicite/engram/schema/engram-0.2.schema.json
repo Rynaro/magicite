@@ -83,6 +83,13 @@
         }
       }
     },
+    "peak_storage_strength": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0,
+      "description": "Root-level (not part of plasticity:) high-water mark of plasticity.storage_strength; Dream-checkpoint-only. Kept out of the plasticity: block so it does not alter that block's frozen docs/04 field list; permitted here only because the schema root is additionalProperties:true (forward-compatible)."
+    },
     "synapses": {
       "type": "array",
       "default": [],

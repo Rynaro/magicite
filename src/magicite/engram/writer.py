@@ -97,6 +97,27 @@ def atomic_write(path: str | Path, content: str) -> None:
 
 
 def _round4(value: float) -> float:
+    """DECISION (VIVI, spec-conformance remediation): keep 4-decimal
+    rendering for every checkpointed float (S_node, S_edge, excitability,
+    peak_storage_strength). This is a considered tradeoff, not an
+    accident:
+
+    - AC-021's determinism test only requires "render an engram twice ->
+      byte-identical", not any particular precision -- widening would not
+      violate the frozen AC, but this module's own docstring already
+      names 4dp as *why* AC-021 holds (git-diff reviewability), and that
+      reasoning is sound independent of AC-021.
+    - The worst-case rounding error (<=5e-5) is 2-3 orders of magnitude
+      below every threshold the engine actually compares S against:
+      ``epsilon_write`` (0.05), ``theta_prune`` (0.10), ``floor_archived``
+      (0.20), ``theta_synapse`` (0.35) (spec §4.3/§6.1, ``config.py``).
+      No lifecycle/prune/materialisation decision can flip on this error.
+    - It is bounded, not compounding: the DB row (``engram.
+      storage_strength``/``edge.storage_strength``) always carries full
+      float precision between checkpoints -- only the *file* is rounded,
+      and only a full ``skill-graph.db`` rebuild (re-parsing the rounded
+      file) ever actually consumes the rounded value as a new baseline.
+    """
     return round(float(value), 4)
 
 
@@ -135,6 +156,10 @@ def _fresh_doc(engram: Engram) -> CommentedMap:
 
     if fm.plasticity is not None:
         doc["plasticity"] = _render_plasticity(fm.plasticity)
+
+    # Root-level Tier A field, deliberately outside plasticity: (see
+    # engram/model.py's EngramFrontmatter.peak_storage_strength docstring).
+    doc["peak_storage_strength"] = _round4(fm.peak_storage_strength)
 
     doc["synapses"] = _render_synapses(fm.synapses)
 
@@ -218,6 +243,13 @@ def render_frontmatter(engram: Engram, frontmatter_doc: Any | None = None) -> st
         doc["version"] = engram.frontmatter.version
         if engram.frontmatter.plasticity is not None:
             doc["plasticity"] = _render_plasticity(engram.frontmatter.plasticity)
+        # Root-level Tier A field (see EngramFrontmatter.peak_storage_strength):
+        # must be refreshed on the round-trip carrier explicitly, same as
+        # version/plasticity/synapses above -- every other key on `doc` is
+        # otherwise inherited verbatim from the original parse, so skipping
+        # this line would silently drop every Dream-checkpointed peak value
+        # (the exact M5-adjacent rebuild-loss this field exists to close).
+        doc["peak_storage_strength"] = _round4(engram.frontmatter.peak_storage_strength)
         doc["synapses"] = _render_synapses(engram.frontmatter.synapses)
     else:
         doc = _fresh_doc(engram)

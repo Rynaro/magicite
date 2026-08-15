@@ -52,6 +52,7 @@ from magicite.core import audit as audit_mod
 from magicite.core import decay as decay_mod
 from magicite.core import distill as distill_mod
 from magicite.core import plasticity as plasticity_mod
+from magicite.engram import ids as ids_mod
 from magicite.engram import parser as parser_mod
 from magicite.engram import writer as writer_mod
 from magicite.engram.model import (
@@ -573,6 +574,13 @@ def _build_checkpoint_candidate(
 
     candidate = engram.model_copy(deep=True)
     candidate.frontmatter.plasticity = new_plasticity
+    # M7 conformance fix: checkpoint the DB's current high-water mark into
+    # the file's own root-level `peak_storage_strength` (see
+    # engram/model.py's docstring on that field) -- without this, the
+    # value has no file representation at all and a `skill-graph.db`
+    # rebuild silently resets it to whatever S the rebuild happens to see,
+    # defeating archive_below_floor's peak-based eligibility gate.
+    candidate.frontmatter.peak_storage_strength = round(float(db_row["peak_storage_strength"]), 4)
     candidate.frontmatter.synapses = _build_synapses(conn, cfg, engram.id)
 
     # Render the as-parsed original through the same pipeline first (see
@@ -639,11 +647,31 @@ def _phase7_checkpoint(
 
             writer_mod.write_plasticity(candidate)  # G3 gate
             writer_mod.write_synapses(candidate)  # G3 gate
-            writer_mod.write_engram(built.path, candidate, built.frontmatter_doc)
+
+            # M7 conformance fix: render once, write those exact bytes, and
+            # hash those exact bytes -- rather than write_engram() (which
+            # re-renders internally) followed by a stale DB content_sha256/
+            # body_sha256 left over from *before* this checkpoint mutated
+            # the frontmatter (S, status, synapses, peak_storage_strength,
+            # provenance_journal, ...). Before this fix, only exposure_count/
+            # last_checkpoint were kept in sync here, so engram.content_sha256
+            # silently drifted from the file's real digest on every single
+            # checkpoint write -- and since durable_projection() (the AC-009
+            # rebuild-invariant diff) includes content_sha256/body_sha256,
+            # that drift alone would make a post-Dream rebuild fail the
+            # invariant even once the edge/peak fixes above are in place: a
+            # freshly-rebuilt DB re-parses the file and computes the file's
+            # *actual*, current digest, which would never match the stale
+            # value this row carried before the rebuild.
+            final_text = writer_mod.render_document(candidate, built.frontmatter_doc)
+            writer_mod.atomic_write(built.path, final_text)
+            new_content_sha256 = ids_mod.content_sha256(final_text.encode("utf-8"))
+            new_body_sha256 = ids_mod.body_sha256(writer_mod.render_body(candidate.body))
 
             conn.execute(
-                "UPDATE engram SET exposure_count = ?, last_checkpoint = ? WHERE id = ?",
-                (final_exposure, now, row["id"]),
+                "UPDATE engram SET exposure_count = ?, last_checkpoint = ?, "
+                "content_sha256 = ?, body_sha256 = ? WHERE id = ?",
+                (final_exposure, now, new_content_sha256, new_body_sha256, row["id"]),
             )
             if delta_row is not None:
                 conn.execute(

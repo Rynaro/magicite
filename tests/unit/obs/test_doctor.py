@@ -92,12 +92,12 @@ def test_governance_check_autonomous_mode(tmp_path: Path) -> None:
     assert "immediately" in result["note"]
 
 
-def test_run_doctor_below_break_even_is_not_reassuring(cfg, db_conn, embedder) -> None:
+def test_run_doctor_below_reference_size_is_not_reassuring(cfg, db_conn, embedder) -> None:
     """R9: the toy registry (7 engrams) is well below the ~50-skill
-    break-even -- doctor must say so, not stay silent."""
+    cold-start reference size -- doctor must say so, not stay silent."""
     registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
     report = doctor_mod.run_doctor(cfg)
-    assert report["cold_start"]["below_break_even"] is True
+    assert report["cold_start"]["below_reference_size"] is True
     assert report["healthy"] is False
     assert any("R9" in w for w in report["warnings"])
 

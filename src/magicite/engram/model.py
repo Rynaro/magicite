@@ -141,6 +141,18 @@ class EngramFrontmatter(BaseModel):
     embedding: EmbeddingRef | None = None
 
     plasticity: Plasticity | None = None
+    #: Tier A: the high-water mark ``plasticity.storage_strength`` has ever
+    #: reached (``core/decay.py::archive_below_floor``'s eligibility gate,
+    #: the M5 data-integrity fix). Deliberately a ROOT-level field, not a
+    #: ``plasticity:`` sub-key: docs/04's Plasticity Block is an exact,
+    #: frozen field-list illustration this change must not silently
+    #: diverge from, while the root frontmatter is explicitly
+    #: forward-compatible (``additionalProperties: true`` in the JSON
+    #: schema; this model's own ``extra="allow"``). Dream-checkpoint-only
+    #: in practice, same as every other Tier A field -- see
+    #: ``core/dream.py::_build_checkpoint_candidate`` and
+    #: ``core/decay.py::archive_one``.
+    peak_storage_strength: float = Field(default=0.0, ge=0.0)
     synapses: list[Synapse] = Field(default_factory=list)
 
     needs: list[str] = Field(default_factory=list)
