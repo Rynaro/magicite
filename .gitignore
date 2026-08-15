@@ -24,3 +24,6 @@ htmlcov/
 skill-graph.db
 skill-graph.db-wal
 skill-graph.db-shm
+
+# Ephemeral worktrees used for fail-before/pass-after proofs
+.claude/worktrees/
