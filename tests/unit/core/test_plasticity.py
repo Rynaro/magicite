@@ -97,11 +97,15 @@ def test_compute_eta_eff_untiered_spacing_damps_rapid_repeats() -> None:
     assert rapid < spaced
 
 
-def test_compute_dw_magnitude_bounded_by_eta_times_saturation() -> None:
-    """AC-017: "the affected edge's storage_strength SHALL increase by no
-    more than eta * (1 - w/w_max) per capture" -- true for ANY mean_outcome
-    in [-1,1] and capture_weight in [0,1], since both TIER_WEIGHT<=1 and
-    the spacing factor <=1."""
+def test_metaplastic_saturation_bound() -> None:
+    """AC-017's proving test (frozen VERIFY pointer:
+    ``tests/unit/core/test_plasticity.py::test_metaplastic_saturation_bound``).
+    GIVEN captured tags from three sessions with positive outcomes WHEN a
+    Dream run completes THEN the affected edge's storage_strength SHALL
+    increase by no more than eta * (1 - w/w_max) per capture -- exercised
+    here via ``compute_dw_magnitude()``'s own |dw| bound, true for ANY
+    mean_outcome in [-1,1] and capture_weight in [0,1], since both
+    TIER_WEIGHT<=1 and the spacing factor <=1."""
     eta, w_max, current_w = 0.08, 1.0, 0.3
     bound = eta * (1 - current_w / w_max)
     for mean_outcome in (-1.0, -0.3, 0.0, 0.5, 1.0):

@@ -53,13 +53,15 @@ def test_get_detector_prefers_leiden_when_importable() -> None:
     assert detector.name in {"leiden", "label_propagation"}
 
 
-def test_get_detector_falls_back_when_leiden_import_fails(monkeypatch) -> None:
-    """AC-022's proving test: GIVEN python-igraph and leidenalg are not
-    installed THEN community detection SHALL fall back to label
-    propagation and report detector="label_propagation". Forcing the
-    import to fail (rather than actually uninstalling the optional extra)
-    is the honest way to exercise this without mutating the test
-    environment's dependency set."""
+def test_fallback_detector(monkeypatch) -> None:
+    """AC-022's proving test (frozen VERIFY pointer:
+    ``tests/unit/core/test_communities.py::test_fallback_detector``).
+    GIVEN python-igraph and leidenalg are not installed THEN community
+    detection SHALL fall back to label propagation and report
+    detector="label_propagation" -- exercised via ``get_detector()``,
+    forcing the leiden import to fail (rather than actually uninstalling
+    the optional extra), the honest way to prove the fallback branch
+    without mutating the test environment's dependency set."""
     monkeypatch.setattr(communities_mod, "_try_import_leiden", lambda: None)
     detector = communities_mod.get_detector()
     assert detector.name == "label_propagation"
