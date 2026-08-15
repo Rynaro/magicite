@@ -67,6 +67,8 @@ class Config:
     # ── signals tunables (spec §3.3, §4.1) ──────────────────────────────
     per_skill_session_cap: int = 3
     tau_credit_seconds: float = 1800.0
+    #: spec §3.3 tool 5 step 4: "R nudge (Tier C): R <- min(1, R + eta_R*(1-R))".
+    eta_r: float = 0.15
 
     # ── dream trigger tunables (spec §4.1) ──────────────────────────────
     dream_on_session_end: bool = True

@@ -3,9 +3,15 @@
 M0: ``introspect`` is implemented for the skill-lookup and registry-summary
 shapes (``storage/queries.py``). Its ``consolidation_id`` branch has
 nothing to look up yet (no Dream in M0) and returns ``not_found`` rather
-than fabricating a run. ``flag_dead`` needs ``eph_retrieval``/session
-history that only becomes meaningful once signals exist (M3); it raises a
-typed ``not_implemented`` for now.
+than fabricating a run.
+
+``flag_dead`` needs ``eph_retrieval``/session history, which M3
+(``core/signals.py``) starts populating -- but the tool itself (the
+"silent engram" standing-KPI shape, docs/07) is spec's own M5 action item
+(spec Stories, M5: "...``flag_dead``; rollback runbook..."), alongside
+``core/fitness.py`` and the audit machinery it reports against. It raises a
+typed ``not_implemented`` for now, not because the M3 signal ladder is
+missing, but because M5 owns this tool.
 """
 
 from __future__ import annotations

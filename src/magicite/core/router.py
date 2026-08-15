@@ -36,7 +36,6 @@ fully self-contained on either):
 from __future__ import annotations
 
 import sqlite3
-import uuid
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -44,6 +43,7 @@ import numpy as np
 from magicite.config import Config
 from magicite.core import activation as activation_mod
 from magicite.core import composition as composition_mod
+from magicite.core import session as session_mod
 from magicite.embeddings.base import Embedder
 from magicite.engram.model import ROUTABLE_STATUSES
 from magicite.storage import ephemeral as ephemeral_mod
@@ -232,8 +232,10 @@ def route(
     k: int = 5,
     session_id: str | None = None,
 ) -> RouteOutcome:
-    sid = session_id or str(uuid.uuid4())
-    ephemeral_mod.upsert_session(conn, sid)
+    # core/session.py (M3): the one session-resolution rule every
+    # session-participating tool follows (spec §3.3) -- mint/reuse/expire,
+    # in one place, instead of route() rolling its own uuid4() + upsert.
+    sid = session_mod.resolve_id(cfg, conn, session_id)
 
     qvec = embedder.embed(query)
     rows = _fetch_candidates(conn, embedder.model_name)

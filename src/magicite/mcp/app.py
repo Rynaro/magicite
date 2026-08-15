@@ -23,6 +23,20 @@ MCP SDK, so stdout is never touched by anything but protocol frames
 ``stdio_server()`` additionally diverts fd 1 to stderr for the whole
 serving window (framework-enforced, not just discipline) -- see
 ``run_stdio`` below.
+
+**G1, wired end-to-end (spec §6.2, AC-013):** :func:`build_state` opens the
+*two* connections spec §2.1 names -- an authorizer-restricted
+``ephemeral_conn`` (``storage/authorizer.py::ephemeral_connection``) and an
+unrestricted ``writer_conn`` (``...::writer_connection``), both onto the
+same on-disk WAL database. :func:`dispatch_call` is what actually realizes
+"writers are a place, not a rule": it looks up which physical connection a
+given tool name gets (:data:`_WRITER_CONNECTION_TOOLS`, exactly the 9
+R2/R3 tools spec §6.2 does *not* list as hot-path) and builds that call's
+``ToolContext`` around it -- so every ``bind_*.py`` handler keeps using
+``ctx.conn`` unchanged; only the dispatcher's *choice* of which connection
+object that name resolves to changed. This is also the Tier-0
+passive-inference capture point (spec §3.3, ``obs/events.py``): every
+successful, non-replayed tool call appends a generic ``eph_event`` row.
 """
 
 from __future__ import annotations
@@ -60,24 +74,53 @@ from magicite.mcp import (  # noqa: E402, F401  (imports register tools onto TOO
     bind_signals,
 )
 from magicite.mcp.registry import ToolContext, get_tool, manifest  # noqa: E402
+from magicite.obs import events as events_mod  # noqa: E402
 from magicite.obs.logging import get_logger  # noqa: E402
-from magicite.storage import db as db_mod  # noqa: E402
+from magicite.storage import authorizer as authorizer_mod  # noqa: E402
 
 logger = get_logger("magicite.mcp")
 
 SERVER_NAME = "magicite"
 
+#: spec §6.2 G1, enumerated: exactly the 9 R2/R3 tools that mutate durable
+#: (non-``eph_``) state get the unrestricted writer connection. The other 7
+#: (``route``, ``load_skill_body``, ``signal_use``, ``signal_outcome``,
+#: ``session_end``, ``introspect``, ``flag_dead`` -- spec's own list) get
+#: only the authorizer-restricted one. This is the dispatcher-level
+#: enforcement of "the hot path physically cannot write durable state"
+#: (spec Approach commitment 2): no ``bind_*.py`` handler chooses its own
+#: connection, it only ever sees ``ctx.conn``.
+_WRITER_CONNECTION_TOOLS: frozenset[str] = frozenset(
+    {
+        "register",
+        "sync",
+        "checkpoint",
+        "export",
+        "consolidate",
+        "nucleate",
+        "sharpen",
+        "promote",
+        "archive",
+    }
+)
+
 
 @dataclass
 class ServerState:
     cfg: Config
-    conn: sqlite3.Connection
+    conn: sqlite3.Connection  # authorizer-restricted (G1); the hot path's only connection
+    writer_conn: sqlite3.Connection  # unrestricted; G2 (the lease assertion) governs this one
     embedder: Any
 
 
 def build_state(cfg: Config) -> ServerState:
     cfg.ensure_dirs()
-    conn = db_mod.connect(cfg.db_path)
+    # The writer connection is opened first: it is the one that runs
+    # migrations (a durable-schema, i.e. writer, concern), so the ephemeral
+    # connection can skip re-running them (storage/authorizer.py's
+    # ``ephemeral_connection`` defaults ``migrate=False``).
+    writer_conn = authorizer_mod.writer_connection(cfg.db_path)
+    conn = authorizer_mod.ephemeral_connection(cfg.db_path)
     # get_embedder() only *constructs* the provider here; FastEmbedProvider
     # defers the actual fastembed.TextEmbedding construction (and its
     # cache-check/download) to the first embed() call, not this line, so
@@ -87,7 +130,7 @@ def build_state(cfg: Config) -> ServerState:
     # guarantee is self-enforced rather than delegated to fastembed's own
     # (insufficient) lazy_load kwarg.
     embedder = get_embedder(cfg)
-    return ServerState(cfg=cfg, conn=conn, embedder=embedder)
+    return ServerState(cfg=cfg, conn=conn, writer_conn=writer_conn, embedder=embedder)
 
 
 def _tool_annotations(meta: Any) -> ToolAnnotations:
@@ -183,7 +226,12 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
             )
 
     session_id = getattr(params, "session_id", None)
-    ctx = ToolContext(cfg=state.cfg, conn=state.conn, embedder=state.embedder, session_id=session_id)
+    # spec §6.2 G1 / AC-013: durable-write tools (§3.2 R2/R3) get the
+    # unrestricted writer connection; every other tool gets only the
+    # authorizer-restricted one. Handlers never choose this themselves --
+    # they only ever see ``ctx.conn``.
+    tool_conn = state.writer_conn if tool_name in _WRITER_CONNECTION_TOOLS else state.conn
+    ctx = ToolContext(cfg=state.cfg, conn=tool_conn, embedder=state.embedder, session_id=session_id)
 
     try:
         result = meta.handler(ctx, params)
@@ -195,6 +243,13 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
         return _error_result(MagiciteError(f"internal error in {tool_name}: {exc}"))
 
     payload = result.model_dump(mode="json")
+
+    # Tier-0 passive-inference capture (spec §3.3, obs/events.py): every
+    # successful, non-replayed call is itself server-observable evidence --
+    # written on the ephemeral connection (eph_event is eph_-prefixed, so
+    # either connection could write it; using the same one always keeps the
+    # ledger's writer path singular regardless of which tool ran).
+    events_mod.record_tool_call(state.conn, session_id=session_id, tool=tool_name, arguments=arguments)
 
     if request_id:
         now = datetime.now(UTC).isoformat()

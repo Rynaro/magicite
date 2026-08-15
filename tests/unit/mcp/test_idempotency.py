@@ -1,0 +1,94 @@
+"""AC-019: replaying a write tool with the same request_id and identical
+arguments returns the cached response rather than repeating the side
+effect. The mechanism itself (``eph_idempotency``) lives in
+``mcp/app.py::dispatch_call`` and has applied to every write tool since M0;
+this suite is the honest proving test the AC calls for, exercised against
+``signal_use`` (an M3 tool whose side effect -- an inserted ``eph_tag`` row
+-- is easy to observe directly)."""
+
+from __future__ import annotations
+
+from magicite.core import registry as registry_mod
+from magicite.errors import ErrorCode
+from magicite.mcp import app as app_mod
+
+PROTON = "proton-ge-proton-downgrade"
+
+
+def _tag_count(conn, session_id: str, engram_id: str) -> int:
+    return conn.execute(
+        "SELECT COUNT(*) AS n FROM eph_tag WHERE session_id = ? AND engram_id = ?",
+        (session_id, engram_id),
+    ).fetchone()["n"]
+
+
+def test_replay_returns_cached_response(cfg, embedder) -> None:
+    """GIVEN a write tool called twice with the same request_id and
+    identical arguments
+    WHEN the second call arrives
+    THEN the server SHALL return the stored response without repeating the
+    side effect."""
+    state = app_mod.build_state(cfg)
+    try:
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        engram_id = state.conn.execute(
+            "SELECT id FROM engram WHERE name = ?", (PROTON,)
+        ).fetchone()["id"]
+
+        args = {"skill_ids": [PROTON], "session_id": "s1", "request_id": "req-1"}
+
+        first = app_mod.dispatch_call(state, "signal_use", args)
+        assert first.is_error is False
+        assert _tag_count(state.conn, "s1", engram_id) == 1
+
+        second = app_mod.dispatch_call(state, "signal_use", args)
+        assert second.is_error is False
+        assert second.structured_content == first.structured_content
+        # the side effect was NOT repeated: still exactly one tag row.
+        assert _tag_count(state.conn, "s1", engram_id) == 1
+    finally:
+        state.conn.close()
+        state.writer_conn.close()
+
+
+def test_replay_with_different_arguments_conflicts(cfg, embedder) -> None:
+    state = app_mod.build_state(cfg)
+    try:
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+
+        first = app_mod.dispatch_call(
+            state, "signal_use", {"skill_ids": [PROTON], "session_id": "s1", "request_id": "req-1"}
+        )
+        assert first.is_error is False
+
+        conflict = app_mod.dispatch_call(
+            state,
+            "signal_use",
+            {"skill_ids": [PROTON], "session_id": "s2", "request_id": "req-1"},  # same id, different args
+        )
+        assert conflict.is_error is True
+        assert conflict.structured_content["code"] == ErrorCode.IDEMPOTENCY_KEY_CONFLICT.value
+    finally:
+        state.conn.close()
+        state.writer_conn.close()
+
+
+def test_replay_without_request_id_repeats_the_side_effect(cfg, embedder) -> None:
+    """Negative control: omitting request_id is NOT idempotent -- two calls
+    with identical arguments but no request_id both execute (this is what
+    makes the per-session cap test in test_signals.py meaningful at all)."""
+    state = app_mod.build_state(cfg)
+    try:
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        engram_id = state.conn.execute(
+            "SELECT id FROM engram WHERE name = ?", (PROTON,)
+        ).fetchone()["id"]
+
+        args = {"skill_ids": [PROTON], "session_id": "s1"}
+        app_mod.dispatch_call(state, "signal_use", args)
+        app_mod.dispatch_call(state, "signal_use", args)
+
+        assert _tag_count(state.conn, "s1", engram_id) == 2
+    finally:
+        state.conn.close()
+        state.writer_conn.close()
