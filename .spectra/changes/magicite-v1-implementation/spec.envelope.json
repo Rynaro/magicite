@@ -18,8 +18,8 @@
     "kind": "spec",
     "schema_version": "1.0",
     "path": ".spectra/changes/magicite-v1-implementation/spec.md",
-    "sha256": "92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b",
-    "size_bytes": 88404
+    "sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
+    "size_bytes": 90934
   },
   "context_delta": {
     "token_budget": 6000,
@@ -59,7 +59,7 @@
   "confidence": 0.85,
   "integrity": {
     "method": "sha256",
-    "value": "92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b"
+    "value": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac"
   },
   "trace": {
     "ts": "2026-08-14T22:42:20Z",
@@ -71,5 +71,29 @@
     "path": ".spectra/changes/magicite-v1-implementation/acceptance-criteria.md",
     "sha256": "7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448",
     "count": 33
-  }
+  },
+  "x_ramza_amendment": [
+    {
+      "id": "A1-REVISED",
+      "at": "2026-08-14",
+      "kind": "integrity_restamp",
+      "payload_path": ".spectra/changes/magicite-v1-implementation/spec.md",
+      "prev_sha256": "92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b",
+      "new_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
+      "prev_size_bytes": 88404,
+      "new_size_bytes": 90934,
+      "reason": "spec.md was amended in place to land the A1-REVISED errata (MCP framework path: mcp.server.fastmcp.FastMCP on mcp>=1.12 -> mcp.server.lowlevel.Server on mcp>=2.0,<3.0). Re-stamping keeps the ECL integrity tag tracking the current payload; leaving it stale would make every future receiver verification report a false tamper alarm on an authorized, recorded change. The old->new transition is recorded here, in decisions/A1-REVISED.md, and in plan-state.json errata[], so the audit chain is extended rather than broken.",
+      "authorizing_verdict": "FORGE (Reasoner) - Magicite MCP SDK framework path (A1 re-adjudication), 2026-08-14, gate PASS, confidence 88%; governance ruling: within declared variance, record as an A1 revision",
+      "decision_record": ".spectra/changes/magicite-v1-implementation/decisions/A1-REVISED.md",
+      "implementing_commit": "2d12134",
+      "restamped_by": "ramza",
+      "mechanism": "targeted jq rewrite of artifact.sha256 / artifact.size_bytes / integrity.value, verified by bin/ramza-verify-emit; no canonical ramza-* envelope-amend command exists, and ramza-freeze --amend was deliberately NOT used because it amends the acceptance-criteria anchor, which must not move",
+      "unchanged": [
+        "x_ramza_acceptance_criteria (7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448) - acceptance-criteria.md is byte-identical",
+        "objective and context_delta.summary - retained as sent; see spec.md section Scope for the authoritative stack statement",
+        "trace.ts - original emission timestamp, not backdated",
+        "message_id, thread_id, performative, from, to, confidence"
+      ]
+    }
+  ]
 }

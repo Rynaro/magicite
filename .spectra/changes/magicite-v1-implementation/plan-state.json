@@ -178,5 +178,66 @@
     "at": "2026-08-14T22:40:06Z"
   },
   "scope_declared_at": "2026-08-14T22:42:02Z",
-  "criteria_frozen_at": "2026-08-14T22:42:02Z"
+  "criteria_frozen_at": "2026-08-14T22:42:02Z",
+  "errata": [
+    {
+      "id": "A1-REVISED",
+      "at": "2026-08-14T00:00:00Z",
+      "kind": "assumption_revision",
+      "disposition": "within declared variance — recorded as an A1 revision; no formal spec amendment, no re-plan",
+      "trigger": "M0 implementation evidence contradicted assumption A1: mcp 2.0.0 hard-removed mcp.server.fastmcp with no shim, and the M0 adapter was already driving mcp.server.lowlevel.Server through the private attribute app._mcp_server with validate_input=False.",
+      "what_changed": "stack.framework: mcp.server.fastmcp.FastMCP (official MCP Python SDK, mcp>=1.12) -> mcp.server.lowlevel.Server (official MCP Python SDK, mcp>=2.0,<3.0), with on_list_tools/on_call_tool as public constructor kwargs. Risk R6 retitled FastMCP metadata API drift -> MCP SDK tool-metadata API drift and downgraded P1 -> P2 (its original subject, the private-attribute reach-through, no longer exists in the tree).",
+      "why": "Protocol coverage on 2.x is a strict superset of 1.x (all four handshake-era revisions plus 2026-07-28, client-selected era); the 1.x line is maintenance-mode with a demonstrated critical-fixes-only bar; the standalone fastmcp 3.x hard-pins mcp<2.0 so it inherits the 1.x line rather than escaping it; the 2.x high-level MCPServer reproduces FastMCP extra=ignore verbatim and cannot satisfy AC-005 at the top level. AC-002 moves from Magicite discipline to framework-enforced fd-level stdout diversion. Measured cost +28/-18 lines in one production file at the point of maximum isolation (M0-complete, before any M2 file).",
+      "authorizing_verdict": "FORGE (Reasoner) — Magicite MCP SDK framework path (A1 re-adjudication), 2026-08-14, 2 passes, gate PASS, confidence 88%, requires_checker false. Governance ruling: within declared variance; spec.yaml handoff.verdict explicitly flagged A1 for validation before implementation and handoff.not_vivi_s_call does not include A1.",
+      "evidence": "mcp2-dossier.md — executed PoC over real stdio against mcp==2.0.0, unpacked 2.0.0/1.29.0/mcp_types/fastmcp-slim wheels, measured migration diff, PyPI + GitHub record",
+      "implementing_commit": "2d12134",
+      "implementing_files": [
+        "pyproject.toml",
+        "uv.lock",
+        "src/magicite/mcp/app.py",
+        "tests/acceptance/_stdio_escape_driver.py",
+        "tests/acceptance/test_stdio_handshake.py",
+        "tests/acceptance/test_walking_skeleton.py"
+      ],
+      "blast_radius_check": "all six files inside declared_scope; FORGE VC-14 tripwire (any edit to core/, engram/, storage/, embeddings/, or mcp/{registry,schemas,bind_*}.py) did not fire",
+      "verification": {
+        "conditions": "VC-1 … VC-14",
+        "passed": 13,
+        "deferred": 1,
+        "deferred_detail": "VC-11 (truststore + opentelemetry.trace import inside the hardened image) deferred to M7 — no Dockerfile exists yet; recorded as an explicit open item against VG-9, not dropped",
+        "suite": "84 tests pass"
+      },
+      "artifact_hash_transitions": [
+        {
+          "path": "spec.md",
+          "prev_sha256": "92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b",
+          "new_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
+          "prev_size_bytes": 88404,
+          "new_size_bytes": 90934,
+          "note": "seven located patches plus an errata banner; spec.yaml artifacts[0].sha256 updated to match"
+        },
+        {
+          "path": "spec.envelope.json",
+          "field": "integrity.value (and artifact.sha256/size_bytes)",
+          "prev_sha256": "92372ad65a206ede166a64ae9019347d647f54e5160ed5b8da891d412a75c77b",
+          "new_sha256": "9fca1c088916cda23de4a815ce335b497c25d58cb7d1f0cc2d7a9350aac7baac",
+          "note": "ECL integrity tag re-stamped over the amended payload so future receiver verification does not report a false tamper alarm; transition recorded here, in the envelope x_ramza_amendment extension, and in decisions/A1-REVISED.md; mechanism = targeted jq rewrite verified by bin/ramza-verify-emit (no canonical ramza-* envelope-amend command exists)"
+        }
+      ],
+      "unchanged": [
+        "acceptance-criteria.md — byte-identical, sha256 7bd3d1842de8d0d55c00fc4803e52e012885a26094cc928b7801af556eada448; not re-frozen, not amended (amendments[] stays empty)",
+        "AC-001 … AC-033 text, all nine VG commands, INV-1 … INV-4, the 16-tool surface, the Tier A/B/C split, the P0 guard mechanism, the M0–M7 decomposition, all eight section-9 CR resolutions",
+        "confidence 84.75 / VALIDATE, complexity 10/12, explore scores, refine cycle count, and the phase walk — not re-run and not re-scored"
+      ],
+      "reversal_conditions_live": [
+        "RC-3 (mcp 2.0.x patch cadence, re-check at M7)",
+        "RC-4 (stable fastmcp 4.x + served profile — served adapter only)",
+        "RC-5 (1.x EOL or un-freeze — no change either way)",
+        "VC-11 must be asserted under VG-9 at M7"
+      ],
+      "record": ".spectra/changes/magicite-v1-implementation/decisions/A1-REVISED.md",
+      "recorded_by": "ramza",
+      "human_confirmation": "pending — A1 was flagged for human validation and was originally resolved by the orchestrator, not by RAMZA analysis; surfaced as a notification, not a blocker"
+    }
+  ]
 }

@@ -20,6 +20,14 @@ corpus: docs/01-vision-and-hypotheses.md .. docs/07-evaluation-and-observability
 > details into file paths, DDL, signatures, and guards. Seven corpus tensions had
 > to be resolved unilaterally — every one is recorded in §9 with its rationale, and
 > none reopens a decision the corpus actually made.
+>
+> **Errata — A1-REVISED (2026-08-14).** Assumption A1 (which MCP framework "FastMCP" named) was
+> re-adjudicated on execution-verified evidence after M0 shipped, and is now resolved to the
+> official SDK's low-level `mcp.server.lowlevel.Server` on `mcp>=2.0,<3.0`. Seven locations in
+> this document were amended; the permanent record — including what was deliberately *not*
+> changed — is `decisions/A1-REVISED.md`. No acceptance criterion, invariant, tool signature,
+> validation-gate command, milestone, or §9 resolution was touched, and the confidence score
+> below is the as-scored value at Assemble: it was not re-scored.
 
 ---
 
@@ -29,7 +37,8 @@ corpus: docs/01-vision-and-hypotheses.md .. docs/07-evaluation-and-observability
 
 **In:**
 
-- A Python 3.11+ MCP server, `magicite`, speaking **stdio** via **FastMCP**, exposing the
+- A Python 3.11+ MCP server, `magicite`, speaking **stdio** on the official MCP Python SDK's
+  low-level **`mcp.server.lowlevel.Server`** (`mcp>=2.0,<3.0`; A1-REVISED), exposing the
   **16-tool v1 surface** (§3), backed by embedded **SQLite (WAL)** and a **local embedding model**.
 - The `.egr.md` v0.2 file store (docs/04), the SQLite skill graph as a **rebuildable index** (§2),
   and the `sync()` rebuild procedure that proves the invariant.
@@ -62,7 +71,7 @@ LLM-judge rubric provider (interface reserved, `rubric_provider=host`).
 
 | # | Assumption | Risk if wrong |
 |---|---|---|
-| A1 | The official MCP Python SDK's `mcp.server.fastmcp.FastMCP` is "FastMCP" for the user's stack decision (sibling `atlas-aci` already floors `mcp>=1.2.0`). | If the standalone `fastmcp>=2` package was meant, the adapter module (`src/magicite/mcp/`) is the only thing that changes — tool bodies are framework-free by construction (§1). |
+| A1 | ~~The official MCP Python SDK's `mcp.server.fastmcp.FastMCP` is "FastMCP" for the user's stack decision (sibling `atlas-aci` already floors `mcp>=1.2.0`).~~ **SUPERSEDED by A1-REVISED (2026-08-14)** — the framework is the official SDK's low-level `mcp.server.lowlevel.Server` on `mcp>=2.0,<3.0`, with `on_list_tools`/`on_call_tool` as public constructor kwargs. `mcp.server.fastmcp` was hard-removed in `mcp` 2.0.0 with no shim, and the standalone `fastmcp` 3.x hard-pins `mcp<2.0` (it inherits the 1.x line rather than escaping it). Record: `decisions/A1-REVISED.md`. | **Discharged.** A1's own declared bound held: the executed change touched `src/magicite/mcp/app.py`, `pyproject.toml`, `uv.lock` and tests only — `registry.py`, `schemas.py` and all six `bind_*.py` were untouched, because tool bodies are framework-free by construction (§1, INV-1). |
 | A2 | A ~130MB ONNX embedding model may be baked into the runtime image. | If image size is capped harder, `MAGICITE_EMBEDDING_PROVIDER=ollama` or `hashing` ships instead; no engine change (CR-6). |
 | A3 | The registry lives on a local POSIX filesystem (flock + SQLite WAL semantics hold). | On NFS/CIFS the file lock degrades; the DB `writer_lease` row (§4) is the portable fallback and the documented mitigation. |
 | A4 | Vivi implements against Python 3.12 in CI even though 3.11 is the floor. | None material; `requires-python = ">=3.11"` is tested on 3.11 and 3.12 in the matrix. |
@@ -120,7 +129,7 @@ magicite/
     config.py                                     # Config dataclass + TOML/env resolution
     errors.py                                     # MagiciteError taxonomy + error codes
     mcp/
-      __init__.py  app.py                         # FastMCP instance + lifespan
+      __init__.py  app.py                         # low-level Server instance + lifespan (A1-REVISED)
       registry.py                                 # @magicite_tool decorator, TOOL_REGISTRY, manifest
       schemas.py                                  # pydantic in/out models (extra="forbid")
       bind_retrieval.py bind_signals.py bind_registry.py bind_lifecycle.py bind_dream.py bind_inspect.py
@@ -180,7 +189,7 @@ magicite/
 ```toml
 requires-python = ">=3.11"
 dependencies = [
-  "mcp>=1.12.0",          # provides mcp.server.fastmcp.FastMCP
+  "mcp>=2.0,<3.0",        # provides mcp.server.lowlevel.Server (A1-REVISED; was mcp>=1.12.0)
   "pydantic>=2.6",
   "ruamel.yaml>=0.18",    # comment/order-preserving round-trip of .egr.md frontmatter
   "jsonschema>=4.21",
@@ -459,10 +468,13 @@ docs/03 defines as "semantically equivalent to a period of disuse". The acceptan
 def route(...): ...
 ```
 
-The decorator (a) registers the callable on the FastMCP app, (b) records the metadata row in
-`TOOL_REGISTRY`, (c) wraps the body with: strict input validation, idempotency replay,
-structured event logging, error mapping. Metadata is exposed three ways: MCP tool
-`annotations`, the `_meta` field when the pinned SDK supports it, and always via
+The decorator (a) records the callable and its metadata row in `TOOL_REGISTRY`, (b) wraps the body
+with: strict input validation, idempotency replay, structured event logging, error mapping. The
+decorator never touches the MCP framework (INV-1); the adapter `mcp/app.py` is what projects
+`TOOL_REGISTRY` onto the wire. Under A1-REVISED it does so by constructing
+`Server(name, on_list_tools=…, on_call_tool=…)` — public constructor kwargs, no private-attribute
+reach-through. Metadata is exposed three ways: MCP tool `annotations`, the `_meta` field (a
+first-class `mcp.types.Tool` constructor kwarg on `mcp>=2.0`), and always via
 `magicite tools` / the `magicite://tools` resource — so risk classes survive framework drift (Risk R6).
 
 **Universal parameters.** `session_id: str | None` on every tool that participates in a session
@@ -1351,10 +1363,15 @@ things should be validated by a human before Vivi opens an editor, and nothing e
 1. **The eight §9 resolutions.** They were made unilaterally under a zero-clarification budget.
    CR-3 (no generative model in the server) and CR-4 (import lint profile) change what v1 *does*,
    not merely how it is built; if either is wrong, M5/M6 change shape.
-2. **Assumption A1** — that "FastMCP" means `mcp.server.fastmcp.FastMCP` from the official SDK
-   (which is what the sibling `atlas-aci` already depends on) rather than the standalone
-   `fastmcp>=2` distribution. No network was available to verify either package's current
-   metadata API, which is also why tool risk-class metadata is kept in our own registry (R6).
+2. ~~**Assumption A1**~~ — **DISCHARGED 2026-08-14 by A1-REVISED.** As emitted, this item flagged
+   that "FastMCP" had been read as `mcp.server.fastmcp.FastMCP` from the official SDK rather than
+   the standalone `fastmcp>=2` distribution, with no network available to verify either package's
+   current metadata API. That evidence was subsequently gathered and adjudicated: the framework is
+   the official SDK's low-level `mcp.server.lowlevel.Server` on `mcp>=2.0,<3.0`. The compensating
+   control this item named — risk-class metadata kept in our own registry (R6) — is precisely what
+   made the correction a ~46-line adapter edit instead of a re-plan. Record:
+   `decisions/A1-REVISED.md`. This discharges the item; it does **not** re-score confidence — the
+   84.75 figure above stands as the as-scored value at Assemble.
 
 Dimension rationale: pattern_match 80 — packaging, CLI shape, Dockerfile, CI and test scaffolding
 transfer verbatim from `atlas-aci`, but the engine itself is greenfield with no prior art in this
@@ -1398,7 +1415,7 @@ with ~87% package overlap. constraint_compliance 84 — every corpus P0 maps to 
 | R3 | **Checkpoint file churn** exceeding the docs/03 5% target, making the registry's git history unreviewable. | P1 | ε-hysteresis (0.05), lazy S materialisation, dirty-set computation from state, `checkpoint_write_ratio` metric with a CI assertion on the toy registry. | Vivi (M4) |
 | R4 | **Embedding provider weight / offline behaviour** — fastembed downloading at runtime inside a hardened container. | P1 | Model baked at build time, `MAGICITE_EMBEDDING_OFFLINE=1`, `magicite fetch-model` for pip users, `hashing` provider for CI. `torch` banned (AC-031). | Vivi (M2/M7) |
 | R5 | **Leiden dependency fragility** (`igraph`/`leidenalg` wheels absent on some platforms) while H-SCALE needs hierarchy. | P1 | `CommunityDetector` protocol; Leiden is an extra installed in the image; pure-Python label propagation is the automatic fallback and is reported by `introspect` (AC-022). | Vivi (M2) |
-| R6 | **FastMCP metadata API drift** — risk classes are load-bearing for docs/06 governance but ride a framework field. | P1 | Metadata lives in our own `TOOL_REGISTRY`; MCP `annotations`/`_meta` are projections; `magicite tools` always prints the authoritative manifest (AC-004). | Vivi (M0) |
+| R6 | **MCP SDK tool-metadata API drift** — risk classes are load-bearing for docs/06 governance but ride a framework field. *(Retitled and downgraded P1 → P2 by A1-REVISED, 2026-08-14: the original subject — the private-attribute reach-through `app._mcp_server.list_tools()(…)` / `.call_tool(validate_input=False)(…)` — no longer exists in the tree.)* | P2 | Metadata lives in our own `TOOL_REGISTRY`; MCP `annotations`/`_meta` are projections; `magicite tools` always prints the authoritative manifest (AC-004). Handler registration is now a **public** constructor API (`Server(name, on_list_tools=…, on_call_tool=…)`) and `_meta` is a first-class `mcp.types.Tool` kwarg, so the residual collapses to ordinary type-import drift. | Vivi (M0) |
 | R7 | **Lock semantics on non-local filesystems** (NFS/CIFS bind mounts) breaking single-writer. | P2 | flock **plus** a DB `writer_lease` row with TTL/heartbeat; `magicite doctor` warns when the registry is not on a local FS; documented in `docs/operations.md`. | Vivi (M4/M7) |
 | R8 | **Distillation quality without an in-server LLM** (CR-3) — proposals may be low value. | P2 | Support/consistency thresholds (≥5 sessions, no failures), proposals are approval-gated and land `nascent`+`pending`, never routable until the rubric gate passes. Revisit only if proposal acceptance is < 30%. | Vivi (M6) |
 | R9 | **Cold start / small registries** — docs/07 honest limit: under ~50 skills native SKILL.md matching is fine and Magicite is overhead. | P2 | `route()` returns `registry_size`; `magicite doctor` states the break-even honestly rather than overselling. | Vivi (M2) |
