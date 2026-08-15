@@ -71,6 +71,20 @@ above is the published `v0.1.0` image; newer pinned digests appear on the
 `docs/adapters/claude-code.md` for the fuller adapter walkthrough, including
 optional Tier-2 hook acceleration via `MAGICITE_HOOK_TOKEN`.
 
+## Dogfooding
+
+This repository routes its own maintenance through Magicite. `.spectra/engrams/`
+holds sixteen first-party engrams describing how to operate this project —
+connected by 12 declared `depends_on` and 5 `inhibits` edges, not a flat list —
+and `scripts/dogfood_session.py` drives the entire 16-tool surface against them
+over real stdio MCP. See `docs/adapters/dogfooding.md` for the loop, the
+`.mcp.json` generator, the Tier-2 hook wiring, and an honest account of what
+the exercise exposed.
+
+It is worth saying plainly what this is not: a self-authored registry is **not**
+evidence for any of the routing hypotheses in `docs/01`'s Falsification Record.
+It demonstrates that the surface works end-to-end, nothing more.
+
 ## Quickstart — pip (development)
 
 > **Not on PyPI yet.** 0.1.0 ships as a container only; the wheel job is

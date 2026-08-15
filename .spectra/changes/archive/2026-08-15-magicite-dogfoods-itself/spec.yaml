@@ -1,0 +1,99 @@
+# Machine-readable projection of spec.md (ESL C3 tier_artifacts_present, tier=full).
+# Authority: spec.md is normative; this file is a faithful summary and MUST NOT diverge.
+#
+# PROVENANCE NOTE, read this before comparing it to the sibling change's spec.yaml:
+# this change was NOT produced by a RAMZA planning run, so there is no `ramza:`
+# gate block here. Inventing rightsize/critic/confidence scores to match the
+# archived magicite-v1-implementation spec.yaml would be fabricating an audit
+# trail for a run that never happened. The tier came from tonberry's own
+# deterministic right_size gate (recorded below); everything else here is a
+# projection of hand-authored spec.md content.
+
+kind: spec
+version: 1.0.0
+status: verified
+created_at: "2026-08-15"
+author: claude-orchestrator
+
+# ── ESL binding ────────────────────────────────────────────────────────────
+change_id: magicite-dogfoods-itself
+esl_tier: full
+maker: claude-orchestrator
+checker: magicite-self-verify
+spec_ref: .spectra/changes/magicite-dogfoods-itself/spec.md
+has_code: true
+
+# ── right_size gate (deterministic, mcp__tonberry__right_size) ─────────────
+right_size:
+  files_touched: 18
+  rubric_score: 8
+  tradeoff_present: true
+  route: "0->1->2->3->4"
+  tier: full
+
+# ── Problem ────────────────────────────────────────────────────────────────
+problem: >-
+  Magicite ships a 16-tool MCP skill router, a portable .egr.md format, a
+  rebuildable index, a Dream consolidation worker, lifecycle governance, and a
+  documented Tier-2 hook adapter -- and consumes none of it. The repository had
+  zero first-party engrams (only 7 Proton/Steam test fixtures), was absent from
+  its own .mcp.json, and wired none of its own documented hooks.
+
+# ── Tradeoff of record (required at tier=full) ─────────────────────────────
+tradeoff:
+  question: >-
+    Does this project's own .mcp.json run the pinned published container digest
+    or the local working tree?
+  options:
+    - id: container
+      pro: "reproducible; identical to what external users run"
+      con: "frozen at v0.1.0, so a regression in src/ is invisible to the loop"
+    - id: local
+      pro: "routes through the code under development; defects surface immediately"
+      con: "not the artifact users run; depends on a synced .venv"
+  decision: local
+  rationale: >-
+    Dogfooding exists to make us feel our own defects, and only the local
+    binding does that. The container path loses no coverage by this choice --
+    tests/acceptance/test_docker_smoke.py already exercises it mechanically,
+    including a --network none handshake and register/route cycle.
+
+# ── Acceptance checks (normative text in spec.md; verdicts in verification-note.md)
+acceptance_checks:
+  - {id: AC-D1, summary: "registry ingests under strict lint, count matches disk", verdict: pass}
+  - {id: AC-D2, summary: "zero dangling declared edges", verdict: pass}
+  - {id: AC-D3, summary: "self-route wiring check, >=80% top-3", verdict: pass}
+  - {id: AC-D4, summary: "all 16 tools exercised over stdio MCP, transcript recorded", verdict: pass}
+  - {id: AC-D5, summary: "Tier-2 boundary: only the server's own secret earns tier 2", verdict: pass}
+  - {id: AC-D6, summary: "frozen verify green, 16-tool surface intact", verdict: pass}
+  - {id: AC-D7, summary: "no document overclaims against docs/01's Falsification Record", verdict: pass}
+
+# ── Scope ──────────────────────────────────────────────────────────────────
+scope:
+  in:
+    - .spectra/engrams/*
+    - .claude/settings.json
+    - .claude/hooks/*
+    - scripts/dogfood_*.py
+    - docs/adapters/dogfooding.md
+    - docs/adapters/claude-code.md
+    - docs/operations.md
+    - README.md
+    - .gitignore
+  out:
+    - src/magicite/**   # this change adds a consumer of Magicite, not a modification of it
+    - "the 16-tool surface"
+    - "routing defaults"
+    - "the evaluation harness"
+
+# ── Claim scope (AC-D7) ────────────────────────────────────────────────────
+claim_scope:
+  demonstrated: >-
+    The 16-tool surface, portable format, rebuildable index, trust gate,
+    approval-gated lifecycle, and Tier-2 boundary all work end-to-end against a
+    real registry over the same protocol an external host uses.
+  NOT_demonstrated: >-
+    Nothing here is evidence that hierarchy-aware routing, declared-edge
+    activation, or the learning layer improves retrieval. Authoring a corpus
+    that contains declared edges does not test the declared-edge hypothesis,
+    which docs/01's Falsification Record records as untested as designed.

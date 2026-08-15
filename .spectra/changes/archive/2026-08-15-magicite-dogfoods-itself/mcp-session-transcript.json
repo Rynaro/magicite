@@ -1,0 +1,1125 @@
+[
+  {
+    "tool": "introspect",
+    "arguments": {
+      "include_health": true
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "content": [
+          {
+            "text": "{\"skill\": null, \"outbound_edges\": [], \"inbound_edges\": [], \"history\": [], \"silent_engram_flag\": null, \"tier_state\": null, \"consolidation\": null, \"registry_summary\": {\"counts_by_status\": {\"nascent\": 16}, \"detector\": \"leiden\", \"last_sync\": \"2026-08-15T20:43:27.239578+00:00\", \"last_consolidation\": null, \"registry_size\": 16, \"embedding_model\": \"BAAI/bge-small-en-v1.5\", \"autonomous_mode\": false}, \"health\": {\"registry_size\": 16, \"cold_start\": {\"registry_size\": 16, \"cold_start_reference_size\": 50, \"below_reference_size\": true, \"note\": \"registry_size=16, below the ~50-skill heuristic docs/07 originally proposed ('native SKILL.md matching is likely competitive here'). That heuristic's own crossing point is itself unevidenced (docs/01, measured 2026-08-15: a single unreplicated crossing on a 39-query slice that does not hold on the full 120-query set) -- no claim is made about whether Magicite's routing machinery is worth its overhead at this size.\"}, \"silent_engrams\": {\"count\": 5, \"pct\": 0.3125, \"target\": 0.1, \"systematically_poor\": true}, \"hub_detection\": {\"candidates\": [], \"traffic_share\": 0.1667, \"target\": 0.3, \"exceeds_target\": false}, \"top5_traffic_share\": {\"top_n\": 5, \"share\": 0.5, \"target\": 0.3, \"exceeds_target\": true}, \"fitness_distribution\": {\"total\": 16, \"histogram\": {\"nascent_or_failed\": {\"count\": 16, \"pct\": 1.0}, \"probation\": {\"count\": 0, \"pct\": 0.0}, \"consolidated\": {\"count\": 0, \"pct\": 0.0}, \"promoted\": {\"count\": 0, \"pct\": 0.0}}, \"consolidated_or_promoted_pct\": 0.0, \"meets_majority_target\": false}}}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "skill": null,
+          "outbound_edges": [],
+          "inbound_edges": [],
+          "history": [],
+          "silent_engram_flag": null,
+          "tier_state": null,
+          "consolidation": null,
+          "registry_summary": {
+            "counts_by_status": {
+              "nascent": 16
+            },
+            "detector": "leiden",
+            "last_sync": "2026-08-15T20:43:27.239578+00:00",
+            "last_consolidation": null,
+            "registry_size": 16,
+            "embedding_model": "BAAI/bge-small-en-v1.5",
+            "autonomous_mode": false
+          },
+          "health": {
+            "registry_size": 16,
+            "cold_start": {
+              "registry_size": 16,
+              "cold_start_reference_size": 50,
+              "below_reference_size": true,
+              "note": "registry_size=16, below the ~50-skill heuristic docs/07 originally proposed ('native SKILL.md matching is likely competitive here'). That heuristic's own crossing point is itself unevidenced (docs/01, measured 2026-08-15: a single unreplicated crossing on a 39-query slice that does not hold on the full 120-query set) -- no claim is made about whether Magicite's routing machinery is worth its overhead at this size."
+            },
+            "silent_engrams": {
+              "count": 5,
+              "pct": 0.3125,
+              "target": 0.1,
+              "systematically_poor": true
+            },
+            "hub_detection": {
+              "candidates": [],
+              "traffic_share": 0.1667,
+              "target": 0.3,
+              "exceeds_target": false
+            },
+            "top5_traffic_share": {
+              "top_n": 5,
+              "share": 0.5,
+              "target": 0.3,
+              "exceeds_target": true
+            },
+            "fitness_distribution": {
+              "total": 16,
+              "histogram": {
+                "nascent_or_failed": {
+                  "count": 16,
+                  "pct": 1.0
+                },
+                "probation": {
+                  "count": 0,
+                  "pct": 0.0
+                },
+                "consolidated": {
+                  "count": 0,
+                  "pct": 0.0
+                },
+                "promoted": {
+                  "count": 0,
+                  "pct": 0.0
+                }
+              },
+              "consolidated_or_promoted_pct": 0.0,
+              "meets_majority_target": false
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "tool": "route",
+    "arguments": {
+      "query": "the magicite container dies with a permission error before the handshake finishes",
+      "k": 3,
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "content": [
+          {
+            "text": "{\"candidates\": [{\"rank\": 1, \"id\": \"egr_4509fb97\", \"name\": \"magicite-container-privilege-boundary\", \"intent_does\": \"Diagnose and fix a containerised Magicite server that dies before completing its MCP handshake against a bind-mounted project\", \"intent_use_when\": \"the Magicite container exits or hangs at startup, or throws PermissionError against .spectra, under docker run\", \"score\": 0.562708, \"status\": \"nascent\", \"exposure_count\": 1, \"body_ref\": \".spectra/engrams/magicite-container-privilege-boundary.egr.md\", \"signal_tier_0\": true}, {\"rank\": 2, \"id\": \"egr_577e0d1e\", \"name\": \"magicite-release-container\", \"intent_does\": \"Cut a Magicite release on the container channel and understand why the PyPI wheel channel is gated off\", \"intent_use_when\": \"publishing a new Magicite version, pinning a digest for consumers, or deciding whether to enable wheel publishing\", \"score\": 0.298858, \"status\": \"nascent\", \"exposure_count\": 1, \"body_ref\": \".spectra/engrams/magicite-release-container.egr.md\", \"signal_tier_0\": true}, {\"rank\": 3, \"id\": \"egr_f640cc8b\", \"name\": \"magicite-author-engram\", \"intent_does\": \"Author a new .egr.md engram that survives Magicite's strict lint profile and lands routable\", \"intent_use_when\": \"adding a new skill to a Magicite registry by hand, or a hand-written engram is rejected at register/sync time\", \"score\": 0.297772, \"status\": \"nascent\", \"exposure_count\": 2, \"body_ref\": \".spectra/engrams/magicite-author-engram.egr.md\", \"signal_tier_0\": true}], \"composition_plan\": [\"magicite-container-privilege-boundary\"], \"plan_confidence\": 1.0, \"instructions\": \"After applying a skill, call signal_use(skill_id) with its id. When the task outcome is known (tests pass, user confirms), call signal_outcome(valence, skill_ids) to drive learning.\", \"session_id\": \"dogfood-1692c6f0923e\", \"registry_size\": 16, \"unresolved_context\": []}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "candidates": [
+            {
+              "rank": 1,
+              "id": "egr_4509fb97",
+              "name": "magicite-container-privilege-boundary",
+              "intent_does": "Diagnose and fix a containerised Magicite server that dies before completing its MCP handshake against a bind-mounted project",
+              "intent_use_when": "the Magicite container exits or hangs at startup, or throws PermissionError against .spectra, under docker run",
+              "score": 0.562708,
+              "status": "nascent",
+              "exposure_count": 1,
+              "body_ref": ".spectra/engrams/magicite-container-privilege-boundary.egr.md",
+              "signal_tier_0": true
+            },
+            {
+              "rank": 2,
+              "id": "egr_577e0d1e",
+              "name": "magicite-release-container",
+              "intent_does": "Cut a Magicite release on the container channel and understand why the PyPI wheel channel is gated off",
+              "intent_use_when": "publishing a new Magicite version, pinning a digest for consumers, or deciding whether to enable wheel publishing",
+              "score": 0.298858,
+              "status": "nascent",
+              "exposure_count": 1,
+              "body_ref": ".spectra/engrams/magicite-release-container.egr.md",
+              "signal_tier_0": true
+            },
+            {
+              "rank": 3,
+              "id": "egr_f640cc8b",
+              "name": "magicite-author-engram",
+              "intent_does": "Author a new .egr.md engram that survives Magicite's strict lint profile and lands routable",
+              "intent_use_when": "adding a new skill to a Magicite registry by hand, or a hand-written engram is rejected at register/sync time",
+              "score": 0.297772,
+              "status": "nascent",
+              "exposure_count": 2,
+              "body_ref": ".spectra/engrams/magicite-author-engram.egr.md",
+              "signal_tier_0": true
+            }
+          ],
+          "composition_plan": [
+            "magicite-container-privilege-boundary"
+          ],
+          "plan_confidence": 1.0,
+          "instructions": "After applying a skill, call signal_use(skill_id) with its id. When the task outcome is known (tests pass, user confirms), call signal_outcome(valence, skill_ids) to drive learning.",
+          "session_id": "dogfood-1692c6f0923e",
+          "registry_size": 16,
+          "unresolved_context": []
+        }
+      }
+    }
+  },
+  {
+    "tool": "load_skill_body",
+    "arguments": {
+      "name": "magicite-container-privilege-boundary"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "result": {
+        "content": [
+          {
+            "text": "{\"name\": \"magicite-container-privilege-boundary\", \"level\": \"L2\", \"procedure\": \"1. Confirm the symptom is pre-handshake: the process dies or hangs before `initialize` returns, so no tool ever runs. If `tools/list` answers, this is the wrong engram.\\n2. Check the `docker run` invocation for `--user \\\"$(id -u):$(id -g)\\\"`. Its absence is the single most likely cause and it is a hard requirement, not hygiene.\\n3. Understand why, so the fix is not cargo-culted: `magicite serve` calls `Config.ensure_dirs()` on every boot and creates `.spectra/archive`, `.spectra/approvals`, and `.spectra/runtime` if absent. A bind mount preserves the host's file ownership, so the image's baked-in default UID 10001 cannot write into a normal host-owned project root, and the failure lands before `initialize` can complete.\\n4. Substitute your real host ids rather than copying `1000:1000` from the README if your user is not UID and GID 1000.\\n5. Keep the rest of the hardening intact while fixing this \\u2014 `--cap-drop ALL`, `--security-opt no-new-privileges`, and the `:z` relabel on the bind mount are all part of the documented posture, and dropping them is not a valid workaround for an ownership problem.\\n6. Confirm the fix mechanically rather than by eye: `tests/acceptance/test_docker_smoke.py` covers both directions, asserting that the uid override preserves host file ownership and that omitting it leaves the server unable to boot at all.\", \"pitfalls\": \"- (x1) Reaching for `--privileged` or dropping `--cap-drop ALL` to make the error disappear. That trades a one-flag ownership fix for a materially weaker sandbox and does not address the cause.\\n- (x1) Running the container as root to sidestep it. The files it then creates in `.spectra` are root-owned on the host, which breaks the next non-root run and every later local `magicite sync`.\\n- (x1) Reading the pre-handshake death as an embedding or model-download failure. Nothing embedding-related has executed yet at that point.\", \"examples\": null, \"provenance\": null, \"exec_blocks_present\": false, \"exec_blocks_warning\": null, \"truncated\": false, \"next_offset\": null}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "name": "magicite-container-privilege-boundary",
+          "level": "L2",
+          "procedure": "1. Confirm the symptom is pre-handshake: the process dies or hangs before `initialize` returns, so no tool ever runs. If `tools/list` answers, this is the wrong engram.\n2. Check the `docker run` invocation for `--user \"$(id -u):$(id -g)\"`. Its absence is the single most likely cause and it is a hard requirement, not hygiene.\n3. Understand why, so the fix is not cargo-culted: `magicite serve` calls `Config.ensure_dirs()` on every boot and creates `.spectra/archive`, `.spectra/approvals`, and `.spectra/runtime` if absent. A bind mount preserves the host's file ownership, so the image's baked-in default UID 10001 cannot write into a normal host-owned project root, and the failure lands before `initialize` can complete.\n4. Substitute your real host ids rather than copying `1000:1000` from the README if your user is not UID and GID 1000.\n5. Keep the rest of the hardening intact while fixing this \u2014 `--cap-drop ALL`, `--security-opt no-new-privileges`, and the `:z` relabel on the bind mount are all part of the documented posture, and dropping them is not a valid workaround for an ownership problem.\n6. Confirm the fix mechanically rather than by eye: `tests/acceptance/test_docker_smoke.py` covers both directions, asserting that the uid override preserves host file ownership and that omitting it leaves the server unable to boot at all.",
+          "pitfalls": "- (x1) Reaching for `--privileged` or dropping `--cap-drop ALL` to make the error disappear. That trades a one-flag ownership fix for a materially weaker sandbox and does not address the cause.\n- (x1) Running the container as root to sidestep it. The files it then creates in `.spectra` are root-owned on the host, which breaks the next non-root run and every later local `magicite sync`.\n- (x1) Reading the pre-handshake death as an embedding or model-download failure. Nothing embedding-related has executed yet at that point.",
+          "examples": null,
+          "provenance": null,
+          "exec_blocks_present": false,
+          "exec_blocks_warning": null,
+          "truncated": false,
+          "next_offset": null
+        }
+      }
+    }
+  },
+  {
+    "tool": "signal_use",
+    "arguments": {
+      "skill_ids": [
+        "egr_4509fb97"
+      ],
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "result": {
+        "content": [
+          {
+            "text": "{\"tagged\": [\"egr_4509fb97\"], \"co_activation_candidates\": [], \"expires_at\": \"2026-08-15T23:43:36.595136+00:00\", \"signal_tier\": 1, \"capped\": [], \"note\": \"tag set; expires at 2026-08-15T23:43:36.595136+00:00. signal_outcome() will capture these into durable weight changes.\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "tagged": [
+            "egr_4509fb97"
+          ],
+          "co_activation_candidates": [],
+          "expires_at": "2026-08-15T23:43:36.595136+00:00",
+          "signal_tier": 1,
+          "capped": [],
+          "note": "tag set; expires at 2026-08-15T23:43:36.595136+00:00. signal_outcome() will capture these into durable weight changes."
+        }
+      }
+    }
+  },
+  {
+    "tool": "signal_outcome",
+    "arguments": {
+      "valence": 1.0,
+      "salience": 0.9,
+      "skill_ids": [
+        "egr_4509fb97"
+      ],
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "result": {
+        "content": [
+          {
+            "text": "{\"captured\": 1, \"skills_credited\": [\"egr_4509fb97\"], \"signal_tier\": 1, \"consolidation_scheduled\": false, \"note\": \"captured explicitly listed skill_ids\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "captured": 1,
+          "skills_credited": [
+            "egr_4509fb97"
+          ],
+          "signal_tier": 1,
+          "consolidation_scheduled": false,
+          "note": "captured explicitly listed skill_ids"
+        }
+      }
+    }
+  },
+  {
+    "tool": "route",
+    "arguments": {
+      "query": "I edited an engram file but route still gives me the old procedure",
+      "k": 3,
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "result": {
+        "content": [
+          {
+            "text": "{\"candidates\": [{\"rank\": 1, \"id\": \"egr_f16e1287\", \"name\": \"magicite-import-skillmd\", \"intent_does\": \"Import existing SKILL.md files into a Magicite registry and finish the conversion so they become routable\", \"intent_use_when\": \"migrating a directory of host-native SKILL.md skills into Magicite, or an imported engram is stuck as a draft\", \"score\": 0.366637, \"status\": \"nascent\", \"exposure_count\": 1, \"body_ref\": \".spectra/engrams/magicite-import-skillmd.egr.md\", \"signal_tier_0\": true}, {\"rank\": 2, \"id\": \"egr_f640cc8b\", \"name\": \"magicite-author-engram\", \"intent_does\": \"Author a new .egr.md engram that survives Magicite's strict lint profile and lands routable\", \"intent_use_when\": \"adding a new skill to a Magicite registry by hand, or a hand-written engram is rejected at register/sync time\", \"score\": 0.328211, \"status\": \"nascent\", \"exposure_count\": 2, \"body_ref\": \".spectra/engrams/magicite-author-engram.egr.md\", \"signal_tier_0\": true}, {\"rank\": 3, \"id\": \"egr_574cca6c\", \"name\": \"magicite-rebuild-skill-index\", \"intent_does\": \"Rebuild Magicite's durable SQLite skill-graph index from the .egr.md files, which are the only source of truth\", \"intent_use_when\": \"the skill-graph index is missing, stale, corrupt, or out of step with edited engram files on disk\", \"score\": 0.328026, \"status\": \"nascent\", \"exposure_count\": 1, \"body_ref\": \".spectra/engrams/magicite-rebuild-skill-index.egr.md\", \"signal_tier_0\": true}], \"composition_plan\": [\"magicite-import-skillmd\"], \"plan_confidence\": 1.0, \"instructions\": \"After applying a skill, call signal_use(skill_id) with its id. When the task outcome is known (tests pass, user confirms), call signal_outcome(valence, skill_ids) to drive learning.\", \"session_id\": \"dogfood-1692c6f0923e\", \"registry_size\": 16, \"unresolved_context\": []}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "candidates": [
+            {
+              "rank": 1,
+              "id": "egr_f16e1287",
+              "name": "magicite-import-skillmd",
+              "intent_does": "Import existing SKILL.md files into a Magicite registry and finish the conversion so they become routable",
+              "intent_use_when": "migrating a directory of host-native SKILL.md skills into Magicite, or an imported engram is stuck as a draft",
+              "score": 0.366637,
+              "status": "nascent",
+              "exposure_count": 1,
+              "body_ref": ".spectra/engrams/magicite-import-skillmd.egr.md",
+              "signal_tier_0": true
+            },
+            {
+              "rank": 2,
+              "id": "egr_f640cc8b",
+              "name": "magicite-author-engram",
+              "intent_does": "Author a new .egr.md engram that survives Magicite's strict lint profile and lands routable",
+              "intent_use_when": "adding a new skill to a Magicite registry by hand, or a hand-written engram is rejected at register/sync time",
+              "score": 0.328211,
+              "status": "nascent",
+              "exposure_count": 2,
+              "body_ref": ".spectra/engrams/magicite-author-engram.egr.md",
+              "signal_tier_0": true
+            },
+            {
+              "rank": 3,
+              "id": "egr_574cca6c",
+              "name": "magicite-rebuild-skill-index",
+              "intent_does": "Rebuild Magicite's durable SQLite skill-graph index from the .egr.md files, which are the only source of truth",
+              "intent_use_when": "the skill-graph index is missing, stale, corrupt, or out of step with edited engram files on disk",
+              "score": 0.328026,
+              "status": "nascent",
+              "exposure_count": 1,
+              "body_ref": ".spectra/engrams/magicite-rebuild-skill-index.egr.md",
+              "signal_tier_0": true
+            }
+          ],
+          "composition_plan": [
+            "magicite-import-skillmd"
+          ],
+          "plan_confidence": 1.0,
+          "instructions": "After applying a skill, call signal_use(skill_id) with its id. When the task outcome is known (tests pass, user confirms), call signal_outcome(valence, skill_ids) to drive learning.",
+          "session_id": "dogfood-1692c6f0923e",
+          "registry_size": 16,
+          "unresolved_context": []
+        }
+      }
+    }
+  },
+  {
+    "tool": "load_skill_body",
+    "arguments": {
+      "name": "magicite-import-skillmd"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "result": {
+        "content": [
+          {
+            "text": "{\"name\": \"magicite-import-skillmd\", \"level\": \"L2\", \"procedure\": \"1. Call `register()` with the `skill` payload rather than a native `.egr.md` path; both shapes funnel through the same ingestion endpoint, which is what closes the registration-unit contradiction recorded as FINDING-010 in `docs/04`.\\n2. Expect the conversion mapping in `engram/skillmd.py::to_engram`: `intent.does` comes from the description, `use_when` from a \\\"Use when:\\\" line or the description tail, `not_when` from a \\\"Not when:\\\" line or the literal placeholder, and positive triggers are synthesised from name tokens plus description key phrases.\\n3. Expect `triggers.negative` to be empty \\u2014 the importer never invents one. That single gap is normally enough to keep the import lint profile from passing cleanly.\\n4. Expect the landed state: `origin: imported`, `status: draft`, `verification_status: pending`. An imported engram is deliberately not routable; `initial_verification_status` pins every `imported` origin to `pending` regardless of how clean the lint was.\\n5. Finish the conversion with `sharpen()` to supply the missing negative triggers and a real `not_when`, which is the intended path out of draft.\\n6. Understand the remaining gap before planning around it: v1's tool surface exposes no `pending -> verified` review transition, so promotion of an import needs the manual review path described in `docs/operations.md`. Budget for that; do not expect an import to route on its own.\\n7. Re-run sync and confirm the file still parses under the lenient profile \\u2014 `core/registry.py` keys the profile off the durable `provenance: imported` field, so an import keeps the lenient profile on every later rescan rather than hard-failing strict lint at the next rebuild.\", \"pitfalls\": \"- (x1) Treating draft status as a bug. It is the designed outcome of an import, and the CR-4 rule is that nothing is silently accepted or silently rejected \\u2014 the draft is the loud middle state.\\n- (x1) Editing the imported file to claim `verification_status: verified`. The server assigns that field at ingest and never reads the file's value, so the edit is inert at best and is the exact pattern the trust gate treats as adversarial.\\n- (x1) Round-tripping an import and expecting a new id. Re-importing byte-identical description content re-derives the same id by design, so the duplicate is skipped rather than duplicated.\", \"examples\": null, \"provenance\": null, \"exec_blocks_present\": false, \"exec_blocks_warning\": null, \"truncated\": false, \"next_offset\": null}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "name": "magicite-import-skillmd",
+          "level": "L2",
+          "procedure": "1. Call `register()` with the `skill` payload rather than a native `.egr.md` path; both shapes funnel through the same ingestion endpoint, which is what closes the registration-unit contradiction recorded as FINDING-010 in `docs/04`.\n2. Expect the conversion mapping in `engram/skillmd.py::to_engram`: `intent.does` comes from the description, `use_when` from a \"Use when:\" line or the description tail, `not_when` from a \"Not when:\" line or the literal placeholder, and positive triggers are synthesised from name tokens plus description key phrases.\n3. Expect `triggers.negative` to be empty \u2014 the importer never invents one. That single gap is normally enough to keep the import lint profile from passing cleanly.\n4. Expect the landed state: `origin: imported`, `status: draft`, `verification_status: pending`. An imported engram is deliberately not routable; `initial_verification_status` pins every `imported` origin to `pending` regardless of how clean the lint was.\n5. Finish the conversion with `sharpen()` to supply the missing negative triggers and a real `not_when`, which is the intended path out of draft.\n6. Understand the remaining gap before planning around it: v1's tool surface exposes no `pending -> verified` review transition, so promotion of an import needs the manual review path described in `docs/operations.md`. Budget for that; do not expect an import to route on its own.\n7. Re-run sync and confirm the file still parses under the lenient profile \u2014 `core/registry.py` keys the profile off the durable `provenance: imported` field, so an import keeps the lenient profile on every later rescan rather than hard-failing strict lint at the next rebuild.",
+          "pitfalls": "- (x1) Treating draft status as a bug. It is the designed outcome of an import, and the CR-4 rule is that nothing is silently accepted or silently rejected \u2014 the draft is the loud middle state.\n- (x1) Editing the imported file to claim `verification_status: verified`. The server assigns that field at ingest and never reads the file's value, so the edit is inert at best and is the exact pattern the trust gate treats as adversarial.\n- (x1) Round-tripping an import and expecting a new id. Re-importing byte-identical description content re-derives the same id by design, so the duplicate is skipped rather than duplicated.",
+          "examples": null,
+          "provenance": null,
+          "exec_blocks_present": false,
+          "exec_blocks_warning": null,
+          "truncated": false,
+          "next_offset": null
+        }
+      }
+    }
+  },
+  {
+    "tool": "signal_use",
+    "arguments": {
+      "skill_ids": [
+        "egr_f16e1287"
+      ],
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "result": {
+        "content": [
+          {
+            "text": "{\"tagged\": [\"egr_f16e1287\"], \"co_activation_candidates\": [\"egr_4509fb97\"], \"expires_at\": \"2026-08-15T23:43:36.612225+00:00\", \"signal_tier\": 1, \"capped\": [], \"note\": \"tag set; expires at 2026-08-15T23:43:36.612225+00:00. signal_outcome() will capture these into durable weight changes.\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "tagged": [
+            "egr_f16e1287"
+          ],
+          "co_activation_candidates": [
+            "egr_4509fb97"
+          ],
+          "expires_at": "2026-08-15T23:43:36.612225+00:00",
+          "signal_tier": 1,
+          "capped": [],
+          "note": "tag set; expires at 2026-08-15T23:43:36.612225+00:00. signal_outcome() will capture these into durable weight changes."
+        }
+      }
+    }
+  },
+  {
+    "tool": "signal_outcome",
+    "arguments": {
+      "valence": -0.5,
+      "salience": 0.4,
+      "skill_ids": [
+        "egr_f16e1287"
+      ],
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "result": {
+        "content": [
+          {
+            "text": "{\"captured\": 1, \"skills_credited\": [\"egr_f16e1287\"], \"signal_tier\": 1, \"consolidation_scheduled\": false, \"note\": \"captured explicitly listed skill_ids\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "captured": 1,
+          "skills_credited": [
+            "egr_f16e1287"
+          ],
+          "signal_tier": 1,
+          "consolidation_scheduled": false,
+          "note": "captured explicitly listed skill_ids"
+        }
+      }
+    }
+  },
+  {
+    "tool": "route",
+    "arguments": {
+      "query": "is it fair for the README to say we beat plain embedding search",
+      "k": 3,
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "result": {
+        "content": [
+          {
+            "text": "{\"candidates\": [{\"rank\": 1, \"id\": \"egr_3579bb59\", \"name\": \"magicite-honest-claim-scope\", \"intent_does\": \"State what Magicite's evidence does and does not license when writing its README, CHANGELOG, docs, or diagnostics\", \"intent_use_when\": \"writing or reviewing any user-facing claim about Magicite's routing, graph, or learning capability\", \"score\": 0.410336, \"status\": \"nascent\", \"exposure_count\": 1, \"body_ref\": \".spectra/engrams/magicite-honest-claim-scope.egr.md\", \"signal_tier_0\": true}, {\"rank\": 2, \"id\": \"egr_12558cad\", \"name\": \"magicite-run-retrieval-benchmark\", \"intent_does\": \"Run the magicite-bench retrieval harness and its ablations to produce comparable Hit@k and MRR numbers\", \"intent_use_when\": \"a claim about Magicite's routing quality needs measurement, or a routing default is about to change\", \"score\": 0.339806, \"status\": \"nascent\", \"exposure_count\": 1, \"body_ref\": \".spectra/engrams/magicite-run-retrieval-benchmark.egr.md\", \"signal_tier_0\": true}, {\"rank\": 3, \"id\": \"egr_3107d0a9\", \"name\": \"magicite-diagnose-flat-plasticity\", \"intent_does\": \"Diagnose why a Magicite registry's storage strength is not moving despite signals being sent\", \"intent_use_when\": \"engram storage_strength stays flat, or exposure counts rise while status never leaves nascent\", \"score\": 0.28425, \"status\": \"nascent\", \"exposure_count\": 1, \"body_ref\": \".spectra/engrams/magicite-diagnose-flat-plasticity.egr.md\", \"signal_tier_0\": true}], \"composition_plan\": [\"magicite-offline-embedding-setup\", \"magicite-rebuild-skill-index\", \"magicite-run-retrieval-benchmark\", \"magicite-honest-claim-scope\"], \"plan_confidence\": 1.0, \"instructions\": \"After applying a skill, call signal_use(skill_id) with its id. When the task outcome is known (tests pass, user confirms), call signal_outcome(valence, skill_ids) to drive learning.\", \"session_id\": \"dogfood-1692c6f0923e\", \"registry_size\": 16, \"unresolved_context\": []}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "candidates": [
+            {
+              "rank": 1,
+              "id": "egr_3579bb59",
+              "name": "magicite-honest-claim-scope",
+              "intent_does": "State what Magicite's evidence does and does not license when writing its README, CHANGELOG, docs, or diagnostics",
+              "intent_use_when": "writing or reviewing any user-facing claim about Magicite's routing, graph, or learning capability",
+              "score": 0.410336,
+              "status": "nascent",
+              "exposure_count": 1,
+              "body_ref": ".spectra/engrams/magicite-honest-claim-scope.egr.md",
+              "signal_tier_0": true
+            },
+            {
+              "rank": 2,
+              "id": "egr_12558cad",
+              "name": "magicite-run-retrieval-benchmark",
+              "intent_does": "Run the magicite-bench retrieval harness and its ablations to produce comparable Hit@k and MRR numbers",
+              "intent_use_when": "a claim about Magicite's routing quality needs measurement, or a routing default is about to change",
+              "score": 0.339806,
+              "status": "nascent",
+              "exposure_count": 1,
+              "body_ref": ".spectra/engrams/magicite-run-retrieval-benchmark.egr.md",
+              "signal_tier_0": true
+            },
+            {
+              "rank": 3,
+              "id": "egr_3107d0a9",
+              "name": "magicite-diagnose-flat-plasticity",
+              "intent_does": "Diagnose why a Magicite registry's storage strength is not moving despite signals being sent",
+              "intent_use_when": "engram storage_strength stays flat, or exposure counts rise while status never leaves nascent",
+              "score": 0.28425,
+              "status": "nascent",
+              "exposure_count": 1,
+              "body_ref": ".spectra/engrams/magicite-diagnose-flat-plasticity.egr.md",
+              "signal_tier_0": true
+            }
+          ],
+          "composition_plan": [
+            "magicite-offline-embedding-setup",
+            "magicite-rebuild-skill-index",
+            "magicite-run-retrieval-benchmark",
+            "magicite-honest-claim-scope"
+          ],
+          "plan_confidence": 1.0,
+          "instructions": "After applying a skill, call signal_use(skill_id) with its id. When the task outcome is known (tests pass, user confirms), call signal_outcome(valence, skill_ids) to drive learning.",
+          "session_id": "dogfood-1692c6f0923e",
+          "registry_size": 16,
+          "unresolved_context": []
+        }
+      }
+    }
+  },
+  {
+    "tool": "load_skill_body",
+    "arguments": {
+      "name": "magicite-honest-claim-scope"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "result": {
+        "content": [
+          {
+            "text": "{\"name\": \"magicite-honest-claim-scope\", \"level\": \"L2\", \"procedure\": \"1. Start from the Falsification Record in `docs/01` rather than from the feature list. That section, not the README's opening paragraph, is the project's own statement of what the evidence supports.\\n2. Say plainly that on the measured workload the full pipeline does not beat plain dense embedding on Hit@1, and give the counts rather than only the rates so a reader can see how narrow the gap is.\\n3. Do not describe a statistically indistinguishable result as a tie in the project's favour. Not significantly worse is not the same as as good as, and neither is evidence of benefit.\\n4. Keep the distinction between mechanism repair and validation. An improvement produced by fixing a defect that was suppressing measurement is a repair; it is not confirmation of the hypothesis the mechanism was meant to test.\\n5. State that the design's central claim \\u2014 spreading activation over declared edges rather than re-derived similarity \\u2014 has not been tested as designed, and do not let a corpus that happens to contain declared edges be presented as having tested it.\\n6. Do not report a reference registry size as a break-even point. The number in `docs/07` came from a pre-falsification heuristic, and a single unreplicated crossing does not establish it.\\n7. Carry the limitations every time: single-author corpus, single annotator, single embedder, uniform learning workload. They are not boilerplate; they are the reason the numbers are bounded.\\n8. Describe the capability surface separately from the hypothesis. A verified skill router with a portable format, a rebuildable index, and lifecycle governance is a real and defensible product claim that needs no evidential support from the untested routing hypothesis.\", \"pitfalls\": \"- (x1) Quoting a headline metric without the corpus, embedder, and query set that produced it, which converts a bounded measurement into a general claim.\\n- (x1) Letting a diagnostic message imply that crossing a registry size threshold means the routing machinery is now paying off.\\n- (x1) Reporting an improvement between two of the project's own versions as evidence against an external baseline.\\n- (x1) Softening a falsified result into a neutral one during a docs edit, which is how an honest record quietly decays.\", \"examples\": null, \"provenance\": null, \"exec_blocks_present\": false, \"exec_blocks_warning\": null, \"truncated\": false, \"next_offset\": null}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "name": "magicite-honest-claim-scope",
+          "level": "L2",
+          "procedure": "1. Start from the Falsification Record in `docs/01` rather than from the feature list. That section, not the README's opening paragraph, is the project's own statement of what the evidence supports.\n2. Say plainly that on the measured workload the full pipeline does not beat plain dense embedding on Hit@1, and give the counts rather than only the rates so a reader can see how narrow the gap is.\n3. Do not describe a statistically indistinguishable result as a tie in the project's favour. Not significantly worse is not the same as as good as, and neither is evidence of benefit.\n4. Keep the distinction between mechanism repair and validation. An improvement produced by fixing a defect that was suppressing measurement is a repair; it is not confirmation of the hypothesis the mechanism was meant to test.\n5. State that the design's central claim \u2014 spreading activation over declared edges rather than re-derived similarity \u2014 has not been tested as designed, and do not let a corpus that happens to contain declared edges be presented as having tested it.\n6. Do not report a reference registry size as a break-even point. The number in `docs/07` came from a pre-falsification heuristic, and a single unreplicated crossing does not establish it.\n7. Carry the limitations every time: single-author corpus, single annotator, single embedder, uniform learning workload. They are not boilerplate; they are the reason the numbers are bounded.\n8. Describe the capability surface separately from the hypothesis. A verified skill router with a portable format, a rebuildable index, and lifecycle governance is a real and defensible product claim that needs no evidential support from the untested routing hypothesis.",
+          "pitfalls": "- (x1) Quoting a headline metric without the corpus, embedder, and query set that produced it, which converts a bounded measurement into a general claim.\n- (x1) Letting a diagnostic message imply that crossing a registry size threshold means the routing machinery is now paying off.\n- (x1) Reporting an improvement between two of the project's own versions as evidence against an external baseline.\n- (x1) Softening a falsified result into a neutral one during a docs edit, which is how an honest record quietly decays.",
+          "examples": null,
+          "provenance": null,
+          "exec_blocks_present": false,
+          "exec_blocks_warning": null,
+          "truncated": false,
+          "next_offset": null
+        }
+      }
+    }
+  },
+  {
+    "tool": "signal_use",
+    "arguments": {
+      "skill_ids": [
+        "egr_3579bb59"
+      ],
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "result": {
+        "content": [
+          {
+            "text": "{\"tagged\": [\"egr_3579bb59\"], \"co_activation_candidates\": [\"egr_4509fb97\", \"egr_f16e1287\"], \"expires_at\": \"2026-08-15T23:43:36.629643+00:00\", \"signal_tier\": 1, \"capped\": [], \"note\": \"tag set; expires at 2026-08-15T23:43:36.629643+00:00. signal_outcome() will capture these into durable weight changes.\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "tagged": [
+            "egr_3579bb59"
+          ],
+          "co_activation_candidates": [
+            "egr_4509fb97",
+            "egr_f16e1287"
+          ],
+          "expires_at": "2026-08-15T23:43:36.629643+00:00",
+          "signal_tier": 1,
+          "capped": [],
+          "note": "tag set; expires at 2026-08-15T23:43:36.629643+00:00. signal_outcome() will capture these into durable weight changes."
+        }
+      }
+    }
+  },
+  {
+    "tool": "signal_outcome",
+    "arguments": {
+      "valence": 1.0,
+      "salience": 0.9,
+      "skill_ids": [
+        "egr_3579bb59"
+      ],
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "result": {
+        "content": [
+          {
+            "text": "{\"captured\": 1, \"skills_credited\": [\"egr_3579bb59\"], \"signal_tier\": 1, \"consolidation_scheduled\": false, \"note\": \"captured explicitly listed skill_ids\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "captured": 1,
+          "skills_credited": [
+            "egr_3579bb59"
+          ],
+          "signal_tier": 1,
+          "consolidation_scheduled": false,
+          "note": "captured explicitly listed skill_ids"
+        }
+      }
+    }
+  },
+  {
+    "tool": "route",
+    "arguments": {
+      "query": "what should an agent call after route returns its candidates",
+      "k": 3,
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "result": {
+        "content": [
+          {
+            "text": "{\"candidates\": [{\"rank\": 1, \"id\": \"egr_2daf4dde\", \"name\": \"magicite-route-and-signal-loop\", \"intent_does\": \"Consume a Magicite route() result correctly and close the signal loop so the registry actually learns from the session\", \"intent_use_when\": \"an agent has Magicite wired as an MCP server and needs to know which tools to call, in what order, around using a routed skill\", \"score\": 0.359806, \"status\": \"nascent\", \"exposure_count\": 1, \"body_ref\": \".spectra/engrams/magicite-route-and-signal-loop.egr.md\", \"signal_tier_0\": true}, {\"rank\": 2, \"id\": \"egr_8a5feb5a\", \"name\": \"magicite-lifecycle-approval-gate\", \"intent_does\": \"Drive Magicite's approval-gated lifecycle tools \\u2014 nucleate, sharpen, promote, archive \\u2014 and know where a proposal can strand\", \"intent_use_when\": \"changing an engram's content or lifecycle status through Magicite's own tools rather than by editing files\", \"score\": 0.290203, \"status\": \"nascent\", \"exposure_count\": 0, \"body_ref\": \".spectra/engrams/magicite-lifecycle-approval-gate.egr.md\", \"signal_tier_0\": true}, {\"rank\": 3, \"id\": \"egr_f21621ef\", \"name\": \"magicite-tier2-hook-adapter\", \"intent_does\": \"Wire the optional Tier-2 hook adapter on a Claude Code host so signal calls are externally verified rather than self-reported\", \"intent_use_when\": \"raising Magicite signal fidelity above Tier-1 self-report on a host that has a hook system, such as Claude Code\", \"score\": 0.283437, \"status\": \"nascent\", \"exposure_count\": 1, \"body_ref\": \".spectra/engrams/magicite-tier2-hook-adapter.egr.md\", \"signal_tier_0\": true}], \"composition_plan\": [\"magicite-offline-embedding-setup\", \"magicite-rebuild-skill-index\", \"magicite-route-and-signal-loop\"], \"plan_confidence\": 1.0, \"instructions\": \"After applying a skill, call signal_use(skill_id) with its id. When the task outcome is known (tests pass, user confirms), call signal_outcome(valence, skill_ids) to drive learning.\", \"session_id\": \"dogfood-1692c6f0923e\", \"registry_size\": 16, \"unresolved_context\": []}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "candidates": [
+            {
+              "rank": 1,
+              "id": "egr_2daf4dde",
+              "name": "magicite-route-and-signal-loop",
+              "intent_does": "Consume a Magicite route() result correctly and close the signal loop so the registry actually learns from the session",
+              "intent_use_when": "an agent has Magicite wired as an MCP server and needs to know which tools to call, in what order, around using a routed skill",
+              "score": 0.359806,
+              "status": "nascent",
+              "exposure_count": 1,
+              "body_ref": ".spectra/engrams/magicite-route-and-signal-loop.egr.md",
+              "signal_tier_0": true
+            },
+            {
+              "rank": 2,
+              "id": "egr_8a5feb5a",
+              "name": "magicite-lifecycle-approval-gate",
+              "intent_does": "Drive Magicite's approval-gated lifecycle tools \u2014 nucleate, sharpen, promote, archive \u2014 and know where a proposal can strand",
+              "intent_use_when": "changing an engram's content or lifecycle status through Magicite's own tools rather than by editing files",
+              "score": 0.290203,
+              "status": "nascent",
+              "exposure_count": 0,
+              "body_ref": ".spectra/engrams/magicite-lifecycle-approval-gate.egr.md",
+              "signal_tier_0": true
+            },
+            {
+              "rank": 3,
+              "id": "egr_f21621ef",
+              "name": "magicite-tier2-hook-adapter",
+              "intent_does": "Wire the optional Tier-2 hook adapter on a Claude Code host so signal calls are externally verified rather than self-reported",
+              "intent_use_when": "raising Magicite signal fidelity above Tier-1 self-report on a host that has a hook system, such as Claude Code",
+              "score": 0.283437,
+              "status": "nascent",
+              "exposure_count": 1,
+              "body_ref": ".spectra/engrams/magicite-tier2-hook-adapter.egr.md",
+              "signal_tier_0": true
+            }
+          ],
+          "composition_plan": [
+            "magicite-offline-embedding-setup",
+            "magicite-rebuild-skill-index",
+            "magicite-route-and-signal-loop"
+          ],
+          "plan_confidence": 1.0,
+          "instructions": "After applying a skill, call signal_use(skill_id) with its id. When the task outcome is known (tests pass, user confirms), call signal_outcome(valence, skill_ids) to drive learning.",
+          "session_id": "dogfood-1692c6f0923e",
+          "registry_size": 16,
+          "unresolved_context": []
+        }
+      }
+    }
+  },
+  {
+    "tool": "load_skill_body",
+    "arguments": {
+      "name": "magicite-route-and-signal-loop"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "result": {
+        "content": [
+          {
+            "text": "{\"name\": \"magicite-route-and-signal-loop\", \"level\": \"L2\", \"procedure\": \"1. Call `route()` with the user's actual task phrasing rather than a keyword you invented; the triggers were written to match real requests, and rewriting the query into keywords discards the signal the router is built on.\\n2. Read the `instructions` field of the response instead of ignoring it. That field is how Tier-1 signal fidelity works on any host with no hook support at all, and following it is the difference between a registry that learns and one that only serves.\\n3. Fetch the body with `load_skill_body()` for the candidate you actually intend to follow, not for every candidate returned. Loading is itself an observable event.\\n4. Call `signal_use()` with the specific `skill_ids` you are about to apply, before applying them. Both `route` and `load_skill_body` are read-only; `signal_use` is the first call that records intent.\\n5. Call `signal_outcome()` once the effect is observable, with `valence` reflecting direction and `salience` reflecting your confidence in that reading. A clean non-zero exit code deserves a high salience; a guess inferred from conversational tone deserves a low one.\\n6. Pass `skill_ids` explicitly on `signal_outcome` whenever you know which skill was responsible. An explicit list is always honoured, whereas an omitted list only produces retroactive credit when salience clears the configured threshold.\\n7. Call `session_end()` when the task closes. It is the call that enqueues consolidation work; skipping it leaves the session's evidence sitting in ephemeral state until the TTL expires.\\n8. Let the Dream worker do the durable writing. Nothing in this loop should be writing storage strength directly \\u2014 the loop produces evidence, consolidation turns evidence into durable state.\", \"pitfalls\": \"- (x1) Sending a high-confidence salience for a guess. Salience is confidence in the valence reading, not the strength of the outcome, and inflating it causes retroactive credit to spray onto skills that were merely present in the session.\\n- (x1) Calling `signal_use` for every candidate the router returned. That teaches the registry that all of them were used and destroys the precision the negative triggers were written to provide.\\n- (x1) Expecting storage strength to move immediately after a signal. Tier-0 inferred signals carry zero weight toward storage strength by design, and even Tier-1 evidence only becomes durable through a consolidation pass.\\n- (x1) Letting the session expire instead of ending it. The default session TTL is measured in hours, and an expired session's tags cannot be credited retroactively.\", \"examples\": null, \"provenance\": null, \"exec_blocks_present\": false, \"exec_blocks_warning\": null, \"truncated\": false, \"next_offset\": null}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "name": "magicite-route-and-signal-loop",
+          "level": "L2",
+          "procedure": "1. Call `route()` with the user's actual task phrasing rather than a keyword you invented; the triggers were written to match real requests, and rewriting the query into keywords discards the signal the router is built on.\n2. Read the `instructions` field of the response instead of ignoring it. That field is how Tier-1 signal fidelity works on any host with no hook support at all, and following it is the difference between a registry that learns and one that only serves.\n3. Fetch the body with `load_skill_body()` for the candidate you actually intend to follow, not for every candidate returned. Loading is itself an observable event.\n4. Call `signal_use()` with the specific `skill_ids` you are about to apply, before applying them. Both `route` and `load_skill_body` are read-only; `signal_use` is the first call that records intent.\n5. Call `signal_outcome()` once the effect is observable, with `valence` reflecting direction and `salience` reflecting your confidence in that reading. A clean non-zero exit code deserves a high salience; a guess inferred from conversational tone deserves a low one.\n6. Pass `skill_ids` explicitly on `signal_outcome` whenever you know which skill was responsible. An explicit list is always honoured, whereas an omitted list only produces retroactive credit when salience clears the configured threshold.\n7. Call `session_end()` when the task closes. It is the call that enqueues consolidation work; skipping it leaves the session's evidence sitting in ephemeral state until the TTL expires.\n8. Let the Dream worker do the durable writing. Nothing in this loop should be writing storage strength directly \u2014 the loop produces evidence, consolidation turns evidence into durable state.",
+          "pitfalls": "- (x1) Sending a high-confidence salience for a guess. Salience is confidence in the valence reading, not the strength of the outcome, and inflating it causes retroactive credit to spray onto skills that were merely present in the session.\n- (x1) Calling `signal_use` for every candidate the router returned. That teaches the registry that all of them were used and destroys the precision the negative triggers were written to provide.\n- (x1) Expecting storage strength to move immediately after a signal. Tier-0 inferred signals carry zero weight toward storage strength by design, and even Tier-1 evidence only becomes durable through a consolidation pass.\n- (x1) Letting the session expire instead of ending it. The default session TTL is measured in hours, and an expired session's tags cannot be credited retroactively.",
+          "examples": null,
+          "provenance": null,
+          "exec_blocks_present": false,
+          "exec_blocks_warning": null,
+          "truncated": false,
+          "next_offset": null
+        }
+      }
+    }
+  },
+  {
+    "tool": "signal_use",
+    "arguments": {
+      "skill_ids": [
+        "egr_2daf4dde"
+      ],
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "result": {
+        "content": [
+          {
+            "text": "{\"tagged\": [\"egr_2daf4dde\"], \"co_activation_candidates\": [\"egr_3579bb59\", \"egr_4509fb97\", \"egr_f16e1287\"], \"expires_at\": \"2026-08-15T23:43:36.645867+00:00\", \"signal_tier\": 1, \"capped\": [], \"note\": \"tag set; expires at 2026-08-15T23:43:36.645867+00:00. signal_outcome() will capture these into durable weight changes.\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "tagged": [
+            "egr_2daf4dde"
+          ],
+          "co_activation_candidates": [
+            "egr_3579bb59",
+            "egr_4509fb97",
+            "egr_f16e1287"
+          ],
+          "expires_at": "2026-08-15T23:43:36.645867+00:00",
+          "signal_tier": 1,
+          "capped": [],
+          "note": "tag set; expires at 2026-08-15T23:43:36.645867+00:00. signal_outcome() will capture these into durable weight changes."
+        }
+      }
+    }
+  },
+  {
+    "tool": "signal_outcome",
+    "arguments": {
+      "valence": 1.0,
+      "salience": 0.9,
+      "skill_ids": [
+        "egr_2daf4dde"
+      ],
+      "session_id": "dogfood-1692c6f0923e"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "result": {
+        "content": [
+          {
+            "text": "{\"captured\": 1, \"skills_credited\": [\"egr_2daf4dde\"], \"signal_tier\": 1, \"consolidation_scheduled\": false, \"note\": \"captured explicitly listed skill_ids\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "captured": 1,
+          "skills_credited": [
+            "egr_2daf4dde"
+          ],
+          "signal_tier": 1,
+          "consolidation_scheduled": false,
+          "note": "captured explicitly listed skill_ids"
+        }
+      }
+    }
+  },
+  {
+    "tool": "session_end",
+    "arguments": {
+      "session_id": "dogfood-1692c6f0923e",
+      "reason": "dogfood probe complete"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "result": {
+        "content": [
+          {
+            "text": "{\"session_id\": \"dogfood-1692c6f0923e\", \"closed\": true, \"tags_expired\": 0, \"captured_pending\": 16, \"dream_run_id\": \"dream_c97fced2c9b6\", \"enqueued\": false}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "session_id": "dogfood-1692c6f0923e",
+          "closed": true,
+          "tags_expired": 0,
+          "captured_pending": 16,
+          "dream_run_id": "dream_c97fced2c9b6",
+          "enqueued": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "consolidate",
+    "arguments": {
+      "manual_trigger": true
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "result": {
+        "content": [
+          {
+            "text": "{\"consolidation_id\": \"dream_c97fced2c9b6\", \"enqueued\": false, \"status\": \"queued\", \"estimated_start\": null, \"note\": \"a Dream run is already queued/running; returning its id (idempotent)\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "consolidation_id": "dream_c97fced2c9b6",
+          "enqueued": false,
+          "status": "queued",
+          "estimated_start": null,
+          "note": "a Dream run is already queued/running; returning its id (idempotent)"
+        }
+      }
+    }
+  },
+  {
+    "tool": "checkpoint",
+    "arguments": {},
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "result": {
+        "content": [
+          {
+            "text": "{\"checkpointed\": 0, \"modified_engrams\": [], \"write_ratio\": 0.0, \"timestamp\": \"2026-08-15T20:43:36.650463+00:00\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "checkpointed": 0,
+          "modified_engrams": [],
+          "write_ratio": 0.0,
+          "timestamp": "2026-08-15T20:43:36.650463+00:00"
+        }
+      }
+    }
+  },
+  {
+    "tool": "flag_dead",
+    "arguments": {
+      "window_days": 30,
+      "limit": 10
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "result": {
+        "content": [
+          {
+            "text": "{\"candidates\": [{\"id\": \"egr_bcf05165\", \"name\": \"magicite-amend-routing-default\", \"last_routed\": null, \"retrieval_strength\": 0.0, \"reason\": \"never routed\"}, {\"id\": \"egr_40c7c6af\", \"name\": \"magicite-dream-consolidation\", \"last_routed\": null, \"retrieval_strength\": 0.0, \"reason\": \"never routed\"}, {\"id\": \"egr_3369f7bf\", \"name\": \"magicite-esl-change-lifecycle\", \"last_routed\": null, \"retrieval_strength\": 0.0, \"reason\": \"never routed\"}, {\"id\": \"egr_30f52c01\", \"name\": \"magicite-frozen-verify\", \"last_routed\": null, \"retrieval_strength\": 0.0, \"reason\": \"never routed\"}, {\"id\": \"egr_90fe52ff\", \"name\": \"magicite-offline-embedding-setup\", \"last_routed\": null, \"retrieval_strength\": 0.0, \"reason\": \"never routed\"}], \"recommendation\": \"31% of the registry is silent (>20%): routing cues are systematically poor (docs/07) -- review triggers/descriptions broadly, not just for the individually flagged candidates.\", \"silent_pct\": 0.3125}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "candidates": [
+            {
+              "id": "egr_bcf05165",
+              "name": "magicite-amend-routing-default",
+              "last_routed": null,
+              "retrieval_strength": 0.0,
+              "reason": "never routed"
+            },
+            {
+              "id": "egr_40c7c6af",
+              "name": "magicite-dream-consolidation",
+              "last_routed": null,
+              "retrieval_strength": 0.0,
+              "reason": "never routed"
+            },
+            {
+              "id": "egr_3369f7bf",
+              "name": "magicite-esl-change-lifecycle",
+              "last_routed": null,
+              "retrieval_strength": 0.0,
+              "reason": "never routed"
+            },
+            {
+              "id": "egr_30f52c01",
+              "name": "magicite-frozen-verify",
+              "last_routed": null,
+              "retrieval_strength": 0.0,
+              "reason": "never routed"
+            },
+            {
+              "id": "egr_90fe52ff",
+              "name": "magicite-offline-embedding-setup",
+              "last_routed": null,
+              "retrieval_strength": 0.0,
+              "reason": "never routed"
+            }
+          ],
+          "recommendation": "31% of the registry is silent (>20%): routing cues are systematically poor (docs/07) -- review triggers/descriptions broadly, not just for the individually flagged candidates.",
+          "silent_pct": 0.3125
+        }
+      }
+    }
+  },
+  {
+    "tool": "sync",
+    "arguments": {},
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "result": {
+        "content": [
+          {
+            "text": "{\"synced\": 16, \"removed\": [], \"validation_errors\": [], \"dangling\": [], \"detector\": \"leiden\", \"consolidation_scheduled\": false}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "synced": 16,
+          "removed": [],
+          "validation_errors": [],
+          "dangling": [],
+          "detector": "leiden",
+          "consolidation_scheduled": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "export",
+    "arguments": {
+      "out_dir": "/home/rynaro/workspace/oss/magicite/.claude/worktrees/dogfood-magicite/tmp0hdlque1",
+      "min_status": "consolidated"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "result": {
+        "content": [
+          {
+            "text": "{\"exported\": 0, \"target_dir\": \"/home/rynaro/workspace/oss/magicite/.claude/worktrees/dogfood-magicite/tmp0hdlque1\", \"format\": \"skill\", \"note\": \"rendered 0 SKILL.md shim(s) at status >= 'consolidated'\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "exported": 0,
+          "target_dir": "/home/rynaro/workspace/oss/magicite/.claude/worktrees/dogfood-magicite/tmp0hdlque1",
+          "format": "skill",
+          "note": "rendered 0 SKILL.md shim(s) at status >= 'consolidated'"
+        }
+      }
+    }
+  },
+  {
+    "tool": "nucleate",
+    "arguments": {
+      "min_support": 2
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "result": {
+        "content": [
+          {
+            "text": "{\"candidates\": [{\"proposal_id\": \"appr_6e16d99bbc\", \"path_names\": [\"magicite-container-privilege-boundary\", \"magicite-honest-claim-scope\", \"magicite-route-and-signal-loop\"], \"support\": 2, \"mean_valence\": 1.0, \"trace_ir\": {\"sessions\": [\"dogfood-1692c6f0923e\", \"dogfood-dc625abf537b\"], \"path_names\": [\"magicite-container-privilege-boundary\", \"magicite-honest-claim-scope\", \"magicite-route-and-signal-loop\"], \"support\": 2, \"mean_valence\": 1.0, \"per_skill\": {\"magicite-container-privilege-boundary\": {\"occurrences\": 2, \"mean_valence\": 1.0}, \"magicite-honest-claim-scope\": {\"occurrences\": 2, \"mean_valence\": 1.0}, \"magicite-route-and-signal-loop\": {\"occurrences\": 2, \"mean_valence\": 1.0}}, \"observed_orders\": [[\"magicite-container-privilege-boundary\", \"magicite-honest-claim-scope\", \"magicite-route-and-signal-loop\"], [\"magicite-container-privilege-boundary\", \"magicite-honest-claim-scope\", \"magicite-route-and-signal-loop\"]]}, \"draft_skeleton\": \"# DRAFT nucleation skeleton -- NOT a valid .egr.md.\\n# CR-3: the server never generates prose; every <host: ...> field\\n# below is a placeholder for the host agent to fill in before\\n# calling register(). Derived mechanically from 2 session(s), mean captured valence 1.00.\\n---\\nspec: engram/0.2\\nname: <host: choose-a-kebab-case-name>\\nintent:\\n  does: <host: describe what this composite skill accomplishes>\\n  use_when: <host: describe when to use it>\\n  not_when: <host: describe when NOT to use it>\\ntriggers:\\n  positive: [<host: fill in>]\\n  negative: [<host: fill in>]\\ncomposes: [magicite-container-privilege-boundary, magicite-honest-claim-scope, magicite-route-and-signal-loop]\\n---\\n## Procedure\\n1. Apply `magicite-container-privilege-boundary` (see magicite-container-privilege-boundary.egr.md).\\n2. Apply `magicite-honest-claim-scope` (see magicite-honest-claim-scope.egr.md).\\n3. Apply `magicite-route-and-signal-loop` (see magicite-route-and-signal-loop.egr.md).\\n\\n## Pitfalls\\n- <host: fill in from the observed sessions>\\n\\n## Examples\\n+ \\\"<host: a positive example query>\\\"\\n- \\\"<host: a negative example query>\\\"\\n\"}], \"approval_ids\": [\"appr_6e16d99bbc\"], \"note\": \"1 nucleation candidate(s) proposed (min_support=2); draft the .egr.md yourself and call register() -- the server never generates prose (CR-3).\"}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "candidates": [
+            {
+              "proposal_id": "appr_6e16d99bbc",
+              "path_names": [
+                "magicite-container-privilege-boundary",
+                "magicite-honest-claim-scope",
+                "magicite-route-and-signal-loop"
+              ],
+              "support": 2,
+              "mean_valence": 1.0,
+              "trace_ir": {
+                "sessions": [
+                  "dogfood-1692c6f0923e",
+                  "dogfood-dc625abf537b"
+                ],
+                "path_names": [
+                  "magicite-container-privilege-boundary",
+                  "magicite-honest-claim-scope",
+                  "magicite-route-and-signal-loop"
+                ],
+                "support": 2,
+                "mean_valence": 1.0,
+                "per_skill": {
+                  "magicite-container-privilege-boundary": {
+                    "occurrences": 2,
+                    "mean_valence": 1.0
+                  },
+                  "magicite-honest-claim-scope": {
+                    "occurrences": 2,
+                    "mean_valence": 1.0
+                  },
+                  "magicite-route-and-signal-loop": {
+                    "occurrences": 2,
+                    "mean_valence": 1.0
+                  }
+                },
+                "observed_orders": [
+                  [
+                    "magicite-container-privilege-boundary",
+                    "magicite-honest-claim-scope",
+                    "magicite-route-and-signal-loop"
+                  ],
+                  [
+                    "magicite-container-privilege-boundary",
+                    "magicite-honest-claim-scope",
+                    "magicite-route-and-signal-loop"
+                  ]
+                ]
+              },
+              "draft_skeleton": "# DRAFT nucleation skeleton -- NOT a valid .egr.md.\n# CR-3: the server never generates prose; every <host: ...> field\n# below is a placeholder for the host agent to fill in before\n# calling register(). Derived mechanically from 2 session(s), mean captured valence 1.00.\n---\nspec: engram/0.2\nname: <host: choose-a-kebab-case-name>\nintent:\n  does: <host: describe what this composite skill accomplishes>\n  use_when: <host: describe when to use it>\n  not_when: <host: describe when NOT to use it>\ntriggers:\n  positive: [<host: fill in>]\n  negative: [<host: fill in>]\ncomposes: [magicite-container-privilege-boundary, magicite-honest-claim-scope, magicite-route-and-signal-loop]\n---\n## Procedure\n1. Apply `magicite-container-privilege-boundary` (see magicite-container-privilege-boundary.egr.md).\n2. Apply `magicite-honest-claim-scope` (see magicite-honest-claim-scope.egr.md).\n3. Apply `magicite-route-and-signal-loop` (see magicite-route-and-signal-loop.egr.md).\n\n## Pitfalls\n- <host: fill in from the observed sessions>\n\n## Examples\n+ \"<host: a positive example query>\"\n- \"<host: a negative example query>\"\n"
+            }
+          ],
+          "approval_ids": [
+            "appr_6e16d99bbc"
+          ],
+          "note": "1 nucleation candidate(s) proposed (min_support=2); draft the .egr.md yourself and call register() -- the server never generates prose (CR-3)."
+        }
+      }
+    }
+  },
+  {
+    "tool": "sharpen",
+    "arguments": {
+      "name": "magicite-container-privilege-boundary",
+      "proposed_changes": {
+        "pitfalls": [
+          "(x1) dogfood probe"
+        ]
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "result": {
+        "content": [
+          {
+            "text": "{\"sharpened\": false, \"version_bumped\": null, \"changes\": [], \"consolidation_scheduled\": false, \"approval_id\": \"appr_f19e855154\", \"state\": \"proposed\", \"requires_approval\": true}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "sharpened": false,
+          "version_bumped": null,
+          "changes": [],
+          "consolidation_scheduled": false,
+          "approval_id": "appr_f19e855154",
+          "state": "proposed",
+          "requires_approval": true
+        }
+      }
+    }
+  },
+  {
+    "tool": "promote",
+    "arguments": {
+      "name": "magicite-container-privilege-boundary"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "result": {
+        "content": [
+          {
+            "text": "{\"promoted\": false, \"name\": \"magicite-container-privilege-boundary\", \"new_status\": null, \"evidence\": {\"rubric_score\": 12, \"rubric_min\": 8, \"injection_scan_clean\": true, \"quarantine_recommended\": false}, \"approval_id\": \"appr_c03eb77253\", \"state\": \"proposed\", \"requires_approval\": true}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "promoted": false,
+          "name": "magicite-container-privilege-boundary",
+          "new_status": null,
+          "evidence": {
+            "rubric_score": 12,
+            "rubric_min": 8,
+            "injection_scan_clean": true,
+            "quarantine_recommended": false
+          },
+          "approval_id": "appr_c03eb77253",
+          "state": "proposed",
+          "requires_approval": true
+        }
+      }
+    }
+  },
+  {
+    "tool": "archive",
+    "arguments": {
+      "name": "magicite-container-privilege-boundary",
+      "reason": "dogfood probe, not intended for approval"
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "result": {
+        "content": [
+          {
+            "text": "{\"archived\": false, \"name\": \"magicite-container-privilege-boundary\", \"provenance_entry\": null, \"approval_id\": \"appr_55178b8b7b\", \"state\": \"proposed\", \"requires_approval\": true}",
+            "type": "text"
+          }
+        ],
+        "isError": false,
+        "structuredContent": {
+          "archived": false,
+          "name": "magicite-container-privilege-boundary",
+          "provenance_entry": null,
+          "approval_id": "appr_55178b8b7b",
+          "state": "proposed",
+          "requires_approval": true
+        }
+      }
+    }
+  }
+]

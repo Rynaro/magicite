@@ -364,3 +364,43 @@ because OIDC has nothing to fall back to.
 
 Verify afterwards the same way the container was verified: install the published
 wheel into a clean environment and run `magicite tools` — it must report 16.
+
+## 14. The first-party registry (dogfooding)
+
+This repository is itself a Magicite consumer: `.spectra/engrams/` holds
+sixteen authored engrams covering how to operate the project. Full walkthrough
+in `docs/adapters/dogfooding.md`; the operationally relevant parts are:
+
+**The registry is a tracked artifact; its index is not.** `.egr.md` files are
+committed, `skill-graph.db*` is gitignored and rebuilt with
+`uv run magicite sync --project-root .`. A rebuild must report `synced: 16`
+with empty `validation_errors` and `dangling`.
+
+**Checkpoints mutate the tracked files, on purpose.** A Dream checkpoint writes
+durable Tier-A state back into the `.egr.md` bytes — exposure counts,
+`last_checkpoint`, `dream-worker` journal entries, and a materialised
+`synapses:` block. After any probe run, restore authored state before
+committing:
+
+```bash
+uv run python scripts/dogfood_reset.py           # restore
+uv run python scripts/dogfood_reset.py --check   # assert, non-zero on drift
+```
+
+`scripts/dogfood_ids.py --check` is the matching guard for engram ids, which
+are content hashes over identity+routing and must be stamped by tooling rather
+than hand-written.
+
+**Two standing probes**, both driving real stdio MCP rather than importing
+`magicite.core`:
+
+```bash
+uv run python scripts/dogfood_session.py      # all 16 tools, end to end
+uv run python scripts/dogfood_tier_probe.py   # Tier-2 boundary, 5 assertions
+```
+
+**Known first-session sharp edge:** `export` accepts only `min_status` of
+`consolidated` or `promoted`, and freshly authored engrams are `nascent`, so a
+new registry exports zero SKILL.md shims until something consolidates. That is
+by design — shims are a compile target for settled skills — but it surprises
+anyone expecting to author a registry and immediately export it.
