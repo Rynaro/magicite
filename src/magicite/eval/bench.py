@@ -27,8 +27,9 @@ primitives (``core/activation.py``), not a parallel reimplementation:
 
 - (a) native, description-only lexical overlap (no embeddings, no graph)
 - (b) dense embedding cosine only (no graph, no plasticity)
-- (c) embedding + **structural** (fixed ``type_gain``, S_edge ignored)
-  spreading activation -- "static-weighted graph edges" per docs/07
+- (c) embedding + **structural** (S_eff with the *learned* channel
+  suppressed -- see :data:`_GRAPH_EDGE_TYPES`) spreading activation --
+  "static-weighted graph edges" per docs/07
 - (d) the real ``route()``: embedding + activation weighted by *learned*
   ``S_edge`` + hub penalty + context + community rerank
 
@@ -54,6 +55,7 @@ import numpy as np
 from magicite.config import Config
 from magicite.core import activation as activation_mod
 from magicite.core import composition as composition_mod
+from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import router as router_mod
 from magicite.embeddings.base import Embedder
 from magicite.engram.model import ROUTABLE_STATUSES
@@ -69,12 +71,16 @@ BASELINE_LABELS: dict[str, str] = {
 }
 
 #: docs/07 baseline (c): "static-weighted graph edges (declared only:
-#: composes, inhibits, similarity from embeddings)" propagated with
-#: **fixed** weights (``type_gain`` only) -- never ``S_edge``, which is a
-#: *learned* weight (baseline (d)'s own differentiator). Matches
-#: ``core/router.py``'s own structural hub-penalty graph exactly (same
-#: reasoning: S_edge starts at 0.0 for every declared edge until Dream
-#: potentiates it, spec §2.6 step 4).
+#: composes, inhibits, similarity from embeddings)" -- "no learned
+#: weights, no outcome signals". [DECLARED-EDGES-AMENDED 2026-08-15,
+#: spec §3.3.1 call site 7] this used to mean a flat ``type_gain`` for
+#: every edge, ignoring ``storage_strength`` entirely -- now it means the
+#: same two-channel rule as everywhere else with the **learned** channel
+#: suppressed (:func:`magicite.core.edge_weight.effective_strength_no_learned`):
+#: a declared/learned/distilled edge still never contributes a Hebbian
+#: value, but a ``derived`` ``similar_to`` kNN edge's ``storage_strength``
+#: *is* its cosine similarity (not a Hebbian value), so it now carries
+#: that instead of one flat gain for every neighbour.
 _GRAPH_EDGE_TYPES: tuple[str, ...] = ("co_activation", "composes", "depends_on", "similar_to")
 
 #: Baseline (c)'s own fixed activation/similarity split (distinct from
@@ -164,8 +170,9 @@ def _baseline_b_rank(conn: sqlite3.Connection, embedder: Embedder, query: str) -
 
 
 def _baseline_c_rank(cfg: Config, conn: sqlite3.Connection, embedder: Embedder, query: str) -> list[str]:
-    """Embedding + structural (fixed-weight) spreading activation --
-    "static-weighted graph edges", S_edge ignored. See module docstring."""
+    """Embedding + structural spreading activation, learned channel
+    suppressed -- "static-weighted graph edges", no learned weights. See
+    module docstring and :data:`_GRAPH_EDGE_TYPES`."""
     qvec = embedder.embed(query)
     rows = _routable_rows(conn, embedder.model_name)
     if not rows:
@@ -184,12 +191,20 @@ def _baseline_c_rank(cfg: Config, conn: sqlite3.Connection, embedder: Embedder, 
 
     placeholders = ",".join("?" for _ in _GRAPH_EDGE_TYPES)
     edge_rows = conn.execute(
-        f"SELECT src_id, dst_id, type FROM edge WHERE type IN ({placeholders}) "
-        "AND dangling = 0 AND dst_id IS NOT NULL",
+        f"SELECT src_id, dst_id, type, storage_strength, provenance FROM edge "
+        f"WHERE type IN ({placeholders}) AND dangling = 0 AND dst_id IS NOT NULL",
         _GRAPH_EDGE_TYPES,
     ).fetchall()
     edges = [
-        (str(r["src_id"]), str(r["dst_id"]), cfg.type_gain.get(r["type"], 0.0)) for r in edge_rows
+        (
+            str(r["src_id"]),
+            str(r["dst_id"]),
+            edge_weight_mod.effective_strength_no_learned(
+                float(r["storage_strength"]), r["provenance"], cfg.declared_edge_strength
+            )
+            * cfg.type_gain.get(r["type"], 0.0),
+        )
+        for r in edge_rows
     ]
     graph = activation_mod.build_graph(node_ids, edges)
     a = activation_mod.personalized_pagerank(
@@ -218,7 +233,12 @@ def _expand_plan(cfg: Config, conn: sqlite3.Connection, name: str) -> list[str]:
     if winner_id is None:
         return []
     plan = composition_mod.expand(
-        conn, winner_id, name, max_depth=cfg.plan_max_depth, max_size=cfg.plan_max_size
+        conn,
+        winner_id,
+        name,
+        max_depth=cfg.plan_max_depth,
+        max_size=cfg.plan_max_size,
+        declared_edge_strength=cfg.declared_edge_strength,
     )
     return plan.order
 

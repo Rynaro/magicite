@@ -45,7 +45,9 @@ from magicite.storage import queries as queries_mod
 )
 def introspect(ctx: ToolContext, params: IntrospectInput) -> IntrospectOutput:
     if params.skill_id is not None:
-        detail = queries_mod.skill_detail(ctx.conn, params.skill_id)
+        detail = queries_mod.skill_detail(
+            ctx.conn, params.skill_id, declared_edge_strength=ctx.cfg.declared_edge_strength
+        )
         if detail is None:
             raise NotFoundError(f"no engram named or id'd {params.skill_id!r}")
         return IntrospectOutput(

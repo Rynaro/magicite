@@ -39,10 +39,10 @@ class SparseGraph:
 def build_graph(node_ids: list[str], edges: list[tuple[str, str, float]]) -> SparseGraph:
     """``edges``: ``(src_id, dst_id, raw_weight)`` triples. ``raw_weight`` is
     whatever the caller wants propagated -- ``core/router.py`` passes
-    ``S_edge * type_gain[type]`` for activation (spec step 4) and a
+    ``S_eff * type_gain[type]`` for activation (spec step 4, §3.3.1) and a
     structural ``type_gain``-only weight for the hub-penalty PageRank
-    (``router.py``'s own docstring explains why S_edge alone would make the
-    hub metric permanently inert pre-Dream).
+    (``router.py``'s own docstring explains why it is deliberately a
+    structural metric, not a usage-weighted one).
 
     Edges naming a node outside ``node_ids``, or with non-positive weight,
     are dropped -- ``inhibits`` edges in particular are never fed here
@@ -149,21 +149,24 @@ def apply_inhibition(
     inhib_gain: float = 0.7,
 ) -> np.ndarray:
     """spec §3.3 step 5: for every ``(j -> i, type='inhibits')`` edge with
-    ``a_j > 0``: ``a_i *= (1 - S_edge_ji * inhib_gain)``.
+    ``a_j > 0``: ``a_i *= (1 - S_eff_ji * inhib_gain)``.
 
-    ``inhibition_edges``: ``(src_j, dst_i, s_edge_ji)`` triples -- the
-    ``edge`` table's own ``(src_id, dst_id, storage_strength)`` for
-    ``type='inhibits'`` rows, src being the *inhibitor*.
+    ``inhibition_edges``: ``(src_j, dst_i, s_eff_ji)`` triples -- the
+    caller (``core/router.py::_fetch_inhibition_edges``) has already run
+    the edge's ``(storage_strength, provenance)`` through
+    ``core/edge_weight.py::effective_strength`` (spec §3.3.1); this
+    function is agnostic to where the weight came from, it only applies
+    it. src is the *inhibitor*.
     """
     index = {nid: i for i, nid in enumerate(node_ids)}
     out = a.copy()
-    for src_j, dst_i, s_edge_ji in inhibition_edges:
+    for src_j, dst_i, s_eff_ji in inhibition_edges:
         j = index.get(src_j)
         i = index.get(dst_i)
         if j is None or i is None:
             continue
         if a[j] > 0:
-            out[i] = out[i] * (1 - s_edge_ji * inhib_gain)
+            out[i] = out[i] * (1 - s_eff_ji * inhib_gain)
     return out
 
 

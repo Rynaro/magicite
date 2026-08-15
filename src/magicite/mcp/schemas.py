@@ -52,6 +52,11 @@ class EdgeOut(MagiciteModel):
     storage_strength: float
     provenance: str
     evidence_count: int = 0
+    #: spec §3.3.1 call site 6 / AC-041: S_eff = max(storage_strength,
+    #: w_authored(edge)), computed at read by core/edge_weight.py. Additive
+    #: field -- storage_strength (the learned channel) is unchanged and
+    #: still reports 0.0 for a never-potentiated declared edge.
+    effective_strength: float = 0.0
 
 
 class HistoryEntry(MagiciteModel):

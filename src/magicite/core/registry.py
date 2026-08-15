@@ -37,6 +37,7 @@ import numpy as np
 from magicite.config import Config
 from magicite.core import approvals as approvals_mod
 from magicite.core import communities as communities_mod
+from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import lifecycle as lifecycle_mod
 from magicite.embeddings.base import Embedder
 from magicite.engram import ids as ids_mod
@@ -57,18 +58,18 @@ _EXPORT_STATUS_RANK: dict[str, int] = {"consolidated": 0, "promoted": 1}
 #: (spec §3.3 step 5), never a co-membership one.
 _COMMUNITY_EDGE_TYPES: tuple[str, ...] = ("co_activation", "composes", "depends_on", "similar_to")
 
-#: A freshly-``declared`` (never-Dream-potentiated) edge starts at
-#: ``storage_strength=0.0`` (spec §2.6 step 4/DDL default) -- Hebbian
-#: strength is *earned*, not assumed. Weighting community structure purely
-#: by S_edge would therefore make every declared needs/composes/
-#: co_activation edge structurally invisible until Dream (M4) exists,
-#: leaving only the embedding-derived ``similar_to`` edges (whose
-#: strength *is* the cosine similarity, see
-#: ``storage.durable.replace_similar_to_edges``) able to group anything.
-#: A small structural floor keeps declared composition meaningful for
-#: grouping immediately, while still letting learned strength dominate
-#: once Dream runs.
-_COMMUNITY_WEIGHT_FLOOR = 0.1
+#: [DECLARED-EDGES-AMENDED 2026-08-15] ``_COMMUNITY_WEIGHT_FLOOR = 0.1``
+#: used to live here (``max(S_edge, 0.1)``): a freshly-``declared``
+#: (never-Dream-potentiated) edge starts at ``storage_strength=0.0``, so
+#: weighting community structure purely by S_edge made every declared
+#: needs/composes edge structurally invisible until Dream (M4) existed.
+#: This was this defect's first local workaround, at the wrong
+#: magnitude, and is now superseded by the general rule (spec §3.3.1):
+#: community weights use ``S_eff = max(edge.storage_strength,
+#: w_authored(edge))`` via :func:`magicite.core.edge_weight
+#: .effective_strength`, computed in :func:`_compute_communities` below.
+#: Two competing floors would be a maintenance trap, so this one is
+#: deleted rather than kept alongside the new rule.
 
 
 def _now() -> str:
@@ -498,21 +499,32 @@ def _compute_similar_to_edges(conn: sqlite3.Connection, model_name: str, *, top_
     durable_mod.replace_similar_to_edges(conn, neighbors_by_id)
 
 
-def _compute_communities(conn: sqlite3.Connection) -> str:
+def _compute_communities(conn: sqlite3.Connection, cfg: Config) -> str:
     """spec §2.6 step 9: recompute communities (leiden if available, else
     label_propagation). Returns the detector name that actually ran, for
-    :attr:`SyncOutcome.detector` (AC-022: honest reporting)."""
+    :attr:`SyncOutcome.detector` (AC-022: honest reporting).
+
+    [DECLARED-EDGES-AMENDED 2026-08-15] edge weight is ``S_eff`` (spec
+    §3.3.1), not ``max(S_edge, _COMMUNITY_WEIGHT_FLOOR)`` -- see that
+    constant's former docstring, now above :data:`_COMMUNITY_EDGE_TYPES`.
+    """
     node_ids = [r["id"] for r in conn.execute("SELECT id FROM engram").fetchall()]
     placeholders = ",".join("?" for _ in _COMMUNITY_EDGE_TYPES)
     rows = conn.execute(
         f"""
-        SELECT src_id, dst_id, storage_strength FROM edge
+        SELECT src_id, dst_id, storage_strength, provenance FROM edge
         WHERE type IN ({placeholders}) AND dangling = 0 AND dst_id IS NOT NULL
         """,
         _COMMUNITY_EDGE_TYPES,
     ).fetchall()
     edges = [
-        (r["src_id"], r["dst_id"], max(float(r["storage_strength"]), _COMMUNITY_WEIGHT_FLOOR))
+        (
+            r["src_id"],
+            r["dst_id"],
+            edge_weight_mod.effective_strength(
+                float(r["storage_strength"]), r["provenance"], cfg.declared_edge_strength
+            ),
+        )
         for r in rows
     ]
 
@@ -580,7 +592,7 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
         # spec §2.6 step 9: recompute communities -- leiden if available,
         # else label_propagation (AC-022). Runs *after* step 8 so the
         # community graph can see the kNN edges it just derived.
-        detector_name = _compute_communities(conn)
+        detector_name = _compute_communities(conn, cfg)
 
         durable_mod.write_schema_meta(conn, "last_sync", _now())
 

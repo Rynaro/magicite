@@ -68,7 +68,13 @@ CREATE TABLE IF NOT EXISTS edge (                                -- Tier B + dec
   dst_id           TEXT REFERENCES engram(id) ON DELETE SET NULL,
   type             TEXT NOT NULL CHECK (type IN
                      ('co_activation','composes','depends_on','similar_to','inhibits')),
-  storage_strength REAL NOT NULL DEFAULT 0.0,      -- S_edge
+  storage_strength REAL NOT NULL DEFAULT 0.0,      -- S_edge: the LEARNED
+                                                    -- channel ONLY. A declared
+                                                    -- edge stays at 0.0 here
+                                                    -- forever; its routing
+                                                    -- weight is computed, never
+                                                    -- stored (DECLARED-EDGES-
+                                                    -- AMENDED, spec §3.3.1).
   s_decayed_at     TEXT NOT NULL,
   evidence_count   INTEGER NOT NULL DEFAULT 0,
   provenance       TEXT NOT NULL CHECK (provenance IN ('declared','learned','distilled','derived')),

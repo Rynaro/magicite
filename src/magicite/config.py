@@ -56,20 +56,47 @@ class Config:
     # ── routing tunables (spec §3.3) ────────────────────────────────────
     session_ttl_hours: float = 3.0
     temperature: float = 0.07
-    ppr_restart: float = 0.15
+    #: [DECLARED-EDGES-AMENDED 2026-08-15] was 0.15. MEASURED (70 engrams
+    #: / 210 pre-registered queries, one-Config-field-at-a-time sweep):
+    #: Hit@1 0.4619 -> 0.5476 (== embedding baseline (b)), Hit@3 0.7000 ->
+    #: 0.7476 (> (b)'s 0.7429), MRR 0.5913 -> 0.6398. At 0.15, 85% of
+    #: activation mass diffused along the derived similar_to kNN edges --
+    #: spread reflecting neighbourhood mass, not query match. Caveat
+    #: (spec R12): measured on the graph *before* declared edges carried
+    #: mass; re-measure after §3.3.1 lands (MO-1).
+    ppr_restart: float = 0.85
     ppr_max_iter: int = 20
     ppr_tol: float = 1e-4
     hub_penalty: float = 0.15
     inhib_gain: float = 0.7
     context_gain: float = 0.20
     pref_gain: float = 0.10
+    #: [DECLARED-EDGES-AMENDED 2026-08-15] was 0.30/0.15. PRECAUTIONARY
+    #: PENDING FURTHER EXPERIMENT, not a measured optimum (spec §3.3.1
+    #: "Routing defaults changed on evidence"): w_retrieval=0.15 has one
+    #: strong measurement against it (held-out Hit@1 0.4697 -> 0.1061
+    #: under an oracle teacher, a 3.6x collapse) and zero measurements
+    #: ever for it, on a uniform-demand workload that makes a popularity
+    #: prior maximally uninformative. w_activation is unchanged; the four
+    #: still sum to 1.00.
     w_activation: float = 0.45
-    w_similarity: float = 0.30
-    w_retrieval: float = 0.15
+    w_similarity: float = 0.40
+    w_retrieval: float = 0.05
     w_excitability: float = 0.10
     type_gain: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_TYPE_GAIN))
     plan_max_depth: int = 5
     plan_max_size: int = 8
+    #: spec §3.3.1 (DECLARED-EDGES-AMENDED, 2026-08-15): an edge's routing
+    #: weight has two channels -- S_eff(edge) = max(edge.storage_strength,
+    #: w_authored(edge)) -- and this is the authored channel's magnitude
+    #: for a `provenance='declared'` edge (needs/composes/inhibits).
+    #: Computed at read by core/edge_weight.py::effective_strength, never
+    #: stored. 1.0 is not a new magic number: at S_eff=1.0,
+    #: S_eff*type_gain[type] IS type_gain[type], the knob that already
+    #: expresses relative weighting among declared edge types. 0.0 is an
+    #: EXACT, bit-for-bit revert to pre-amendment behaviour (AC-039) --
+    #: one config line, ablation-switchable, [routing] in magicite.toml.
+    declared_edge_strength: float = 1.0
 
     # ── graph index build (spec §2.6 steps 8-9) ─────────────────────────
     similar_to_top_m: int = 5

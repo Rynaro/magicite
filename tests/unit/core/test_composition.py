@@ -117,17 +117,50 @@ def test_expand_respects_max_size(synthetic_conn) -> None:
 def test_plan_confidence_single_node_plan_is_one(synthetic_conn) -> None:
     _insert_engram(synthetic_conn, "egr_a", "a")
     plan = composition_mod.expand(synthetic_conn, "egr_a", "a")
-    assert composition_mod.plan_confidence(synthetic_conn, "egr_a", plan) == 1.0
+    assert composition_mod.plan_confidence(plan) == 1.0
 
 
 def test_plan_confidence_reflects_dangling_ratio(synthetic_conn) -> None:
+    """[DECLARED-EDGES-AMENDED 2026-08-15] plan_confidence is now
+    structural (spec §3.3 step 10, decisions/DECLARED-EDGES-AMENDED.md
+    §5): |E_sat| / |E|, never Hebbian. E = the winner's two declared
+    depends_on edges (a->b resolved, a->missing dangling); E_sat = {a->b}
+    (it resolves, appears in order, and order respects it) -> 1/2 = 0.5.
+    Was 0.4 under the pre-amendment mean(S_edge) * (resolved/declared)
+    formula -- that formula is gone (S_edge over always-declared plan
+    edges was a structural constant, not real information); this test is
+    not one of the frozen AC-001..033 anchors, so it is updated to the
+    amended, spec-mandated formula rather than left proving stale
+    behaviour."""
     _insert_engram(synthetic_conn, "egr_a", "a")
     _insert_engram(synthetic_conn, "egr_b", "b")
     _insert_edge(synthetic_conn, "egr_a", "b", "egr_b", "depends_on", 0.8)
     _insert_edge(synthetic_conn, "egr_a", "missing", None, "depends_on", 0.0)
 
     plan = composition_mod.expand(synthetic_conn, "egr_a", "a")
-    confidence = composition_mod.plan_confidence(synthetic_conn, "egr_a", plan)
-    # 1 of 2 declared deps resolved -> ratio 0.5; mean S_edge over the plan
-    # edge that actually gates ordering (a<-b, S=0.8) -> 0.8 * 0.5 = 0.4.
-    assert confidence == 0.4
+    confidence = composition_mod.plan_confidence(plan)
+    assert confidence == 0.5
+
+
+def test_cycle_break_is_deterministic(synthetic_conn) -> None:
+    """AC-042: GIVEN a composition cycle whose candidate edges all share
+    the same effective strength (every declared edge ties at
+    declared_edge_strength=1.0 by default, spec §3.3.1 -- S_edge=0.0 here
+    for all three, same as production before any Dream potentiation)
+    WHEN the plan is expanded twice over the same registry THEN the two
+    composition_plan orders SHALL be identical. The (S_eff, dep_name,
+    dependent_name) total order (spec §3.3 step 9), not dict-iteration
+    order, decides the break -- before this amendment every candidate
+    tied at 0.0 and "weakest" degenerated to iteration order."""
+    _insert_engram(synthetic_conn, "egr_a", "a")
+    _insert_engram(synthetic_conn, "egr_b", "b")
+    _insert_engram(synthetic_conn, "egr_c", "c")
+    _insert_edge(synthetic_conn, "egr_a", "b", "egr_b", "depends_on", 0.0)
+    _insert_edge(synthetic_conn, "egr_b", "c", "egr_c", "depends_on", 0.0)
+    _insert_edge(synthetic_conn, "egr_c", "a", "egr_a", "depends_on", 0.0)
+
+    first = composition_mod.expand(synthetic_conn, "egr_a", "a")
+    second = composition_mod.expand(synthetic_conn, "egr_a", "a")
+
+    assert first.cycle_broken is True
+    assert first.order == second.order

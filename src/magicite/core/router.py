@@ -6,23 +6,34 @@ AC-024 (statically enforced by ``tests/unit/test_p0_enforcement.py``):
 this module MUST NOT import ``magicite.storage.durable`` or
 ``magicite.engram.writer`` -- ``route()`` is a hot-path, read-mostly tool
 (the only durable write it ever performs is Tier-C bookkeeping via plain
-``eph_*`` tables, spec §3.3 step 11).
+``eph_*`` tables, spec §3.3 step 11). ``core/edge_weight.py`` is
+framework-free (no DB handle, no forbidden import) so this module may
+import it freely -- it is the one place an edge's routing weight
+(``S_eff``, spec §3.3.1) is derived from ``edge.storage_strength``
+(AC-040).
 
 **Two judgment calls worth flagging explicitly** (the spec text is not
 fully self-contained on either):
 
-1. *Hub-penalty "usage PageRank"* (step 7): S_edge starts at 0.0 for every
-   freshly-``declared`` edge (spec §2.6 step 4 -- Hebbian strength is
-   earned, not assumed) and nothing potentiates it until Dream exists
-   (M4). Weighting the hub-detection PageRank by S_edge would therefore
-   make the hub penalty permanently inert on any registry that has never
-   been through a consolidation run -- which defeats the "black-hole hub"
-   protection it exists for (docs/03). This module instead computes a
-   *structural* PageRank -- edge weight = ``type_gain`` only, ignoring
-   S_edge -- as an honest until-Dream-exists proxy; ``core/activation.py
-   ::page_rank`` is the shared power-iteration primitive either metric
-   would use, so nothing here is thrown away once M4 wires real
-   usage-weighted edges in.
+1. *Hub-penalty "usage PageRank"* (step 7) -- **DELIBERATELY NOT REWIRED
+   by DECLARED-EDGES-AMENDED (2026-08-15).** This module computes a
+   *structural* PageRank for hub detection -- edge weight = ``type_gain``
+   only, ignoring both ``S_edge`` and its ``S_eff`` successor.
+   Originally that was because S_edge starts at 0.0 for every
+   freshly-``declared`` edge and nothing potentiated it until Dream
+   existed (M4), which would have made the hub penalty permanently inert
+   pre-consolidation; that specific reason is now obsolete (§3.3.1 gives
+   every declared edge a nonzero ``S_eff`` from the moment it is
+   registered). The **restated** reason: this is deliberately a
+   *structural* centrality metric, not a usage-weighted one, and it is
+   the one graph mechanism the benchmark measured to help (+0.0286 Hit@1,
+   +0.0362 MRR on 70 engrams / 210 queries) -- rewiring a measured-good
+   component onto an unmeasured hunch is not warranted here. Whether it
+   should instead be weighted by *learned* topology is an open experiment
+   (FORGE's D3, decisions/DECLARED-EDGES-AMENDED.md CF-4).
+   ``core/activation.py::page_rank`` is the shared power-iteration
+   primitive either metric would use, so nothing here is thrown away if
+   D3 later wires a usage-weighted variant in.
 2. *"pitfalls declare that fault_class"* (step 7b, ``recent_failures``):
    the DDL (spec §2.2) has no ``engram_pitfall`` table at all -- the only
    durable ``fault_class`` column lives on ``engram_step`` (Procedure
@@ -44,6 +55,7 @@ import numpy as np
 from magicite.config import Config
 from magicite.core import activation as activation_mod
 from magicite.core import composition as composition_mod
+from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import session as session_mod
 from magicite.core.decay_math import effective_value
 from magicite.embeddings.base import Embedder
@@ -113,19 +125,34 @@ def _fetch_activation_edges(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     placeholders = ",".join("?" for _ in _ACTIVATION_EDGE_TYPES)
     return conn.execute(
         f"""
-        SELECT src_id, dst_id, type, storage_strength FROM edge
+        SELECT src_id, dst_id, type, storage_strength, provenance FROM edge
         WHERE type IN ({placeholders}) AND dangling = 0 AND dst_id IS NOT NULL
         """,
         _ACTIVATION_EDGE_TYPES,
     ).fetchall()
 
 
-def _fetch_inhibition_edges(conn: sqlite3.Connection) -> list[tuple[str, str, float]]:
+def _fetch_inhibition_edges(
+    conn: sqlite3.Connection, *, declared_edge_strength: float
+) -> list[tuple[str, str, float]]:
+    """spec §3.3 step 5: ``(src_j, dst_i, S_eff_ji)`` triples -- ``S_eff``,
+    NOT the raw ``storage_strength`` column (§3.3.1 call site 2): a
+    declared ``inhibits`` edge must scale the inhibited node's activation
+    even though it is never Hebbian-potentiated."""
     rows = conn.execute(
-        "SELECT src_id, dst_id, storage_strength FROM edge "
+        "SELECT src_id, dst_id, storage_strength, provenance FROM edge "
         "WHERE type = 'inhibits' AND dangling = 0 AND dst_id IS NOT NULL"
     ).fetchall()
-    return [(r["src_id"], r["dst_id"], float(r["storage_strength"])) for r in rows]
+    return [
+        (
+            r["src_id"],
+            r["dst_id"],
+            edge_weight_mod.effective_strength(
+                float(r["storage_strength"]), r["provenance"], declared_edge_strength
+            ),
+        )
+        for r in rows
+    ]
 
 
 def _apply_context_conditioning(
@@ -289,10 +316,20 @@ def route(
     # step 3: p = softmax(cos_sim(seeds) / temperature)
     p = activation_mod.softmax_personalization(node_ids, seed_cos, temperature=cfg.temperature)
 
-    # step 4: a = PPR(p, W, ...), W_ij = S_edge_ij * type_gain[type]
+    # step 4: a = PPR(p, W, ...), W_ij = S_eff_ij * type_gain[type] (§3.3.1
+    # call site 1: S_eff, NOT the raw storage_strength column -- a
+    # declared composes/depends_on edge must be present in the graph at
+    # declared_edge_strength * type_gain[type], not dropped as w<=0).
     edge_rows = _fetch_activation_edges(conn)
     activation_edges = [
-        (r["src_id"], r["dst_id"], float(r["storage_strength"]) * cfg.type_gain.get(r["type"], 0.0))
+        (
+            r["src_id"],
+            r["dst_id"],
+            edge_weight_mod.effective_strength(
+                float(r["storage_strength"]), r["provenance"], cfg.declared_edge_strength
+            )
+            * cfg.type_gain.get(r["type"], 0.0),
+        )
         for r in edge_rows
     ]
     graph = activation_mod.build_graph(node_ids, activation_edges)
@@ -300,9 +337,13 @@ def route(
         graph, p, restart=cfg.ppr_restart, max_iter=cfg.ppr_max_iter, tol=cfg.ppr_tol
     )
 
-    # step 5: inhibition
+    # step 5: inhibition (§3.3.1 call site 2: S_eff directly, never x
+    # type_gain -- type_gain['inhibits']=0.0 by design)
     a = activation_mod.apply_inhibition(
-        a, node_ids, _fetch_inhibition_edges(conn), inhib_gain=cfg.inhib_gain
+        a,
+        node_ids,
+        _fetch_inhibition_edges(conn, declared_edge_strength=cfg.declared_edge_strength),
+        inhib_gain=cfg.inhib_gain,
     )
 
     # step 6: weighted score
@@ -372,10 +413,15 @@ def route(
     if candidates:
         winner = candidates[0]
         plan = composition_mod.expand(
-            conn, winner.id, winner.name, max_depth=cfg.plan_max_depth, max_size=cfg.plan_max_size
+            conn,
+            winner.id,
+            winner.name,
+            max_depth=cfg.plan_max_depth,
+            max_size=cfg.plan_max_size,
+            declared_edge_strength=cfg.declared_edge_strength,
         )
         composition_plan = plan.order
-        plan_confidence = composition_mod.plan_confidence(conn, winner.id, plan)
+        plan_confidence = composition_mod.plan_confidence(plan)
 
     # step 11: Tier-C bookkeeping ONLY -- R and S are never touched here (Principle 1).
     for c in candidates:

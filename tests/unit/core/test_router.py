@@ -90,7 +90,16 @@ def test_hub_penalty_dampens_a_structural_hub(cfg, db_conn, embedder) -> None:
     but named explicitly in the M2 story action plan ("hub penalty
     applies"): a node with many incoming composes edges should score
     lower with the penalty active than with it switched off, all else
-    identical."""
+    identical.
+
+    [DECLARED-EDGES-AMENDED 2026-08-15] ``k`` widened from 1 to cover the
+    whole registry: at the amendment's own measured ``ppr_restart=0.85``
+    default (spec §3.3.1 "Routing defaults changed on evidence"), PPR
+    diffuses far less mass through the hub's incoming ``composes`` edges,
+    so ``hub`` is no longer guaranteed to be the single top-ranked
+    candidate -- an effect of the *unrelated* restart-value change, not
+    of this test's own hub-penalty comparison (which is unaffected by
+    ``k`` as long as ``hub`` is present in both candidate lists)."""
     _insert_engram(db_conn, "egr_hub", "hub")
     _embed_and_store(db_conn, embedder, "egr_hub", "shared text")
     n_spokes = 40
@@ -100,12 +109,14 @@ def test_hub_penalty_dampens_a_structural_hub(cfg, db_conn, embedder) -> None:
         _embed_and_store(db_conn, embedder, spoke_id, "shared text")
         _insert_edge(db_conn, spoke_id, "hub", "egr_hub", "composes", 1.0)
 
+    k = n_spokes + 1
+
     cfg.hub_penalty = 0.0
-    unpenalized = router_mod.route(cfg, db_conn, embedder, query="shared text", k=1)
+    unpenalized = router_mod.route(cfg, db_conn, embedder, query="shared text", k=k)
     hub_score_unpenalized = next(c.score for c in unpenalized.candidates if c.name == "hub")
 
     cfg.hub_penalty = 0.15
-    penalized = router_mod.route(cfg, db_conn, embedder, query="shared text", k=1)
+    penalized = router_mod.route(cfg, db_conn, embedder, query="shared text", k=k)
     hub_score_penalized = next(c.score for c in penalized.candidates if c.name == "hub")
 
     assert hub_score_penalized < hub_score_unpenalized

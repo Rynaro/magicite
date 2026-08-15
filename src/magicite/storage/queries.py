@@ -18,6 +18,7 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from magicite.core import edge_weight as edge_weight_mod
 from magicite.core.decay_math import effective_value
 
 
@@ -51,7 +52,12 @@ def registry_summary(conn: sqlite3.Connection, *, embedding_model: str, autonomo
     }
 
 
-def skill_detail(conn: sqlite3.Connection, skill_id_or_name: str) -> dict[str, Any] | None:
+def skill_detail(
+    conn: sqlite3.Connection,
+    skill_id_or_name: str,
+    *,
+    declared_edge_strength: float = edge_weight_mod.DEFAULT_DECLARED_EDGE_STRENGTH,
+) -> dict[str, Any] | None:
     row = conn.execute(
         "SELECT * FROM engram WHERE id = ? OR name = ?", (skill_id_or_name, skill_id_or_name)
     ).fetchone()
@@ -69,6 +75,18 @@ def skill_detail(conn: sqlite3.Connection, skill_id_or_name: str) -> dict[str, A
         "WHERE edge.dst_id = ? ORDER BY edge.type, e.name",
         (row["id"],),
     ).fetchall()
+
+    def _edge_dict(e: sqlite3.Row) -> dict[str, Any]:
+        # spec §3.3.1 call site 6 / AC-041: additive `effective_strength`
+        # field alongside the still-raw, still-learned-only
+        # `storage_strength` -- neither tool is added, removed nor
+        # re-signatured (AC-003/INV-4 untouched).
+        d = dict(e)
+        d["effective_strength"] = edge_weight_mod.effective_strength(
+            float(e["storage_strength"]), e["provenance"], declared_edge_strength
+        )
+        return d
+
     journal = conn.execute(
         "SELECT version, ts AS timestamp, author, event, note FROM engram_journal "
         "WHERE engram_id = ? ORDER BY version",
@@ -92,8 +110,8 @@ def skill_detail(conn: sqlite3.Connection, skill_id_or_name: str) -> dict[str, A
             "exposure_count": row["exposure_count"],
             "outcome": {"success": row["success_count"], "failure": row["failure_count"]},
         },
-        "outbound_edges": [dict(e) for e in outbound],
-        "inbound_edges": [dict(e) for e in inbound],
+        "outbound_edges": [_edge_dict(e) for e in outbound],
+        "inbound_edges": [_edge_dict(e) for e in inbound],
         "history": [dict(h) for h in journal],
         "silent_engram_flag": silent,
         "tier_state": {
