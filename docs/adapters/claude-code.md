@@ -2,7 +2,7 @@
 
 **Status:** v1, M3. **Normative source:** `docs/05-protocol-and-signals.md`
 §"Tier-2: Host Adapter Matrix" and §"Signal Fidelity Model: The Three-Tier
-Ladder"; `.spectra/changes/magicite-v1-implementation/spec.md` §3.3 (`signal_use`/
+Ladder"; `.spectra/changes/archive/2026-08-15-magicite-v1-implementation/spec.md` §3.3 (`signal_use`/
 `signal_outcome`) and §6.2 (the P0 enforcement point). This document does not
 redefine anything those two sources already say — it is the concrete,
 copy-pasteable configuration for one specific host.
