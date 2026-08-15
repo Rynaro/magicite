@@ -94,12 +94,30 @@ We propose **skills as learnable, trace-refined artifacts**:
 
 Each gap maps to a falsifiable hypothesis tested in **doc 07 (Evaluation)**:
 
-| ID | Hypothesis | Prediction | Test |
-|---|---|---|---|
-| **H-BODY** | Body-aware seeding (embedding + content) beats description-only routing | Hit@1 gain of ≥20pp vs native SKILL.md matching on a SkillsBench-derived benchmark | Baseline (a) vs (b) in doc 07 ablation |
-| **H-SCALE** | Leiden-hierarchical routing flattens the log-decay curve | Routing accuracy vs registry size becomes sub-logarithmic (slopes drops by ≥50%) as community structure is added | Baseline (c) vs (d) in ablation suite |
-| **H-COMPOSE** | Topological plan expansion improves compositional task success | CompSkillBench-style 2–5 step compositional queries have higher end-to-end success when router returns ordered compositions vs single-skill picks | Plan F1 measurement (doc 07) |
-| **H-LEARN** | Outcome-gated plasticity + Dream consolidation improve routing over time | Hit@k after N session-cycles exceeds Hit@k after 1 cycle (learning gain ≥10pp), with stability measured by ablation on decay rates | Longitudinal benchmark: frozen weights vs active learning (doc 07) |
+| ID | Hypothesis | Prediction | Result (2026-08-15, 70 engrams / 210 queries) | Status |
+|---|---|---|---|---|
+| **H-BODY-a** | Body-aware embedding beats description-only lexical routing | Hit@1 gain ≥20pp | **+14.3pp Hit@1** (0.5476 vs 0.4048), 95% CI [+6.7, +21.9], exact McNemar p = 0.00064 | **SUPPORTED (direction).** The registered ≥20pp effect size is **not demonstrated**; the CI does not exclude it. |
+| **H-BODY-b** | Graph- and learning-aware routing beats naive baselines | (d) > (c) > (b) > (a) | Observed **(b) > (d) ≈ (c) > (a)**. (d) − (b) = −0.0857, p = 0.00053. (d) − (a) **not significant** (p = 0.19). (d) − (c) nil (p = 1.0). | **FALSIFIED as implemented.** |
+| **H-SCALE** (mechanism) | Leiden community rerank contributes to ranking | ablation shows a loss | ΔHit@3 = **0.0000**, ΔMRR = **+0.0005**, with 5 real communities (19/19/13/11/8) | **FALSIFIED at 70 skills.** |
+| **H-SCALE** (claim) | Hierarchy flattens the log-decay curve | slope drops ≥50% | one unreplicated crossing between 40 and 70 engrams on a 39-query slice (SE ≈ 0.08); does not replicate on 120 queries | **INCONCLUSIVE — unevidenced in both directions.** |
+| **H-COMPOSE** | Topological plan expansion improves compositional success | Plan F1 gain | **No compositional queries were run** (0 of the ≥20 docs/07 requires). Plan F1 as implemented is a monotone re-encoding of Hit@1. | **UNTESTED.** |
+| **H-LEARN** | Outcome-gated plasticity improves routing over time | Hit@k gain ≥10pp after N cycles | Under an **oracle** teacher, held-out Hit@1 fell **0.4697 → 0.1061**; train-split Hit@1 fell 0.4583 → 0.2847 | **FALSIFIED as implemented, under uniform demand.** Direction is opposite to the prediction. |
+
+### What the Evidence Licenses
+
+These results come from a single benchmark authored by one agent (corpus and queries by the same author, single annotator, one embedder, uniform learning workload, no `context` conditioning). The paired ordering results and the within-system component sweep are robust to that authorship bias — the bias applies equally to every arm. The absolute Hit@k levels are not. H-SCALE and H-COMPOSE remain open questions, not settled negatives.
+
+### Falsification Record (2026-08-15)
+
+Four load-bearing negatives were found and are recorded below to preserve accurate falsification history:
+
+- **The activation graph, on any registry that has not been through Dream, contains only derived `similar_to` kNN edges:** declared `composes`/`depends_on`/`inhibits` edges are written at `S_edge = 0.0` (hardcoded in `durable.py:203`) and Dream potentiates only `co_activation` edges (`dream.py:194`, `signals.py:154-160`). Spreading activation therefore re-derives the cosine signal already scored at `w_similarity`, and contributes the entire (c)/(d) deficit versus (b) in the benchmark. `ppr_restart = 0.85` or `w_activation = 0` recovers (b)-level accuracy (scale-benchmark §6).
+
+- **Declared `inhibits` edges have never had any effect** in production use, for the same reason. Inhibition scales by `S_edge` in `activation.py:144-167`; with `S_edge = 0.0` on all declared edges, all 11 `inhibits` relations in the 70-engram registry remain inert. (scale-benchmark §6, component sweep).
+
+- **Retrieval strength `R` is an unconditioned popularity prior** entering the score at 63% the amplitude of the query-conditioned similarity signal (scale-benchmark §5c: w_retrieval · R spread = 0.0354 vs w_similarity · cosine spread = 0.0561), with no calibration and no misalignment detector. The hub penalty, the mechanism meant to prevent hub capture, is computed on a *structural* PageRank (`router.py:14-25`) and is blind to learned hubs by construction. (scale-benchmark §5b–c).
+
+- **No offline benchmark can exercise Magicite's learning without faking the clock.** `compute_eta_eff_untiered` gates every weight change on a ~6h spacing term and pins first observations at spacing 0.0; 144 real production-path turns produced `committed_nodes: 0, committed_edges: 0`. Two observations of the same engram must be ≥ ~54 minutes apart to move any weight. (scale-benchmark §5a).
 
 ---
 
@@ -128,7 +146,7 @@ Every routing decision is logged and audited; **retrieval strength (R) moves onl
 ## Open Questions
 
 1. **How does plasticity degrade gracefully on hookless hosts?** (Addressed in doc 05: Tier-0 passive inference + Tier-1 tool-mediated self-report are both valid learning channels; outcome capture simply slows. Not dead.)
-2. **Will outcome signals from average agents be too noisy to drive learning?** (Mitigation: two-phase commit + metaplastic saturation + per-tier signal caps. Measurement required in doc 07.)
+2. **Will outcome signals from average agents be too noisy to drive learning?** Measured 2026-08-15: with a perfect (oracle) teacher and zero signal noise, held-out routing still degraded 3.6× on Hit@1. Signal noise was never the binding constraint; the score-combination rule is.
 3. **Does Leiden hierarchical routing scale efficiently at 10³–10⁵ nodes?** (Deferred to implementation; the algorithm is linear-time. If needed, exact Leiden is replaced with approximate/approximate community detection.)
 
 ---

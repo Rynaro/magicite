@@ -13,10 +13,7 @@ learning, and consolidation all happen inside your own project, offline.
 for the normative construction spec and `docs/` for the design corpus
 (start at `docs/01-vision-and-hypotheses.md`).
 
-**Honest limits, up front (docs/07, risk R9):** under roughly 50 skills,
-native `SKILL.md` matching is competitive on its own and Magicite's routing
-machinery is largely overhead. `magicite doctor` says so explicitly rather
-than staying quiet about it — see [§ Diagnostics](#diagnostics-magicite-doctor).
+**Honest limits, up front (docs/01 Falsification Record, measured 2026-08-15):** At 70 skills with lexically independent queries, plain dense-embedding retrieval (baseline b: Hit@1 0.5476) outperforms the full Magicite pipeline (baseline d: Hit@1 0.4619, p = 0.00053). Full Magicite is not significantly better than native lexical matching (p = 0.19). The predicted ~50-skill break-even where Magicite's routing machinery should "pay off" remains **unevidenced** — a single unreplicated crossing on a 39-query core slice does not sustain that claim. *Caveats: these results come from a single-author corpus and queries, single annotator, single embedder (bge-small-en-v1.5), and uniform learning workload; see docs/01 "What the evidence licenses" for limitations and docs/07 §5–§6 for the mechanism.* Magicite ships as a **verified skill router with a portable format, lifecycle governance, and composition-plan expansion, whose graph and learning layers are not yet demonstrated to improve routing** — and whose actual design claim (spreading activation over declared edges, not re-derived embeddings) has never been tested. `magicite doctor` reports your registry size and flags the cold-start case, but its note still cites the ~50-skill break-even as established; that predates this measurement and overstates the evidence, and is tracked for correction — see [§ Diagnostics](#diagnostics-magicite-doctor).
 
 ## Quickstart — Docker (recommended)
 

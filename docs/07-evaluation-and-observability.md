@@ -130,6 +130,7 @@ Test the cumulative effect of each design decision:
 - Outcome-gated updates + Dream consolidation
 - Hook signals (Tier-2) if available; fall back to Tier-1 / Tier-0
 - **Hypothesis:** This is the best (validates H-LEARN)
+- **Measured outcome (2026-08-15, 70 engrams/210 queries):** (d) Hit@1 0.4619 vs (b) 0.5476, a loss of −0.0857 (p = 0.00053). (d) − (c) = +0.0048 (p = 1.0, not significant). The predicted "best" is below the embedding baseline and indistinguishable from the graph-only baseline (scale-benchmark §1).
 
 ---
 
@@ -144,6 +145,9 @@ Test the cumulative effect of each design decision:
 
 #### Composition Metrics (for multi-step tasks)
 - **Plan F1:** Precision & recall of the skill sequence (correct skills in correct order)
+
+  **Validity limitation (2026-08-15).** As implemented (`eval/bench.py`), the expected plan is `composition.expand(expected_top1)` and the predicted plan is `composition.expand(ranked[0])` — the same function for every baseline. Plan F1 is therefore a monotone re-encoding of Hit@1 plus closure-overlap noise (measured offsets: +0.023 / +0.024 / +0.025 / +0.038 for a/b/c/d). **It does not measure composition quality and must not be cited as evidence for H-COMPOSE.** Testing H-COMPOSE requires the ≥20 genuinely multi-step queries this section already specifies and that no benchmark has yet supplied.
+
 - **Plan Success Rate:** Did the composed plan achieve the task goal?
 
 #### Efficiency Metrics
@@ -173,6 +177,12 @@ Expected result (from FINDING-005):
 - (b) is +15–20pp over (a)
 - (c) is +5–10pp over (b)
 - (d) is +10–20pp over (c), validating H-LEARN
+
+**Measured result (2026-08-15, 70 engrams/210 queries):**
+- (a) Hit@1 0.4048 (status quo confirmed as lowest)
+- (b) Hit@1 0.5476 — **(+14.3pp over a**, within the +15–20pp range for (b))
+- (c) Hit@1 0.4571 — **(−0.0905 vs b**, rather than +5–10pp; falls within embedding baseline)
+- (d) Hit@1 0.4619 — **(+0.0048 vs c**, p = 1.0, not significant; **−0.0857 vs b**, p = 0.00053, the **opposite** of the prediction). H-LEARN is **not validated**; see scale-benchmark §5 and Falsification Record in docs/01 (scale-benchmark §1).
 ```
 
 **Phase 2: Online Learning (Ablations)**
@@ -182,7 +192,7 @@ Test specific design choices:
 | Ablation | Change | Hypothesis |
 |---|---|---|
 | No decay | Set λ_R = λ_S = 0 | Without forgetting, old signals dominate; accuracy plateaus or degrades |
-| No tag-capture | Learn on hot path (every signal) | Noisy single-session signals → instability, overfitting |
+| No tag-capture | Learn on hot path (every signal), query-independent global bump | Noisy single-session signals → instability, overfitting |
 | No communities | Flat routing (no Leiden) | Accuracy vs registry size degrades logarithmically (H-SCALE predicts this) |
 | No inhibition | Remove learned inhibits edges | False positives (two similar skills both returned) increase |
 | No behavioral tagging | Credit only direct, explicit skills | Composite-skill detection fails; lower plan F1 |
@@ -193,6 +203,14 @@ Test specific design choices:
 2. Test on test set
 3. Compare Hit@k, MRR, F1 vs baseline (d)
 4. Measure Δaccuracy (degradation if ablation is important)
+
+### Correction: `no_tag_capture` Withdrawal (2026-08-15)
+
+`ablations.run_no_tag_capture` re-sorts the entire candidate list by a **query-independent** global bump (`bumps[expected_top1] += eta` over the train split), so top-1 becomes whichever engram had the most training labels, for *every* test query. Its −0.6061 ΔHit@3 and its Hit@1 of exactly 0.0000 are the signature of that degeneracy, not evidence about hot-path learning stability. **This ablation is a strawman as written and does not support Principle 0.** A prior FORGE verdict cited it as vindicating the two-phase-commit design; that citation is withdrawn. A valid test requires the ablated learner to be query-conditioned.
+
+### Correction: `no_communities` Mechanism (2026-08-15)
+
+The toy-scale "only 2 communities existed" explanation is retired: at 70 skills with 5 non-trivial Leiden communities (19/19/13/11/8), the delta is still 0.0000 Hit@3 / +0.0005 MRR — and the sign is that *removing* the rerank marginally helps. The mechanism: `_community_rerank` (`router.py:192-224`) keeps the **top-2** communities by `max + 0.25·mean`. With 5 communities and k = 5, the top-2 communities almost always already contain the global top-5, so the filter is a no-op by construction — it cannot bind at this k/N ratio.
 
 ---
 
@@ -317,7 +335,9 @@ S < 0.3:  nascent/failed (target: <10% of registry)
 
 3. **Cold start.** New skills route via similarity edges + excitability bonus until usage data accrues. Expect ~3–5 sessions to stabilize, not zero-shot parity. Reflected in the nascent→probation→consolidated progression.
 
-4. **Scale ceiling of the analogy.** At 10³ nodes, all computation is trivial (PPR, Leiden are linear-time). The neuroscience analogies buy *dynamics* (plasticity, two-tier learning), not capacity. **If the registry stays under ~50 skills, native SKILL.md matching is fine and Magicite is overhead.** The engine pays off exactly where the scaling law says native routing breaks (H-SCALE).
+4. **Scale ceiling — measured update (2026-08-15).** At 70 skills with lexically independent queries, plain dense-embedding retrieval is the strongest router in this codebase, and the full pipeline is significantly *worse* than it (−0.0857 Hit@1, p = 0.00053). The claim that the engine "pays off exactly where native routing breaks" is **not evidenced at any size tested (13, 40, 70)**. Native lexical matching does degrade fastest with scale (0.4872 → 0.2051 across 13 → 70), which is the one clean scaling prediction confirmed — but the beneficiary is the embedding baseline, not the graph.
+
+5. **Offline unobservability of learning.** `compute_eta_eff_untiered` gates every weight change on a ~6h spacing term and pins first observations at spacing 0.0; 144 real production-path turns produced `committed_nodes: 0, committed_edges: 0`. Two observations of the same engram must be ≥ ~54 minutes apart to move any weight. This is a property of the design, not the benchmark. No offline test can exercise Magicite's learning without faking the clock.
 
 ---
 
@@ -327,10 +347,11 @@ S < 0.3:  nascent/failed (target: <10% of registry)
 
 | Element | Confidence | Test | Owner |
 |---|---|---|---|
-| H-BODY (body content improves routing) | 85% | Baseline (b) vs (a); SkillsBench-compatible benchmark | Eval phase 1 |
-| H-SCALE (hierarchy flattens log-decay) | 88% | Baseline (d) Hit@k vs registry size; compare to ablation "no communities" | Eval phase 1 + 2 |
-| H-COMPOSE (composition planning works) | 82% | Plan F1 metric on CompSkillBench-style queries | Eval phase 1 |
-| H-LEARN (plasticity improves routing) | 86% | Baseline (d) learning curve; ablation "no tag-capture" | Eval phase 1 + 2 |
+| H-BODY-a (embedding beats lexical) | 88% | **SUPPORTED (direction).** +14.3pp Hit@1 (95% CI [+6.7, +21.9], p = 0.00064); registered ≥20pp effect size not demonstrated. | Measured 2026-08-15 |
+| H-BODY-b (graph/learning beats naive) | 90% | **FALSIFIED as implemented.** (b) > (d) ≈ (c) > (a), design predicts d > c > b > a. Spreading-activation term and inert declared edges. | Measured 2026-08-15 |
+| H-SCALE (hierarchy flattens log-decay) | 75% | **INCONCLUSIVE.** One unreplicated crossing (40–70 engrams, 39-query slice SE ≈ 0.08); does not replicate on 120 queries. Mechanism falsified at 70 skills (ΔHit@3 = 0.0000 with 5 communities). | Measured 2026-08-15 |
+| H-COMPOSE (composition planning works) | 92% | **UNTESTED.** Zero compositional queries run (0 of ≥20 docs/07 requires); Plan F1 is a monotone re-encoding of Hit@1. | Measured 2026-08-15 |
+| H-LEARN (plasticity improves routing) | 90% | **FALSIFIED as implemented under uniform demand.** Held-out Hit@1 fell 0.4697 → 0.1061 under oracle teacher; train Hit@1 fell 0.4583 → 0.2847. Unconditioned `R` prior at 63% query-signal amplitude. | Measured 2026-08-15 |
 | D1 (Three-tier state model) | 85% | Verify no weight loss on rebuild; test Tier B edge persistence | Integration test |
 | D2 (Local-first core, deployment profile) | 88% | Stdio/SQLite implementation; verify tool contracts are transport-agnostic | Implementation test |
 | D3 (Tier-0/1/2 signal fidelity) | 82% | Per-tier signal-yield measurement; Tier-0 works on hookless hosts | Eval + integration |
