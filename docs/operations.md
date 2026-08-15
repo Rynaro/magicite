@@ -221,9 +221,12 @@ Operational guidance:
   `doctor` rather than restated. That ~50-skill number is reported as a
   cold-start **reference size**, not an established break-even: docs/01's
   Falsification Record (measured 2026-08-15) tested a 70-skill registry —
-  above it — and found plain dense-embedding retrieval still beat the full
-  pipeline (p=0.00053), so crossing 50 is never reported as evidence that
-  hierarchy-aware routing has started paying for itself.
+  above it — and found plain dense-embedding retrieval still ahead of the
+  full pipeline (0.5476 vs 0.5333 Hit@1; a 3-query gap that is statistically
+  indistinguishable, down from 18 queries at p=0.00053 before the
+  declared-edge and inhibition repairs). Crossing 50 is therefore never
+  reported as evidence that hierarchy-aware routing has started paying for
+  itself.
 
 ---
 

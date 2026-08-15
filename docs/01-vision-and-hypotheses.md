@@ -97,7 +97,7 @@ Each gap maps to a falsifiable hypothesis tested in **doc 07 (Evaluation)**:
 | ID | Hypothesis | Prediction | Result (2026-08-15, 70 engrams / 210 queries) | Status |
 |---|---|---|---|---|
 | **H-BODY-a** | Body-aware embedding beats description-only lexical routing | Hit@1 gain ≥20pp | **+14.3pp Hit@1** (0.5476 vs 0.4048), 95% CI [+6.7, +21.9], exact McNemar p = 0.00064 | **SUPPORTED (direction).** The registered ≥20pp effect size is **not demonstrated**; the CI does not exclude it. |
-| **H-BODY-b** | Graph- and learning-aware routing beats naive baselines | (d) > (c) > (b) > (a) | Observed **(b) > (d) ≈ (c) > (a)**. (d) − (b) = −0.0857, p = 0.00053. (d) − (a) **not significant** (p = 0.19). (d) − (c) nil (p = 1.0). | **FALSIFIED as implemented.** |
+| **H-BODY-b** | Graph- and learning-aware routing beats naive baselines | (d) > (c) > (b) > (a) | Observed **(b) > (d) > (c) > (a)**. (d) Hit@1 0.5333 vs (b) 0.5476: (d) − (b) = −0.0143, statistically indistinguishable (gap 3 queries; prior measurement 0.4619, gap 18 queries, p = 0.00053). (d) − (c) = 0.0047 (p not significant). (d) − (a) gain 0.1285 (p < 0.05). | **FALSIFIED as implemented.** Pipeline no longer actively hurts but does not beat dense-embedding baseline. Hit@3 open: (d) 0.7476 > (b) 0.7429 (pre-registered open question, not adopted per RC-5). |
 | **H-SCALE** (mechanism) | Leiden community rerank contributes to ranking | ablation shows a loss | ΔHit@3 = **0.0000**, ΔMRR = **+0.0005**, with 5 real communities (19/19/13/11/8) | **FALSIFIED at 70 skills.** |
 | **H-SCALE** (claim) | Hierarchy flattens the log-decay curve | slope drops ≥50% | one unreplicated crossing between 40 and 70 engrams on a 39-query slice (SE ≈ 0.08); does not replicate on 120 queries | **INCONCLUSIVE — unevidenced in both directions.** |
 | **H-COMPOSE** | Topological plan expansion improves compositional success | Plan F1 gain | **No compositional queries were run** (0 of the ≥20 docs/07 requires). Plan F1 as implemented is a monotone re-encoding of Hit@1. | **UNTESTED.** |
@@ -109,7 +109,7 @@ These results come from a single benchmark authored by one agent (corpus and que
 
 ### Falsification Record (2026-08-15)
 
-Four load-bearing negatives were found and are recorded below to preserve accurate falsification history:
+Four load-bearing negatives were found and are recorded below to preserve accurate falsification history. **Update (2026-08-15):** The declared-edges amendment (`S_eff = max(storage_strength, w_authored)`) and inhib_gain recalibration (0.7 → 0.245) fixed defects 1–2 below, raising (d) Hit@1 from 0.4619 to 0.5333; this is mechanism repair (fixing things that were broken), not evidence that the design hypothesis is correct. Defects 3–4 remain.
 
 - **The activation graph, on any registry that has not been through Dream, contains only derived `similar_to` kNN edges:** declared `composes`/`depends_on`/`inhibits` edges are written at `S_edge = 0.0` (hardcoded in `durable.py:203`) and Dream potentiates only `co_activation` edges (`dream.py:194`, `signals.py:154-160`). Spreading activation therefore re-derives the cosine signal already scored at `w_similarity`, and contributes the entire (c)/(d) deficit versus (b) in the benchmark. `ppr_restart = 0.85` or `w_activation = 0` recovers (b)-level accuracy (scale-benchmark §6).
 

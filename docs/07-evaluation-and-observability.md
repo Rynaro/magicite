@@ -130,7 +130,7 @@ Test the cumulative effect of each design decision:
 - Outcome-gated updates + Dream consolidation
 - Hook signals (Tier-2) if available; fall back to Tier-1 / Tier-0
 - **Hypothesis:** This is the best (validates H-LEARN)
-- **Measured outcome (2026-08-15, 70 engrams/210 queries):** (d) Hit@1 0.4619 vs (b) 0.5476, a loss of −0.0857 (p = 0.00053). (d) − (c) = +0.0048 (p = 1.0, not significant). The predicted "best" is below the embedding baseline and indistinguishable from the graph-only baseline (scale-benchmark §1).
+- **Measured outcome (2026-08-15, 70 engrams/210 queries):** (d) Hit@1 0.5333 vs (b) 0.5476, a loss of −0.0143 (gap 3 queries, statistically indistinguishable; prior 0.4619 was gap of 18 queries, p = 0.00053). (d) − (c) = +0.0047 (p not significant). The pipeline no longer actively hurts but does not beat the dense-embedding baseline. On Hit@3, (d) 0.7476 > (b) 0.7429, pre-registered as an open question not adopted per reversal condition RC-5 (scale-benchmark §1).
 
 ---
 
@@ -181,8 +181,8 @@ Expected result (from FINDING-005):
 **Measured result (2026-08-15, 70 engrams/210 queries):**
 - (a) Hit@1 0.4048 (status quo confirmed as lowest)
 - (b) Hit@1 0.5476 — **(+14.3pp over a**, within the +15–20pp range for (b))
-- (c) Hit@1 0.4571 — **(−0.0905 vs b**, rather than +5–10pp; falls within embedding baseline)
-- (d) Hit@1 0.4619 — **(+0.0048 vs c**, p = 1.0, not significant; **−0.0857 vs b**, p = 0.00053, the **opposite** of the prediction). H-LEARN is **not validated**; see scale-benchmark §5 and Falsification Record in docs/01 (scale-benchmark §1).
+- (c) Hit@1 0.5286 — **(+12.4pp over a**, improved from prior 0.4571/+5.2pp; −0.0190 vs b, significantly better than prior −0.0905)
+- (d) Hit@1 0.5333 — **(+12.9pp over a**, significant; **+0.0047 vs c**, not significant; **−0.0143 vs b**, statistically indistinguishable; prior measurement 0.4619 was −0.0857 vs b, p = 0.00053). H-LEARN is **not validated**; improvement from 0.4619→0.5333 is mechanism repair (declared-edges amendment, inhib_gain recalibration), not design validation. See scale-benchmark §5 and Falsification Record in docs/01.
 ```
 
 **Phase 2: Online Learning (Ablations)**
@@ -335,7 +335,7 @@ S < 0.3:  nascent/failed (target: <10% of registry)
 
 3. **Cold start.** New skills route via similarity edges + excitability bonus until usage data accrues. Expect ~3–5 sessions to stabilize, not zero-shot parity. Reflected in the nascent→probation→consolidated progression.
 
-4. **Scale ceiling — measured update (2026-08-15).** At 70 skills with lexically independent queries, plain dense-embedding retrieval is the strongest router in this codebase, and the full pipeline is significantly *worse* than it (−0.0857 Hit@1, p = 0.00053). The claim that the engine "pays off exactly where native routing breaks" is **not evidenced at any size tested (13, 40, 70)**. Native lexical matching does degrade fastest with scale (0.4872 → 0.2051 across 13 → 70), which is the one clean scaling prediction confirmed — but the beneficiary is the embedding baseline, not the graph.
+4. **Scale ceiling — measured update (2026-08-15).** At 70 skills with lexically independent queries, plain dense-embedding retrieval (baseline b: 0.5476) remains stronger than the full pipeline (baseline d: 0.5333, −0.0143 Hit@1). The gap is statistically indistinguishable (3 queries out of 210; prior measurement 0.4619 was 18-query gap, p = 0.00053). The improvement from 0.4619 → 0.5333 is mechanism repair (declared-edges amendment, inhib_gain recalibration), not design validation. The claim that the engine "pays off exactly where native routing breaks" is **not evidenced at any size tested (13, 40, 70)**. Native lexical matching does degrade fastest with scale (0.4872 → 0.2051 across 13 → 70), which is the one clean scaling prediction confirmed — but the beneficiary is the embedding baseline, not the graph.
 
 5. **Offline unobservability of learning.** `compute_eta_eff_untiered` gates every weight change on a ~6h spacing term and pins first observations at spacing 0.0; 144 real production-path turns produced `committed_nodes: 0, committed_edges: 0`. Two observations of the same engram must be ≥ ~54 minutes apart to move any weight. This is a property of the design, not the benchmark. No offline test can exercise Magicite's learning without faking the clock.
 
@@ -348,7 +348,7 @@ S < 0.3:  nascent/failed (target: <10% of registry)
 | Element | Confidence | Test | Owner |
 |---|---|---|---|
 | H-BODY-a (embedding beats lexical) | 88% | **SUPPORTED (direction).** +14.3pp Hit@1 (95% CI [+6.7, +21.9], p = 0.00064); registered ≥20pp effect size not demonstrated. | Measured 2026-08-15 |
-| H-BODY-b (graph/learning beats naive) | 90% | **FALSIFIED as implemented.** (b) > (d) ≈ (c) > (a), design predicts d > c > b > a. Spreading-activation term and inert declared edges. | Measured 2026-08-15 |
+| H-BODY-b (graph/learning beats naive) | 90% | **FALSIFIED as implemented.** (b) > (d) > (c) > (a), design predicts d > c > b > a. Pipeline no longer actively hurts (prior p = 0.00053, now statistically indistinguishable). Declared-edges amendment and inhib_gain recalibration fixed mechanism defects; this is repair, not design validation. | Measured 2026-08-15 |
 | H-SCALE (hierarchy flattens log-decay) | 75% | **INCONCLUSIVE.** One unreplicated crossing (40–70 engrams, 39-query slice SE ≈ 0.08); does not replicate on 120 queries. Mechanism falsified at 70 skills (ΔHit@3 = 0.0000 with 5 communities). | Measured 2026-08-15 |
 | H-COMPOSE (composition planning works) | 92% | **UNTESTED.** Zero compositional queries run (0 of ≥20 docs/07 requires); Plan F1 is a monotone re-encoding of Hit@1. | Measured 2026-08-15 |
 | H-LEARN (plasticity improves routing) | 90% | **FALSIFIED as implemented under uniform demand.** Held-out Hit@1 fell 0.4697 → 0.1061 under oracle teacher; train Hit@1 fell 0.4583 → 0.2847. Unconditioned `R` prior at 63% query-signal amplitude. | Measured 2026-08-15 |
