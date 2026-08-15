@@ -68,7 +68,15 @@ class Config:
     ppr_max_iter: int = 20
     ppr_tol: float = 1e-4
     hub_penalty: float = 0.15
-    inhib_gain: float = 0.7
+    #: [INHIB-GAIN-RECALIBRATED 2026-08-15] was 0.7. DERIVED, not selected:
+    #: theta_synapse (0.35) x the old gain (0.7). Until §3.3.1, apply_inhibition
+    #: was a numeric no-op, so 0.7 had never been measured in any regime; a
+    #: learned inhibits edge's intended effect ranged over [0.245, 0.7], and
+    #: pinning S_eff at 1.0 handed a day-zero assertion the magnitude reserved
+    #: for a maximally potentiated edge. Unrounded on purpose -- re-derive if
+    #: theta_synapse moves, do not re-tune. 0.0 is forbidden: it makes AC-023
+    #: and AC-034 arithmetically unprovable.
+    inhib_gain: float = 0.245
     context_gain: float = 0.20
     pref_gain: float = 0.10
     #: [DECLARED-EDGES-AMENDED 2026-08-15] was 0.30/0.15. PRECAUTIONARY
