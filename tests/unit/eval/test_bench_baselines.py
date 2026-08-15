@@ -83,3 +83,44 @@ def test_run_bench_defaults_to_all_four_baselines(cfg, db_conn, embedder) -> Non
     queries = bench_mod.load_queries(TOY_QUERIES_PATH)[:5]
     report = bench_mod.run_bench(cfg, db_conn, embedder, queries=queries)
     assert set(report.baselines) == set(bench_mod.BASELINE_NAMES)
+
+
+def test_bench_against_empty_registry_does_not_report_a_vacuous_perfect_plan_f1(
+    cfg, db_conn, embedder
+) -> None:
+    """M7 close-out item #3 (bug, reproduced end-to-end): running
+    ``magicite-bench`` against an *empty* registry must not report
+    plan_f1={precision:1.0, recall:1.0, f1:1.0} -- a perfect composition
+    score with nothing to plan is indistinguishable from real success and
+    would silently flatter the scale benchmark. hit_at_k is correctly 0.0
+    here (nothing to ever be a hit); plan_f1 must now be equally honest:
+    null/None, with an explicit n_evaluated=0 count, not a fabricated 1.0.
+    Registry is deliberately left unregistered/unsynced -- zero engrams.
+    """
+    queries = [
+        bench_mod.LabelledQuery(query="rollback proton for a steam game", expected_top1="anything-at-all"),
+        bench_mod.LabelledQuery(query="fix wine prefix", expected_top1="also-does-not-exist"),
+    ]
+    report = bench_mod.run_baseline(cfg, db_conn, embedder, "d", queries)
+
+    assert report.ranking.hit_at_1 == 0.0
+    assert report.ranking.hit_at_3 == 0.0
+    assert report.ranking.hit_at_5 == 0.0
+    assert report.ranking.mrr == 0.0
+
+    # The bug: this used to be precision=recall=f1=1.0, order_correct=True.
+    assert report.plan_f1.precision is None
+    assert report.plan_f1.recall is None
+    assert report.plan_f1.f1 is None
+    assert report.plan_f1.n_evaluated == 0
+    assert report.plan_f1.n_total == len(queries)
+
+    d = report.to_dict()
+    assert d["plan_f1"] == {
+        "precision": None,
+        "recall": None,
+        "f1": None,
+        "order_correct": False,
+    }
+    assert d["plan_f1_n_evaluated"] == 0
+    assert d["plan_f1_n_total"] == len(queries)

@@ -96,6 +96,55 @@ def test_aggregate_plan_f1_hand_computed() -> None:
     assert result.precision == 0.5
     assert result.recall == 0.5
     assert result.f1 == 0.5
+    assert result.n_evaluated == 2
+    assert result.n_total == 2
+
+
+def test_aggregate_plan_f1_vacuous_pairs_excluded_from_the_average() -> None:
+    """M7 close-out item #3 (bug): a (predicted=[], expected=[]) pair means
+    nothing was evaluated (see eval/metrics.py::aggregate_plan_f1's
+    docstring -- a real engram's expected plan is never empty), not a
+    correctly-predicted trivial plan. It must not silently drag a real
+    result toward "perfect"."""
+    per_query = [
+        (["a", "b"], ["a", "b"]),  # perfect: p=1,r=1,f1=1
+        ([], []),  # vacuous: nothing to plan against
+    ]
+    result = metrics_mod.aggregate_plan_f1(per_query)
+    assert result.precision == 1.0  # the one real pair, not diluted by the vacuous one
+    assert result.recall == 1.0
+    assert result.f1 == 1.0
+    assert result.n_evaluated == 1
+    assert result.n_total == 2
+
+
+def test_aggregate_plan_f1_all_vacuous_reports_none_not_a_perfect_score() -> None:
+    """The exact bug scenario: an empty registry (or every query's winner
+    unresolved) yields nothing but vacuous pairs. The old behaviour
+    reported precision=recall=f1=1.0 here -- indistinguishable from a
+    genuinely perfect run. The fix reports None (JSON null) plus an
+    explicit n_evaluated=0 so the vacancy is never mistaken for success."""
+    per_query = [([], []), ([], []), ([], [])]
+    result = metrics_mod.aggregate_plan_f1(per_query)
+    assert result.precision is None
+    assert result.recall is None
+    assert result.f1 is None
+    assert result.order_correct is False
+    assert result.n_evaluated == 0
+    assert result.n_total == 3
+    # to_dict() must not crash on the None values, and must not silently
+    # coerce them into a misleading 0.0 or 1.0.
+    d = result.to_dict()
+    assert d["precision"] is None
+    assert d["recall"] is None
+    assert d["f1"] is None
+
+
+def test_aggregate_plan_f1_empty_input_reports_none() -> None:
+    result = metrics_mod.aggregate_plan_f1([])
+    assert result.precision is None
+    assert result.n_evaluated == 0
+    assert result.n_total == 0
 
 
 def test_ndcg_at_k_perfect_order_is_one() -> None:

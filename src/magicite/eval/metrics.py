@@ -59,16 +59,27 @@ def aggregate_ranking(per_query: list[tuple[list[str], str]]) -> RankingReport:
 
 @dataclass(frozen=True)
 class PlanF1Result:
-    precision: float
-    recall: float
-    f1: float
+    #: ``None`` iff nothing was actually evaluated (see
+    #: :func:`aggregate_plan_f1`'s module note on the vacuous-truth fix) --
+    #: a real, per-pair :func:`plan_f1` call always leaves these as floats.
+    precision: float | None
+    recall: float | None
+    f1: float | None
     order_correct: bool
+    #: How many ``(predicted, expected)`` pairs actually fed the average
+    #: below, vs. how many were offered. ``n_evaluated < n_total`` means
+    #: some pairs were vacuous (both sequences empty -- see
+    #: :func:`aggregate_plan_f1``) and were excluded rather than silently
+    #: scored as a perfect match. Always ``(1, 1)`` for a single non-vacuous
+    #: :func:`plan_f1` call.
+    n_evaluated: int = 1
+    n_total: int = 1
 
-    def to_dict(self) -> dict[str, float | bool]:
+    def to_dict(self) -> dict[str, float | bool | None]:
         return {
-            "precision": round(self.precision, 4),
-            "recall": round(self.recall, 4),
-            "f1": round(self.f1, 4),
+            "precision": None if self.precision is None else round(self.precision, 4),
+            "recall": None if self.recall is None else round(self.recall, 4),
+            "f1": None if self.f1 is None else round(self.f1, 4),
             "order_correct": self.order_correct,
         }
 
@@ -104,16 +115,52 @@ def aggregate_plan_f1(per_query: list[tuple[list[str], list[str]]]) -> PlanF1Res
     """Mean precision/recall/F1 across every compositional query;
     ``order_correct`` is the fraction of queries whose order matched,
     reported as a 0/1-averaged float cast back through the same
-    dataclass shape for a single, uniform return type."""
-    n = len(per_query)
-    if n == 0:
-        return PlanF1Result(precision=0.0, recall=0.0, f1=0.0, order_correct=True)
-    results = [plan_f1(pred, exp) for pred, exp in per_query]
-    precision = sum(r.precision for r in results) / n
-    recall = sum(r.recall for r in results) / n
-    f1 = sum(r.f1 for r in results) / n
-    order_correct = sum(1 for r in results if r.order_correct) / n == 1.0
-    return PlanF1Result(precision=precision, recall=recall, f1=f1, order_correct=order_correct)
+    dataclass shape for a single, uniform return type.
+
+    **Vacuous-truth fix (M7 close-out item #3).** A ``(predicted=[],
+    expected=[])`` pair is not "a plan that was correctly predicted empty"
+    -- ``core/composition.py::expand()`` always seeds its closure with the
+    winning engram itself, so a *real*, registered engram's expected plan
+    is never empty (it is at minimum ``[winner_name]``). The only way both
+    sides come back empty is that there was nothing to route against at
+    all (an empty registry, or a query labelled to a name that does not
+    resolve to any engram) -- ``eval/bench.py::run_baseline`` hits this
+    exact path when ``ranked`` (and therefore ``predicted_plan``) is empty
+    because the registry has nothing routable. Scoring that as a *perfect*
+    plan_f1 (the pre-fix behaviour: precision/recall/f1 all 1.0) silently
+    flatters a run that evaluated nothing -- indistinguishable, in the
+    emitted numbers, from a run that correctly predicted every plan. Such
+    pairs are therefore excluded from the average rather than counted as a
+    trivial match; ``n_evaluated``/``n_total`` on the returned
+    :class:`PlanF1Result` make the exclusion visible, and precision/recall/
+    f1 come back ``None`` (JSON ``null``) -- not ``0.0``, which would look
+    like "evaluated and wrong" -- when nothing was evaluated at all.
+    """
+    n_total = len(per_query)
+    evaluable = [(pred, exp) for pred, exp in per_query if pred or exp]
+    n_evaluated = len(evaluable)
+    if n_evaluated == 0:
+        return PlanF1Result(
+            precision=None,
+            recall=None,
+            f1=None,
+            order_correct=False,
+            n_evaluated=0,
+            n_total=n_total,
+        )
+    results = [plan_f1(pred, exp) for pred, exp in evaluable]
+    precision = sum(r.precision for r in results if r.precision is not None) / n_evaluated
+    recall = sum(r.recall for r in results if r.recall is not None) / n_evaluated
+    f1 = sum(r.f1 for r in results if r.f1 is not None) / n_evaluated
+    order_correct = sum(1 for r in results if r.order_correct) / n_evaluated == 1.0
+    return PlanF1Result(
+        precision=precision,
+        recall=recall,
+        f1=f1,
+        order_correct=order_correct,
+        n_evaluated=n_evaluated,
+        n_total=n_total,
+    )
 
 
 def ndcg_at_k(ranked_names: list[str], relevant: dict[str, float], k: int) -> float:

@@ -1,0 +1,173 @@
+# magicite CI — matrix (3.11, 3.12) × (lint, type, test) + the ESL `verify`
+# bar (spec §7.2's VG-1 … VG-8 command sequence) + a containerised build
+# gated by Trivy (VG-9, AC-026) and an explicit AC-031 (no torch) assertion.
+#
+# The VG-1 … VG-9 sequence below is copied verbatim from
+# `.spectra/changes/magicite-v1-implementation/spec.md` §7.2 ("Acceptance
+# checks Kupo runs") so CI proves exactly what the ESL `verify` hop proves,
+# not a CI-only paraphrase of it.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── VG-1 … VG-8: lint, type, and the full test suite, matrixed across
+  # the two Python versions the spec's dependency floor declares support for
+  # (`requires-python = ">=3.11"`, CI-verified against 3.11 and 3.12 —
+  # spec Assumption A4 records 3.12 as the implementation target). ────────
+  lint-type-test:
+    name: lint + type + test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    env:
+      MAGICITE_EMBEDDING_PROVIDER: hashing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.23"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies (all extras — leiden, dev)
+        run: uv sync --all-extras
+
+      # VG-1 (AC-024): lint + type.
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: mypy
+        run: uv run mypy src
+
+      # VG-2: full suite with the docs/07 §7.1 coverage floor (85% on
+      # core/+engram/, 70% overall — enforced here at the overall floor;
+      # per-package floors are a local `--cov-report=term-missing` read,
+      # not separately CI-gated in v1).
+      - name: pytest (full suite, coverage-gated)
+        run: uv run pytest -q --cov=src/magicite --cov-report=term-missing --cov-fail-under=70
+
+      # VG-3: the AC-mapped acceptance subset, isolated so a coverage-run
+      # flake can never mask an acceptance-marked regression.
+      - name: pytest -m acceptance (the AC-mapped suite)
+        run: uv run pytest -q -m acceptance
+
+      # VG-4 (AC-003/AC-004): the manifest is exactly 16 tools.
+      - name: magicite tools == 16
+        run: |
+          count="$(uv run magicite tools | python -c 'import json,sys; print(len(json.load(sys.stdin)["tools"]))')"
+          echo "tool count: $count"
+          test "$count" -eq 16
+
+      # VG-5 (AC-001/AC-002): initialize handshake + stdout purity.
+      - name: pytest tests/acceptance/test_stdio_handshake.py
+        run: uv run pytest tests/acceptance/test_stdio_handshake.py
+
+      # VG-6 (AC-009/AC-010): delete the index, sync, diff durable state.
+      - name: pytest tests/acceptance/test_rebuild_invariant.py
+        run: uv run pytest tests/acceptance/test_rebuild_invariant.py
+
+      # VG-7 (AC-013/AC-014): authorizer DENY matrix + AST guards.
+      - name: pytest tests/acceptance/test_p0_hot_path.py
+        run: uv run pytest tests/acceptance/test_p0_hot_path.py
+
+      # VG-8 (AC-020/AC-021): second Dream run is a no-op.
+      - name: pytest tests/acceptance/test_dream_idempotent.py
+        run: uv run pytest tests/acceptance/test_dream_idempotent.py
+
+      # AC-031: torch stays absent from the resolved dependency tree — the
+      # exact VERIFY command acceptance-criteria.md names for AC-031, run
+      # for real rather than only trusted-by-inspection.
+      - name: AC-031 — assert torch is absent
+        run: |
+          uv run python -m pip list --format json \
+            | jq -e 'map(.name | ascii_downcase) | index("torch") == null'
+
+  # ── VG-9 (AC-026): the containerised offline handshake. A separate job
+  # so a Docker-layer failure never masks (or is masked by) the matrix
+  # above, and so the Trivy gate only ever runs once per push/PR. ────────
+  docker-build-and-smoke:
+    name: docker build + VG-9 smoke + Trivy gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build magicite:verify (the exact VG-9 tag spec §7.2 names)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          tags: magicite:verify
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install uv (host-side pytest runner for the smoke test)
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.23"
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      # VG-9 itself: `docker build -t magicite:verify . && uv run pytest
+      # tests/acceptance/test_docker_smoke.py` — the build already ran
+      # above (docker/build-push-action, cached); this step is the pytest
+      # half against the tag it produced.
+      - name: pytest tests/acceptance/test_docker_smoke.py (AC-026)
+        run: uv run pytest tests/acceptance/test_docker_smoke.py
+
+      # VC-11 (A1-REVISED carry-forward, closed at M7): the hardened image
+      # must import the new mcp>=2.0 transitive deps under the exact
+      # hardening flags production uses.
+      - name: VC-11 — truststore/opentelemetry import inside the hardened image
+        run: |
+          docker run --rm --cap-drop ALL --security-opt no-new-privileges --user 10001 \
+            --entrypoint python magicite:verify \
+            -c "import truststore, opentelemetry.trace; print('VC-11 OK')"
+
+      # Trivy HIGH/CRITICAL gate (mission directive: "CI: ... image build +
+      # Trivy HIGH/CRITICAL gate"). SARIF always uploaded for visibility;
+      # the table-format gate fails the build on any HIGH/CRITICAL finding
+      # with an available fix.
+      - name: Trivy scan — generate SARIF report
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: "magicite:verify"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+          exit-code: "0"
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+      - name: Trivy scan — gate on HIGH/CRITICAL
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: "magicite:verify"
+          format: "table"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          ignore-unfixed: true

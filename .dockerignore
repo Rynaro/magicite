@@ -1,0 +1,46 @@
+# Keep the build context small and hermetic.
+# The production Dockerfile only copies pyproject.toml + README.md + src/;
+# Dockerfile.dev also copies tests/. Everything else is noise, and some of
+# it (`.spectra/`, `.eidolons/`, `.mcp.json`) must never end up baked into
+# a published image.
+
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+dist/
+build/
+*.egg-info/
+
+# Registry/runtime state — never ships in the image; the container reads
+# it from a bind-mounted VOLUME at runtime instead.
+.spectra/
+
+.eidolons/
+.atlas/
+.claude/
+.codex/
+.git/
+.gitignore
+.github/
+
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Never ship local secrets (or any MCP client config carrying tokens) into
+# an image.
+.env
+.env.*
+.mcp.json
+eidolons.mcp.lock

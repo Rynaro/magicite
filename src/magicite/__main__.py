@@ -136,8 +136,16 @@ def export_cmd(out_dir: str, project_root: str, min_status: str) -> None:
 @cli.command(name="doctor")
 @click.option("--project-root", default=".", show_default=True)
 def doctor_cmd(project_root: str) -> None:
-    """Diagnose the registry/filesystem/embedding-provider setup."""
-    raise click.ClickException("magicite doctor lands in M7 (docs/operations.md, packaging hardening)")
+    """Diagnose the registry/filesystem/embedding-provider setup (spec M7,
+    Risks R7/R9). Deliberately not reassuring -- see obs/doctor.py."""
+    from magicite.obs import doctor as doctor_mod
+
+    cfg = Config.load(project_root)
+    report = doctor_mod.run_doctor(cfg)
+    click.echo(json.dumps(report, indent=2, default=str))
+    if not report["healthy"]:
+        for warning in report["warnings"]:
+            click.echo(f"WARNING: {warning}", err=True)
 
 
 @cli.command(name="fetch-model")

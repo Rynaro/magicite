@@ -198,8 +198,27 @@ Operational guidance:
   a network filesystem does not permanently wedge the writer path — but throughput
   under contention will be worse than local disk (every acquisition is a real round
   trip to the DB row, not just a fast local flock).
-- `magicite doctor` (M7) is the intended place to detect and warn about a
-  non-local `.spectra/` mount; it is not yet implemented in v1 (see the M7 story).
+- **`magicite doctor` (M7, `obs/doctor.py`) now implements this detection.** It
+  parses `/proc/mounts` (Linux only — reports `fstype: null` and an explicit
+  "unverified" warning on any host where it cannot determine the mount type,
+  never a false "local") to flag whether `.spectra/` sits on a known
+  network-filesystem class (`nfs`, `nfs4`, `cifs`, `smb*`, `9p`, `afs`,
+  `ceph(fs)`, `glusterfs`, `fuse.sshfs`, `fuse.s3fs`, `fuse.rclone`). A hit adds
+  an `[R7 lock semantics]`-tagged entry to the report's `warnings[]` and sets
+  `healthy: false` — `doctor` never downgrades this to an info-only note.
+
+  ```sh
+  magicite doctor --project-root .
+  ```
+
+  emits a JSON report (`registry`, `filesystem`, `embedding`, `cold_start`,
+  `governance`, `warnings[]`, `healthy`) to stdout and echoes each warning to
+  stderr as well. It is read-only (never runs migrations, never calls
+  `ensure_dirs()`) and safe to run against a registry that has never been
+  synced. `doctor` is deliberately not reassuring: the cold-start section
+  (risk R9) reports `registry_size < 50` as a warning, not a footnote — see
+  `obs/kpi.py::cold_start_signal` for the exact wording, reused verbatim by
+  `doctor` rather than restated.
 
 ---
 

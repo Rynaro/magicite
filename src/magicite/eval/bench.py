@@ -236,6 +236,15 @@ class BaselineReport:
             "label": self.label,
             **self.ranking.to_dict(),
             "plan_f1": self.plan_f1.to_dict(),
+            # M7 close-out item #3 (vacuous-truth fix): how many of the
+            # n_queries pairs actually fed plan_f1's average, vs. how many
+            # were vacuous (nothing to plan against -- see
+            # eval/metrics.py::aggregate_plan_f1's docstring). Kept as
+            # siblings of "plan_f1", not nested inside it, so the frozen
+            # AC-029 anchor's `set(d["plan_f1"]) == {...}` key-set check
+            # is unaffected by this addition.
+            "plan_f1_n_evaluated": self.plan_f1.n_evaluated,
+            "plan_f1_n_total": self.plan_f1.n_total,
         }
 
 

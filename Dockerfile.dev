@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+#
+# magicite — dev-loop image.
+#
+# Separate from the production Dockerfile so the runtime image stays
+# minimal (no pytest/ruff/mypy, no fastembed model bake needed for a dev
+# loop that runs against MAGICITE_EMBEDDING_PROVIDER=hashing, this repo's
+# own test convention). Source lives under /work so bind-mounted edits
+# round-trip without rebuilds.
+#
+# ─────────────────────────────────────────────────────────────────────────
+# Build once, run many:
+#
+#   docker build -f Dockerfile.dev -t magicite-dev .
+#
+#   # Interactive shell with everything pre-installed
+#   docker run --rm -it -v "$PWD":/work magicite-dev
+#
+#   # One-shot commands
+#   docker run --rm -v "$PWD":/work magicite-dev uv run pytest -q
+#   docker run --rm -v "$PWD":/work magicite-dev uv run ruff check src/ tests/
+#   docker run --rm -v "$PWD":/work magicite-dev uv run mypy src/
+#
+#   # Smoke-test the CLI
+#   docker run --rm -v "$PWD":/work magicite-dev uv run magicite tools
+#
+# The bind mount overlays /work with your host checkout, so edits on the
+# host are immediately visible inside the container. The cached .venv from
+# `uv sync` in the build stage is preserved because it lives outside /work
+# (UV_PROJECT_ENVIRONMENT=/opt/venv).
+# ─────────────────────────────────────────────────────────────────────────
+
+FROM python:3.12-slim
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Seed a venv outside /work so the bind mount can't shadow it.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /work
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY tests ./tests
+
+# `uv sync` installs the project in editable mode; hatchling reads
+# `readme = "README.md"` from pyproject.toml, so the file must be here.
+# `leiden` (python-igraph/leidenalg) is deliberately NOT installed here —
+# it is an optional extra with real wheel-availability fragility on some
+# platforms (Risk R5); CommunityDetector's automatic label_propagation
+# fallback (AC-022) is exactly what a dev loop should exercise by default.
+# Add `--extra leiden` locally if you need to test the Leiden path.
+RUN uv sync --extra dev
+
+CMD ["bash"]

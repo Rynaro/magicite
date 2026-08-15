@@ -1,0 +1,313 @@
+# magicite — release workflow (spec §8: "release workflow publishes the
+# image by digest and the wheel to PyPI"). Multi-arch container release,
+# modeled on the sibling `atlas-aci` MCP's release.yml (same house
+# hardening/attestation shape: cosign keyless signing, SBOM + provenance
+# attestation, Trivy HIGH/CRITICAL gate).
+#
+# Triggered by a `v*` tag push (e.g. `v1.0.0`, `v1.0.0-rc.1`).
+#
+# Pipeline stages:
+#   1. Verify pyproject.toml's version matches the tag.
+#   2. Build linux/amd64 + linux/arm64 image from ./Dockerfile (the ONNX
+#      model bake, `magicite fetch-model`, runs once per architecture —
+#      this is the one legitimate network-touching build step, R4).
+#   3. Push to ghcr.io/rynaro/magicite with SemVer tags via metadata-action.
+#   4. Trivy vulnerability scan on the published image digest; GA releases
+#      fail on HIGH/CRITICAL CVEs, pre-releases are exempt but SARIF is
+#      still uploaded for visibility.
+#   5. Cosign keyless-sign the image manifest using OIDC (no key secrets).
+#   6. Generate SBOM (SPDX) and attest it.
+#   7. Generate build provenance attestation.
+#   8. Publish a GitHub Release with the pull-by-digest line.
+#   9. Build the wheel + sdist (`uv build`) and publish to PyPI via OIDC
+#      trusted publishing (no long-lived API token secret).
+#
+# Permissions required:
+#   contents: write        — create GitHub Release
+#   packages: write        — push to ghcr.io
+#   id-token: write        — OIDC token for cosign signing + PyPI trusted publishing
+#   attestations: write    — write attestations (SBOM + provenance)
+#   security-events: write — upload SARIF to GitHub Security tab
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+  security-events: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/rynaro/magicite
+
+jobs:
+  release-image:
+    name: Build, sign, attest, and publish the image
+    runs-on: ubuntu-latest
+
+    outputs:
+      image-digest: ${{ steps.build-push.outputs.digest }}
+      image-version: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ────────────────────────────────────────────────────────────────
+      # 1. Version consistency check — the git tag is the SemVer source
+      #    of truth; fail loudly if pyproject.toml's version disagrees.
+      # ────────────────────────────────────────────────────────────────
+      - name: Verify pyproject.toml version matches tag
+        run: |
+          TAG_VERSION="${{ github.ref_name }}"
+          TAG_VERSION="${TAG_VERSION#v}"
+          BASE_TAG_VERSION="${TAG_VERSION%%-*}"
+
+          PYPROJECT_VERSION="$(grep -E '^version = "[^"]+"' pyproject.toml \
+            | head -1 | sed 's/version = "//;s/"//')"
+
+          echo "Tag version (base):     ${BASE_TAG_VERSION}"
+          echo "pyproject.toml version: ${PYPROJECT_VERSION}"
+
+          if [ "${BASE_TAG_VERSION}" != "${PYPROJECT_VERSION}" ]; then
+            echo ""
+            echo "ERROR: Version mismatch!"
+            echo "  git tag '${TAG_VERSION}' implies base version '${BASE_TAG_VERSION}'"
+            echo "  but pyproject.toml declares version '${PYPROJECT_VERSION}'."
+            echo ""
+            echo "Fix: update pyproject.toml version to '${BASE_TAG_VERSION}'"
+            echo "     before pushing a release tag."
+            exit 1
+          fi
+
+          echo "Version check passed: ${BASE_TAG_VERSION}"
+
+      # ────────────────────────────────────────────────────────────────
+      # 2. Multi-arch build prerequisites
+      # ────────────────────────────────────────────────────────────────
+      - name: Set up QEMU (for linux/arm64 cross-compile)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ────────────────────────────────────────────────────────────────
+      # 3. Image tags — GA (v1.2.3) -> 1.2.3, 1.2, 1, latest;
+      #    pre-release (v1.2.3-rc.1) -> 1.2.3-rc.1 only.
+      # ────────────────────────────────────────────────────────────────
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=false
+          tags: |
+            type=match,pattern=v(\d+\.\d+\.\d+)$,group=1
+            type=match,pattern=v(\d+\.\d+)\.\d+$,group=1
+            type=match,pattern=v(\d+)\.\d+\.\d+$,group=1
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+            type=match,pattern=v(\d+\.\d+\.\d+-.+),group=1
+
+      # ────────────────────────────────────────────────────────────────
+      # 4. Build and push multi-arch image
+      # ────────────────────────────────────────────────────────────────
+      - name: Build and push multi-arch image
+        id: build-push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Capture multi-arch index digest
+        id: inspect
+        run: |
+          DIGEST="$(docker buildx imagetools inspect \
+            "${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}" \
+            --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Multi-arch index digest: ${DIGEST}"
+
+      # ────────────────────────────────────────────────────────────────
+      # 5. Trivy HIGH/CRITICAL gate on the published digest
+      # ────────────────────────────────────────────────────────────────
+      - name: Trivy scan — generate SARIF report
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}@${{ steps.build-push.outputs.digest }}
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+          exit-code: "0"
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+      - name: Trivy scan — gate on HIGH/CRITICAL (GA releases only)
+        uses: aquasecurity/trivy-action@0.35.0
+        if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-beta') }}
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}@${{ steps.build-push.outputs.digest }}
+          format: "table"
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      # ────────────────────────────────────────────────────────────────
+      # 6-7. SBOM + provenance attestation
+      # ────────────────────────────────────────────────────────────────
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_NAME }}@${{ steps.build-push.outputs.digest }}
+          artifact-name: sbom.spdx.json
+          output-file: /tmp/sbom.spdx.json
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@v1
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          sbom-path: /tmp/sbom.spdx.json
+          push-to-registry: true
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build-push.outputs.digest }}
+          push-to-registry: true
+
+      # ────────────────────────────────────────────────────────────────
+      # 8. Cosign keyless signing via OIDC
+      # ────────────────────────────────────────────────────────────────
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with cosign (keyless OIDC)
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+        run: |
+          cosign sign --yes "${{ env.IMAGE_NAME }}@${DIGEST}"
+
+      # ────────────────────────────────────────────────────────────────
+      # 9. GitHub Release
+      # ────────────────────────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            ## Container image
+
+            ### Pull by tag
+            ```bash
+            docker pull ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+            ```
+
+            ### Pull by digest (recommended — immutable pin)
+            ```bash
+            docker pull ${{ env.IMAGE_NAME }}@${{ steps.inspect.outputs.digest }}
+            ```
+
+            **Multi-arch:** `linux/amd64` + `linux/arm64`
+
+            ### The house hardening invocation (AC-026)
+            ```bash
+            docker run --rm -i \
+                --user "$(id -u):$(id -g)" \
+                --cap-drop ALL --security-opt no-new-privileges \
+                -v "$PWD":"$PWD":z -w "$PWD" \
+                ${{ env.IMAGE_NAME }}@${{ steps.inspect.outputs.digest }} \
+                serve --project-root "$PWD"
+            ```
+
+            ### Supply-chain verification
+
+            Verify the cosign keyless signature:
+            ```bash
+            cosign verify \
+              --certificate-identity-regexp "https://github.com/Rynaro/magicite/.github/workflows/release.yml@.*" \
+              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+              ${{ env.IMAGE_NAME }}@${{ steps.inspect.outputs.digest }}
+            ```
+
+            Verify SBOM + provenance attestations:
+            ```bash
+            gh attestation verify oci://${{ env.IMAGE_NAME }}@${{ steps.inspect.outputs.digest }} \
+              --owner Rynaro
+            ```
+
+            ### Digest for pinning
+            ```
+            ${{ env.IMAGE_NAME }}@${{ steps.inspect.outputs.digest }}
+            ```
+
+  release-pypi:
+    name: Build and publish the wheel to PyPI
+    runs-on: ubuntu-latest
+    needs: release-image
+    # Pre-releases (-rc./-beta.) publish to TestPyPI only; GA tags publish
+    # to the real index. Both use OIDC trusted publishing (no API token).
+    environment:
+      name: pypi
+      url: https://pypi.org/project/magicite/
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.23"
+          python-version: "3.12"
+
+      - name: Build wheel + sdist
+        run: uv build
+
+      # AC-031, re-asserted at the exact artifact being published: the
+      # built wheel's own metadata must not depend on torch either.
+      - name: AC-031 — assert the published wheel does not depend on torch
+        run: |
+          python -m pip install --dry-run --no-deps dist/*.whl 2>&1 | tee /tmp/dry-run.log
+          if grep -qi '^torch' /tmp/dry-run.log; then
+            echo "ERROR: torch appeared in the dry-run install of the built wheel" >&2
+            exit 1
+          fi
+
+      - name: Publish to PyPI (OIDC trusted publishing)
+        if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-beta') }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Publish to TestPyPI (pre-releases)
+        if: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
