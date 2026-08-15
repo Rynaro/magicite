@@ -1,0 +1,107 @@
+# Machine-readable projection of spec.md (ESL C3 tier_artifacts_present, tier=full).
+# Authority: spec.md is normative; this file is a faithful summary and MUST NOT diverge.
+#
+# PROVENANCE NOTE: no RAMZA planning run produced this change, so there is no
+# `ramza:` gate block. Inventing rightsize/critic/confidence scores to match the
+# archived magicite-v1-implementation spec.yaml would fabricate an audit trail
+# for a run that never happened. The tier came from tonberry's deterministic
+# right_size gate (recorded below).
+
+kind: spec
+version: 1.0.0
+status: verified
+created_at: "2026-08-15"
+author: claude-orchestrator
+
+# ── ESL binding ────────────────────────────────────────────────────────────
+change_id: magicite-codebase-skill-tranche
+esl_tier: full
+maker: claude-orchestrator
+checker: magicite-self-verify
+spec_ref: .spectra/changes/magicite-codebase-skill-tranche/spec.md
+has_code: true
+supersedes: null
+builds_on: magicite-dogfoods-itself
+
+# ── right_size gate (deterministic, mcp__tonberry__right_size) ─────────────
+right_size:
+  files_touched: 17
+  rubric_score: 7
+  tradeoff_present: true
+  route: "0->1->2->3->4"
+  tier: full
+
+# ── Problem ────────────────────────────────────────────────────────────────
+problem: >-
+  The 16 engrams authored by magicite-dogfoods-itself are all operational --
+  how to run, govern, release and reason about Magicite. None describe the code
+  an agent must actually change, so the registry could not help with the work
+  the repository mostly consists of.
+
+# ── Tradeoff of record ─────────────────────────────────────────────────────
+tradeoff:
+  question: "One registry for both operational and codebase engrams, or two?"
+  decision: one
+  rationale: >-
+    Magicite exposes one registry path per project root, so two sets would need
+    two servers and two indexes -- pushing the routing decision back into the
+    host layer Magicite exists to replace. One registry keeps a single route()
+    call authoritative.
+  measured_cost:
+    rank1_before: "3/4 at 16 engrams"
+    rank1_after: "2/4 at 30 engrams"
+    top3_before: "4/4"
+    top3_after: "4/4"
+    note: >-
+      Enlarging the registry with adjacent material cost top-1 precision. Four
+      queries, single-author corpus, no held-out set -- the direction is worth
+      knowing, the magnitude is not.
+  mitigations_attempted:
+    - lever: "negative triggers / intent.not_when"
+      result: inert
+      why: >-
+        embeddable_text excludes both, and core/router.py never reads
+        engram_trigger. Zero effect on ranking.
+    - lever: "declared inhibits edge (symmetric pair)"
+      result: backfired
+      why: >-
+        Inhibition scales the target's activation by the source's, so between
+        two co-activated nodes the leader suppresses the follower harder.
+        Pushed the intended engram out of the top 3 (4/4 -> 3/4). Reverted.
+  conclusion: >-
+    No authoring-side mitigation for this precision cost is currently known to
+    work. Making negative triggers reach retrieval, or making inhibition
+    asymmetric, are routing changes requiring measurement under the project's
+    own amendment protocol; neither attempted here.
+
+# ── Acceptance checks (normative text in spec.md; verdicts in verification-note.md)
+acceptance_checks:
+  - {id: AC-T1, summary: "all engrams ingest strict, count matches disk, all verified", verdict: pass}
+  - {id: AC-T2, summary: "zero dangling edges, >=3 cross-tranche edges", verdict: pass}
+  - {id: AC-T3, summary: "every named code symbol and path exists in the tree", verdict: pass}
+  - {id: AC-T4, summary: "tranche-1 probes still 4/4 in top-3 after enlargement", verdict: pass}
+  - {id: AC-T5, summary: "frozen verify green, 16-tool surface intact", verdict: pass}
+  - {id: AC-T6, summary: "no engram presents the enlarged registry as evidence", verdict: pass}
+
+# ── Scope ──────────────────────────────────────────────────────────────────
+scope:
+  in:
+    - .spectra/engrams/*
+    - scripts/dogfood_graph_check.py
+    - docs/adapters/dogfooding.md
+    - README.md
+  out:
+    - src/magicite/**
+    - "engram intent/triggers of already-registered tranche-1 engrams (id preimage, CR-8)"
+
+# ── Claim scope (AC-T6) ────────────────────────────────────────────────────
+claim_scope:
+  demonstrated: >-
+    Thirty authored engrams ingest, resolve into one connected declared-edge
+    graph, and keep every original probe in the top 3. Every code reference they
+    make is mechanically checked against the tree.
+  NOT_demonstrated: >-
+    Nothing here is evidence for any hypothesis in docs/01's Falsification
+    Record. The one quantitative movement observed -- rank-1 accuracy falling
+    from 3/4 to 2/4 -- is a four-query observation on a single-author corpus and
+    licenses no conclusion about retrieval quality in general.

@@ -25,7 +25,7 @@ plasticity:
     failure: 0
   excitability: 0.05
   status: nascent
-needs: [magicite-run-retrieval-benchmark, magicite-frozen-verify]
+needs: [magicite-run-retrieval-benchmark, magicite-frozen-verify, magicite-route-pipeline-order]
 yields: [evidenced-config-amendment]
 composes: []
 inhibits: []

@@ -1,7 +1,9 @@
 # Dogfooding: Magicite routing for the Magicite repository
 
-**Status:** v1. **Change of record:**
-`.spectra/changes/magicite-dogfoods-itself/spec.md`. **Related:**
+**Status:** v2. **Changes of record:**
+`.spectra/changes/magicite-dogfoods-itself/spec.md` (the wiring and the
+operational tranche) and `.spectra/changes/magicite-codebase-skill-tranche/spec.md`
+(the codebase tranche). **Related:**
 `docs/adapters/claude-code.md` (the Tier-2 hook adapter this builds on),
 `docs/05-protocol-and-signals.md` (the signal ladder),
 `docs/01-vision-and-hypotheses.md` (the Falsification Record, which bounds
@@ -20,9 +22,10 @@ part most worth reading — what the exercise actually exposed.
 
 | Piece | Location | Tracked |
 |---|---|---|
-| First-party registry, 16 engrams | `.spectra/engrams/*.egr.md` | yes |
+| First-party registry, 30 engrams | `.spectra/engrams/*.egr.md` | yes |
 | Content-hash id stamper | `scripts/dogfood_ids.py` | yes |
 | Authored-state restore | `scripts/dogfood_reset.py` | yes |
+| Edge + code-reference guards | `scripts/dogfood_graph_check.py` | yes |
 | Full 16-tool session driver | `scripts/dogfood_session.py` | yes |
 | Tier-2 trust-boundary probe | `scripts/dogfood_tier_probe.py` | yes |
 | `.mcp.json` entry generator | `scripts/dogfood_mcp_entry.py` | yes |
@@ -46,22 +49,46 @@ already covered mechanically by `tests/acceptance/test_docker_smoke.py`.
 
 ## 2. The registry
 
-Sixteen authored engrams covering how to operate *this* repository — engram
-authoring and SKILL.md import, index rebuild, embedding provisioning,
-the container privilege boundary, the agent-facing route/signal loop, Tier-2
+Thirty authored engrams in two tranches.
+
+**Tranche 1 — operational (16):** how to *run and govern* the project. Engram
+authoring and SKILL.md import, index rebuild, embedding provisioning, the
+container privilege boundary, the agent-facing route/signal loop, Tier-2
 hooks, flat-plasticity diagnosis, Dream consolidation, the approval-gated
 lifecycle, the frozen verify command, the benchmark harness, routing-default
 amendment, claim-scope honesty, container release, and the ESL change
 lifecycle.
 
-They are not sixteen isolated nodes. The composition blocks declare a
-connected graph — **12 `depends_on` and 5 `inhibits` edges**, resolved by
-name at ingest with zero dangling targets — alongside the 80 `similar_to`
-edges the index derives. The `inhibits` edges are the interesting ones,
-because they encode genuine mutual exclusions rather than similarity:
+**Tranche 2 — codebase (14):** what an agent needs to *change the code*. The
+P0 hot-path import boundary, the ephemeral/durable table split, the writer
+lease and Dream-context guards, sparse PPR activation, the two-channel edge
+weight, the route pipeline's stage order, composition-plan expansion, the
+weight-change formula and tier gate, read-time decay, the seven Dream phases,
+the writer's determinism contract, the embedder protocol, the error envelope,
+and the four evaluation baselines.
+
+They are not thirty isolated nodes, and the two tranches are not two
+components. The composition blocks declare a connected graph — **26
+`depends_on` and 9 `inhibits` edges**, resolved by name at ingest with zero
+dangling targets, four of them joining a tranche-2 engram to a tranche-1 one
+— alongside the 150 `similar_to` edges the index derives. The `inhibits`
+edges encode genuine mutual exclusions rather than similarity:
 `magicite-container-privilege-boundary` inhibits
 `magicite-offline-embedding-setup` because the two share a symptom (the
 server never answers) and have exclusive causes.
+
+Two standing guards keep the registry honest as the code moves:
+
+```sh
+uv run python scripts/dogfood_graph_check.py --edges     # no dangling, tranches connected
+uv run python scripts/dogfood_graph_check.py --symbols   # every code reference still exists
+```
+
+The symbol check scans `src/` and `tests/` and verifies every backticked file
+path and identifier an engram names. It is not decoration — it caught two
+factual errors during authoring: a bare `dream.py` that is really
+`core/dream.py`, and a claim that three Dream phases live outside that file
+when it is two.
 
 Rebuild the index from the files, which are the only source of truth:
 
@@ -70,8 +97,8 @@ rm -f .spectra/engrams/skill-graph.db*
 uv run magicite sync --project-root .
 ```
 
-Expected: `synced: 16`, and empty `validation_errors`, `removed`, and
-`dangling`. All sixteen land `status: nascent`, `verification_status:
+Expected: `synced: 30`, and empty `validation_errors`, `removed`, and
+`dangling`. All thirty land `status: nascent`, `verification_status:
 verified` — routable, with nothing caught by the injection scan.
 
 ## 3. Running the loop
@@ -90,16 +117,23 @@ actually ask, then `session_end`, `consolidate`, `checkpoint`, `flag_dead`,
 A recorded run of this script lives at
 `.spectra/changes/magicite-dogfoods-itself/mcp-session-transcript.json`.
 
-**On the routing numbers.** The four probes each found their intended
-engram in the top 3, three of them at rank 1. That is a *wiring* check: it
-says the registry ingested, embedded, and retrieves. It is **not** an
-evaluation. The queries were written by the same author as the engrams they
-match, there are four of them, and there is no held-out set — which is
-close to the worst possible conditions for inferring anything about
-retrieval quality. Nothing here bears on the hypotheses in
-`docs/01`'s Falsification Record, and in particular nothing here tests
-whether spreading activation over declared edges helps, which remains
-untested as designed.
+**On the routing numbers.** All four probes find their intended engram in
+the top 3. Two are at rank 1. That is a *wiring* check: it says the
+registry ingested, embedded, and retrieves. It is **not** an evaluation.
+The queries were written by the same author as the engrams they match,
+there are four of them, and there is no held-out set — close to the worst
+possible conditions for inferring anything about retrieval quality.
+Nothing here bears on the hypotheses in `docs/01`'s Falsification Record,
+and in particular nothing here tests whether spreading activation over
+declared edges helps, which remains untested as designed.
+
+**The number moved, and downward.** At 16 engrams this probe set scored
+4/4 in the top 3 with **3** at rank 1. At 30 it is 4/4 in the top 3 with
+**2** at rank 1: `magicite-eval-baselines-abcd` displaced
+`magicite-honest-claim-scope` on a claim-honesty query. Enlarging a
+registry with genuinely adjacent material costs top-1 precision, and this
+is recorded rather than smoothed over. It is still four queries — the
+direction is worth knowing, the magnitude means nothing.
 
 ### Keeping the registry reproducible
 
@@ -163,7 +197,7 @@ heuristic read does not deserve a confident one.
 
 ## 5. What dogfooding actually exposed
 
-Four things that reading the code did not surface:
+Six things that reading the code did not surface:
 
 1. **`export` cannot run on a fresh registry.** `min_status` accepts only
    `consolidated` or `promoted`, and every newly authored engram is
@@ -180,6 +214,35 @@ Four things that reading the code did not surface:
    its own test.
 4. **The `signal_use` correlation gap** described in §4, which is a real
    limit of the documented Tier-2 design rather than a bug in it.
+5. **Negative triggers and `not_when` do not affect retrieval at all.** This
+   is the sharpest finding of the exercise, and it was found by trying to use
+   them. `core/registry.py::embeddable_text` composes the embedded text from
+   `intent.does`, `intent.use_when`, `triggers.positive`, and the Procedure
+   steps — `intent.not_when` and `triggers.negative` are excluded — and
+   `core/router.py` never reads the `engram_trigger` table (only
+   `eval/bench.py` does, positive-polarity only, and
+   `storage/queries.py::durable_projection` for rebuild). Negative triggers
+   are nonetheless linted as mandatory, scored by `core/fitness.py`, stored,
+   hashed into the engram id, rendered by the writer, and projected. They are
+   consulted by nothing at query time. `docs/04` describes them as required
+   "for precision" — as implemented in v0.1.0, they buy none. Adding one to a
+   near-missing engram changed its ranking by exactly zero.
+6. **A symmetric `inhibits` pair makes a near-miss worse, not better.**
+   Having found negative triggers inert, the remaining authored lever was a
+   declared `inhibits` edge, which routing genuinely does apply. Declaring
+   mutual inhibition between the two colliding engrams pushed the intended
+   one *out of the top 3* (4/4 became 3/4). Inhibition scales the target's
+   activation by the source's, so between two co-activated nodes the leader
+   suppresses the follower harder than the reverse — amplifying the gap
+   instead of closing it. The edge pair was reverted; the registry ships
+   without it.
+
+   Taken together, 5 and 6 mean **no authoring-side mitigation for the
+   precision cost of a larger registry is currently known to work.** Making
+   negative triggers reach retrieval, or making inhibition asymmetric, are
+   both routing changes that would need measurement under this project's own
+   amendment protocol (`magicite-amend-routing-default`), so neither was
+   attempted here.
 
 ## 6. Scope of claims
 

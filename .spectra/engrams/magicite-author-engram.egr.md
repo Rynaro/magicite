@@ -42,7 +42,7 @@ trust:
 ## Procedure
 1. Create `.spectra/engrams/<name>.egr.md`, where `<name>` matches `^[a-z0-9-]{1,64}$` and is byte-identical to the `name:` field — the filename is not decoration, `core/registry.py` resolves declared edges by name.
 2. Set `spec: engram/0.2` and `provenance: authored`. Only `authored` and `sharpened` origins can reach `verification_status: verified`; `imported` and `distilled` are pinned to `pending` by `core/lifecycle.py::initial_verification_status`.
-3. Write all three `intent` fields. `not_when` is a hard strict-lint error when missing or empty — it is the negative-intent surface the router uses for precision, not a courtesy.
+3. Write all three `intent` fields. `not_when` is a hard strict-lint error when missing or empty. Write it for the reader and for the fitness score, and do not expect it to steer retrieval — see the Pitfalls below for what it does and does not reach.
 4. Supply at least three `triggers.positive` and at least one `triggers.negative` (`MIN_POSITIVE_TRIGGERS`/`MIN_NEGATIVE_TRIGGERS` in `engram/lint.py`). Keep each trigger specific to this project; a short generic phrase risks the over-broad-trigger quarantine described in the Pitfalls below.
 5. Set `id: egr_00000000` as a placeholder and let tooling compute the real value — the id is the first eight hex digits of a canonical-JSON SHA-256 over identity+routing (`engram/ids.py::new_engram_id`), so hand-guessing it is pointless and hand-editing it after registration breaks the CR-8 immutable primary key.
 6. Leave `trust.verification_status` at `pending`. The server assigns the real value at ingest and never reads yours; declaring `verified` in your own file is exactly the planted-import attack `initial_verification_status` exists to defeat.
@@ -54,6 +54,8 @@ trust:
 - (x1) Over-broad triggers are quarantined too. `injection_scan` matches every positive trigger as a substring against twenty stock developer phrasings in `DEFAULT_PROBE_QUERIES`; more than 30% hits quarantines the engram. A trigger like "run the test suite" is a literal substring of one of those probes.
 - (x1) Provenance journal versions must be non-decreasing, and the first entry is version 1. An out-of-order journal is a strict-lint error, not a warning.
 - (x1) Declared edge targets that name an unregistered engram become dangling and are dropped from routing rather than erroring, so a typo in `needs:` fails silently at route time instead of loudly at register time.
+- (x1) Expecting a negative trigger or `not_when` to steer retrieval away from a near-miss. As of v0.1.0 they do not: `embeddable_text` composes the embedded text from `intent.does`, `intent.use_when`, the positive triggers, and the Procedure steps only, and the router never reads the trigger table. They remain required, fitness-scored, and valuable as documentation and as the id preimage — but they do not move a ranking.
+- (x1) Reaching for a declared `inhibits:` edge to fix a near-miss instead. Routing does apply it, but inhibition scales the *target's* activation by the source's, so a symmetric pair suppresses the weaker node harder when one already leads — measured on this registry, adding a mutual pair pushed the intended engram out of the top 3 rather than into first place. Author `inhibits:` for genuine mutual exclusion, not as a ranking lever.
 
 ## Examples
 + "I hand-wrote an engram and sync says not_when is required" -> full procedure, step 3

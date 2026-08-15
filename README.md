@@ -74,12 +74,14 @@ optional Tier-2 hook acceleration via `MAGICITE_HOOK_TOKEN`.
 ## Dogfooding
 
 This repository routes its own maintenance through Magicite. `.spectra/engrams/`
-holds sixteen first-party engrams describing how to operate this project —
-connected by 12 declared `depends_on` and 5 `inhibits` edges, not a flat list —
-and `scripts/dogfood_session.py` drives the entire 16-tool surface against them
+holds thirty first-party engrams in two tranches — sixteen on operating the
+project, fourteen on changing its code — connected by 26 declared `depends_on`
+and 9 `inhibits` edges rather than left as a flat list, and
+`scripts/dogfood_session.py` drives the entire 16-tool surface against them
 over real stdio MCP. See `docs/adapters/dogfooding.md` for the loop, the
 `.mcp.json` generator, the Tier-2 hook wiring, and an honest account of what
-the exercise exposed.
+the exercise exposed — including that `triggers.negative` and `intent.not_when`
+turn out to have no effect on retrieval at all in v0.1.0.
 
 It is worth saying plainly what this is not: a self-authored registry is **not**
 evidence for any of the routing hypotheses in `docs/01`'s Falsification Record.
