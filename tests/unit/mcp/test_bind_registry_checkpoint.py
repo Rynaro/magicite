@@ -13,7 +13,7 @@ PROTON = "proton-ge-proton-downgrade"
 
 
 def test_checkpoint_tool_reports_write_ratio(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     signals_mod.signal_use(cfg, db_conn, skill_ids=[proton_id], session_id="s1")
 
@@ -26,7 +26,7 @@ def test_checkpoint_tool_reports_write_ratio(cfg, db_conn, embedder) -> None:
 
 
 def test_checkpoint_tool_is_idempotent_over_unchanged_state(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     first = bind_registry.checkpoint(ctx, CheckpointInput())

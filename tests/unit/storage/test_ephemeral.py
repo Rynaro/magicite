@@ -98,7 +98,7 @@ def test_expire_session_tags_does_not_touch_captured_tags(cfg, db_conn, embedder
     eligibility (as read by live_tagged_engram_ids/live_tagged_edge_keys)
     for signals already captured -- expire_session_tags only pulls forward
     the expiry of NOT-yet-captured tags."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
 
     now = _iso(datetime.now(UTC))
@@ -124,7 +124,7 @@ def test_expire_session_tags_does_not_touch_captured_tags(cfg, db_conn, embedder
 
 
 def test_expire_session_tags_still_expires_uncaptured_tags(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     now = _iso(datetime.now(UTC))
     future = _iso(datetime.now(UTC) + timedelta(hours=2))
@@ -148,7 +148,7 @@ def test_expire_session_tags_grace_floor_protects_a_fresh_tag(cfg, db_conn, embe
     primitive the still-live suppression exploit (a stranger's, or a
     race with the owner's own, ``session_end(<id>)`` call landing between
     ``signal_use()`` and ``signal_outcome()``) is bounded by."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     now_dt = datetime.now(UTC)
     now = _iso(now_dt)
@@ -171,7 +171,7 @@ def test_expire_session_tags_grace_floor_still_expires_a_stale_tag(cfg, db_conn,
     tags that really are old enough -- the "genuinely stale, uncaptured
     tag" case must still expire, or session_end() would stop doing its
     spec-named job at all."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     now_dt = datetime.now(UTC)
     now = _iso(now_dt)
@@ -193,7 +193,7 @@ def test_expire_session_tags_grace_floor_mutation_check(cfg, db_conn, embedder) 
     when the floor is disabled, proving that test's green result actually
     depends on the floor being > 0 and not on some other, coincidental
     reason."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     now = _iso(datetime.now(UTC))
     future = _iso(datetime.now(UTC) + timedelta(hours=2))
@@ -210,7 +210,7 @@ def test_expire_session_tags_grace_floor_mutation_check(cfg, db_conn, embedder) 
 
 
 def test_live_tagged_engram_ids_recent_orders_by_recency_and_caps(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     rows = db_conn.execute("SELECT id FROM engram ORDER BY id").fetchall()
     ids = [r["id"] for r in rows]
     assert len(ids) >= 3

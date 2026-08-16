@@ -19,7 +19,7 @@ def test_baseline_metrics_emitted(cfg, db_conn, embedder) -> None:
     ``magicite-bench`` CLI calls -- see
     ``test_baseline_metrics_emitted_via_cli`` below for the literal
     ``magicite-bench --baseline b --baseline d`` invocation)."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     from pathlib import Path
 
@@ -47,7 +47,7 @@ def test_baseline_metrics_emitted_via_cli(cfg, embedder) -> None:
     from magicite.storage import db as db_mod
 
     conn = db_mod.connect(cfg.db_path)
-    registry_mod.register(cfg, conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, conn, embedder, path=".magicite/engrams")
     conn.close()
 
     runner = CliRunner()
@@ -75,7 +75,7 @@ def test_all_four_baselines_run_and_report_real_numbers(cfg, db_conn, embedder) 
     """The falsifiability bar (R10, mission directive): every one of the
     four docs/07 baselines (a-d) must actually run and emit a distinct,
     real report -- not a stub, not a hard-coded pass/fail."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     from pathlib import Path
 

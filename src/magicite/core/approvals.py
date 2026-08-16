@@ -14,7 +14,7 @@ Tier A/B learned state, never part of the rebuild-invariant projection
 ``storage.queries.durable_projection`` diffs). Deleting ``skill-graph.db``
 and calling ``sync()`` therefore does NOT preserve pending approvals
 through the DB alone -- exactly the gap spec closes by also mirroring
-every row to ``.spectra/approvals/<id>.json``: :func:`reload_from_mirror`
+every row to ``.magicite/approvals/<id>.json``: :func:`reload_from_mirror`
 (called from ``core.registry.sync()``) re-populates the ``approval`` table
 from those files, so a deleted-and-rebuilt DB loses nothing durable. The
 JSON file is written **before** the DB row on every transition (same
@@ -286,7 +286,7 @@ def mark_outcome(
 
 
 def reload_from_mirror(cfg: Config, conn: sqlite3.Connection) -> int:
-    """spec §5.2: "each row is mirrored to .spectra/approvals/<id>.json and
+    """spec §5.2: "each row is mirrored to .magicite/approvals/<id>.json and
     reloaded on sync()". Called from ``core.registry.sync()`` so that a
     deleted-and-rebuilt ``skill-graph.db`` (AC-009's own scenario) recovers
     every pending/decided approval from its durable JSON sidecar, not just

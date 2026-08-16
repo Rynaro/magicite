@@ -35,7 +35,7 @@ def test_second_run_is_a_noop(cfg, db_conn, embedder) -> None:
     """AC-020: GIVEN a completed Dream run with no new events since its
     watermark WHEN consolidate() runs again THEN the second run SHALL
     write zero .egr.md files."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
 
     signals_mod.signal_use(cfg, db_conn, skill_ids=[proton_id], session_id="s1")
@@ -59,7 +59,7 @@ def test_third_run_after_more_of_the_same_evidence_is_still_a_noop(cfg, db_conn,
     """Re-signalling the exact same outcome again (a caller repeating
     itself) does not perpetually re-dirty the file either, once Dream has
     caught up -- idempotency holds run-over-run, not just once."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     signals_mod.signal_use(cfg, db_conn, skill_ids=[proton_id], session_id="s1")
     signals_mod.signal_outcome(
@@ -82,7 +82,7 @@ def test_checkpoint_render_is_byte_identical_across_two_dream_runs(cfg, db_conn,
     we additionally prove the underlying render is byte-stable by invoking
     the checkpoint-only path (``checkpoint()``/``run_checkpoint_only``)
     twice in a row and diffing file contents directly."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     signals_mod.signal_use(cfg, db_conn, skill_ids=[proton_id], session_id="s1")
     signals_mod.signal_outcome(
@@ -107,7 +107,7 @@ def test_no_new_events_at_all_since_registration_writes_nothing_new(cfg, db_conn
     engrams gain their first synapses: block (an author-declared
     relationship Dream is the sole writer for, spec §6.2 G3), and a
     second run after that is a genuine no-op."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
 
     first = dream_mod.run(cfg, db_conn, trigger="manual")
     second = dream_mod.run(cfg, db_conn, trigger="manual")

@@ -15,7 +15,7 @@ PROTON = "proton-ge-proton-downgrade"
 
 @pytest.fixture
 def registered(cfg, db_conn, embedder) -> None:
-    outcome = registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    outcome = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     assert outcome.ingested == 7
 
 
@@ -181,7 +181,7 @@ def _seed_evidenced_engram(
 def test_archive_below_floor_moves_file_never_deletes(cfg, db_conn, registered) -> None:
     """AC-033: GIVEN an engram whose effective storage strength has decayed
     below floor_archived THEN the next Dream run SHALL move its file into
-    .spectra/archive/ without deleting it."""
+    .magicite/archive/ without deleting it."""
     engram_id = _seed_evidenced_engram(db_conn, PROTON, storage_strength=0.05)
     file_path = cfg.project_root / db_conn.execute(
         "SELECT path FROM engram WHERE id = ?", (engram_id,)

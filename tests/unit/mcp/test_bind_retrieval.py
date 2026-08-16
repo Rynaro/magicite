@@ -14,7 +14,7 @@ from magicite.mcp.schemas import LoadSkillBodyInput, RouteContext, RouteInput
 
 
 def test_route_tool_returns_composition_plan_via_adapter(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_retrieval.route(
@@ -27,7 +27,7 @@ def test_route_tool_returns_composition_plan_via_adapter(cfg, db_conn, embedder)
 
 
 def test_route_tool_hard_excludes_via_context(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_retrieval.route(
@@ -43,7 +43,7 @@ def test_route_tool_hard_excludes_via_context(cfg, db_conn, embedder) -> None:
 
 
 def test_load_skill_body_l2_via_adapter(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_retrieval.load_skill_body(

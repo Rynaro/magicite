@@ -14,7 +14,7 @@ PROTON = "proton-ge-proton-downgrade"
 
 
 def test_flag_dead_flags_never_routed_engrams(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_inspect.flag_dead(ctx, FlagDeadInput())
@@ -36,7 +36,7 @@ def test_flag_dead_flags_never_routed_engrams(cfg, db_conn, embedder) -> None:
 
 
 def test_flag_dead_excludes_recently_routed_engrams(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     from datetime import UTC, datetime
 
@@ -55,7 +55,7 @@ def test_flag_dead_excludes_recently_routed_engrams(cfg, db_conn, embedder) -> N
 
 
 def test_flag_dead_respects_the_window(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     from datetime import UTC, datetime, timedelta
 
@@ -74,7 +74,7 @@ def test_flag_dead_respects_the_window(cfg, db_conn, embedder) -> None:
 
 
 def test_flag_dead_respects_limit(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_inspect.flag_dead(ctx, FlagDeadInput(limit=2))
@@ -86,7 +86,7 @@ def test_flag_dead_respects_limit(cfg, db_conn, embedder) -> None:
 
 
 def test_flag_dead_recommendation_reflects_the_docs07_thresholds(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_inspect.flag_dead(ctx, FlagDeadInput())
@@ -95,7 +95,7 @@ def test_flag_dead_recommendation_reflects_the_docs07_thresholds(cfg, db_conn, e
 
 
 def test_flag_dead_excludes_archived_engrams(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     db_conn.execute("UPDATE engram SET status = 'archived' WHERE name = ?", (PROTON,))
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
@@ -105,7 +105,7 @@ def test_flag_dead_excludes_archived_engrams(cfg, db_conn, embedder) -> None:
 
 
 def test_introspect_without_include_health_omits_health(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_inspect.introspect(ctx, IntrospectInput())
@@ -115,7 +115,7 @@ def test_introspect_without_include_health_omits_health(cfg, db_conn, embedder) 
 
 
 def test_introspect_include_health_reports_standing_kpis(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_inspect.introspect(ctx, IntrospectInput(include_health=True))

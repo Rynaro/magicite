@@ -32,8 +32,8 @@ def toy_registry_dir() -> Path:
 
 @pytest.fixture
 def project_root(tmp_path: Path) -> Path:
-    """A fresh project root with the toy registry copied into .spectra/engrams/."""
-    registry_dir = tmp_path / ".spectra" / "engrams"
+    """A fresh project root with the toy registry copied into .magicite/engrams/."""
+    registry_dir = tmp_path / ".magicite" / "engrams"
     registry_dir.mkdir(parents=True)
     for f in TOY_ENGRAMS_DIR.glob("*.egr.md"):
         shutil.copy(f, registry_dir / f.name)
@@ -42,7 +42,7 @@ def project_root(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def empty_project_root(tmp_path: Path) -> Path:
-    (tmp_path / ".spectra" / "engrams").mkdir(parents=True)
+    (tmp_path / ".magicite" / "engrams").mkdir(parents=True)
     return tmp_path
 
 

@@ -218,7 +218,7 @@ def promote(ctx: ToolContext, params: PromoteInput) -> PromoteOutput:
     idempotent=True,
     input_model=ArchiveInput,
     output_model=ArchiveOutput,
-    description="Lifecycle transition to archived; never deletes, moves the file to .spectra/archive/.",
+    description="Lifecycle transition to archived; never deletes, moves the file to .magicite/archive/.",
 )
 def archive(ctx: ToolContext, params: ArchiveInput) -> ArchiveOutput:
     row = _fetch_engram_row(ctx.conn, params.name)

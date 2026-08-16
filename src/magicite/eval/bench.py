@@ -331,8 +331,11 @@ class BenchReport:
         }
 
 
-def _default_queries_path(project_root: Path) -> Path:
-    return project_root / ".spectra" / "bench" / "queries.jsonl"
+def _default_queries_path(cfg: Config) -> Path:
+    """[DATA-DIR-AMENDED 2026-08-15] Derived from ``Config`` rather than from a
+    bare project root, so the bench corpus follows the resolved data directory
+    (including the legacy fallback) instead of hardcoding one layout."""
+    return cfg.bench_queries_path
 
 
 def run_bench(
@@ -367,7 +370,7 @@ def run_bench(
 @click.option("--project-root", default=".", show_default=True, help="Registry project root.")
 @click.option(
     "--queries", "queries_path", default=None,
-    help="Labelled query JSONL path (default: <project-root>/.spectra/bench/queries.jsonl).",
+    help="Labelled query JSONL path (default: <data-dir>/bench/queries.jsonl).",
 )
 @click.option(
     "--baseline", "selected_baselines", multiple=True,
@@ -393,7 +396,7 @@ def cli(
     if sync:
         registry_mod.sync(cfg, conn, embedder)
 
-    qpath = Path(queries_path) if queries_path else _default_queries_path(cfg.project_root)
+    qpath = Path(queries_path) if queries_path else _default_queries_path(cfg)
     if not qpath.is_file():
         raise click.ClickException(f"no labelled query file at {qpath} (pass --queries)")
     queries = load_queries(qpath)

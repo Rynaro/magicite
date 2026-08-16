@@ -32,6 +32,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from magicite import config as config_mod
 from magicite.config import Config
 from magicite.obs import kpi as kpi_mod
 from magicite.storage import db as db_mod
@@ -100,7 +101,7 @@ def _detect_fstype(path: Path) -> str | None:
 
 
 def filesystem_check(path: Path) -> dict[str, Any]:
-    """R7: is ``path`` (normally ``Config.spectra_dir``) on a filesystem
+    """R7: is ``path`` (normally ``Config.data_dir``) on a filesystem
     where ``fcntl.flock()`` single-writer locking is reliable?"""
     fstype = _detect_fstype(path)
     if fstype is None:
@@ -239,13 +240,41 @@ def governance_check(cfg: Config) -> dict[str, Any]:
     }
 
 
+def layout_check(cfg: Config) -> dict[str, Any]:
+    """[DATA-DIR-AMENDED 2026-08-15] Report which data directory is in use.
+
+    Magicite owns ``.magicite/``; ``.spectra/`` belongs to ESL/tonberry and was
+    the pre-amendment location. Resolution still falls back to the old tree
+    when a real registry lives there, so that a legacy project keeps working —
+    but a silent fallback is how a project stays on a deprecated layout for a
+    year, so it is reported as a warning with the exact move to make.
+    """
+    note = ""
+    if cfg.uses_legacy_layout:
+        note = (
+            f"Magicite state is under the deprecated '{cfg.data_dir_name}/', which belongs to "
+            f"ESL/tonberry (it owns '{cfg.data_dir_name}/changes/'). Move Magicite's own "
+            f"directories to '{config_mod.DEFAULT_DATA_DIR_NAME}/': "
+            f"git mv {cfg.data_dir_name}/engrams {config_mod.DEFAULT_DATA_DIR_NAME}/engrams "
+            f"(likewise archive/, approvals/, runtime/, magicite.toml, bench/ if present). "
+            f"Support for the old location will be removed in a future minor version."
+        )
+    return {
+        "data_dir": str(cfg.data_dir),
+        "data_dir_name": cfg.data_dir_name,
+        "legacy": cfg.uses_legacy_layout,
+        "expected": config_mod.DEFAULT_DATA_DIR_NAME,
+        "note": note,
+    }
+
+
 def run_doctor(cfg: Config) -> dict[str, Any]:
     """The full ``magicite doctor`` report. Every sub-check is independent
     and best-effort -- one check failing to determine something (e.g. an
     unreadable ``/proc/mounts``) never raises; it reports ``None``/unknown
     and lets the caller decide what to do with that."""
     registry = registry_check(cfg)
-    fs_target = cfg.spectra_dir if cfg.spectra_dir.is_dir() else cfg.project_root
+    fs_target = cfg.data_dir if cfg.data_dir.is_dir() else cfg.project_root
     filesystem = filesystem_check(fs_target)
     embedding = embedding_check(cfg)
     registry_size = registry["indexed_registry_size"] or 0
@@ -263,9 +292,13 @@ def run_doctor(cfg: Config) -> dict[str, Any]:
         warnings.append(f"[registry] {registry['note']}")
     if cfg.embedding_provider == "fastembed" and not embedding.get("fastembed_importable", True):
         warnings.append(f"[embedding] {embedding['note']}")
+    layout = layout_check(cfg)
+    if layout["legacy"]:
+        warnings.append(f"[data layout, deprecated] {layout['note']}")
 
     return {
         "project_root": str(cfg.project_root),
+        "layout": layout,
         "registry": registry,
         "filesystem": filesystem,
         "embedding": embedding,

@@ -1,7 +1,7 @@
 # Keep the build context small and hermetic.
 # The production Dockerfile only copies pyproject.toml + README.md + src/;
 # Dockerfile.dev also copies tests/. Everything else is noise, and some of
-# it (`.spectra/`, `.eidolons/`, `.mcp.json`) must never end up baked into
+# it (`.magicite/`, `.spectra/`, `.eidolons/`, `.mcp.json`) must never end up baked into
 # a published image.
 
 .venv/
@@ -21,7 +21,10 @@ build/
 *.egg-info/
 
 # Registry/runtime state — never ships in the image; the container reads
-# it from a bind-mounted VOLUME at runtime instead.
+# it from a bind-mounted VOLUME at runtime instead. `.magicite/` is
+# Magicite's own; `.spectra/` is ESL/tonberry's and is equally unwelcome
+# in a published image.
+.magicite/
 .spectra/
 
 .eidolons/

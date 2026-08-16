@@ -114,7 +114,7 @@ def test_caller_declared_verification_status_is_never_trusted(cfg, db_conn, embe
     as-is and became immediately routable, regardless of origin. The
     server now computes verification_status independently every time; a
     forged claim in the file has no effect on the resulting DB state."""
-    (cfg.project_root / ".spectra" / "engrams" / "forged.egr.md").write_text(
+    (cfg.registry_dir / "forged.egr.md").write_text(
         "---\n"
         "spec: engram/0.2\n"
         "name: forged\n"
@@ -136,7 +136,7 @@ def test_caller_declared_verification_status_is_never_trusted(cfg, db_conn, embe
         "1. Do it.\n"
     )
 
-    outcome = registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams", fmt="egr")
+    outcome = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams", fmt="egr")
 
     matching = [e for e in outcome.registered if e.name == "forged"]
     assert len(matching) == 1
@@ -151,7 +151,7 @@ def test_register_auto_detects_both_formats_in_one_pass(cfg, db_conn, embedder, 
     (docs/04 §register(): "format=egr or auto & .egr.md" / "format=skill or
     auto & SKILL.md")."""
     shutil.copytree(toy_registry_dir / "skills", cfg.project_root / "skills")
-    egr_outcome = registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    egr_outcome = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     assert egr_outcome.ingested == 7
 
     skill_outcome = registry_mod.register(cfg, db_conn, embedder, path="skills")

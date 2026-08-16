@@ -13,7 +13,7 @@ PROTON = "proton-ge-proton-downgrade"
 
 
 def test_signal_use_tool_tags_and_reports_tier(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_signals.signal_use(ctx, SignalUseInput(skill_ids=[PROTON], session_id="s1"))
@@ -25,7 +25,7 @@ def test_signal_use_tool_tags_and_reports_tier(cfg, db_conn, embedder) -> None:
 
 def test_signal_use_tool_reaches_tier2_with_the_correct_token(cfg, db_conn, embedder) -> None:
     cfg.hook_token = "correct-secret"
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_signals.signal_use(
@@ -40,7 +40,7 @@ def test_signal_use_tool_reaches_tier2_with_the_correct_token(cfg, db_conn, embe
 
 
 def test_signal_outcome_tool_captures_explicit_skill_ids(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     bind_signals.signal_use(ctx, SignalUseInput(skill_ids=[PROTON], session_id="s1"))
 
@@ -53,7 +53,7 @@ def test_signal_outcome_tool_captures_explicit_skill_ids(cfg, db_conn, embedder)
 
 
 def test_session_end_tool_closes_session(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     bind_signals.signal_use(ctx, SignalUseInput(skill_ids=[PROTON], session_id="s1"))
     # M6 fix (carried-forward defect #1): session_end() no longer

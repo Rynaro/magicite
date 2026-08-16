@@ -14,7 +14,7 @@ Every R3 tool (`nucleate`, `sharpen`, `promote`, `archive`) is **approval-gated 
 default** ("review mode"). Calling one of these tools:
 
 1. Creates an `approval` row (state `proposed`), durably mirrored to
-   `.spectra/approvals/<id>.json`.
+   `.magicite/approvals/<id>.json`.
 2. Returns immediately with `requires_approval: true` and the proposal's `evidence`
    (for `promote`) or patch (for `sharpen`) — **the engram is not mutated**.
 
@@ -34,7 +34,7 @@ corpus), never for a registry that ingests imported/third-party content unattend
 
 **Known v1 gap — no "resume from approved" worker.** The frozen 16-tool surface has
 no dedicated "approve" or "execute" tool. In review mode, a proposal simply sits in
-`proposed` state after `.spectra/approvals/<id>.json` is written. To execute a
+`proposed` state after `.magicite/approvals/<id>.json` is written. To execute a
 reviewed proposal today:
 
 1. Inspect the JSON file, decide, and edit `state` to `"approved"` (and set
@@ -138,14 +138,14 @@ verbatim (`git checkout` + `magicite sync`, single-engram rollback, restore-from
 + `magicite sync`). Two operational notes M5 adds:
 
 - **Archived engrams survive a plain `sync()`.** An archived engram's DB row points
-  at `.spectra/archive/<date>-<name>.egr.md`, outside the scanned
-  `.spectra/engrams/` tree — `sync()` no longer treats that as "the file vanished"
+  at `.magicite/archive/<date>-<name>.egr.md`, outside the scanned
+  `.magicite/engrams/` tree — `sync()` no longer treats that as "the file vanished"
   and deletes the row (a data-integrity fix landed alongside M5; see the M5 delta).
   Its index entry, edges and journal history persist across ordinary re-syncs.
-- **Restoring a file from `.spectra/archive/` does not, by itself, restore
+- **Restoring a file from `.magicite/archive/` does not, by itself, restore
   routability.** The restored file still declares `status: archived` in its own
   `plasticity:` block (that is what was checkpointed when it was archived) — copying
-  it back into `.spectra/engrams/` and running `sync()` re-indexes it faithfully,
+  it back into `.magicite/engrams/` and running `sync()` re-indexes it faithfully,
   still `archived`. Actual revival is the explicit `archived → probation` FSM
   transition (spec §5.1: "≥3 new successful sessions after a revival request... manual,
   always") via `promote()`, which never auto-executes even under autonomous mode.
@@ -190,7 +190,7 @@ lease is two-layered (spec §4.2, Assumption A3): the DB `writer_lease` row
 Operational guidance:
 
 - Prefer a local (ext4/xfs/btrfs/APFS/NTFS-via-WSL2) filesystem for
-  `.spectra/` in any deployment where more than one Magicite process (or more than
+  `.magicite/` in any deployment where more than one Magicite process (or more than
   one `magicite dream --once`/CLI invocation) can plausibly run concurrently against
   the same registry.
 - On NFS/CIFS, the DB-row layer is authoritative; a stale lease is reclaimable once
@@ -201,7 +201,7 @@ Operational guidance:
 - **`magicite doctor` (M7, `obs/doctor.py`) now implements this detection.** It
   parses `/proc/mounts` (Linux only — reports `fstype: null` and an explicit
   "unverified" warning on any host where it cannot determine the mount type,
-  never a false "local") to flag whether `.spectra/` sits on a known
+  never a false "local") to flag whether `.magicite/` sits on a known
   network-filesystem class (`nfs`, `nfs4`, `cifs`, `smb*`, `9p`, `afs`,
   `ceph(fs)`, `glusterfs`, `fuse.sshfs`, `fuse.s3fs`, `fuse.rclone`). A hit adds
   an `[R7 lock semantics]`-tagged entry to the report's `warnings[]` and sets
@@ -268,7 +268,7 @@ operator or CI job against a project's own registry, never called from inside a
 live `serve` process.
 
 ```sh
-magicite-bench --project-root . --queries .spectra/bench/queries.jsonl \
+magicite-bench --project-root . --queries .magicite/bench/queries.jsonl \
   --baseline b --baseline d
 ```
 
@@ -364,3 +364,103 @@ because OIDC has nothing to fall back to.
 
 Verify afterwards the same way the container was verified: install the published
 wheel into a clean environment and run `magicite tools` — it must report 16.
+
+## 14. The first-party registry (dogfooding)
+
+This repository is itself a Magicite consumer: `.magicite/engrams/` holds
+sixteen authored engrams covering how to operate the project. Full walkthrough
+in `docs/adapters/dogfooding.md`; the operationally relevant parts are:
+
+**The registry is a tracked artifact; its index is not.** `.egr.md` files are
+committed, `skill-graph.db*` is gitignored and rebuilt with
+`uv run magicite sync --project-root .`. A rebuild must report `synced: 16`
+with empty `validation_errors` and `dangling`.
+
+**Checkpoints mutate the tracked files, on purpose.** A Dream checkpoint writes
+durable Tier-A state back into the `.egr.md` bytes — exposure counts,
+`last_checkpoint`, `dream-worker` journal entries, and a materialised
+`synapses:` block. After any probe run, restore authored state before
+committing:
+
+```bash
+uv run python scripts/dogfood_reset.py           # restore
+uv run python scripts/dogfood_reset.py --check   # assert, non-zero on drift
+```
+
+`scripts/dogfood_ids.py --check` is the matching guard for engram ids, which
+are content hashes over identity+routing and must be stamped by tooling rather
+than hand-written.
+
+**Two standing probes**, both driving real stdio MCP rather than importing
+`magicite.core`:
+
+```bash
+uv run python scripts/dogfood_session.py      # all 16 tools, end to end
+uv run python scripts/dogfood_tier_probe.py   # Tier-2 boundary, 5 assertions
+```
+
+**Known first-session sharp edge:** `export` accepts only `min_status` of
+`consolidated` or `promoted`, and freshly authored engrams are `nascent`, so a
+new registry exports zero SKILL.md shims until something consolidates. That is
+by design — shims are a compile target for settled skills — but it surprises
+anyone expecting to author a registry and immediately export it.
+
+## 15. Where Magicite keeps its state (`.magicite/`)
+
+Magicite owns exactly one directory in your project:
+
+```
+.magicite/
+  engrams/        # *.egr.md — the source of truth; skill-graph.db lives here too (gitignored)
+  archive/        # engrams moved out by decay, never deleted
+  approvals/      # R3 proposal mirrors, one JSON per approval
+  runtime/        # dream.lock and other process-local state
+  magicite.toml   # optional config
+  bench/          # queries.jsonl for the benchmark harness
+```
+
+`Config.ensure_dirs()` creates `engrams/`, `archive/`, `approvals/`, and
+`runtime/` at every `magicite serve` boot.
+
+**Track `engrams/`; ignore the rest.** The `.egr.md` files are the registry and
+belong in version control. `skill-graph.db*` is a rebuildable index, and
+`approvals/`/`runtime/`/`archive/` are machine-local — committing an approval
+would invite another machine to execute a proposal it never reviewed.
+
+### Migrating from `.spectra/` (pre-0.2 layout)
+
+Magicite used to write into `.spectra/`, which belongs to ESL/tonberry — that
+tool owns `.spectra/changes/`, and the two tenants collided confusingly
+(Magicite's `.spectra/archive/` sat one level from ESL's
+`.spectra/changes/archive/`, unrelated things with near-identical paths). The
+ecosystem convention is one dot-directory per tool (`.atlas/`, `.eidolons/`),
+and Magicite now follows it.
+
+**Nothing breaks if you do nothing.** Path resolution falls back to `.spectra/`
+when `.magicite/` is absent *and* a real `.spectra/engrams/` exists, so an
+unmigrated project keeps routing. `magicite doctor` reports the fallback as a
+deprecation warning rather than staying quiet — a silent fallback is how a
+project sits on a deprecated layout for a year.
+
+To migrate, move the directories Magicite owns and leave `.spectra/changes/`
+alone:
+
+```bash
+mkdir -p .magicite
+git mv .spectra/engrams .magicite/engrams
+# plus any of these that exist:
+git mv .spectra/archive .magicite/archive
+git mv .spectra/bench   .magicite/bench
+git mv .spectra/magicite.toml .magicite/magicite.toml
+rm -rf .spectra/approvals .spectra/runtime   # machine-local, regenerated at boot
+uv run magicite sync --project-root .        # rebuild the index in its new home
+```
+
+Update `.gitignore` to ignore `/.magicite/{approvals,runtime,archive}/`.
+
+**Overriding the location.** `MAGICITE_DATA_DIR` sets the directory name
+explicitly and beats both the default and the legacy fallback. It is read from
+the environment only — `magicite.toml` lives *inside* the directory it would be
+naming, so that field is deliberately not settable there.
+
+The `.spectra/` fallback is scheduled for removal in a future minor version.

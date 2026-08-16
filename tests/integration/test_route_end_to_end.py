@@ -17,7 +17,7 @@ def test_topological_plan_order(cfg, db_conn, embedder) -> None:
     """AC-012: GIVEN an engram declaring needs: [steam-prefix-access] WHEN
     that engram wins routing THEN composition_plan SHALL list
     steam-prefix-access before the winner."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
 
     outcome = router_mod.route(cfg, db_conn, embedder, query="rollback proton for a steam game", k=5)
 
@@ -33,7 +33,7 @@ def test_route_after_sync_uses_derived_communities(cfg, db_conn, embedder) -> No
     still return sane, non-empty results once communities/similar_to
     edges exist -- the community rerank step must not accidentally starve
     a small registry."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     sync_outcome = registry_mod.sync(cfg, db_conn, embedder)
     assert sync_outcome.detector in {"leiden", "label_propagation"}
 
@@ -51,7 +51,7 @@ def test_route_after_sync_uses_derived_communities(cfg, db_conn, embedder) -> No
 
 
 def test_sync_similar_to_edges_are_symmetric_neighbors_only(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
 
     rows = db_conn.execute(
@@ -70,7 +70,7 @@ def test_plan_confidence_is_one_when_fully_resolved(cfg, db_conn, embedder) -> N
     itself registered in the toy fixture) WHEN route() returns a
     composition_plan of more than one node THEN plan_confidence SHALL
     equal 1.0."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
 
     outcome = router_mod.route(cfg, db_conn, embedder, query="rollback proton for a steam game", k=5)
 
@@ -89,7 +89,7 @@ def test_plan_confidence_reports_the_unresolved_share(cfg, db_conn, embedder) ->
     additional depends_on edge naming a target no .egr.md declares is
     inserted directly so the winner has exactly two needs targets, one
     resolved."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     winner_id = db_conn.execute(
         "SELECT id FROM engram WHERE name = 'proton-ge-proton-downgrade'"
     ).fetchone()["id"]

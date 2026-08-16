@@ -143,14 +143,14 @@ consolidate():
 
 ```
 ~project_root/
-  .spectra/
+  .magicite/
     engrams/
       skill-a.egr.md
       skill-b.egr.md
       skill-graph.db            ← SQLite
 ```
 
-- One registry per project (one `.spectra/engrams/` directory).
+- One registry per project (one `.magicite/engrams/` directory).
 - Skills are project-local (not global).
 - Multiple projects → multiple independent registries (no shared state).
 - Concurrent agents may query the same registry; only Dream writes to it.
@@ -176,7 +176,7 @@ The exploratory corpus claimed "zero write contention" but was imprecise. **Refi
 | Component | Implementation |
 |---|---|
 | Transport | stdio MCP (MLK, FastMCP, or equivalent) |
-| Storage | SQLite, single file in project `.spectra/engrams/` |
+| Storage | SQLite, single file in project `.magicite/engrams/` |
 | Embeddings | Ollama (local model, no API calls) |
 | Scope | Per-project registry |
 | Query model | Command-line / Python function / MCP client |

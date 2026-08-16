@@ -12,6 +12,49 @@ Record could still move shipped defaults. A `1.0.0` would claim a
 confidence the evidence does not support, so the version does not move
 until that changes.
 
+## [Unreleased]
+
+### Changed — BREAKING (data layout)
+
+- **Magicite's project state moved from `.spectra/` to `.magicite/`.**
+  `.spectra/` belongs to ESL/tonberry, which owns `.spectra/changes/`; the two
+  tenants collided confusingly (Magicite's `.spectra/archive/` — decayed
+  engrams — sat one level from ESL's `.spectra/changes/archive/` — archived
+  change records). The ecosystem convention is one dot-directory per tool
+  (`.atlas/`, `.eidolons/`), and Magicite now follows it. `engrams/`,
+  `archive/`, `approvals/`, `runtime/`, `magicite.toml`, and `bench/` all live
+  under `.magicite/`. `.spectra/changes/` is untouched.
+
+  **Existing projects keep working without intervention.** Path resolution
+  falls back to `.spectra/` when `.magicite/` is absent *and* a real
+  `.spectra/engrams/` exists — a fresh project carrying only an ESL
+  `.spectra/changes/` tree is never dragged onto the old layout. `magicite
+  doctor` reports the fallback as a deprecation warning rather than staying
+  quiet; a silent fallback against an empty registry is the worst failure mode
+  a router has. The fallback is scheduled for removal in a future minor
+  version. Migration steps: `docs/operations.md` §15.
+
+### Added
+
+- `MAGICITE_DATA_DIR` overrides the data directory name, beating both the
+  default and the legacy fallback. Environment only — `magicite.toml` lives
+  inside the directory it would be naming.
+- `magicite doctor` reports a `layout` section (`data_dir`, `legacy`,
+  `expected`) and warns on the deprecated location.
+- A first-party engram registry for this repository itself (30 engrams,
+  `.magicite/engrams/`) plus the dogfood harness under `scripts/`. See
+  `docs/adapters/dogfooding.md`, including what dogfooding exposed: notably
+  that `triggers.negative` and `intent.not_when` have **no effect on
+  retrieval** in 0.1.0 — they are linted, fitness-scored, stored, and hashed
+  into the engram id, and consulted by nothing at query time.
+
+### Unchanged
+
+- The 16-tool MCP surface, routing behaviour, plasticity, and the trust gate.
+  This release moves files and resolves paths; it changes no decision the
+  router or the Dream worker makes. No claim in `docs/01`'s Falsification
+  Record is affected.
+
 ## [0.1.0] — 2026-08-15
 
 Initial release: a local-first, plasticity-inspired skill router speaking

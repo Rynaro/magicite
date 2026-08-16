@@ -1,0 +1,64 @@
+{
+  "esl_version": "1.1",
+  "change_id": "magicite-dogfoods-itself",
+  "status": "archived",
+  "tier": "full",
+  "maker": "claude-orchestrator",
+  "checker": "magicite-self-verify",
+  "acceptance_checks": [
+    {
+      "id": "AC-D1",
+      "given": "the authored .spectra/engrams/*.egr.md registry",
+      "when": "the durable index is deleted and magicite sync --project-root . is run",
+      "then": "every engram ingests under the strict lint profile with zero validation errors and the registered count equals the number of .egr.md files on disk",
+      "verify_method": "rm -f .spectra/engrams/skill-graph.db* \u0026\u0026 uv run magicite sync --project-root . -\u003e synced: 16, validation_errors: [], dangling: []"
+    },
+    {
+      "id": "AC-D2",
+      "given": "the synced registry",
+      "when": "every declared needs, composes, and inhibits target is resolved against the set of registered engram names",
+      "then": "there are zero dangling declared edges",
+      "verify_method": "sync output dangling: [] plus a direct edge query -\u003e 12 depends_on + 5 inhibits, all provenance=declared, all resolved"
+    },
+    {
+      "id": "AC-D3",
+      "given": "the synced registry",
+      "when": "route() is called with questions a maintainer would actually ask",
+      "then": "the intended engram appears in its own top-3 candidates for at least 80% of probes, as a wiring sanity check and NOT a retrieval evaluation",
+      "verify_method": "uv run python scripts/dogfood_session.py -\u003e 4/4 probes in top-3, 3/4 at rank 1"
+    },
+    {
+      "id": "AC-D4",
+      "given": "a live stdio MCP session against the local tree",
+      "when": "the capability set is exercised in order (introspect, route, load_skill_body, signal_use, signal_outcome, session_end, consolidate, checkpoint, flag_dead, sync, export, nucleate, sharpen, promote, archive)",
+      "then": "every call returns a non-error result and the JSON-RPC transcript is recorded under the change folder",
+      "verify_method": "uv run python scripts/dogfood_session.py --out .spectra/changes/magicite-dogfoods-itself/mcp-session-transcript.json (exit 0)"
+    },
+    {
+      "id": "AC-D5",
+      "given": "a server with MAGICITE_HOOK_TOKEN configured",
+      "when": "a signal call carries the matching secret as adapter_token, versus a wrong secret, the literal string hook_verified, no token, or a server with no token configured",
+      "then": "only the matching secret against a token-configured server yields signal_tier 2; every other combination yields tier 1",
+      "verify_method": "uv run python scripts/dogfood_tier_probe.py -\u003e 5/5 assertions pass"
+    },
+    {
+      "id": "AC-D6",
+      "given": "all changes in this change",
+      "when": "the frozen verify command runs",
+      "then": "ruff check ., mypy src, pytest --cov-fail-under=70, and pytest -m acceptance all pass and magicite tools still reports exactly 16 tools",
+      "verify_method": "uv run ruff check . \u0026\u0026 uv run mypy src \u0026\u0026 uv run pytest -q --cov=src/magicite --cov-fail-under=70 \u0026\u0026 uv run pytest -q -m acceptance \u0026\u0026 uv run magicite tools"
+    },
+    {
+      "id": "AC-D7",
+      "given": "every document added or edited by this change",
+      "when": "read",
+      "then": "none claims that authoring a first-party registry is evidence that hierarchy-aware routing or declared-edge activation improves retrieval, and each points at docs/01's Falsification Record where it touches the question",
+      "verify_method": "manual review recorded in verification-note.md"
+    }
+  ],
+  "spec_ref": ".spectra/changes/magicite-dogfoods-itself/spec.md",
+  "created_at": "2026-08-15",
+  "drift_checked": true,
+  "archive_path": "archive/2026-08-15-magicite-dogfoods-itself",
+  "has_code": true
+}

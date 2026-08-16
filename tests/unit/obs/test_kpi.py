@@ -26,7 +26,7 @@ def test_cold_start_signal_at_or_above_reference_size_does_not_assert_a_verdict(
 
 
 def test_fitness_distribution_buckets_by_storage_strength(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     db_conn.execute("UPDATE engram SET storage_strength = 0.9 WHERE id = ?", (proton_id,))
 
@@ -38,14 +38,14 @@ def test_fitness_distribution_buckets_by_storage_strength(cfg, db_conn, embedder
 
 
 def test_top_n_traffic_share_empty_registry_is_zero(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     share = kpi_mod.top_n_traffic_share(db_conn, n=5)
     assert share["share"] == 0.0
     assert share["exceeds_target"] is False
 
 
 def test_top_n_traffic_share_flags_concentration(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     proton_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     db_conn.execute(
         "INSERT INTO eph_bookkeeping (engram_id, exposure_delta, route_returns) VALUES (?, 0, 100)",
@@ -57,7 +57,7 @@ def test_top_n_traffic_share_flags_concentration(cfg, db_conn, embedder) -> None
 
 
 def test_compute_standing_kpis_is_read_only(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     before = {dict(r)["id"]: dict(r) for r in db_conn.execute("SELECT * FROM engram").fetchall()}
 
     result = kpi_mod.compute_standing_kpis(cfg, db_conn)

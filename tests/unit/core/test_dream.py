@@ -22,7 +22,7 @@ STEAM_PREFIX = "steam-prefix-access"
 
 @pytest.fixture
 def registered(cfg, db_conn, embedder) -> None:
-    outcome = registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    outcome = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     assert outcome.ingested == 7
 
 

@@ -71,7 +71,7 @@ client cannot self-upgrade a call's trust level.
 
    **`--user 1000:1000` is required here, not optional** (M7 finding,
    `tests/acceptance/test_docker_smoke.py`): `magicite serve` calls
-   `Config.ensure_dirs()` at every boot, creating `.spectra/{archive,
+   `Config.ensure_dirs()` at every boot, creating `.magicite/{archive,
    approvals,runtime}` if absent. A bind mount preserves the *host's* file
    ownership, so a container running as the image's baked-in default (UID
    10001, i.e. this flag omitted) hits a bare `PermissionError` against any
@@ -140,7 +140,38 @@ degrades gracefully:
   Learning continues via exposure and co-retrieval alone — slower, but never
   dead (GAP-003, closed by design, docs/05 §"Question (FINDING-012)").
 
-## 4. Future adapters
+## 4. Asymmetry: what a hook can actually verify
+
+The matrix in §3 assigns both `signal_use` and `signal_outcome` to hook
+points, but wiring this adapter against a real registry (see
+`docs/adapters/dogfooding.md`, which is this project's own instance of it)
+showed the two are not equally verifiable from the host:
+
+- **An outcome is host-observable.** A driving command's exit code, an
+  error in tool output, and whether the turn ended in a correction are all
+  visible to a `PostToolUse`/`Stop` hook. `signal_outcome` from a hook is
+  therefore genuine external verification, which is what Tier 2 claims.
+- **A use is not host-observable.** *Which* routed skill the agent chose to
+  apply is known only to the agent. A hook firing `signal_use` on a guess
+  would be manufacturing hook-verified evidence for a skill that may never
+  have been applied — exactly the fabrication the tier gate exists to
+  prevent. Tier 2 is only meaningful if the thing it attests is actually
+  checked.
+
+The practical resolution is a **correlation channel**: the agent records its
+chosen skill where the hook can read it (this project uses one id or name
+per line in `.magicite/runtime/hook-current-skill`, consumed and cleared by
+the outcome hook), and the hook fires `signal_use` only when that record
+exists. With no record, use stays Tier-1 self-report by design. This costs
+nothing — a `signal_use` the hook declines to send is not a lost signal,
+because the routing `instructions` field already asks the agent for the
+Tier-1 call.
+
+This does not weaken §1's trust model: the tier is still decided server-side
+by the token comparison alone. It narrows *when* a host should claim Tier 2
+for a use, which is a separate question from whether it can.
+
+## 5. Future adapters
 
 The Tier-2 mechanism itself is host-agnostic: any host with an equivalent
 pre/post-tool-use hook system (Cursor, AgentKit, custom harnesses) can

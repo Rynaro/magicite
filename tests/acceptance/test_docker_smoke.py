@@ -13,7 +13,7 @@ prerequisite is never silently reported as a pass.
 **M7 finding (privilege boundary, close-out item #4), discovered by actually
 running this suite rather than assumed:** ``mcp/app.py::build_state`` calls
 ``Config.ensure_dirs()`` unconditionally at *every* server boot -- creating
-``.spectra/{archive,approvals,runtime}`` if absent -- so the container needs
+``.magicite/{archive,approvals,runtime}`` if absent -- so the container needs
 WRITE access to the mounted project directory just to complete the
 ``initialize`` handshake, not only for a later ``register()``/``sync()``
 call. A bind mount preserves the HOST's file ownership; a container running
@@ -208,7 +208,7 @@ async def test_offline_register_uses_the_baked_model_with_egress_denied(project_
         resp = await _initialize(proc)
         assert "error" not in resp, resp
 
-        call = await _call_tool(proc, "register", {"path": ".spectra/engrams"}, id=2)
+        call = await _call_tool(proc, "register", {"path": ".magicite/engrams"}, id=2)
         assert "error" not in call, call
         result = call["result"]
         assert result["isError"] is False, result
@@ -234,7 +234,7 @@ async def test_offline_register_and_route_cycle(project_root: Path) -> None:
         resp = await _initialize(proc)
         assert "error" not in resp, resp
 
-        register_call = await _call_tool(proc, "register", {"path": ".spectra/engrams"}, id=2)
+        register_call = await _call_tool(proc, "register", {"path": ".magicite/engrams"}, id=2)
         assert "error" not in register_call, register_call
         register_result = register_call["result"]
         assert register_result["isError"] is False, register_result
@@ -258,7 +258,7 @@ async def test_uid_override_preserves_host_file_ownership(project_root: Path) ->
     """M7 close-out item #4 (privilege-boundary finding), made mechanical:
     invoking with `--user <host-uid>:<host-gid>` (the house pattern this
     project's own .mcp.json/docs/adapters/claude-code.md use) makes the
-    files magicite writes under .spectra/ owned by the SAME OS principal
+    files magicite writes under .magicite/ owned by the SAME OS principal
     as the host user who ran docker -- no privilege boundary between
     client and server, matching FORGE's threat-model assumption."""
     host_uid = os.getuid()
@@ -266,13 +266,13 @@ async def test_uid_override_preserves_host_file_ownership(project_root: Path) ->
     try:
         resp = await _initialize(proc)
         assert "error" not in resp, resp
-        call = await _call_tool(proc, "register", {"path": ".spectra/engrams"}, id=2)
+        call = await _call_tool(proc, "register", {"path": ".magicite/engrams"}, id=2)
         assert "error" not in call, call
         assert call["result"]["isError"] is False, call["result"]
     finally:
         await _terminate(proc)
 
-    db_path = project_root / ".spectra" / "engrams" / "skill-graph.db"
+    db_path = project_root / ".magicite" / "engrams" / "skill-graph.db"
     assert db_path.is_file(), "register() should have created skill-graph.db on the host mount"
     assert db_path.stat().st_uid == host_uid, (
         f"skill-graph.db is owned by uid {db_path.stat().st_uid}, not the invoking host uid "

@@ -27,3 +27,12 @@ skill-graph.db-shm
 
 # Ephemeral worktrees used for fail-before/pass-after proofs
 .claude/worktrees/
+
+# The three directories Config.ensure_dirs() creates at every `magicite serve`
+# boot. Machine-local runtime state, not deliverables: approvals are pending
+# proposals awaiting a local decision, and committing them would invite another
+# machine to approve a proposal it never reviewed. The engram registry itself
+# (.magicite/engrams/*.egr.md) IS tracked — it is the source of truth.
+/.magicite/approvals/
+/.magicite/runtime/
+/.magicite/archive/

@@ -1,0 +1,113 @@
+# Machine-readable projection of spec.md (ESL C3 tier_artifacts_present, tier=full).
+# Authority: spec.md is normative; this file is a faithful summary and MUST NOT diverge.
+#
+# PROVENANCE NOTE: no RAMZA planning run produced this change, so there is no
+# `ramza:` gate block. The tier came from tonberry's deterministic right_size
+# gate (recorded below); everything else projects hand-authored spec.md content.
+
+kind: spec
+version: 1.0.0
+status: verified
+created_at: "2026-08-15"
+author: claude-orchestrator
+
+# ── ESL binding ────────────────────────────────────────────────────────────
+change_id: magicite-self-contained-data-dir
+esl_tier: full
+maker: claude-orchestrator
+checker: magicite-self-verify
+spec_ref: .spectra/changes/magicite-self-contained-data-dir/spec.md
+has_code: true
+builds_on: magicite-codebase-skill-tranche
+
+# ── right_size gate (deterministic, mcp__tonberry__right_size) ─────────────
+right_size:
+  files_touched: 45
+  rubric_score: 9
+  tradeoff_present: true
+  route: "0->1->2->3->4"
+  tier: full
+
+# ── Problem ────────────────────────────────────────────────────────────────
+problem: >-
+  Magicite wrote all of its state into `.spectra/`, a directory owned by
+  ESL/tonberry (which owns `.spectra/changes/`). The two tenants collided
+  confusingly -- Magicite's `.spectra/archive/` (decayed engrams) sat one level
+  from ESL's `.spectra/changes/archive/` (archived change records) -- and a
+  standalone Magicite user got a directory named after a tool they may never
+  have heard of. The ecosystem convention is one dot-directory per tool
+  (`.atlas/`, `.eidolons/`).
+
+# ── Amendment record ───────────────────────────────────────────────────────
+amendment:
+  tag: DATA-DIR-AMENDED
+  date: "2026-08-15"
+  supersedes: "spec §1 data layout (.spectra/)"
+  new_location: ".magicite/"
+  scope: "path resolution only"
+  unchanged: >-
+    The 16-tool MCP surface, routing, plasticity, the trust gate. No decision
+    the router or the Dream worker makes is affected, and no claim in docs/01's
+    Falsification Record is touched.
+
+# ── Tradeoff of record ─────────────────────────────────────────────────────
+tradeoff:
+  question: "Clean break on the old layout, or resolve both?"
+  decision: "read both, with a loud deprecation"
+  rejected:
+    option: "clean break"
+    why_rejected: >-
+      An absent registry directory is a legal state for a fresh project, so a
+      clean break would not error on a legacy project -- it would come up with
+      an EMPTY registry and route against zero skills. Silent zero-skill
+      routing is the worst failure mode a router has.
+  cost_accepted: >-
+    One extra branch in path resolution, bounded to a single documented
+    function, droppable at the next minor version.
+  safety_property: >-
+    The fallback requires `.spectra/engrams/` to actually exist. `.spectra/changes/`
+    is ESL's and proves nothing about Magicite, so every ESL-using project in
+    this ecosystem still resolves to `.magicite/`.
+
+# ── Acceptance checks (normative text in spec.md; verdicts in verification-note.md)
+acceptance_checks:
+  - {id: AC-M1, summary: "fresh project resolves and creates under .magicite/", verdict: pass}
+  - {id: AC-M2, summary: "legacy .spectra/engrams/ still found and reported", verdict: pass}
+  - {id: AC-M3, summary: "ESL .spectra/changes/ never triggers the fallback", verdict: pass}
+  - {id: AC-M4, summary: "MAGICITE_DATA_DIR overrides default and legacy", verdict: pass}
+  - {id: AC-M5, summary: "doctor emits an actionable deprecation finding", verdict: pass}
+  - {id: AC-M6, summary: "repo's own registry operational at the new path", verdict: pass}
+  - {id: AC-M7, summary: "frozen verify green, 16-tool surface intact", verdict: pass}
+  - {id: AC-M8, summary: "no stale user-facing .spectra/ instruction remains", verdict: pass}
+
+# ── Scope ──────────────────────────────────────────────────────────────────
+scope:
+  in:
+    - src/magicite/config.py
+    - src/magicite/obs/doctor.py
+    - src/magicite/eval/bench.py
+    - "docstrings in core/{registry,decay,approvals}.py and mcp/bind_lifecycle.py"
+    - tests/**
+    - Dockerfile
+    - .dockerignore
+    - .gitignore
+    - README.md
+    - docs/**
+    - scripts/dogfood_*.py
+    - .magicite/engrams/**
+    - CHANGELOG.md
+  out:
+    - ".spectra/changes/ and everything else ESL owns"
+    - "the 16-tool MCP surface"
+    - "routing, plasticity and trust behaviour"
+
+# ── Claim scope ────────────────────────────────────────────────────────────
+claim_scope:
+  demonstrated: >-
+    Every Magicite path resolves under a self-contained `.magicite/`; a legacy
+    project keeps working and is told; an ESL-only project is unaffected; the
+    repository's own 30-engram registry is fully operational at the new
+    location across the whole 16-tool surface.
+  NOT_demonstrated: >-
+    Nothing about retrieval quality. This change moves files; it produced no
+    measurement and licenses no claim about the hypotheses in docs/01.

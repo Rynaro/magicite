@@ -73,7 +73,7 @@ def test_declared_edge_enters_the_activation_graph(cfg, db_conn, embedder) -> No
     and nothing potentiates it, so it was ABSENT from the graph, not
     merely weak (decisions/DECLARED-EDGES-AMENDED.md §1).
     """
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
 
     edge_rows = router_mod._fetch_activation_edges(db_conn)
     row = next(r for r in edge_rows if r["type"] == "depends_on" and r["provenance"] == "declared")
@@ -116,7 +116,7 @@ def test_zero_declared_strength_is_an_exact_revert(cfg, db_conn, embedder) -> No
     AC-039 pins. ``hub_penalty=0.0`` neutralises it so this test isolates
     the one thing §3.3.1 actually changed.
     """
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     cfg.declared_edge_strength = 0.0
     cfg.hub_penalty = 0.0
     query = "rollback proton for a steam game"

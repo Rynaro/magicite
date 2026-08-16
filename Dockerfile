@@ -23,10 +23,10 @@
 # This image's default user is `magicite`, UID 10001 (a safe, never-root
 # default for a bare `docker run image` with no `--user` override). But
 # magicite is NOT a read-only tool the way atlas-aci is: register()/sync()/
-# Dream write real files under the mounted project's `.spectra/` tree
+# Dream write real files under the mounted project's `.magicite/` tree
 # (engrams, the DB, dream.lock, approvals) — and `magicite serve` calls
 # `Config.ensure_dirs()` UNCONDITIONALLY AT EVERY BOOT (creating
-# `.spectra/{archive,approvals,runtime}` if absent), not only when a write
+# `.magicite/{archive,approvals,runtime}` if absent), not only when a write
 # tool is later called.
 #
 # CONFIRMED EMPIRICALLY (`tests/acceptance/test_docker_smoke.py`, M7): a
@@ -36,7 +36,7 @@
 # `PermissionError` and the server never even completes `initialize`. This
 # is stronger than a mere ownership-hygiene concern: **the container
 # cannot function at all** against a real, host-owned project directory
-# without the `--user` override. (If you pre-create/chown `.spectra/` to
+# without the `--user` override. (If you pre-create/chown `.magicite/` to
 # UID 10001 yourself, or the mount happens to be world-writable, boot will
 # succeed but every file magicite creates is then owned by UID 10001, not
 # you — the same privilege boundary FORGE's threat model (docs/02-

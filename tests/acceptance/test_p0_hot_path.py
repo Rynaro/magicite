@@ -136,7 +136,7 @@ def test_authorizer_denies_durable_write(cfg: Config) -> None:
         # The Dream/writer path is NOT strangled by the guard: a real R2
         # durable-write tool, routed through the same dispatcher, succeeds.
         register_result = app_mod.dispatch_call(
-            state, "register", {"path": ".spectra/engrams"}
+            state, "register", {"path": ".magicite/engrams"}
         )
         assert register_result.is_error is False
         assert register_result.structured_content["ingested"] == 7
@@ -180,7 +180,7 @@ def test_writer_tools_are_not_strangled_by_the_authorizer(cfg: Config, embedder)
     dispatcher, which is exactly where AC-013's guard is wired in."""
     state = app_mod.build_state(cfg)
     try:
-        outcome = registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        outcome = registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
         assert outcome.ingested == 7
         assert outcome.validation_errors == []
     finally:

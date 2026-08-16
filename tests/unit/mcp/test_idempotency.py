@@ -30,7 +30,7 @@ def test_replay_returns_cached_response(cfg, embedder) -> None:
     side effect."""
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
         engram_id = state.conn.execute(
             "SELECT id FROM engram WHERE name = ?", (PROTON,)
         ).fetchone()["id"]
@@ -54,7 +54,7 @@ def test_replay_returns_cached_response(cfg, embedder) -> None:
 def test_replay_with_different_arguments_conflicts(cfg, embedder) -> None:
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
 
         first = app_mod.dispatch_call(
             state, "signal_use", {"skill_ids": [PROTON], "session_id": "s1", "request_id": "req-1"}
@@ -87,7 +87,7 @@ def test_idempotency_is_keyed_by_tool_not_just_request_id(cfg, embedder) -> None
     legitimate call to a different tool)."""
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
 
         sync_result = app_mod.dispatch_call(state, "sync", {"request_id": "shared-id"})
         assert sync_result.is_error is False
@@ -114,7 +114,7 @@ def test_idempotency_replay_still_works_within_the_same_tool(cfg, embedder) -> N
     reusing a request_id (AC-019 is unaffected by the tool-keying)."""
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
         first = app_mod.dispatch_call(state, "sync", {"request_id": "req-x"})
         second = app_mod.dispatch_call(state, "sync", {"request_id": "req-x"})
         assert first.is_error is False
@@ -130,7 +130,7 @@ def test_replay_without_request_id_repeats_the_side_effect(cfg, embedder) -> Non
     makes the per-session cap test in test_signals.py meaningful at all)."""
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
         engram_id = state.conn.execute(
             "SELECT id FROM engram WHERE name = ?", (PROTON,)
         ).fetchone()["id"]
