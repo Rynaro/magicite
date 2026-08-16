@@ -12,7 +12,7 @@ Record could still move shipped defaults. A `1.0.0` would claim a
 confidence the evidence does not support, so the version does not move
 until that changes.
 
-## [Unreleased]
+## [0.2.0] — 2026-08-16
 
 ### Changed — BREAKING (data layout)
 
