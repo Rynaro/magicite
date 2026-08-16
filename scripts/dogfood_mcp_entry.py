@@ -29,11 +29,11 @@ import os
 import sys
 from pathlib import Path
 
-#: The v0.1.0 published image. Pin a digest, never a moving tag -- a tag
+#: The v0.2.0 published image. Pin a digest, never a moving tag -- a tag
 #: silently changes what every downstream project runs.
 IMAGE = (
     "ghcr.io/rynaro/magicite@sha256:"
-    "d4de4eacbadea6f7e8fa73506dceae8e3d465088a2590c3d892deb096e03dc34"
+    "486f3c510ad48d7e6a3ca32dfa2e40ba29b06e3572f13da9264e088834c87b67"
 )
 
 

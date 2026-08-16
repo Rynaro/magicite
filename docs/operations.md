@@ -323,13 +323,13 @@ takes elsewhere). Set to `0` to restore the pre-M6 behaviour.
 
 ## 13. Release channels — container now, PyPI deferred
 
-`0.1.0` ships **container-only**. The image is the primary artifact and follows
+`0.2.0` ships **container-only**. The image is the primary artifact and follows
 the sibling-MCP pattern (`crystalium`/`atomos`/`atlas-aci`): multi-arch, non-root
 UID 10001, capability-dropped, digest-pinnable, cosign-signed, with an SBOM and
 build provenance attested and a Trivy HIGH/CRITICAL gate on GA tags.
 
 ```
-ghcr.io/rynaro/magicite@sha256:d4de4eacbadea6f7e8fa73506dceae8e3d465088a2590c3d892deb096e03dc34
+ghcr.io/rynaro/magicite@sha256:486f3c510ad48d7e6a3ca32dfa2e40ba29b06e3572f13da9264e088834c87b67
 ```
 
 ### Why the wheel is not published
@@ -359,7 +359,7 @@ because OIDC has nothing to fall back to.
 3. `gh variable set PUBLISH_TO_PYPI --body true`
 4. Tag. `-rc.`/`-beta.` tags route to TestPyPI; GA tags to the real index.
 5. **Update the README's pip quickstart.** It currently documents a source
-   install and states plainly that `0.1.0` is not on PyPI. Leaving that in place
+   install and states plainly that the current version is not on PyPI. Leaving that in place
    after the gate flips turns an honest statement into a stale one.
 
 Verify afterwards the same way the container was verified: install the published

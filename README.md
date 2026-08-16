@@ -9,7 +9,7 @@ surface for retrieval, signal capture, and (approval-gated) learning. It
 never executes anything on your behalf and never phones home: routing,
 learning, and consolidation all happen inside your own project, offline.
 
-**Status:** 0.1.0 — first release, container-only. See
+**Status:** 0.2.0 — container-only. See
 `.spectra/changes/archive/2026-08-15-magicite-v1-implementation/spec.md` for
 the normative construction spec (archived, with its five recorded amendments)
 and `docs/` for the design corpus (start at
@@ -31,7 +31,7 @@ docker run --rm -i \
     --user "$(id -u):$(id -g)" \
     --cap-drop ALL --security-opt no-new-privileges \
     -v "$PWD":"$PWD":z -w "$PWD" \
-    ghcr.io/rynaro/magicite@sha256:d4de4eacbadea6f7e8fa73506dceae8e3d465088a2590c3d892deb096e03dc34 \
+    ghcr.io/rynaro/magicite@sha256:486f3c510ad48d7e6a3ca32dfa2e40ba29b06e3572f13da9264e088834c87b67 \
     serve --project-root "$PWD"
 ```
 
@@ -57,7 +57,7 @@ finding behind this.
         "--label", "eidolons.project=<project>",
         "-v", "<project_root>:<project_root>:z", "-w", "<project_root>",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-        "ghcr.io/rynaro/magicite@sha256:d4de4eacbadea6f7e8fa73506dceae8e3d465088a2590c3d892deb096e03dc34",
+        "ghcr.io/rynaro/magicite@sha256:486f3c510ad48d7e6a3ca32dfa2e40ba29b06e3572f13da9264e088834c87b67",
         "serve", "--project-root", "<project_root>"
       ]
     }
@@ -66,7 +66,7 @@ finding behind this.
 ```
 
 Replace `1000:1000` with your own `$(id -u):$(id -g)` if different. The digest
-above is the published `v0.1.0` image; newer pinned digests appear on the
+above is the published `v0.2.0` image; newer pinned digests appear on the
 [releases page](https://github.com/Rynaro/magicite/releases). See
 `docs/adapters/claude-code.md` for the fuller adapter walkthrough, including
 optional Tier-2 hook acceleration via `MAGICITE_HOOK_TOKEN`.
@@ -81,7 +81,7 @@ and 9 `inhibits` edges rather than left as a flat list, and
 over real stdio MCP. See `docs/adapters/dogfooding.md` for the loop, the
 `.mcp.json` generator, the Tier-2 hook wiring, and an honest account of what
 the exercise exposed — including that `triggers.negative` and `intent.not_when`
-turn out to have no effect on retrieval at all in v0.1.0.
+turn out to have no effect on retrieval at all, as of 0.2.0.
 
 It is worth saying plainly what this is not: a self-authored registry is **not**
 evidence for any of the routing hypotheses in `docs/01`'s Falsification Record.
@@ -89,7 +89,7 @@ It demonstrates that the surface works end-to-end, nothing more.
 
 ## Quickstart — pip (development)
 
-> **Not on PyPI yet.** 0.1.0 ships as a container only; the wheel job is
+> **Not on PyPI yet.** 0.2.0 ships as a container only; the wheel job is
 > gated behind `PUBLISH_TO_PYPI` until trusted publishing is registered.
 > Install from source in the meantime.
 
