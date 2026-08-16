@@ -1,0 +1,71 @@
+{
+  "esl_version": "1.1",
+  "change_id": "magicite-self-contained-data-dir",
+  "status": "archived",
+  "tier": "full",
+  "maker": "claude-orchestrator",
+  "checker": "magicite-self-verify",
+  "acceptance_checks": [
+    {
+      "id": "AC-M1",
+      "given": "a project with no Magicite state",
+      "when": "Config resolves its paths and ensure_dirs() runs",
+      "then": "registry_dir, archive_dir, approvals_dir, runtime_dir, toml_path and the bench query path all resolve under \u003cproject_root\u003e/.magicite/ and are created there, with nothing created under the legacy directory",
+      "verify_method": "uv run pytest -q tests/unit/test_config.py -k data_dir"
+    },
+    {
+      "id": "AC-M2",
+      "given": "a project whose only Magicite state is a legacy .spectra/engrams/ directory",
+      "when": "Config.load() resolves",
+      "then": "it resolves to the legacy .spectra/ tree so the registry keeps working, and reports that it did so via uses_legacy_layout",
+      "verify_method": "uv run pytest -q tests/unit/test_config.py -k legacy"
+    },
+    {
+      "id": "AC-M3",
+      "given": "a project with no Magicite state but an ESL .spectra/changes/ tree",
+      "when": "Config.load() resolves",
+      "then": "it chooses .magicite/ — a fresh project is not dragged onto the legacy layout by ESL's own directory",
+      "verify_method": "uv run pytest -q tests/unit/test_config.py -k fresh_project_ignores_esl"
+    },
+    {
+      "id": "AC-M4",
+      "given": "MAGICITE_DATA_DIR is set",
+      "when": "Config.load() resolves",
+      "then": "that value wins over both the default and the legacy fallback",
+      "verify_method": "uv run pytest -q tests/unit/test_config.py -k env_override"
+    },
+    {
+      "id": "AC-M5",
+      "given": "a project on the legacy layout",
+      "when": "magicite doctor runs",
+      "then": "it emits a distinct, actionable deprecation finding naming both the current and the intended directory, and the report is not healthy",
+      "verify_method": "uv run pytest -q tests/unit/obs/test_doctor.py -k layout"
+    },
+    {
+      "id": "AC-M6",
+      "given": "this repository's own registry moved to .magicite/engrams/",
+      "when": "the index is rebuilt and the dogfood guards and session run",
+      "then": "sync reports 30 engrams with zero validation errors and zero dangling edges, both dogfood_graph_check checks pass, and the 16-tool session completes with 4/4 probes in top-3",
+      "verify_method": "uv run magicite sync --project-root . \u0026\u0026 uv run python scripts/dogfood_graph_check.py \u0026\u0026 uv run python scripts/dogfood_session.py"
+    },
+    {
+      "id": "AC-M7",
+      "given": "all changes",
+      "when": "the frozen verify command runs",
+      "then": "ruff check ., mypy src, pytest --cov-fail-under=70 and pytest -m acceptance all pass and magicite tools reports exactly 16 tools, with no assertion weakened to accommodate the move",
+      "verify_method": "uv run ruff check . \u0026\u0026 uv run mypy src \u0026\u0026 uv run pytest -q --cov=src/magicite --cov-fail-under=70 \u0026\u0026 uv run pytest -q -m acceptance \u0026\u0026 uv run magicite tools"
+    },
+    {
+      "id": "AC-M8",
+      "given": "the docs, container files and CI",
+      "when": "swept for stale references",
+      "then": "no user-facing instruction still tells a reader to use .spectra/ for Magicite state, and .dockerignore excludes both directories from the build context",
+      "verify_method": "grep sweep recorded in verification-note.md; container smoke tests re-run against a locally built image"
+    }
+  ],
+  "spec_ref": ".spectra/changes/magicite-self-contained-data-dir/spec.md",
+  "created_at": "2026-08-15",
+  "drift_checked": true,
+  "archive_path": "archive/2026-08-15-magicite-self-contained-data-dir",
+  "has_code": true
+}

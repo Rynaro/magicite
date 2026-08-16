@@ -410,7 +410,7 @@ The exploratory proposal had 8 tools (proposal IV.6); engram-format had 8 additi
 }
 ```
 
-**Side effects:** Moves engram to archived status; remains in `.spectra/archive/` for history.
+**Side effects:** Moves engram to archived status; remains in `.magicite/archive/` for history.
 
 **Risk class:** R3 (modifies registry status).
 

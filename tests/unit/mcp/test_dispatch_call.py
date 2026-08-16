@@ -35,7 +35,7 @@ def test_route_gets_both_the_generic_ledger_row_and_its_own_specific_one(cfg, em
     double-count bug."""
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
         result = app_mod.dispatch_call(state, "route", {"query": "steam wont open", "k": 3})
         assert result.is_error is False
         rows = _events(state.conn, "route")
@@ -49,7 +49,7 @@ def test_route_gets_both_the_generic_ledger_row_and_its_own_specific_one(cfg, em
 def test_idempotency_replay_does_not_append_a_second_ledger_row(cfg, embedder) -> None:
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
         args = {"skill_ids": ["proton-ge-proton-downgrade"], "session_id": "s1", "request_id": "r1"}
         app_mod.dispatch_call(state, "signal_use", args)
         # signal_use writes its own additional event (core/signals.py, same
@@ -74,7 +74,7 @@ def test_route_ledger_row_uses_the_resolved_not_raw_session_id(cfg, embedder) ->
     session that actually produced it."""
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
         result = app_mod.dispatch_call(state, "route", {"query": "steam wont open", "k": 3})
         assert result.is_error is False
         minted_session_id = result.structured_content["session_id"]

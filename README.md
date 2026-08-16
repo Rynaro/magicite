@@ -36,7 +36,7 @@ docker run --rm -i \
 ```
 
 **`--user "$(id -u):$(id -g)"` is required, not optional.** `magicite serve`
-creates `.spectra/{archive,approvals,runtime}` at every boot
+creates `.magicite/{archive,approvals,runtime}` at every boot
 (`Config.ensure_dirs()`), and a bind mount preserves the *host's* file
 ownership — without this flag the container runs as the image's baked-in
 default (UID 10001), which cannot write to a directory it does not own, and
@@ -73,7 +73,7 @@ optional Tier-2 hook acceleration via `MAGICITE_HOOK_TOKEN`.
 
 ## Dogfooding
 
-This repository routes its own maintenance through Magicite. `.spectra/engrams/`
+This repository routes its own maintenance through Magicite. `.magicite/engrams/`
 holds thirty first-party engrams in two tranches — sixteen on operating the
 project, fourteen on changing its code — connected by 26 declared `depends_on`
 and 9 `inhibits` edges rather than left as a flat list, and
@@ -112,7 +112,7 @@ magicite doctor --project-root .
 ```
 
 A deliberately unflattering environment check (spec M7, risks R7/R9): it
-warns when `.spectra/` sits on a filesystem class where `fcntl.flock()`-based
+warns when `.magicite/` sits on a filesystem class where `fcntl.flock()`-based
 single-writer locking is known to degrade (NFS/CIFS/etc.), and it reports
 the registry's cold-start standing honestly rather than overselling —
 `registry_size` below the ~50-skill reference size is called out as a

@@ -280,7 +280,7 @@ Two timescales operate independently:
 
 - **Revival:** An archived skill can be re-promoted if new evidence accumulates (new session traces, manual feedback). Version history is preserved; no deletion.
 - **Decay floor:** Skills reaching S < floor_archived are moved to archived status automatically by Dream. They remain in the registry (git history) but are excluded from routing.
-- **Forgetting policy:** The filesystem is the archive. Dream never deletes `.egr.md` files; it moves them to `.spectra/archive/` with a timestamped suffix and updates the Provenance journal. Rollback is possible by restoring from the archive.
+- **Forgetting policy:** The filesystem is the archive. Dream never deletes `.egr.md` files; it moves them to `.magicite/archive/` with a timestamped suffix and updates the Provenance journal. Rollback is possible by restoring from the archive.
 
 ---
 

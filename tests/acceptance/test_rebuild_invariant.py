@@ -57,7 +57,7 @@ def test_durable_state_survives_rebuild(cfg, db_conn, embedder) -> None:
     WHEN skill-graph.db is deleted and sync() is called
     THEN the durable projection of Tier A plus Tier B state SHALL be
     byte-identical to the pre-deletion projection."""
-    register_outcome = registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    register_outcome = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     assert register_outcome.ingested == 7
     assert register_outcome.validation_errors == []
 
@@ -150,7 +150,7 @@ def test_only_tier_c_is_lost(cfg, db_conn, embedder) -> None:
     """GIVEN a freshly rebuilt index
     THEN all Tier-C tables (eph_retrieval, eph_tag, eph_candidate_edge,
     eph_embedding excepted for recompute) SHALL be empty."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
 
     engram_id = db_conn.execute("SELECT id FROM engram LIMIT 1").fetchone()["id"]
@@ -218,7 +218,7 @@ def test_learned_synapses_survive_rebuild(cfg, db_conn, embedder) -> None:
     composition fields, never reads the file's own ``synapses:`` block --
     and a purely-learned ``co_activation`` edge has no declared
     counterpart at all, so it has zero path back into a rebuilt DB."""
-    register_outcome = registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    register_outcome = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     assert register_outcome.ingested == 7
 
     # Tier-2 (hook_verified): TIER_WEIGHT[2]==1.0 vs Tier-1's 0.6 cap
@@ -318,7 +318,7 @@ def test_peak_storage_strength_and_content_sha256_survive_rebuild(cfg, db_conn, 
       fail the rebuild invariant even with the synapses/peak fixes above
       in place.
     """
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
 
     # An engram that reached a real historical high (0.6) and has since
@@ -393,7 +393,7 @@ def test_checkpoint_persists_provenance_journal_to_file(cfg, db_conn, embedder) 
     only way to observe this bug is to read the real bytes Dream wrote to
     disk (and re-parse them), which is what this test does instead of
     extending the DB-projection-based tests above."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
 
     # Force a genuinely dirty checkpoint the same way

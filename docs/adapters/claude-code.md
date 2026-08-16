@@ -71,7 +71,7 @@ client cannot self-upgrade a call's trust level.
 
    **`--user 1000:1000` is required here, not optional** (M7 finding,
    `tests/acceptance/test_docker_smoke.py`): `magicite serve` calls
-   `Config.ensure_dirs()` at every boot, creating `.spectra/{archive,
+   `Config.ensure_dirs()` at every boot, creating `.magicite/{archive,
    approvals,runtime}` if absent. A bind mount preserves the *host's* file
    ownership, so a container running as the image's baked-in default (UID
    10001, i.e. this flag omitted) hits a bare `PermissionError` against any
@@ -160,7 +160,7 @@ showed the two are not equally verifiable from the host:
 
 The practical resolution is a **correlation channel**: the agent records its
 chosen skill where the hook can read it (this project uses one id or name
-per line in `.spectra/runtime/hook-current-skill`, consumed and cleared by
+per line in `.magicite/runtime/hook-current-skill`, consumed and cleared by
 the outcome hook), and the hook fires `signal_use` only when that record
 exists. With no record, use stays Tier-1 self-report by design. This costs
 nothing — a `signal_use` the hook declines to send is not a lost signal,

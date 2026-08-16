@@ -97,7 +97,7 @@ def test_r3_requires_approval_by_default(cfg, db_conn, embedder) -> None:
     called THEN the tool SHALL create an approval in state proposed
     without mutating the engram."""
     assert cfg.autonomous is False  # review mode is the default (docs/06)
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     before = db_conn.execute("SELECT status FROM engram WHERE name = ?", (PROTON,)).fetchone()
 
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
@@ -126,7 +126,7 @@ def test_r3_autonomous_mode_auto_executes_and_records_the_actor(cfg, db_conn, em
     Audit trail: All ops logged with actor (human, dream-worker,
     autonomous-mode)". Opt-in only -- `cfg.autonomous` defaults False."""
     cfg.autonomous = True
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
 
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     result = bind_lifecycle.archive(ctx, ArchiveInput(name=PROTON, reason="autonomous test"))

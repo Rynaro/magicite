@@ -40,7 +40,7 @@ trust:
   verification_status: pending
 ---
 ## Procedure
-1. Create `.spectra/engrams/<name>.egr.md`, where `<name>` matches `^[a-z0-9-]{1,64}$` and is byte-identical to the `name:` field — the filename is not decoration, `core/registry.py` resolves declared edges by name.
+1. Create `.magicite/engrams/<name>.egr.md`, where `<name>` matches `^[a-z0-9-]{1,64}$` and is byte-identical to the `name:` field — the filename is not decoration, `core/registry.py` resolves declared edges by name.
 2. Set `spec: engram/0.2` and `provenance: authored`. Only `authored` and `sharpened` origins can reach `verification_status: verified`; `imported` and `distilled` are pinned to `pending` by `core/lifecycle.py::initial_verification_status`.
 3. Write all three `intent` fields. `not_when` is a hard strict-lint error when missing or empty. Write it for the reader and for the fitness score, and do not expect it to steer retrieval — see the Pitfalls below for what it does and does not reach.
 4. Supply at least three `triggers.positive` and at least one `triggers.negative` (`MIN_POSITIVE_TRIGGERS`/`MIN_NEGATIVE_TRIGGERS` in `engram/lint.py`). Keep each trigger specific to this project; a short generic phrase risks the over-broad-trigger quarantine described in the Pitfalls below.

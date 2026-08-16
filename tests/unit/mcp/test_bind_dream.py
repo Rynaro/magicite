@@ -31,7 +31,7 @@ def test_nucleate_proposes_a_frequent_uncovered_path(cfg, db_conn, embedder) -> 
     """CR-3: nucleate() creates a `proposed` op='nucleate' approval per
     candidate and never writes an engram -- the host agent drafts the
     real .egr.md and calls register() (spec §3.3 tool 13's own note)."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     # Two skills with no existing composes/depends_on edge between them in
     # the toy registry -- a genuine coverage gap.
@@ -64,7 +64,7 @@ def test_nucleate_proposes_a_frequent_uncovered_path(cfg, db_conn, embedder) -> 
 
 
 def test_nucleate_below_min_support_proposes_nothing(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     names = ["nvidia-prime-render-offload", "lutris-wine-prefix-setup"]
     signals_mod.signal_use(cfg, db_conn, skill_ids=names, session_id="one-off")

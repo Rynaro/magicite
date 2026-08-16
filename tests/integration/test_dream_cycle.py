@@ -36,7 +36,7 @@ def test_single_writer_enforced(cfg, db_conn, embedder) -> None:
     genuinely fails if the guard is weakened or removed: it asserts both
     the raised error type AND that zero rows/files changed, not merely
     "an exception happened.\""""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
 
     holder = lease_mod.CrossProcessLease(
         lock_path=cfg.dream_lock_path, conn=db_conn, holder="dream-run-already-in-progress"
@@ -81,7 +81,7 @@ def test_session_end_debounce(cfg, embedder) -> None:
     assert cfg.dream_on_session_end is True
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
 
         first = app_mod.dispatch_call(state, "session_end", {"session_id": "s1"})
         assert first.is_error is False
@@ -106,7 +106,7 @@ def test_session_end_does_not_enqueue_when_disabled(cfg, embedder) -> None:
     cfg.dream_on_session_end = False
     state = app_mod.build_state(cfg)
     try:
-        registry_mod.register(cfg, state.writer_conn, embedder, path=".spectra/engrams")
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
         result = app_mod.dispatch_call(state, "session_end", {"session_id": "s1"})
         payload = result.structured_content
         assert payload["enqueued"] is False
@@ -123,13 +123,13 @@ def test_session_end_does_not_enqueue_when_disabled(cfg, embedder) -> None:
 def test_decay_floor_archives_never_deletes(cfg, db_conn, embedder) -> None:
     """AC-033: GIVEN an engram whose effective storage strength has decayed
     below floor_archived THEN the next Dream run SHALL move its file into
-    .spectra/archive/ without deleting it.
+    .magicite/archive/ without deleting it.
 
     Exercised through the full ``core.dream.run()`` orchestrator (not just
     ``core.decay.archive_below_floor`` in isolation, which
     ``tests/unit/core/test_decay.py`` already covers) -- proving the
     archival actually fires as part of a real Dream cycle."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     original_path = cfg.project_root / db_conn.execute(
         "SELECT path FROM engram WHERE id = ?", (engram_id,)
@@ -154,7 +154,7 @@ def test_decay_floor_archives_never_deletes(cfg, db_conn, embedder) -> None:
 
     archive_dir = cfg.archive_dir
     archived_files = list(archive_dir.glob(f"*-{PROTON}.egr.md"))
-    assert len(archived_files) == 1, "the file must exist in .spectra/archive/ -- never deleted"
+    assert len(archived_files) == 1, "the file must exist in .magicite/archive/ -- never deleted"
     assert "status: archived" in archived_files[0].read_text(encoding="utf-8")
 
     row = db_conn.execute("SELECT status FROM engram WHERE id = ?", (engram_id,)).fetchone()

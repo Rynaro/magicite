@@ -27,7 +27,7 @@ def test_inhibition_is_reachable_from_register(cfg, db_conn, embedder) -> None:
     strictly lower than its score in an otherwise identical run with
     declared_edge_strength = 0.0.
     """
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     query = "rollback proton for a steam game"
 
     cfg.declared_edge_strength = 1.0

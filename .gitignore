@@ -32,8 +32,7 @@ skill-graph.db-shm
 # boot. Machine-local runtime state, not deliverables: approvals are pending
 # proposals awaiting a local decision, and committing them would invite another
 # machine to approve a proposal it never reviewed. The engram registry itself
-# (.spectra/engrams/*.egr.md) IS tracked — it is the source of truth.
-# Anchored so .spectra/changes/archive/ (the ESL record) stays tracked.
-/.spectra/approvals/
-/.spectra/runtime/
-/.spectra/archive/
+# (.magicite/engrams/*.egr.md) IS tracked — it is the source of truth.
+/.magicite/approvals/
+/.magicite/runtime/
+/.magicite/archive/

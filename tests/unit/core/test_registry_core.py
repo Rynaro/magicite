@@ -13,17 +13,17 @@ def test_register_rejects_path_outside_project(cfg, db_conn, embedder, tmp_path)
 
 
 def test_register_is_idempotent_on_unchanged_content(cfg, db_conn, embedder) -> None:
-    first = registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    first = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     assert first.ingested == 7
     assert first.skipped_unchanged == 0
 
-    second = registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    second = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     assert second.ingested == 0
     assert second.skipped_unchanged == 7
 
 
 def test_register_wires_declared_needs_edge(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     row = db_conn.execute(
         "SELECT dst_name, dangling FROM edge WHERE src_id = "
         "(SELECT id FROM engram WHERE name = 'proton-ge-proton-downgrade') AND type = 'depends_on'"
@@ -36,7 +36,7 @@ def test_register_reports_dangling_edge_for_unregistered_target(cfg, db_conn, em
     # Register only the downgrade engram (whose `needs: [steam-prefix-access]` target is absent).
     only_one = tmp_path / "solo"
     only_one.mkdir()
-    src = cfg.project_root / ".spectra" / "engrams" / "proton-ge-proton-downgrade.egr.md"
+    src = cfg.registry_dir / "proton-ge-proton-downgrade.egr.md"
     (only_one / "proton-ge-proton-downgrade.egr.md").write_text(src.read_text())
 
     outcome = registry_mod.register(
@@ -79,7 +79,7 @@ def test_register_skill_format_ingests_via_import_pipeline(cfg, db_conn, embedde
 
 
 def test_sync_removes_rows_for_deleted_files(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     victim = cfg.registry_dir / "nvidia-prime-render-offload.egr.md"
     victim.unlink()
 

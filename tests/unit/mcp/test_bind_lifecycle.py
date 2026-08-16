@@ -29,7 +29,7 @@ def _iso(dt: datetime) -> str:
 
 
 def test_promote_nascent_to_probation_review_mode_creates_a_proposal(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = _ctx(cfg, db_conn, embedder)
 
     result = bind_lifecycle.promote(ctx, PromoteInput(name=PROTON))
@@ -45,7 +45,7 @@ def test_promote_nascent_to_probation_review_mode_creates_a_proposal(cfg, db_con
 
 def test_promote_nascent_to_probation_autonomous_mode_executes(cfg, db_conn, embedder) -> None:
     cfg.autonomous = True
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = _ctx(cfg, db_conn, embedder)
 
     result = bind_lifecycle.promote(ctx, PromoteInput(name=PROTON))
@@ -72,7 +72,7 @@ def test_promote_denied_below_evidence_bar_end_to_end(cfg, db_conn, embedder) ->
     lifecycle.apply() slice tests/unit/core/test_lifecycle.py already
     covers): S=0.4, pass_rate=0.8 -- both below the probation->consolidated
     bar -- must deny, naming the unmet guards, leaving status unchanged."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     db_conn.execute(
         "UPDATE engram SET status = 'probation', storage_strength = 0.4, peak_storage_strength = 0.4, "
@@ -94,7 +94,7 @@ def test_promote_denied_below_evidence_bar_end_to_end(cfg, db_conn, embedder) ->
 
 def test_promote_probation_to_consolidated_when_evidence_clears(cfg, db_conn, embedder) -> None:
     cfg.autonomous = True
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     db_conn.execute(
         "UPDATE engram SET status = 'probation', storage_strength = 0.7, peak_storage_strength = 0.7, "
@@ -146,7 +146,7 @@ def test_promote_quarantines_on_injection_scan_hit(cfg, db_conn, embedder, tmp_p
 
 def test_promote_revival_never_auto_executes_even_under_autonomous_mode(cfg, db_conn, embedder) -> None:
     cfg.autonomous = True
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
     db_conn.execute("UPDATE engram SET status = 'archived' WHERE id = ?", (engram_id,))
     now = datetime.now(UTC)
@@ -178,7 +178,7 @@ def test_promote_not_found(cfg, db_conn, embedder) -> None:
 
 
 def test_sharpen_review_mode_creates_a_proposal_and_does_not_touch_the_file(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     file_path = cfg.registry_dir / f"{PROTON}.egr.md"
     original = file_path.read_text(encoding="utf-8")
     ctx = _ctx(cfg, db_conn, embedder)
@@ -195,7 +195,7 @@ def test_sharpen_review_mode_creates_a_proposal_and_does_not_touch_the_file(cfg,
 
 def test_sharpen_autonomous_mode_applies_the_patch_and_bumps_version(cfg, db_conn, embedder) -> None:
     cfg.autonomous = True
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = _ctx(cfg, db_conn, embedder)
 
     result = bind_lifecycle.sharpen(
@@ -232,7 +232,7 @@ def test_sharpen_lint_failure_leaves_the_file_untouched(cfg, db_conn, embedder) 
     path without depending on a specific patch shape happening to break
     strict lint."""
     cfg.autonomous = True
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     file_path = cfg.registry_dir / f"{PROTON}.egr.md"
     original = file_path.read_text(encoding="utf-8")
 

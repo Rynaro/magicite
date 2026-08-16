@@ -17,7 +17,7 @@ def test_authored_weight_is_never_persisted(cfg, db_conn, embedder) -> None:
     literal 0.0; nothing in v1 can raise it except Dream potentiating a
     ``co_activation`` edge, which a declared depends_on/composes/inhibits
     edge is never tagged as (decisions/DECLARED-EDGES-AMENDED.md §4.1)."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
 
     rows = db_conn.execute(
         "SELECT storage_strength FROM edge WHERE provenance = 'declared'"

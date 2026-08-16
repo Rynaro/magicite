@@ -379,7 +379,7 @@ def _cross_process_lease(
 
 
 def _ensure_registry_gitignore(cfg: Config) -> None:
-    """spec §1: register() writes a .gitignore into .spectra/engrams/ on first
+    """spec §1: register() writes a .gitignore into .magicite/engrams/ on first
     run excluding the rebuildable DB (CR-2); MAGICITE_COMMIT_DB=1 opts out."""
     if cfg.commit_db:
         return
@@ -565,12 +565,12 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
                 outcome.validation_errors.append(verr)
 
         # M5 data-integrity fix: an archived engram's DB row legitimately
-        # points at `.spectra/archive/...`, outside `registry_dir` -- this
+        # points at `.magicite/archive/...`, outside `registry_dir` -- this
         # loop must not treat that as "the file vanished". Before this
         # fix, `sync()` deleted every archived engram's row on the very
         # next call (no restoration action required to trigger it),
         # silently losing its index/history/edges even though the file
-        # itself was correctly still sitting in `.spectra/archive/`
+        # itself was correctly still sitting in `.magicite/archive/`
         # ("archive, never delete" held for the file but not the index).
         removed: list[str] = []
         for row in conn.execute("SELECT id, name, path, status FROM engram").fetchall():

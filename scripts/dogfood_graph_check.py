@@ -142,7 +142,7 @@ def check_symbols(engrams: dict[str, dict], repo_root: Path) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--registry", type=Path, default=Path(".spectra/engrams"))
+    ap.add_argument("--registry", type=Path, default=Path(".magicite/engrams"))
     ap.add_argument("--repo-root", type=Path, default=Path("."))
     ap.add_argument("--edges", action="store_true")
     ap.add_argument("--symbols", action="store_true")

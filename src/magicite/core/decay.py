@@ -17,7 +17,7 @@ Three things live here, all Dream-phase-3 concerns:
    unmaterialised drift never shows up as a dirty engram at Phase 7.
 3. :func:`archive_below_floor` -- AC-033: an engram whose S has decayed
    below ``floor_archived`` is moved (never deleted) to
-   ``.spectra/archive/<date>-<name>.egr.md``, with its DB row flipped to
+   ``.magicite/archive/<date>-<name>.egr.md``, with its DB row flipped to
    ``status='archived'``. This is the one lifecycle transition Dream is
    explicitly a listed trigger for in spec §5.1's FSM table ("any(≠draft) →
    archived | S_effective < 0.2 (auto) | Dream, archive") that M4 actually
@@ -272,7 +272,7 @@ def archive_one(
 def archive_below_floor(cfg: Config, conn, *, now: str) -> list[ArchivedEntry]:  # noqa: ANN001
     """AC-033: any routable engram whose *effective* S has decayed below
     ``floor_archived`` is moved -- never deleted -- to
-    ``.spectra/archive/<date>-<name>.egr.md``, and its DB row flips to
+    ``.magicite/archive/<date>-<name>.egr.md``, and its DB row flips to
     ``status='archived'``. Must run inside Dream's checkpoint phase (writes
     the ``plasticity:`` block via the G3-gated ``engram.writer`` functions)
     and inside the writer lease (G2, for the file move + DB write).

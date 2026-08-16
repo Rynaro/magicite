@@ -121,7 +121,7 @@ Appealed ─→ Re-review
 | `nucleate` (R3) | Requires review | Manual approval or "autonomous mode" opt-in | Proposed → review → approved → executed (Dream schedules induction) |
 | `sharpen` (R3) | Requires review | Manual approval | Proposed → review → approved → executed (Dream schedules rewrite) |
 | `promote` (R3) | Evidence-gated | Automatic if evidence bar met; else requires manual approval | Check evidence (S ≥ θ, pass-rate ≥ φ) → auto-promote if pass; else propose + await review |
-| `archive` (R3) | Requires review | Manual approval | Proposed → review → approved → executed (moved to .spectra/archive/) |
+| `archive` (R3) | Requires review | Manual approval | Proposed → review → approved → executed (moved to .magicite/archive/) |
 
 ### Autonomous Mode (Opt-In)
 
@@ -178,27 +178,27 @@ nascent ───────→ probation ───→ consolidated ───�
 
 ### Version Control
 
-- **Registry is git-repository-friendly:** All `.egr.md` files and `skill-graph.db` reside in `.spectra/` and can be committed.
+- **Registry is git-repository-friendly:** All `.egr.md` files and `skill-graph.db` reside in `.magicite/` and can be committed.
 - **Provenance journal:** Every `.egr.md` carries an append-only journal in the file body; every modification is logged with timestamp, actor, and reason.
-- **Archive directory:** `.spectra/archive/` contains all archived engrams, timestamped (never deleted).
+- **Archive directory:** `.magicite/archive/` contains all archived engrams, timestamped (never deleted).
 
 ### Rollback Paths
 
 1. **Git rollback (entire registry):**
    ```bash
-   git checkout HEAD~1 -- .spectra/
+   git checkout HEAD~1 -- .magicite/
    magicite sync  # rebuild DB from files
    ```
 
 2. **Single-engram rollback:**
    ```bash
-   git checkout HEAD~N -- .spectra/engrams/<name>.egr.md
+   git checkout HEAD~N -- .magicite/engrams/<name>.egr.md
    magicite sync
    ```
 
 3. **Restore from archive:**
    ```bash
-   cp .spectra/archive/2026-08-09-<name>.egr.md .spectra/engrams/<name>.egr.md
+   cp .magicite/archive/2026-08-09-<name>.egr.md .magicite/engrams/<name>.egr.md
    magicite sync
    ```
 

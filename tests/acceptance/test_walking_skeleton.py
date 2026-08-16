@@ -12,7 +12,7 @@ def test_register_route_introspect(cfg, db_conn, embedder) -> None:
     from magicite.core import router as router_mod
     from magicite.storage import queries as queries_mod
 
-    register_outcome = registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    register_outcome = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     assert register_outcome.ingested == 7
     assert register_outcome.validation_errors == []
 
@@ -50,7 +50,7 @@ async def test_register_route_introspect_over_mcp(project_root) -> None:
         async with ClientSession(read, write) as session:
             await session.initialize()
 
-            reg = await session.call_tool("register", {"path": ".spectra/engrams"})
+            reg = await session.call_tool("register", {"path": ".magicite/engrams"})
             assert reg.is_error is False, reg.structured_content
             assert reg.structured_content["ingested"] == 7
 

@@ -13,7 +13,7 @@ TOY_QUERIES_PATH = Path("tests/fixtures/toy-registry/queries.jsonl")
 
 
 def test_no_decay_does_not_mutate_the_caller_config(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     queries = bench_mod.load_queries(TOY_QUERIES_PATH)[:5]
     original_lambda_r = cfg.lambda_r_per_day
@@ -24,7 +24,7 @@ def test_no_decay_does_not_mutate_the_caller_config(cfg, db_conn, embedder) -> N
 
 
 def test_no_decay_result_shape(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     queries = bench_mod.load_queries(TOY_QUERIES_PATH)
 
@@ -36,7 +36,7 @@ def test_no_decay_result_shape(cfg, db_conn, embedder) -> None:
 
 
 def test_no_communities_does_not_mutate_the_caller_config(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     queries = bench_mod.load_queries(TOY_QUERIES_PATH)[:5]
 
@@ -48,7 +48,7 @@ def test_no_communities_does_not_mutate_the_caller_config(cfg, db_conn, embedder
 def test_no_communities_config_switch_is_real(cfg, db_conn, embedder) -> None:
     """The switch actually reaches core/router.py::route() -- not a
     bench-only reimplementation."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     from magicite.core import router as router_mod
 
@@ -68,7 +68,7 @@ def test_no_communities_config_switch_is_real(cfg, db_conn, embedder) -> None:
 def test_no_tag_capture_never_calls_signal_use_or_signal_outcome(cfg, db_conn, embedder, monkeypatch) -> None:
     """P0 (spec §6.2): this ablation must never touch the real, gated
     two-phase-commit path -- it is simulated entirely offline."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     queries = bench_mod.load_queries(TOY_QUERIES_PATH)
 
@@ -88,7 +88,7 @@ def test_no_tag_capture_demonstrates_instability(cfg, db_conn, embedder) -> None
     """docs/07's own hypothesis, made concrete: ungated, ever-growing
     per-occurrence bumps toward frequently-labelled skills degrade
     accuracy relative to the real, gated baseline (d)."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     queries = bench_mod.load_queries(TOY_QUERIES_PATH)
 
@@ -99,7 +99,7 @@ def test_no_tag_capture_demonstrates_instability(cfg, db_conn, embedder) -> None
 
 
 def test_run_all_returns_every_named_ablation(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     queries = bench_mod.load_queries(TOY_QUERIES_PATH)[:10]
 

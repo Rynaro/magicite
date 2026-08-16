@@ -48,8 +48,8 @@ def main() -> int:
     ap.add_argument(
         "--registry",
         type=Path,
-        default=Path(".spectra/engrams"),
-        help="directory of .egr.md files (default: .spectra/engrams)",
+        default=Path(".magicite/engrams"),
+        help="directory of .egr.md files (default: .magicite/engrams)",
     )
     ap.add_argument(
         "--check",

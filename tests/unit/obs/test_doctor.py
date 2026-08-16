@@ -31,7 +31,7 @@ def test_registry_check_reports_unsynced_egr_files(project_root: Path) -> None:
 
 
 def test_registry_check_reports_indexed_size_once_synced(cfg, db_conn, embedder) -> None:
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     result = doctor_mod.registry_check(cfg)
     assert result["db_exists"] is True
     assert result["indexed_registry_size"] == 7
@@ -95,7 +95,7 @@ def test_governance_check_autonomous_mode(tmp_path: Path) -> None:
 def test_run_doctor_below_reference_size_is_not_reassuring(cfg, db_conn, embedder) -> None:
     """R9: the toy registry (7 engrams) is well below the ~50-skill
     cold-start reference size -- doctor must say so, not stay silent."""
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     report = doctor_mod.run_doctor(cfg)
     assert report["cold_start"]["below_reference_size"] is True
     assert report["healthy"] is False
@@ -115,7 +115,44 @@ def test_run_doctor_empty_project_never_raises(tmp_path: Path) -> None:
 def test_run_doctor_json_serializable(cfg, db_conn, embedder) -> None:
     import json
 
-    registry_mod.register(cfg, db_conn, embedder, path=".spectra/engrams")
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     report = doctor_mod.run_doctor(cfg)
     # must not raise -- every value doctor produces is JSON-safe
     json.dumps(report, default=str)
+
+
+def test_layout_check_is_quiet_on_the_current_layout(tmp_path: Path) -> None:
+    """[DATA-DIR-AMENDED 2026-08-15] AC-M5: no deprecation noise for a project
+    already on `.magicite/`."""
+    from magicite.config import Config
+
+    (tmp_path / ".magicite" / "engrams").mkdir(parents=True)
+    layout = doctor_mod.layout_check(Config.load(tmp_path, env={}))
+
+    assert layout["legacy"] is False
+    assert layout["data_dir_name"] == ".magicite"
+    assert layout["note"] == ""
+
+
+def test_layout_check_flags_the_legacy_directory(tmp_path: Path) -> None:
+    """AC-M5: a project still on `.spectra/` keeps working, and is told.
+
+    The fallback is deliberately silent-proof: resolution succeeding is not a
+    reason to leave a project on a deprecated layout indefinitely, so doctor
+    reports it as a warning naming both directories and the move to make.
+    """
+    from magicite.config import Config
+
+    (tmp_path / ".spectra" / "engrams").mkdir(parents=True)
+    cfg = Config.load(tmp_path, env={})
+    layout = doctor_mod.layout_check(cfg)
+
+    assert layout["legacy"] is True
+    assert layout["data_dir_name"] == ".spectra"
+    assert layout["expected"] == ".magicite"
+    assert ".magicite" in layout["note"] and ".spectra" in layout["note"]
+    assert "git mv" in layout["note"]
+
+    report = doctor_mod.run_doctor(cfg)
+    assert report["healthy"] is False
+    assert any("data layout" in w for w in report["warnings"])

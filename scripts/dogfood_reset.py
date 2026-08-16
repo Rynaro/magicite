@@ -109,7 +109,7 @@ def reset_one(path: Path, *, check: bool) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--registry", type=Path, default=Path(".spectra/engrams"))
+    ap.add_argument("--registry", type=Path, default=Path(".magicite/engrams"))
     ap.add_argument("--check", action="store_true", help="report drift, exit non-zero, rewrite nothing")
     args = ap.parse_args()
 

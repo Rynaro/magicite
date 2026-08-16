@@ -1,8 +1,28 @@
 """Config dataclass + TOML/env resolution (spec §1 data layout, §4.3 defaults).
 
 Framework-free (INV-1): no MCP import here. Resolution order, lowest to
-highest precedence: dataclass defaults -> ``<project_root>/.spectra/magicite.toml``
+highest precedence: dataclass defaults -> ``<data_dir>/magicite.toml``
 -> process environment (``MAGICITE_*``).
+
+[DATA-DIR-AMENDED 2026-08-15] spec §1 places every Magicite-owned directory
+under ``<project_root>/.spectra/``. That directory is **not Magicite's**:
+ESL/tonberry owns ``.spectra/changes/``, and the two tenants collide
+confusingly (Magicite's old ``.spectra/archive/`` -- decayed engrams -- sat one
+level from ESL's ``.spectra/changes/archive/`` -- archived change records).
+The surrounding ecosystem already establishes one-tool-one-dot-directory
+(``.atlas/`` for atlas-aci, ``.eidolons/`` for Eidolons), so Magicite now owns
+``<project_root>/.magicite/`` and leaves ``.spectra/`` to ESL entirely.
+
+This is a path-resolution change only: nothing about routing, plasticity, the
+trust gate, or the 16-tool surface moves with it.
+
+Legacy projects are not broken. :func:`resolve_data_dir_name` falls back to
+``.spectra`` when -- and only when -- ``.magicite/`` is absent *and* a legacy
+``.spectra/engrams/`` actually exists. A fresh project that merely happens to
+carry an ESL ``.spectra/changes/`` tree is never dragged onto the old layout.
+The fallback is announced by ``obs/doctor.py`` rather than happening quietly:
+silently routing against an empty registry is the worst failure mode a router
+has, and it is exactly what a clean break would have produced.
 """
 
 from __future__ import annotations
@@ -13,6 +33,23 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
+
+#: [DATA-DIR-AMENDED 2026-08-15] The directory Magicite owns inside a project.
+#: Namespaced to the tool, per the ecosystem convention (``.atlas/``,
+#: ``.eidolons/``) -- a generic name like ``.skills/`` would recreate exactly
+#: the collision this amendment removes.
+DEFAULT_DATA_DIR_NAME = ".magicite"
+
+#: The pre-amendment location. Read-only compatibility: resolution falls back
+#: here only when the new directory is absent AND a registry actually exists
+#: here (see :func:`resolve_data_dir_name`). Droppable at the next minor
+#: version, once v0.1.0's installed base has migrated.
+LEGACY_DATA_DIR_NAME = ".spectra"
+
+#: The subdirectory whose presence proves a legacy layout is real rather than
+#: incidental. ``.spectra/changes/`` is ESL's and says nothing about Magicite,
+#: so it deliberately does NOT count as evidence.
+_LEGACY_MARKER = "engrams"
 
 #: type_gain weights used by core/activation.py's edge weighting (spec §3.3 step 4).
 DEFAULT_TYPE_GAIN: dict[str, float] = {
@@ -29,6 +66,11 @@ class Config:
     """Resolved runtime configuration for one Magicite server instance."""
 
     project_root: Path = field(default_factory=Path.cwd)
+    #: [DATA-DIR-AMENDED 2026-08-15] Name of the project-local directory holding
+    #: every Magicite-owned path. Set by :func:`resolve_data_dir_name` during
+    #: ``load()``; deliberately NOT settable from ``magicite.toml``, which lives
+    #: *inside* this directory and therefore cannot decide where it is.
+    data_dir_name: str = DEFAULT_DATA_DIR_NAME
 
     # ── plasticity / decay tunables (spec §4.3) ────────────────────────
     eta: float = 0.08
@@ -204,28 +246,46 @@ class Config:
     log_level: str = "INFO"
 
     @property
-    def spectra_dir(self) -> Path:
-        return self.project_root / ".spectra"
+    def data_dir(self) -> Path:
+        """[DATA-DIR-AMENDED 2026-08-15] The one directory Magicite owns.
+
+        Every other Magicite path derives from this, so moving the tool's
+        footprint is a one-line change here rather than a sweep.
+        """
+        return self.project_root / self.data_dir_name
+
+    @property
+    def uses_legacy_layout(self) -> bool:
+        """True when resolution fell back to the pre-amendment ``.spectra/``.
+
+        Surfaced by ``obs/doctor.py`` so the fallback is announced rather than
+        silent.
+        """
+        return self.data_dir_name == LEGACY_DATA_DIR_NAME
 
     @property
     def registry_dir(self) -> Path:
-        return self.spectra_dir / "engrams"
+        return self.data_dir / "engrams"
 
     @property
     def archive_dir(self) -> Path:
-        return self.spectra_dir / "archive"
+        return self.data_dir / "archive"
 
     @property
     def approvals_dir(self) -> Path:
-        return self.spectra_dir / "approvals"
+        return self.data_dir / "approvals"
 
     @property
     def runtime_dir(self) -> Path:
-        return self.spectra_dir / "runtime"
+        return self.data_dir / "runtime"
+
+    @property
+    def bench_queries_path(self) -> Path:
+        return self.data_dir / "bench" / "queries.jsonl"
 
     @property
     def toml_path(self) -> Path:
-        return self.spectra_dir / "magicite.toml"
+        return self.data_dir / "magicite.toml"
 
     @property
     def db_path(self) -> Path:
@@ -248,17 +308,45 @@ class Config:
         *,
         env: Mapping[str, str] | None = None,
     ) -> Config:
-        """Resolve config: dataclass defaults -> magicite.toml -> env."""
+        """Resolve config: dataclass defaults -> magicite.toml -> env.
+
+        The data directory is resolved *first*, before the TOML is read, because
+        ``magicite.toml`` lives inside it — a file cannot say where it is.
+        """
         resolved_env: Mapping[str, str] = os.environ if env is None else env
         root = Path(
             project_root or resolved_env.get("MAGICITE_PROJECT_ROOT") or Path.cwd()
         ).resolve()
-        cfg = cls(project_root=root)
+        cfg = cls(project_root=root, data_dir_name=resolve_data_dir_name(root, resolved_env))
 
         toml_values = _read_toml(cfg.toml_path)
         cfg = _apply_mapping(cfg, toml_values)
         cfg = _apply_env(cfg, resolved_env)
         return cfg
+
+
+def resolve_data_dir_name(project_root: Path, env: Mapping[str, str]) -> str:
+    """[DATA-DIR-AMENDED 2026-08-15] Pick the project's Magicite directory.
+
+    Precedence, highest first:
+
+    1. ``MAGICITE_DATA_DIR`` -- an explicit host decision always wins, so a
+       deployment with an unusual layout never has to fork.
+    2. ``.magicite/`` when it already exists -- the current layout.
+    3. ``.spectra/`` **only** when ``.magicite/`` is absent *and*
+       ``.magicite/engrams/`` exists. The marker matters: ``.spectra/changes/``
+       is ESL's and proves nothing about Magicite, so its presence alone must
+       never pull a fresh project onto the legacy layout.
+    4. ``.magicite/`` otherwise -- the default for anything new.
+    """
+    override = env.get("MAGICITE_DATA_DIR", "").strip()
+    if override:
+        return override
+    if (project_root / DEFAULT_DATA_DIR_NAME).is_dir():
+        return DEFAULT_DATA_DIR_NAME
+    if (project_root / LEGACY_DATA_DIR_NAME / _LEGACY_MARKER).is_dir():
+        return LEGACY_DATA_DIR_NAME
+    return DEFAULT_DATA_DIR_NAME
 
 
 def _read_toml(path: Path) -> dict[str, Any]:
@@ -278,7 +366,14 @@ def _read_toml(path: Path) -> dict[str, Any]:
     return flat
 
 
-_FIELD_NAMES = {f.name for f in fields(Config)}
+#: Fields the TOML may not set. ``data_dir_name`` is excluded because
+#: ``magicite.toml`` lives inside the directory it names -- honouring it would
+#: mean a file relocating the directory it was just read from, which is either
+#: circular or a silent no-op depending on read order. Set ``MAGICITE_DATA_DIR``
+#: instead (resolved before the TOML is opened).
+_TOML_EXCLUDED_FIELDS = frozenset({"project_root", "data_dir_name"})
+
+_FIELD_NAMES = {f.name for f in fields(Config)} - _TOML_EXCLUDED_FIELDS
 
 #: MAGICITE_<ENV> -> Config field name, for the knobs the spec names explicitly.
 _ENV_FIELD_MAP: dict[str, str] = {

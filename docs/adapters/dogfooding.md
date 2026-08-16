@@ -22,7 +22,7 @@ part most worth reading — what the exercise actually exposed.
 
 | Piece | Location | Tracked |
 |---|---|---|
-| First-party registry, 30 engrams | `.spectra/engrams/*.egr.md` | yes |
+| First-party registry, 30 engrams | `.magicite/engrams/*.egr.md` | yes |
 | Content-hash id stamper | `scripts/dogfood_ids.py` | yes |
 | Authored-state restore | `scripts/dogfood_reset.py` | yes |
 | Edge + code-reference guards | `scripts/dogfood_graph_check.py` | yes |
@@ -93,7 +93,7 @@ when it is two.
 Rebuild the index from the files, which are the only source of truth:
 
 ```sh
-rm -f .spectra/engrams/skill-graph.db*
+rm -f .magicite/engrams/skill-graph.db*
 uv run magicite sync --project-root .
 ```
 
@@ -189,7 +189,7 @@ but the two are not equally verifiable from the host:
   precisely the fabrication Tier 2 exists to rule out.
 
 The hook therefore fires `signal_use` only when the agent has recorded its
-choice in `.spectra/runtime/hook-current-skill` (one id or name per line,
+choice in `.magicite/runtime/hook-current-skill` (one id or name per line,
 consumed and cleared by the outcome hook). Absent that file, use stays
 Tier-1 self-report by design. Salience is pinned to 0.5 for hook-inferred
 outcomes, because salience is confidence in the *valence read* and a
