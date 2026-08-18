@@ -41,9 +41,19 @@ fresh ``provenance_journal`` timestamp).
 
 from __future__ import annotations
 
+import copy
+import io
+import json
+import math
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
+
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.scalarstring import LiteralScalarString
 
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
@@ -56,6 +66,7 @@ from magicite.engram.model import (
     Intent,
     Plasticity,
     ProvenanceJournalEntry,
+    SkillMdSourceSnapshot,
     Triggers,
     Trust,
 )
@@ -63,15 +74,25 @@ from magicite.engram.model import (
 _NAME_RE = re.compile(r"^[a-z0-9-]{1,64}$")
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _KNOWN_HEADING_RE = re.compile(r"^##\s+(Procedure|Pitfalls|Examples)\s*$", re.MULTILINE | re.IGNORECASE)
-_USE_WHEN_MARKER_RE = re.compile(r"\buse when:\s*", re.IGNORECASE)
-_NOT_WHEN_MARKER_RE = re.compile(r"\bnot when:\s*", re.IGNORECASE)
+_USE_WHEN_MARKER_RE = re.compile(r"\buse when(?:\s*:)?\s*", re.IGNORECASE)
+_NOT_WHEN_MARKER_RE = re.compile(r"\b(?:not when|not for)(?:\s*:)?\s*", re.IGNORECASE)
 _DOES_MAX_LEN = 200
 _NOT_WHEN_FALLBACK = "unspecified — requires review"
 _USE_WHEN_FALLBACK = "general purpose"
+_SKILLMD_RESERVED_KEYS = frozenset({"name", "description"})
+
+_skill_yaml = YAML(typ="rt")
+_skill_yaml.preserve_quotes = True
+_skill_yaml.default_flow_style = False
+_skill_yaml.width = 100000
 
 
 class SkillMdParseError(parser_mod.EngramParseError):
     """Malformed SKILL.md (bad frontmatter fence, missing/invalid ``name``)."""
+
+
+class SkillMdLossyExportError(ValueError):
+    """Export would discard or overwrite preserved SKILL.md content."""
 
 
 def _now() -> str:
@@ -83,19 +104,50 @@ class SkillMdSource:
     name: str
     description: str
     body_text: str
+    extra_frontmatter: dict[str, Any]
+
+
+def _plain_yaml_value(value: Any, *, path: str) -> Any:
+    """Normalize host frontmatter into JSON-safe, deterministic values."""
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise SkillMdParseError(f"SKILL.md frontmatter {path} contains a non-finite float")
+        return value
+    if isinstance(value, Mapping):
+        plain: dict[str, Any] = {}
+        for key, child in value.items():
+            if not isinstance(key, str):
+                raise SkillMdParseError(f"SKILL.md frontmatter {path} contains a non-string key: {key!r}")
+            plain[key] = _plain_yaml_value(child, path=f"{path}.{key}")
+        return plain
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_plain_yaml_value(child, path=f"{path}[{index}]") for index, child in enumerate(value)]
+    raise SkillMdParseError(f"SKILL.md frontmatter {path} has unsupported YAML value {type(value).__name__}")
 
 
 def parse_source(raw_text: str) -> SkillMdSource:
-    """Split + validate a raw SKILL.md file into its two ingestion inputs."""
+    """Split + validate a raw SKILL.md file into its ingestion inputs."""
     yaml_text, body_text = parser_mod.split_frontmatter(raw_text)
     doc = parser_mod.load_frontmatter_doc(yaml_text)
     name = doc.get("name")
     if not name or not _NAME_RE.match(str(name)):
-        raise SkillMdParseError(
-            f"SKILL.md frontmatter 'name' must match [a-z0-9-]{{1,64}}, got {name!r}"
-        )
+        raise SkillMdParseError(f"SKILL.md frontmatter 'name' must match [a-z0-9-]{{1,64}}, got {name!r}")
     description = str(doc.get("description") or "")
-    return SkillMdSource(name=str(name), description=description, body_text=body_text)
+    extra_frontmatter: dict[str, Any] = {}
+    for key, value in doc.items():
+        if not isinstance(key, str):
+            raise SkillMdParseError(f"SKILL.md frontmatter contains a non-string key: {key!r}")
+        if key in _SKILLMD_RESERVED_KEYS:
+            continue
+        extra_frontmatter[key] = _plain_yaml_value(value, path=key)
+    return SkillMdSource(
+        name=str(name),
+        description=description,
+        body_text=body_text,
+        extra_frontmatter=extra_frontmatter,
+    )
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -170,11 +222,32 @@ def _derive_positive_triggers(name: str, does: str, use_when: str) -> list[str]:
 def _parse_body(body_text: str) -> EngramBody:
     if _KNOWN_HEADING_RE.search(body_text):
         return parser_mod.parse_body(body_text)
-    # spec §5.3: "unmatched body -> Procedure verbatim".
+    # Preserve unmatched bodies as unstructured Procedure content while still
+    # parsing fenced blocks as inert text for trust inspection.
     stripped = body_text.strip()
     if not stripped:
         return EngramBody()
-    return EngramBody(procedure_raw=stripped)
+    return parser_mod.parse_body(f"## Procedure\n{stripped}\n")
+
+
+def _body_projection_sha256(body: EngramBody) -> str:
+    """Hash semantic body content while deliberately excluding learning stats."""
+    payload = {
+        "procedure": [
+            {"step_no": step.step_no, "text": step.text, "fault_class": step.fault_class}
+            for step in sorted(body.procedure, key=lambda step: step.step_no)
+        ],
+        "procedure_raw": body.procedure_raw,
+        "pitfalls": [pitfall.text for pitfall in body.pitfalls],
+        "examples": [
+            {"positive": example.positive, "text": example.text, "note": example.note}
+            for example in body.examples
+        ],
+        "provenance_lines": list(body.provenance_lines),
+        "exec_blocks": [{"language": block.language, "text": block.text} for block in body.exec_blocks],
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return ids_mod.content_sha256(canonical.encode("utf-8"))
 
 
 def to_engram(source: SkillMdSource, *, target_relpath: str, actor: str = "register") -> Engram:
@@ -199,6 +272,11 @@ def to_engram(source: SkillMdSource, *, target_relpath: str, actor: str = "regis
         triggers=Triggers(positive=positive, negative=[]),
         plasticity=Plasticity(status="nascent", last_checkpoint=now),
         trust=Trust(origin="imported", verification_status="pending"),
+        skill_md_source=SkillMdSourceSnapshot(
+            body_raw=source.body_text,
+            projection_sha256=_body_projection_sha256(body),
+            extra_frontmatter=source.extra_frontmatter,
+        ),
         provenance_journal=[
             ProvenanceJournalEntry(
                 version=1,
@@ -242,6 +320,8 @@ def _render_body_stats_stripped(body: EngramBody) -> str:
     parts: list[str] = ["## Procedure"]
     for step in sorted(body.procedure, key=lambda s: s.step_no):
         parts.append(f"{step.step_no}. {step.text}".rstrip())
+    if body.procedure_raw:
+        parts.extend(body.procedure_raw.splitlines())
 
     parts.append("")
     parts.append("## Pitfalls")
@@ -258,18 +338,46 @@ def _render_body_stats_stripped(body: EngramBody) -> str:
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
-def render_skillmd(engram: Engram) -> str:
-    """The inverse compile target (spec §5.4, docs/04 §SKILL.md as Compile
-    Target): ``name`` + a ``description`` composed from
-    ``does``/``use_when``/``not_when``, plus a stats-stripped body."""
+def _render_skillmd_frontmatter(engram: Engram) -> str:
     fm = engram.frontmatter
     desc_lines = [fm.intent.does, f"Use when: {fm.intent.use_when}"]
     if fm.intent.not_when:
         desc_lines.append(f"Not when: {fm.intent.not_when}")
 
-    header_lines = ["---", f"name: {fm.name}", "description: |"]
-    header_lines.extend(f"  {line}".rstrip() for line in desc_lines)
-    header_lines.append("---")
+    doc = CommentedMap()
+    doc["name"] = fm.name
+    doc["description"] = LiteralScalarString("\n".join(desc_lines))
 
-    body_text = _render_body_stats_stripped(engram.body)
-    return "\n".join(header_lines) + "\n\n" + body_text
+    preserved = fm.skill_md_source
+    extras = preserved.extra_frontmatter if preserved is not None else {}
+    collisions = sorted(_SKILLMD_RESERVED_KEYS.intersection(extras))
+    if collisions:
+        joined = ", ".join(collisions)
+        raise SkillMdLossyExportError(
+            f"{fm.name!r} preserved SKILL.md frontmatter collides with reserved key(s): {joined}"
+        )
+    for key, value in extras.items():
+        doc[key] = copy.deepcopy(value)
+
+    buf = io.StringIO()
+    _skill_yaml.dump(doc, buf)
+    yaml_text = "\n".join(line.rstrip() for line in buf.getvalue().splitlines())
+    return f"---\n{yaml_text}\n---\n"
+
+
+def render_skillmd(engram: Engram) -> str:
+    """Render a host SKILL.md without silently discarding preserved source."""
+    header = _render_skillmd_frontmatter(engram)
+    preserved = engram.frontmatter.skill_md_source
+    if preserved is not None:
+        current = _body_projection_sha256(engram.body)
+        if current != preserved.projection_sha256:
+            raise SkillMdLossyExportError(
+                f"{engram.name!r} has a preserved SKILL.md body, but its "
+                "structured body changed; refusing a lossy export. Review a "
+                "canonical export and remove 'skill_md_source', or re-import "
+                "the source SKILL.md."
+            )
+        return header + preserved.body_raw
+
+    return header + "\n" + _render_body_stats_stripped(engram.body)

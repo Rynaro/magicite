@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import pytest
+
+from magicite.engram import parser as parser_mod
 from magicite.engram import skillmd
+from magicite.engram import writer as writer_mod
 
 
 def test_parse_source_extracts_name_and_description(toy_registry_dir) -> None:
@@ -66,10 +70,7 @@ def test_extract_intent_finds_use_when_marker_mid_line(toy_registry_dir) -> None
     source = skillmd.parse_source(raw)
     does, use_when, _not_when = skillmd._extract_intent(source.description)
 
-    assert does == (
-        "Fix a Steam client stuck at very low download speed by changing "
-        "its download region."
-    )
+    assert does == ("Fix a Steam client stuck at very low download speed by changing its download region.")
     assert use_when == (
         "Steam downloads are far below the local internet speed for every game, not just one."
     )
@@ -155,3 +156,109 @@ def test_render_skillmd_round_trips_intent_fields() -> None:
 
     reimported = skillmd.to_engram(reparsed_source, target_relpath="engrams/sample-skill.egr.md")
     assert reimported.id == engram.id  # AC-018's round-trip precondition
+
+
+def test_extract_intent_accepts_electionbuddy_markers_without_colons() -> None:
+    description = (
+        "Operate background jobs. Use when creating or debugging a worker. NOT for recurring schedules."
+    )
+    assert skillmd._extract_intent(description) == (
+        "Operate background jobs.",
+        "creating or debugging a worker.",
+        "recurring schedules.",
+    )
+
+
+def test_arbitrary_markdown_body_survives_engram_persistence_and_export() -> None:
+    raw = (
+        "---\nname: background-jobs\ndescription: |\n"
+        "  Operate background jobs. Use when changing a worker. NOT for schedules.\n"
+        "---\n\n# Background Jobs\n\nShared contract.\n\n"
+        "## Enqueue\n\nUse `perform_async`.\n\n"
+        "### Queue selection\n\n```ruby\nJob::Queue::DEFAULT\n```\n"
+    )
+    source = skillmd.parse_source(raw)
+    engram = skillmd.to_engram(source, target_relpath="engrams/background-jobs.egr.md")
+    persisted = writer_mod.render_document(engram)
+    reparsed = parser_mod.parse_text(persisted, relpath="engrams/background-jobs.egr.md").engram
+
+    exported = skillmd.render_skillmd(reparsed)
+    assert skillmd.parse_source(exported).body_text == source.body_text
+
+
+def test_export_fails_closed_when_preserved_body_projection_changed() -> None:
+    raw = (
+        "---\nname: sample-skill\n"
+        "description: Does it. Use when needed. NOT for elsewhere.\n"
+        "---\n\n## Procedure\n1. Original instruction.\n"
+    )
+    source = skillmd.parse_source(raw)
+    engram = skillmd.to_engram(source, target_relpath="engrams/sample-skill.egr.md")
+    engram.body.procedure[0].text = "Changed instruction."
+
+    with pytest.raises(skillmd.SkillMdLossyExportError, match="refusing a lossy export"):
+        skillmd.render_skillmd(engram)
+
+
+def test_learning_stats_do_not_invalidate_preserved_body() -> None:
+    raw = (
+        "---\nname: sample-skill\n"
+        "description: Does it. Use when needed. NOT for elsewhere.\n"
+        "---\n\n## Procedure\n1. Original instruction.\n"
+    )
+    source = skillmd.parse_source(raw)
+    engram = skillmd.to_engram(source, target_relpath="engrams/sample-skill.egr.md")
+    engram.body.procedure[0].ok_count = 3
+    engram.body.procedure[0].total_count = 4
+    exported = skillmd.render_skillmd(engram)
+    assert skillmd.parse_source(exported).body_text == source.body_text
+
+
+def test_preserves_electionbuddy_frontmatter_semantically() -> None:
+    raw = (
+        "---\nname: migration-helper\ndescription: >-\n"
+        "  Manage migrations. Use when changing schema. NOT for deployments.\n"
+        "paths:\n  - 'db/migrate/**/*.rb'\n"
+        "metadata:\n  version: 1.0.0\n  agents: [all]\n"
+        "  election_critical: true\n"
+        "output_schema: >-\n  verified migration evidence\n"
+        "disable-model-invocation: true\nuser-invocable: false\n"
+        "---\n\n## Commands\n\nRun the migration check.\n"
+    )
+    source = skillmd.parse_source(raw)
+    assert set(source.extra_frontmatter) == {
+        "paths",
+        "metadata",
+        "output_schema",
+        "disable-model-invocation",
+        "user-invocable",
+    }
+
+    engram = skillmd.to_engram(source, target_relpath="engrams/migration-helper.egr.md")
+    persisted = writer_mod.render_document(engram)
+    reparsed = parser_mod.parse_text(persisted, relpath="engrams/migration-helper.egr.md").engram
+    exported_source = skillmd.parse_source(skillmd.render_skillmd(reparsed))
+
+    assert exported_source.extra_frontmatter == source.extra_frontmatter
+    assert exported_source.body_text == source.body_text
+
+
+def test_export_rejects_reserved_frontmatter_collision() -> None:
+    raw = (
+        "---\nname: sample-skill\n"
+        "description: Does it. Use when needed. NOT for elsewhere.\n"
+        "paths: ['app/**/*.rb']\n---\n\nBody.\n"
+    )
+    source = skillmd.parse_source(raw)
+    engram = skillmd.to_engram(source, target_relpath="engrams/sample-skill.egr.md")
+    assert engram.frontmatter.skill_md_source is not None
+    engram.frontmatter.skill_md_source.extra_frontmatter["name"] = "shadow-name"
+
+    with pytest.raises(skillmd.SkillMdLossyExportError, match="reserved key.*name"):
+        skillmd.render_skillmd(engram)
+
+
+def test_parse_source_rejects_non_json_yaml_extension_value() -> None:
+    raw = "---\nname: sample-skill\ndescription: Does it.\nmetadata:\n  reviewed_on: 2026-08-18\n---\nBody.\n"
+    with pytest.raises(skillmd.SkillMdParseError, match="metadata.reviewed_on.*unsupported"):
+        skillmd.parse_source(raw)

@@ -10,7 +10,7 @@ against.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,9 +23,7 @@ SynapseProvenance = Literal["declared", "learned", "distilled", "derived"]
 
 #: Routable per spec §5.1: status in {nascent, probation, consolidated, promoted}
 #: AND verification_status == 'verified'.
-ROUTABLE_STATUSES: frozenset[str] = frozenset(
-    {"nascent", "probation", "consolidated", "promoted"}
-)
+ROUTABLE_STATUSES: frozenset[str] = frozenset({"nascent", "probation", "consolidated", "promoted"})
 
 
 class Intent(BaseModel):
@@ -123,6 +121,16 @@ class Exports(BaseModel):
     skill_md: bool = True
 
 
+class SkillMdSourceSnapshot(BaseModel):
+    """Lossless host-native SKILL.md source preserved across persistence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    body_raw: str
+    projection_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    extra_frontmatter: dict[str, Any] = Field(default_factory=dict)
+
+
 class EngramFrontmatter(BaseModel):
     """The full v0.2 YAML frontmatter (docs/04 §Frontmatter Schema)."""
 
@@ -164,6 +172,7 @@ class EngramFrontmatter(BaseModel):
     provenance_journal: list[ProvenanceJournalEntry] = Field(default_factory=list)
     trust: Trust | None = None
     exports: Exports | None = None
+    skill_md_source: SkillMdSourceSnapshot | None = None
 
 
 class ProcedureStep(BaseModel):

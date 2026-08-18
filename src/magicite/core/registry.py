@@ -231,9 +231,7 @@ def embed_and_store(conn: sqlite3.Connection, embedder: Embedder, engram: Engram
     contraindication_text = canonical_contraindication_view(engram)
     negative_model = contraindication_model_name(embedder.model_name)
     if contraindication_text is None:
-        ephemeral_mod.delete_embedding(
-            conn, engram_id=engram.id, model_name=negative_model
-        )
+        ephemeral_mod.delete_embedding(conn, engram_id=engram.id, model_name=negative_model)
     else:
         ephemeral_mod.upsert_embedding(
             conn,
@@ -282,9 +280,7 @@ def _ingest_one(
         msg = "; ".join(f"{i.rule}: {i.message}" for i in result.errors)
         return None, ValidationError(path=engram.path, message=msg), False, []
 
-    existing = conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (engram.id,)
-    ).fetchone()
+    existing = conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (engram.id,)).fetchone()
     if existing is not None and existing["content_sha256"] == engram.content_sha256:
         return None, None, True, []
 
@@ -378,9 +374,7 @@ def _ingest_skillmd_one(
         # only) is the correct dedup key here, not the whole-file digest.
         return None, None, True, []
 
-    existing_by_name = conn.execute(
-        "SELECT id FROM engram WHERE name = ?", (engram.name,)
-    ).fetchone()
+    existing_by_name = conn.execute("SELECT id FROM engram WHERE name = ?", (engram.name,)).fetchone()
     if existing_by_name is not None:
         return (
             None,
@@ -684,19 +678,23 @@ def export(
     target_root = _resolve_scan_root(project_root, out_dir)
     min_rank = _EXPORT_STATUS_RANK[min_status]
 
-    rows = conn.execute(
-        "SELECT name, path, status FROM engram ORDER BY name"
-    ).fetchall()
+    rows = conn.execute("SELECT name, path, status FROM engram ORDER BY name").fetchall()
     eligible = [r for r in rows if _EXPORT_STATUS_RANK.get(r["status"], -1) >= min_rank]
 
     exported = 0
     cross_lease = _cross_process_lease(cfg, conn, "export")
     with cross_lease.acquire(), lease_mod.writer_lease():
+        # Preflight the complete batch before writing any target. A preserved
+        # host skill that cannot be exported losslessly aborts the invocation
+        # without leaving a partial compatibility tree.
+        rendered: list[tuple[Path, str]] = []
         for row in eligible:
             file_path = project_root / row["path"]
             parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-            skillmd_text = skillmd_mod.render_skillmd(parsed.engram)
             target = target_root / row["name"] / "SKILL.md"
+            rendered.append((target, skillmd_mod.render_skillmd(parsed.engram)))
+
+        for target, skillmd_text in rendered:
             writer_mod.atomic_write(target, skillmd_text)
             exported += 1
 
