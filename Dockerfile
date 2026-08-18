@@ -91,6 +91,14 @@ LABEL org.opencontainers.image.title="magicite" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.source="https://github.com/Rynaro/magicite"
 
+# The pinned slim index currently contains a fixed-but-not-yet-refreshed
+# Debian util-linux package set (CVE-2026-53615). Apply repository security
+# upgrades in the final stage so the Trivy HIGH/CRITICAL gate validates the
+# actual runtime filesystem, then discard apt metadata from the image.
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
+
 # Dedicated unprivileged user. UID pinned to 10001 so volume ownership is
 # predictable across rebuilds (this is the DEFAULT, not the recommended
 # runtime `--user` — see the privilege-boundary note above).

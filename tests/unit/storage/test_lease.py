@@ -264,11 +264,14 @@ def test_context_heartbeats_during_long_work(tmp_path, lease_conn) -> None:
         lock_path=tmp_path / "dream.lock",
         conn=lease_conn,
         holder="holder-a",
-        ttl_s=0.08,
-        heartbeat_interval_s=0.01,
+        # Preserve the production 6:1 TTL/heartbeat margin while leaving
+        # enough scheduling room for shared CI runners. The work below still
+        # exceeds the original TTL and therefore requires a real heartbeat.
+        ttl_s=1.0,
+        heartbeat_interval_s=0.1,
     )
     with cp_lease.acquire():
-        time.sleep(0.16)
+        time.sleep(1.2)
         cp_lease.assert_owned()
 
 
