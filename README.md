@@ -1,10 +1,6 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/magicite-logo-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/assets/magicite-logo.png">
-  <img src="docs/assets/magicite-logo.png" alt="Magicite" width="800">
-</picture>
+<img src="docs/assets/magicite-logo.png" alt="Magicite" width="800">
 
 ### Skills that learn—without leaving your repository.
 
