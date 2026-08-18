@@ -9,6 +9,7 @@ import shutil
 import pytest
 
 from magicite.core import registry as registry_mod
+from magicite.engram import skillmd
 
 pytestmark = pytest.mark.acceptance
 
@@ -54,9 +55,7 @@ def test_export_import_stable(cfg, db_conn, embedder, toy_registry_dir) -> None:
     # write stands in for what promote()/Dream would later do, purely to
     # satisfy export()'s eligibility filter (status IN ('consolidated',
     # 'promoted')) for this test's GIVEN clause.
-    db_conn.execute(
-        "UPDATE engram SET status = 'consolidated' WHERE id = ?", (imported_id,)
-    )
+    db_conn.execute("UPDATE engram SET status = 'consolidated' WHERE id = ?", (imported_id,))
 
     before = _snapshot(db_conn, "wine-dxvk-cache-clear")
 
@@ -64,10 +63,12 @@ def test_export_import_stable(cfg, db_conn, embedder, toy_registry_dir) -> None:
     assert export_outcome.exported == 1
     exported_skillmd = cfg.project_root / "exported" / "wine-dxvk-cache-clear" / "SKILL.md"
     assert exported_skillmd.is_file()
+    original_source = skillmd.parse_source((skills_src / "SKILL.md").read_text(encoding="utf-8"))
+    exported_source = skillmd.parse_source(exported_skillmd.read_text(encoding="utf-8"))
+    assert exported_source.body_text == original_source.body_text
+    assert exported_source.extra_frontmatter == original_source.extra_frontmatter
 
-    second = registry_mod.register(
-        cfg, db_conn, embedder, path="exported", fmt="skill"
-    )
+    second = registry_mod.register(cfg, db_conn, embedder, path="exported", fmt="skill")
     # The second import is a genuine no-op: same identity+routing content
     # (CR-8) -> same id -> duplicate-import short-circuit, nothing written.
     assert second.ingested == 0

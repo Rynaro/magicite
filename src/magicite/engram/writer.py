@@ -28,6 +28,7 @@ every learned-state write without constraining the write primitive itself.
 
 from __future__ import annotations
 
+import copy
 import io
 import os
 from pathlib import Path
@@ -35,6 +36,7 @@ from typing import Any
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.scalarstring import LiteralScalarString
 
 from magicite.engram.model import Engram, EngramBody
 from magicite.storage.lease import assert_dream_context, assert_single_writer
@@ -121,6 +123,14 @@ def _round4(value: float) -> float:
     return round(float(value), 4)
 
 
+def _render_skill_md_source(source: Any) -> CommentedMap:
+    node = CommentedMap()
+    node["body_raw"] = LiteralScalarString(source.body_raw)
+    node["projection_sha256"] = source.projection_sha256
+    node["extra_frontmatter"] = copy.deepcopy(source.extra_frontmatter)
+    return node
+
+
 def _fresh_doc(engram: Engram) -> CommentedMap:
     """Build a ruamel document from scratch (no prior round-trip carrier)."""
     doc: CommentedMap = CommentedMap()
@@ -184,6 +194,8 @@ def _fresh_doc(engram: Engram) -> CommentedMap:
 
     if fm.exports is not None:
         doc["exports"] = CommentedMap({"skill_md": fm.exports.skill_md})
+    if fm.skill_md_source is not None:
+        doc["skill_md_source"] = _render_skill_md_source(fm.skill_md_source)
 
     return doc
 
@@ -268,6 +280,10 @@ def render_frontmatter(engram: Engram, frontmatter_doc: Any | None = None) -> st
         # same failure class as a phantom config knob.
         if engram.frontmatter.provenance_journal:
             doc["provenance_journal"] = _render_provenance_journal(engram.frontmatter.provenance_journal)
+        if engram.frontmatter.skill_md_source is not None:
+            doc["skill_md_source"] = _render_skill_md_source(engram.frontmatter.skill_md_source)
+        else:
+            doc.pop("skill_md_source", None)
     else:
         doc = _fresh_doc(engram)
 
@@ -285,6 +301,8 @@ def render_body(body: EngramBody) -> str:
         stat = f" [{step.ok_count}/{step.total_count}]" if step.total_count else ""
         fault = f" [fault: {step.fault_class}]" if step.fault_class else ""
         parts.append(f"{step.step_no}.{stat}{fault} {step.text}".rstrip())
+    if body.procedure_raw:
+        parts.extend(body.procedure_raw.splitlines())
 
     parts.append("")
     parts.append("## Pitfalls")

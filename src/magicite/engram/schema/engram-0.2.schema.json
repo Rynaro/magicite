@@ -158,6 +158,19 @@
       "properties": {
         "skill_md": { "type": "boolean" }
       }
+    },
+    "skill_md_source": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["body_raw", "projection_sha256", "extra_frontmatter"],
+      "properties": {
+        "body_raw": { "type": "string" },
+        "projection_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "extra_frontmatter": { "type": "object" }
+      }
     }
   }
 }

@@ -12,6 +12,17 @@ Record could still move shipped defaults. A `1.0.0` would claim a
 confidence the evidence does not support, so the version does not move
 until that changes.
 
+## [Unreleased]
+
+## [0.3.1] — 2026-08-18
+
+### Changed
+
+- SKILL.md import/export now preserves arbitrary Markdown bodies and host-specific
+  YAML frontmatter, recognizes colonless `Use when` / `NOT for` routing
+  markers, and fails before writing when a preserved body would be exported
+  lossily.
+
 ## [0.3.0] — 2026-08-18
 
 The integrity-recovery release closes the runtime, evaluation, interface, and
