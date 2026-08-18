@@ -1,164 +1,395 @@
-# Magicite
+<div align="center">
 
-A local-first, plasticity-inspired skill router speaking MCP over stdio.
+<img src="docs/assets/magicite-logo.png" alt="Magicite" width="800">
 
-Magicite treats a directory of `.egr.md` "engram" files as the source of
-truth for a skill registry, backs it with an embedded SQLite (WAL) index
-that is fully rebuildable from those files, and exposes a 16-tool MCP
-surface for retrieval, signal capture, and (approval-gated) learning. It
-never executes anything on your behalf. Routing, learning, and consolidation
-are local; 0.3 defaults embedding lookup to offline and requires an explicit
-`fetch-model` step before first source-based use.
+### Skills that learn—without leaving your repository.
 
-**Status:** 0.3.0 — governed integrity-recovery candidate for the final release
-tag. The authority order for current behavior is defined in
-`docs/AUTHORITY.md`; historical construction records remain immutable evidence
-rather than live authority.
+Magicite is a local-first MCP server that routes an agent to the right skill,
+captures what happened, and turns that evidence into reviewable improvements.
 
-**Honest limits, up front (docs/01 Falsification Record, measured 2026-08-15):** At 70 skills with lexically independent queries, plain dense-embedding retrieval (baseline b: Hit@1 0.5476) remains stronger than the full Magicite pipeline (baseline d: Hit@1 0.5333). The gap is statistically indistinguishable (3 queries out of 210; prior measurement 0.4619 was 18-query gap, p = 0.00053). Full Magicite is not significantly better than native lexical matching (p = 0.19). The predicted ~50-skill break-even where Magicite's routing machinery should "pay off" remains **unevidenced** — a single unreplicated crossing on a 39-query core slice does not sustain that claim. *Caveats: these results come from a single-author corpus and queries, single annotator, single embedder (bge-small-en-v1.5), and uniform learning workload; see docs/01 "What the evidence licenses" for limitations and docs/07 §5–§6 for the mechanism.* Magicite ships as a **verified skill router with a portable format, lifecycle governance, and composition-plan expansion, whose graph and learning layers are not yet demonstrated to improve routing** — and whose actual design claim (spreading activation over declared edges, not re-derived embeddings) has never been tested. The improvement from 0.4619 to 0.5333 is mechanism repair (declared-edges amendment and inhib_gain recalibration fixed defects that were inhibiting measurement), not validation of the design hypothesis. `magicite doctor` reports your registry size and flags the cold-start case honestly: the ~50-skill number is a reference size from docs/07's original (pre-falsification) heuristic, never an asserted break-even — crossing it is not reported as evidence that hierarchy-aware routing pays off, consistent with this measurement — see [§ Diagnostics](#diagnostics-magicite-doctor).
+[![CI](https://github.com/Rynaro/magicite/actions/workflows/ci.yml/badge.svg)](https://github.com/Rynaro/magicite/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.3.0-7c3aed)](CHANGELOG.md)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776ab?logo=python&logoColor=white)](pyproject.toml)
+[![MCP](https://img.shields.io/badge/MCP-stdio-0f766e)](https://modelcontextprotocol.io/)
+[![License](https://img.shields.io/github/license/Rynaro/magicite)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/Rynaro/magicite?style=flat)](https://github.com/Rynaro/magicite/stargazers)
 
-## Quickstart — Docker (recommended)
+[Quick start](#quick-start) · [How it works](#how-it-works) ·
+[Engrams](#the-engram-format) · [Evidence](#evidence-without-hand-waving) ·
+[Documentation](#documentation)
 
-The published image follows the same hardened, sibling-MCP pattern this
-project's own `.mcp.json` uses for `crystalium`/`atomos`/`atlas-aci`/
-`tonberry`: non-root, capability-dropped, digest-pinnable, and (per AC-026)
-able to complete its MCP handshake with **zero network access** because the
-`fastembed` ONNX model (`BAAI/bge-small-en-v1.5`) is baked into the image at
-build time.
+</div>
+
+---
+
+Most agent skill registries are static catalogs: they can describe what a
+skill does, but they do not learn which skills work together, where they fail,
+or when they should stay out of the way.
+
+Magicite adds that missing lifecycle. Skills live as portable `.egr.md`
+**engrams**. A local routing engine ranks them from intent, positive and
+negative cues, declared relationships, and observed outcomes. A resumable
+**Dream** cycle consolidates useful evidence back into reviewable files.
+
+The boundary is intentional: **Magicite stores, routes, and audits skills. It
+never executes them.** Your agent host remains responsible for permissions,
+sandboxing, and execution.
+
+## Why Magicite?
+
+| | What Magicite provides |
+|---|---|
+| **Local by default** | stdio MCP, project-local SQLite/WAL, offline embeddings after one explicit model fetch, and no hosted control plane. |
+| **Portable by design** | Human-readable `.egr.md` files are the source of truth. The database is a disposable index that can be rebuilt from them. |
+| **Adaptive, not opaque** | Usage and outcome signals influence routing through explicit, inspectable plasticity state instead of an invisible recommendation service. |
+| **Graph-aware** | Skills can declare dependencies, composition, and inhibition; routing can return an ordered multi-skill plan rather than only one winner. |
+| **Governed** | Every tool has a risk and side-effect class. Durable lifecycle changes are approval-gated by default and leave an audit trail. |
+| **Host-agnostic** | Any MCP client can use the core server. Hooks improve signal quality, but they are an adapter—not a dependency. |
+
+## Quick start
+
+### 1. Install from source
+
+Magicite requires Python 3.11+ and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
-MAGICITE_IMAGE='ghcr.io/rynaro/magicite@sha256:<digest-from-v0.3.0-release>'
-docker run --rm -i \
-    --user "$(id -u):$(id -g)" \
-    --cap-drop ALL --security-opt no-new-privileges \
-    -v "$PWD":"$PWD":z -w "$PWD" \
-    "$MAGICITE_IMAGE" \
-    serve --project-root "$PWD"
+git clone https://github.com/Rynaro/magicite.git
+cd magicite
+
+uv sync --all-extras
+uv run magicite fetch-model
+uv run magicite sync --project-root .
+uv run magicite doctor --project-root .
 ```
 
-**`--user "$(id -u):$(id -g)"` is required, not optional.** `magicite serve`
-creates `.magicite/{archive,approvals,runtime}` at every boot
-(`Config.ensure_dirs()`), and a bind mount preserves the *host's* file
-ownership — without this flag the container runs as the image's baked-in
-default (UID 10001), which cannot write to a directory it does not own, and
-the server never completes its handshake against a real project. See the
-`Dockerfile`'s own `PRIVILEGE-BOUNDARY NOTE` and
-`tests/acceptance/test_docker_smoke.py` for the mechanically-verified
-finding behind this.
+`fetch-model` is the one intentional network-bearing runtime setup step. Once
+the ONNX model is present, Magicite can run with network access disabled. The
+repository includes 30 first-party engrams, so the commands above produce a
+working dogfood registry immediately. `doctor` will still warn that 30 skills
+sit below a historical ~50-skill research reference; that warning is expected
+and deliberately does not present the heuristic as a proven break-even point.
 
-### `.mcp.json` entry
+### 2. Connect your MCP client
+
+Point the client at the installed executable and the project whose
+`.magicite/` directory should own the registry:
 
 ```json
 {
   "mcpServers": {
     "magicite": {
-      "command": "docker",
+      "command": "/absolute/path/to/magicite/.venv/bin/magicite",
       "args": [
-        "run", "--rm", "-i", "--user", "1000:1000",
-        "--label", "eidolons.project=<project>",
-        "-v", "<project_root>:<project_root>:z", "-w", "<project_root>",
-        "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-        "ghcr.io/rynaro/magicite@sha256:<digest-from-v0.3.0-release>",
-        "serve", "--project-root", "<project_root>"
-      ]
+        "serve",
+        "--project-root",
+        "/absolute/path/to/your-project"
+      ],
+      "env": {
+        "MAGICITE_EMBEDDING_OFFLINE": "1"
+      }
     }
   }
 }
 ```
 
-Replace `1000:1000` with your own `$(id -u):$(id -g)` if different. Obtain the
-immutable digest from the matching signed
-[release](https://github.com/Rynaro/magicite/releases); release digests are
-deliberately not embedded in the source/wheel that must exist before the image
-is built. See
-`docs/adapters/claude-code.md` for the fuller adapter walkthrough, including
-optional Tier-2 hook acceleration via `MAGICITE_HOOK_TOKEN`.
+For Claude Code, continue with the
+[host adapter guide](docs/adapters/claude-code.md). Tier-2 hooks are optional;
+ordinary MCP clients retain Tier-1 self-report and Tier-0 passive signals.
+
+### 3. Route, load, and report
+
+A normal agent loop uses only a small part of the 16-tool surface:
+
+```text
+route({ query, session_id })
+  -> ranked candidates + bounded composition plan
+
+load_skill_body({ name, level: "L2" })
+  -> procedure + pitfalls
+
+signal_use({ skill_ids, session_id })
+signal_outcome({ valence, salience, skill_ids, session_id })
+  -> evidence for later consolidation
+```
+
+The `route` response includes the instructions needed to close this loop. Skill
+bodies are loaded only after selection, keeping context use progressive rather
+than injecting the whole registry into every prompt.
+
+### Container deployment
+
+Release images are built for `linux/amd64` and `linux/arm64`. They run as a
+non-root user, bake the FastEmbed model during the build, and complete their MCP
+handshake without network access. Pin the image by the digest published on the
+matching [GitHub Release](https://github.com/Rynaro/magicite/releases):
+
+```bash
+MAGICITE_IMAGE='ghcr.io/rynaro/magicite@sha256:<release-digest>'
+
+docker run --rm -i \
+  --user "$(id -u):$(id -g)" \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  -v "$PWD":"$PWD":z \
+  -w "$PWD" \
+  "$MAGICITE_IMAGE" \
+  serve --project-root "$PWD"
+```
+
+The `--user` mapping is required for bind-mounted projects: Magicite creates
+and updates project-local state, so the container must write with the host
+owner's UID and GID. See the [operations runbook](docs/operations.md) for the
+complete deployment and filesystem guidance.
+
+## How it works
+
+```mermaid
+flowchart TD
+    Q["Agent query"] --> R["Route: rank and compose"]
+    R --> H["Host loads and executes a skill"]
+    H --> S["Use and outcome signals"]
+    S --> D["Dream: replay, prune, distill, audit, checkpoint"]
+    D --> E["Reviewable .egr.md registry"]
+    E --> R
+```
+
+Magicite separates the system into three paths:
+
+- **Hot path:** embed the query, select candidates, spread bounded activation,
+  apply contraindication and inhibition penalties, and return compact metadata.
+- **Signal path:** record session-scoped use and outcome evidence without
+  writing learned state into skill files.
+- **Dream path:** consolidate durable node and edge state through resumable,
+  lease-fenced phases, then checkpoint deterministic changes to disk.
+
+The storage model keeps authority legible:
+
+```text
+.magicite/
+├── engrams/              # portable source of truth
+│   ├── *.egr.md
+│   └── skill-graph.db    # local, rebuildable index; ignored by default
+├── archive/              # lifecycle archive; never silent deletion
+├── approvals/            # durable approval mirrors
+└── runtime/              # local coordination and adapter state
+```
+
+Multiple readers and session writers share SQLite WAL. All durable writers use
+one cross-process lease with fencing tokens, so a stale process cannot publish
+after losing ownership. Dream and idempotent MCP writes can recover after
+process death without replaying already-committed work.
+
+Read the full [architecture](docs/02-architecture.md) and
+[learning model](docs/03-learning-model.md).
+
+## The engram format
+
+An engram combines routing intent, contraindications, composition contracts,
+plasticity, trust, and an append-only provenance journal in one Git-friendly
+Markdown artifact.
+
+```yaml
+---
+spec: engram/0.2
+name: magicite-honest-claim-scope
+id: egr_3579bb59
+version: 1
+provenance: authored
+
+intent:
+  does: "State what Magicite's evidence does and does not license"
+  use_when: "reviewing a claim about routing, graph, or learning capability"
+  not_when: "producing the measurement itself"
+
+triggers:
+  positive:
+    - "review a magicite claim for overstatement"
+  negative:
+    - "run the retrieval benchmark"
+
+needs: [magicite-run-retrieval-benchmark]
+yields: [calibrated-claim]
+composes: []
+inhibits: []
+
+trust:
+  origin: authored
+  verification_status: pending
+---
+
+## Procedure
+1. Start from the falsification record, not the feature list.
+2. State what the measurement supports and what it does not.
+```
+
+This example is trimmed from Magicite's own registry. In the complete format:
+
+- `intent` and positive triggers form the versioned positive routing view;
+- `not_when` and negative triggers form a separate contraindication view;
+- `needs` and `composes` participate in bounded plan expansion;
+- `yields` is portable metadata in 0.3, not yet a graph edge;
+- lifecycle, verification, and operation-execution status remain independent;
+- learned state and every mutation remain inspectable and attributable.
+
+See the [engram specification](docs/04-engram-format.md) and the bundled
+[JSON Schema](src/magicite/engram/schema/engram-0.2.schema.json).
+
+## The 16-tool surface
+
+The public MCP API is intentionally small and generated from the same registry
+used by the server and tests.
+
+| Area | Tools | Side effects |
+|---|---|---|
+| Retrieve and inspect | `route`, `load_skill_body`, `introspect`, `flag_dead` | R0 / none |
+| Capture signals | `signal_use`, `signal_outcome`, `session_end` | R1 / ephemeral |
+| Manage the registry | `register`, `sync`, `checkpoint`, `export` | R2 / project-local |
+| Govern lifecycle | `nucleate`, `sharpen`, `promote`, `archive` | R3 / approval-gated |
+| Consolidate | `consolidate` | R3 / resumable batch |
+
+Inspect the authoritative schemas directly:
+
+```bash
+uv run magicite tools
+```
+
+Unknown fields are rejected. Writes support request-level idempotency, and the
+server exposes no R4/R5 network, shell, raw SQL, or arbitrary filesystem tool.
+
+## Trust and integrity
+
+Magicite treats adaptive behavior as a governance problem, not just a ranking
+problem.
+
+- **No skill execution:** code blocks remain inert text; the host owns execution
+  and its permission boundary.
+- **Offline source use:** FastEmbed is the production provider, but runtime
+  lookup is offline by default after explicit acquisition.
+- **Untrusted input handling:** imported engrams are scanned and can be held in
+  pending or quarantined verification states.
+- **Approval-gated change:** R3 operations propose durable lifecycle mutations
+  for review unless autonomous mode is explicitly enabled.
+- **Recoverable writes:** atomic publication, fencing tokens, phase cursors, and
+  deterministic checkpoints protect file and database integrity.
+- **Secret hygiene:** adapter tokens are recursively redacted before canonical
+  event and idempotency hashing.
+- **Supply chain:** release workflows use immutable action references, scan the
+  image, and produce signatures, SBOMs, and provenance attestations.
+
+For the exact model, read [trust, governance, and lifecycle](docs/06-trust-governance-lifecycle.md)
+and the [operations runbook](docs/operations.md).
+
+## Evidence, without hand-waving
+
+Magicite separates **implemented capability** from **validated hypothesis**.
+That distinction is part of the product.
+
+| Claim | Current evidence |
+|---|---|
+| Portable registry, rebuildable index, governed lifecycle, and recoverable Dream execution | Mechanically verified by unit, integration, acceptance, and spawned-process crash tests. |
+| Offline stdio server and hardened container handshake | Verified in CI with networking disabled for the runtime path. |
+| Full Magicite routing beats plain dense embeddings | **Not demonstrated.** On the 70-skill / 210-query study, dense Hit@1 was `0.5476`; the full pipeline was `0.5333`—a difference of 3 queries and statistically indistinguishable. |
+| Graph activation and learned state improve routing | **Not demonstrated.** The central declared-edge hypothesis still needs an independent, purpose-built evaluation. |
+| A roughly 50-skill break-even point exists | **Not demonstrated.** It remains a historical reference size, not a product claim. |
+| Sub-100 ms routing at 10k skills | **Not claimed.** The 10k matrix is measurement evidence and a profiling target, not a passing latency promise. |
+
+The current study is bounded: one author, one annotator, one embedder, and a
+uniform learning workload. Mechanism repairs between releases are not presented
+as validation of the underlying hypothesis.
+
+Read the [falsification record](docs/01-vision-and-hypotheses.md) and
+[evaluation methodology](docs/07-evaluation-and-observability.md), or validate
+the versioned composition corpus and superseding result artifact:
+
+```bash
+uv run python -m magicite.eval validate-corpus docs/evaluation/composition-v0.3.json
+uv run python scripts/check_evaluation_results.py docs/evaluation/v0.3-results.json
+```
+
+For a registry with independently labelled queries, `magicite-bench` runs the
+four comparable lexical, embedding, structural, and production baselines; see
+the [benchmark harness guide](docs/operations.md#11-the-magicite-bench-harness-standing-kpis-and-ablations-m6).
 
 ## Dogfooding
 
-This repository routes its own maintenance through Magicite. `.magicite/engrams/`
-holds thirty first-party engrams in two tranches — sixteen on operating the
-project, fourteen on changing its code — connected by 26 declared `depends_on`
-and 9 `inhibits` edges rather than left as a flat list, and
-`scripts/dogfood_session.py` drives the entire 16-tool surface against them
-over real stdio MCP. See `docs/adapters/dogfooding.md` for the loop, the
-`.mcp.json` generator, the Tier-2 hook wiring, and an honest account of what
-the exercise exposed — including that `triggers.negative` and `intent.not_when`
-had no effect on retrieval in 0.2.0. The 0.3 recovery gives contraindications
-a distinct, diagnosable routing contribution rather than mixing them into the
-positive embedding.
-
-It is worth saying plainly what this is not: a self-authored registry is **not**
-evidence for any of the routing hypotheses in `docs/01`'s Falsification Record.
-It demonstrates that the surface works end-to-end, nothing more.
-
-## Quickstart — pip (development)
-
-> **PyPI publication is opt-in.** The 0.3.0 release always publishes the signed,
-> attested container; the wheel job is gated behind `PUBLISH_TO_PYPI` until
-> trusted publishing is registered.
-> Install from source in the meantime.
+Magicite routes maintenance of its own repository through 30 first-party
+engrams connected by declared dependency and inhibition edges. A real stdio MCP
+driver exercises all 16 tools; graph guards check dangling targets and stale
+code references.
 
 ```bash
-git clone https://github.com/Rynaro/magicite && cd magicite
-uv sync --all-extras
-uv run magicite fetch-model     # pre-download the ONNX embedding model once
-uv run magicite serve --project-root .
+uv run python scripts/dogfood_graph_check.py --edges
+uv run python scripts/dogfood_graph_check.py --symbols
+uv run python scripts/dogfood_session.py --out /tmp/magicite-session.json
 ```
 
-`MAGICITE_EMBEDDING_PROVIDER=hashing` selects a deterministic, zero-download
-embedder for tests/CI (lower routing quality — not for production use).
-`MAGICITE_EMBEDDING_OFFLINE=1` refuses any network fetch at runtime once the
-model has been pre-downloaded (matches the Docker image's default).
+This proves end-to-end wiring, not retrieval quality. The
+[dogfooding report](docs/adapters/dogfooding.md) records both what worked and
+what the exercise exposed.
 
-## Diagnostics: `magicite doctor`
+## Configuration
 
-```bash
-magicite doctor --project-root .
-```
+Configuration resolves from defaults, then `.magicite/magicite.toml`, then
+`MAGICITE_*` environment variables.
 
-A deliberately unflattering environment check (spec M7, risks R7/R9): it
-warns when `.magicite/` sits on a filesystem class where `fcntl.flock()`-based
-single-writer locking is known to degrade (NFS/CIFS/etc.), and it reports
-the registry's cold-start standing honestly rather than overselling —
-`registry_size` below the ~50-skill reference size is called out as a
-warning, not a footnote, and crossing it is never reported as an asserted
-break-even (docs/01's Falsification Record measured a 70-skill, above-
-reference registry where the full pipeline still trailed plain dense
-embedding by 3 queries in 210 — statistically indistinguishable, but not
-ahead). See `docs/operations.md` §8 for the full lock-semantics discussion.
+| Variable | Purpose |
+|---|---|
+| `MAGICITE_EMBEDDING_PROVIDER` | `fastembed` (default), `hashing` for deterministic tests, or optional `ollama`. |
+| `MAGICITE_EMBEDDING_OFFLINE` | Refuse runtime model downloads when set to `1`. |
+| `MAGICITE_HOOK_TOKEN` | Enable trusted Tier-2 host-adapter signals. Never place it in an engram. |
+| `MAGICITE_AUTONOMOUS` | Opt into autonomous R3 execution for a trusted registry. Review mode is the default. |
+
+All routing, plasticity, consolidation, retention, and plan bounds are
+documented in the [operations configuration reference](docs/operations.md#10-quick-reference--environment-variables).
+
+## Documentation
+
+| Read this | For |
+|---|---|
+| [Authority manifest](docs/AUTHORITY.md) | What defines current 0.3 behavior when historical records disagree. |
+| [Documentation index](docs/README.md) | The complete reading order and terminology. |
+| [Vision and hypotheses](docs/01-vision-and-hypotheses.md) | Problem statement, falsification record, and research agenda. |
+| [Architecture](docs/02-architecture.md) | Hot/write/Dream paths, storage, concurrency, and security boundary. |
+| [Learning model](docs/03-learning-model.md) | Plasticity, signals, decay, and consolidation semantics. |
+| [Engram format](docs/04-engram-format.md) | Portable artifact schema and lifecycle. |
+| [Protocol and signals](docs/05-protocol-and-signals.md) | Tool contracts and Tier-0/1/2 signal ladder. |
+| [Trust and governance](docs/06-trust-governance-lifecycle.md) | Risk classes, approvals, provenance, and recovery. |
+| [Evaluation](docs/07-evaluation-and-observability.md) | Baselines, metrics, experiments, and observability. |
+| [Operations](docs/operations.md) | Deployment, diagnostics, concurrency, recovery, and release channels. |
 
 ## Development
 
 ```bash
 uv sync --all-extras
-uv run magicite tools          # print the 16-tool manifest
-uv run magicite serve --project-root .
-uv run pytest -q
-uv run ruff check . && uv run mypy src
-```
 
-`MAGICITE_EMBEDDING_PROVIDER=hashing` selects the deterministic, offline
-embedder used by the test suite (no model download required). The full ESL
-`verify` bar (spec §7.2) — the exact sequence Kupo runs, including the
-containerised handshake — is:
-
-```bash
-uv sync --all-extras
-uv run ruff check . && uv run mypy src
-uv run pytest -q --cov=src/magicite --cov-fail-under=70
+uv run ruff check .
+uv run mypy src
+uv run pytest -q -m "not benchmark"
 uv run pytest -q -m acceptance
-uv run magicite tools | jq '.tools | length'   # == 16
-docker build -t magicite:verify . && uv run pytest tests/acceptance/test_docker_smoke.py
+uv run magicite tools | jq '.tools | length'  # 16
 ```
 
-Dev-loop container (pytest/ruff/mypy preinstalled, no ONNX model bake):
+The hardened-image gate additionally builds the production container, performs
+the offline MCP smoke test, runs the production benchmark matrix, and fails on
+HIGH/CRITICAL vulnerabilities.
 
-```bash
-docker build -f Dockerfile.dev -t magicite-dev .
-docker run --rm -it -v "$PWD":/work magicite-dev
-```
+To work on Magicite effectively, start with [AGENTS.md](AGENTS.md) and
+[EIDOLONS.md](EIDOLONS.md). The repository uses its own engrams to route
+maintenance decisions, and the CI contract expects documentation claims to
+remain synchronized with the runtime.
+
+## Project status
+
+Magicite 0.3.0 is an experimental but fully test-governed local skill router.
+The portable format, MCP surface, integrity model, lifecycle governance, and
+Dream recovery are implemented. The research question—whether graph and
+plasticity layers improve routing over simpler retrieval—remains open by
+design, measured rather than assumed.
+
+See [CHANGELOG.md](CHANGELOG.md) for release history and
+[GitHub Releases](https://github.com/Rynaro/magicite/releases) for signed
+artifacts and immutable container digests.
 
 ## License
 
-Apache-2.0. See `LICENSE`.
+Magicite is available under the [Apache License 2.0](LICENSE).
