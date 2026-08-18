@@ -12,13 +12,15 @@
 
 ### Rationale
 
-The exploratory corpus presented two apparent architectures: local-first (stdio/SQLite/Ollama, no dependencies) vs production-served (TypeScript SDK/Streamable HTTP/OAuth/Postgres multi-tenant). These are not incompatible — they are **deployment profiles of the same engine**.
+The exploratory corpus presented two apparent architectures: local-first (stdio/SQLite/local embeddings) vs production-served (TypeScript SDK/Streamable HTTP/OAuth/Postgres multi-tenant). These are not incompatible — they are **deployment profiles of the same engine**.
 
 **Why local-first v1:**
 1. Works whenever the project is served to a host (dominant case: a coding agent with local filesystem access).
 2. Eliminates operational complexity (no database server, no auth infrastructure, no network I/O in the hot path).
 3. Preserves git-committable registry semantics (the registry directory is a clean snapshot of consolidated knowledge).
-4. Single-writer Dream model simplifies plasticity (all state mutations come from one batch worker; no race conditions on durable state).
+4. One lease-and-fencing protocol serializes every durable writer. Dream is the
+   sole learned-S consolidator; register, sync, sharpen, and lifecycle operations
+   also perform governed durable writes through the same protocol.
 
 **Why serving is "just" a profile:**
 The engine is a library with a **tool-call contract** (tool name, input schema, output schema, side-effect class). Any transport (stdio MCP, HTTP Streamable, gRPC, local Python function) that wraps the same contract preserves engine semantics. A later served profile may add OAuth, PostgreSQL, multi-tenancy, queues, and K8s — but none of these change the engine's decision-making logic.
@@ -31,7 +33,7 @@ The engine is a library with a **tool-call contract** (tool name, input schema, 
 
 ```
 route(query, context?, k=5) → top-k L1 metadata + composition plan
-  1. Embed query (Ollama, local, ~50ms)
+  1. Embed query (FastEmbed/ONNX by default; Ollama optional)
   2. Top-m similarity seed via skill body embeddings
   3. Spreading activation over weighted edges (PPR, ~10–100ms)
   4. Score = α·activation + β·R + ε·excitability
@@ -73,7 +75,7 @@ signal_outcome(valence, salience?, skill_ids?) → tag capture → Δw
 
 ### Cold Path (Offline Consolidation Worker — Dream Cycle)
 
-The **Dream worker** runs periodically (hourly cron, daily batch, or on-demand `consolidate()` call). It is the only writer to S and the registry files.
+The **Dream worker** runs periodically (hourly cron, daily batch, or on-demand `consolidate()` call). It is the only consolidation writer to learned S; register, sync, sharpen, and lifecycle operations may also perform governed durable/file writes under the same single-writer lease.
 
 ```
 consolidate():
@@ -86,7 +88,10 @@ consolidate():
   7. Checkpoint: DB → file (plasticity.storage_strength + per-step stats)
 ```
 
-**Invariant:** Only the Dream worker writes to `.egr.md` files and to S. This enforces the two-tier rule (doc 03) and makes the registry a clean, git-committable snapshot between Dream runs.
+**Invariant:** Only Dream changes learned S. Dream checkpoints and the explicit
+`checkpoint` tool render learned state, while register, sync, sharpen, promote,
+and archive may publish governed authored/lifecycle file changes. Every durable
+writer is serialized by the same lease and fencing token.
 
 **Reversibility:** All Dream operations are idempotent and audited. A failed or incorrect consolidation can be rolled back by restoring a prior checkpoint or re-running with different parameters.
 
@@ -153,7 +158,7 @@ consolidate():
 - One registry per project (one `.magicite/engrams/` directory).
 - Skills are project-local (not global).
 - Multiple projects → multiple independent registries (no shared state).
-- Concurrent agents may query the same registry; only Dream writes to it.
+- Concurrent agents may query the same registry; all durable writers serialize through the cross-process lease.
 
 ### Write Contention: Single-Writer + WAL
 
@@ -162,8 +167,8 @@ The exploratory corpus claimed "zero write contention" but was imprecise. **Refi
 | State | Writer(s) | Contention |
 |---|---|---|
 | R, tags, candidate edges (ephemeral) | Hot path (multiple agents, parallel sessions) | YES — SQLite WAL (write-ahead log) + PRAGMA journal_mode=WAL handles this. Sessions write to a shared log; no blocking. |
-| S, per-step stats, status (durable) | Dream worker only | NO — Dream is single-writer. Hot-path reads may overlap; no durable-state writes race. |
-| `.egr.md` files | Dream worker only | NO — Dream is single-writer. File mutations are atomic per Dream run. |
+| S and per-step learned stats | Dream consolidation | NO — lease plus fencing excludes competing durable writers. |
+| Lifecycle/status and `.egr.md` files | Dream, register/sync, sharpen, lifecycle operations | YES — serialized by lease; filesystem publication is recoverable/idempotent rather than falsely claimed cross-resource atomic. |
 
 **Implication:** Multiple concurrent sessions are safe. The SQLite WAL allows readers and the hot-path writer to coexist; the Dream worker coordinates durable-state updates offline.
 
@@ -177,7 +182,7 @@ The exploratory corpus claimed "zero write contention" but was imprecise. **Refi
 |---|---|
 | Transport | stdio MCP (MLK, FastMCP, or equivalent) |
 | Storage | SQLite, single file in project `.magicite/engrams/` |
-| Embeddings | Ollama (local model, no API calls) |
+| Embeddings | FastEmbed/ONNX (default, explicit local model fetch); Ollama optional |
 | Scope | Per-project registry |
 | Query model | Command-line / Python function / MCP client |
 | Governance | File-based approval (human-veto gate via `.spectra/changes/` in Tonberry) |

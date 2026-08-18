@@ -14,6 +14,7 @@ helper the invariant test diffs" the M1 story action plan names) and
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -57,6 +58,8 @@ def skill_detail(
     skill_id_or_name: str,
     *,
     declared_edge_strength: float = edge_weight_mod.DEFAULT_DECLARED_EDGE_STRENGTH,
+    lambda_s_per_day: float = 0.01,
+    lambda_r_per_day: float = 0.1,
 ) -> dict[str, Any] | None:
     row = conn.execute(
         "SELECT * FROM engram WHERE id = ? OR name = ?", (skill_id_or_name, skill_id_or_name)
@@ -96,7 +99,35 @@ def skill_detail(
         "SELECT route_returns FROM eph_bookkeeping WHERE engram_id = ?", (row["id"],)
     ).fetchone()
     retrieval = conn.execute(
-        "SELECT r FROM eph_retrieval WHERE engram_id = ?", (row["id"],)
+        "SELECT r, r_decayed_at FROM eph_retrieval WHERE engram_id = ?", (row["id"],)
+    ).fetchone()
+
+    now = datetime.now(UTC).isoformat()
+    effective_s = effective_value(
+        float(row["storage_strength"]), row["s_decayed_at"], now, lambda_s_per_day
+    )
+    effective_r = effective_value(
+        float(retrieval["r"]) if retrieval else 0.0,
+        retrieval["r_decayed_at"] if retrieval else None,
+        now,
+        lambda_r_per_day,
+    )
+    outcome_total = int(row["success_count"]) + int(row["failure_count"])
+    reliability = (float(row["success_count"]) / outcome_total) if outcome_total else 0.0
+    live_tags = conn.execute(
+        "SELECT COUNT(*) AS n FROM eph_tag WHERE engram_id = ? "
+        "AND consumed_run_id IS NULL AND expires_at > ?",
+        (row["id"], now),
+    ).fetchone()["n"]
+    pending = conn.execute(
+        "SELECT COALESCE(SUM(pending_dw), 0.0) AS dw FROM eph_candidate_edge "
+        "WHERE src_id = ? OR dst_id = ?",
+        (row["id"], row["id"]),
+    ).fetchone()["dw"]
+    latest_operation = conn.execute(
+        "SELECT state FROM approval WHERE target_name = ? "
+        "ORDER BY proposed_at DESC, id DESC LIMIT 1",
+        (row["name"],),
     ).fetchone()
 
     silent = bookkeeping is None or bookkeeping["route_returns"] == 0
@@ -106,9 +137,14 @@ def skill_detail(
             "id": row["id"],
             "name": row["name"],
             "status": row["status"],
+            "verification_status": row["verification_status"],
+            "operation_execution_status": (
+                str(latest_operation["state"]) if latest_operation is not None else None
+            ),
             "storage_strength": row["storage_strength"],
             "exposure_count": row["exposure_count"],
             "outcome": {"success": row["success_count"], "failure": row["failure_count"]},
+            "reliability": reliability,
         },
         "outbound_edges": [_edge_dict(e) for e in outbound],
         "inbound_edges": [_edge_dict(e) for e in inbound],
@@ -116,11 +152,30 @@ def skill_detail(
         "silent_engram_flag": silent,
         "tier_state": {
             "storage_strength": row["storage_strength"],
-            "storage_strength_effective_now": row["storage_strength"],
-            "retrieval_strength": retrieval["r"] if retrieval else 0.0,
-            "live_tags": 0,
-            "pending_dw": 0.0,
+            "storage_strength_effective_now": effective_s,
+            "retrieval_strength": effective_r,
+            "reliability": reliability,
+            "live_tags": live_tags,
+            "pending_dw": float(pending),
         },
+    }
+
+
+def consolidation_detail(conn: sqlite3.Connection, consolidation_id: str) -> dict[str, Any] | None:
+    """Current projection of one operational Dream run."""
+    row = conn.execute(
+        "SELECT id, state, phase, stats_json FROM consolidation_run WHERE id = ?",
+        (consolidation_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    stats = json.loads(row["stats_json"]) if row["stats_json"] else None
+    return {
+        "id": row["id"],
+        "state": row["state"],
+        "phase": row["phase"],
+        "stats": stats,
+        "audit_report": stats.get("audit") if isinstance(stats, dict) else None,
     }
 
 

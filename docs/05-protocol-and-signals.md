@@ -20,7 +20,13 @@ The **signal fidelity model** (D3 verdict) is the core innovation: plasticity wo
 
 ## Unified Tool Inventory
 
-The exploratory proposal had 8 tools (proposal IV.6); engram-format had 8 additional tools (§7) with overlap. Unified here:
+The runtime exposes exactly 16 tools. The detailed historical contracts below
+are supplemented by the authoritative manifest returned by `magicite tools`:
+`route`, `signal_use`, `signal_outcome`, `consolidate`, `checkpoint`,
+`register`, `sync`, `introspect`, `flag_dead`, `sharpen`, `promote`, `archive`,
+`export`, `nucleate`, `load_skill_body`, and `session_end`. CI compares this
+inventory with the registered schemas so documentation cannot silently omit a
+tool again.
 
 ### Core Retrieval Tools
 
@@ -457,7 +463,7 @@ The exploratory proposal had 8 tools (proposal IV.6); engram-format had 8 additi
 
 Every signal carries its **provenance tier** (assigned server-side, not claimed by caller). During Dream consolidation:
 
-1. **Tier-0 signals** (inferred): Adjust R (retrieval strength) and bookkeeping (exposure_count, co-occurrence edges). Never touch S (storage strength). Tier-0 evidence moves **R**, and R is itself a routing input (`w_retrieval`=0.15). "Never S" bounds **durability**, not **routing influence** — R-mediated retrieval bias is bounded by decay and rate limits, not by the tier gate.
+1. **Tier-0 signals** (inferred): Adjust R (retrieval strength) and bookkeeping (exposure_count, co-occurrence edges). Never touch S (storage strength). Tier-0 evidence moves **R**, and R is itself a routing input (`w_retrieval`=0.05). "Never S" bounds **durability**, not **routing influence** — R-mediated retrieval bias is bounded by decay and rate limits, not by the tier gate.
 
 2. **Tier-1 signals** (self_reported): can update both R and S via Δw, subject to:
    - **Bounds on influence, not on volume.** At most `per_skill_session_cap` (default 3) Δw events per skill per session — this is **runaway protection, not an anti-poisoning control**: under the local-first (stdio) profile `session_id` is caller-supplied and unauthenticated — it is a continuity key, not an identity — so a caller can always mint a new session, including by omitting `session_id`. Influence is bounded at the point of **conversion to durable state** by (i) **spacing-gated potentiation** (`tau_spacing_hours` = 6 hours: no more than one S commit per engram per Dream run, requiring genuinely time-separated observations before signals potentiate), (ii) **decay applied at read** (both R and S self-reverse without further input), (iii) **retrieval-strength refractory** (`eta_r_refractory_s` = 30s: R bumps count occasions, not calls, keyed on engram_id), (iv) **bounded retroactive credit** (`retroactive_credit_max` = 10 live tags per outcome call), and (v) **session-end grace floor** (`session_end_tag_grace_s` = 60s: a tag must be old enough before session_end can pull its expiry forward). See `.spectra/changes/archive/2026-08-15-magicite-v1-implementation/decisions/R1-RESTATED.md` for executed evidence.

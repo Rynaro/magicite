@@ -5,6 +5,10 @@ last ``not_implemented`` tool body in the 16-tool surface) and wires
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime, timedelta
+
+from magicite.core import approvals as approvals_mod
 from magicite.core import registry as registry_mod
 from magicite.mcp import bind_inspect
 from magicite.mcp.registry import ToolContext
@@ -126,3 +130,79 @@ def test_introspect_include_health_reports_standing_kpis(cfg, db_conn, embedder)
     assert "silent_engrams" in out.health
     assert "hub_detection" in out.health
     assert "fitness_distribution" in out.health
+
+
+def test_introspect_consolidation(cfg, db_conn, embedder) -> None:
+    stats = {"audit": {"silent": 2}, "checkpoint": {"checkpointed": 1}}
+    db_conn.execute(
+        "INSERT INTO consolidation_run (id, trigger, state, stats_json) VALUES (?,?,?,?)",
+        ("con_v03", "manual", "succeeded", json.dumps(stats)),
+    )
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    out = bind_inspect.introspect(ctx, IntrospectInput(consolidation_id="con_v03"))
+    assert out.consolidation is not None
+    assert out.consolidation.stats == stats
+    assert out.consolidation.audit_report == stats["audit"]
+
+
+def test_introspect_projects_live_state(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    skill_id = db_conn.execute(
+        "SELECT id FROM engram WHERE name = ?", (PROTON,)
+    ).fetchone()["id"]
+    now = datetime.now(UTC)
+    db_conn.execute(
+        "UPDATE engram SET storage_strength=0.8, success_count=3, failure_count=1, "
+        "s_decayed_at=? WHERE id=?",
+        ((now - timedelta(days=2)).isoformat(), skill_id),
+    )
+    db_conn.execute(
+        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES (?,?,?)",
+        (skill_id, 0.6, (now - timedelta(days=2)).isoformat()),
+    )
+    db_conn.execute(
+        "INSERT INTO eph_tag (session_id, subject_kind, engram_id, signal_tier, set_at, expires_at) "
+        "VALUES ('s', 'node', ?, 1, ?, ?)",
+        (skill_id, now.isoformat(), (now + timedelta(hours=1)).isoformat()),
+    )
+    db_conn.execute(
+        "INSERT INTO eph_candidate_edge (src_id, dst_id, type, pending_dw, evidence_count, "
+        "first_observed, last_updated) VALUES (?,?, 'co_activation', 0.12, 1, ?, ?)",
+        (skill_id, skill_id, now.isoformat(), now.isoformat()),
+    )
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    out = bind_inspect.introspect(ctx, IntrospectInput(skill_id=skill_id))
+    assert out.tier_state is not None
+    assert out.tier_state.storage_strength_effective_now < 0.8
+    assert out.tier_state.retrieval_strength < 0.6
+    assert out.tier_state.reliability == 0.75
+    assert out.tier_state.live_tags == 1
+    assert out.tier_state.pending_dw == 0.12
+
+
+def test_independent_state_dimensions(cfg, db_conn, embedder) -> None:
+    """AC-031: lifecycle, verification, and operation state are orthogonal."""
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    proposal = approvals_mod.propose(
+        db_conn,
+        cfg,
+        op="archive",
+        target_name=PROTON,
+        payload={"reason": "contract-test"},
+        proposed_by="test",
+    )
+    approvals_mod.decide(
+        db_conn,
+        cfg,
+        approval_id=proposal.id,
+        approve=True,
+        decided_by="reviewer",
+    )
+
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    out = bind_inspect.introspect(ctx, IntrospectInput(skill_id=PROTON))
+
+    assert out.skill is not None
+    assert out.skill.status == "nascent"
+    assert out.skill.verification_status == "verified"
+    assert out.skill.operation_execution_status == "approved"

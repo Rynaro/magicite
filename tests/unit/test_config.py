@@ -35,6 +35,19 @@ def test_data_dir_defaults_to_dot_magicite(tmp_path: Path) -> None:
     assert cfg.uses_legacy_layout is False
 
 
+def test_default_embedding_operation_is_offline(tmp_path: Path) -> None:
+    assert Config.load(tmp_path, env={}).embedding_offline is True
+
+
+def test_documented_retrieval_default_matches_runtime(tmp_path: Path) -> None:
+    """AC-026: the normative formula and runtime use one retrieval weight."""
+    assert Config.load(tmp_path, env={}).w_retrieval == 0.05
+    architecture = (Path(__file__).parents[2] / "docs" / "03-learning-model.md").read_text(
+        encoding="utf-8"
+    )
+    assert "w_retrieval=0.05" in architecture
+
+
 def test_data_dir_ensure_dirs_creates_under_magicite(tmp_path: Path) -> None:
     """AC-M1: ``ensure_dirs()`` creates the tree in the new location, and
     creates nothing at all under the legacy one."""

@@ -1,0 +1,6 @@
+{"rubric":"complexity","total":9,"dims":{"scope":3,"ambiguity":1,"dependencies":2,"risk":3},"verdict":"extended","at":"2026-08-18T09:45:10Z","label":"v0.3.0-scope"}
+{"rubric":"explore","total":87,"dims":{"alignment":10,"correctness":9,"maintainability":9,"performance":8,"simplicity":7,"risk":8,"innovation":7},"verdict":"elite","at":"2026-08-18T09:45:10Z","label":"staged-integrity-first"}
+{"rubric":"explore","total":61.5,"dims":{"alignment":7,"correctness":6,"maintainability":5,"performance":9,"simplicity":4,"risk":2,"innovation":10},"verdict":"weak","at":"2026-08-18T09:45:10Z","label":"native-rewrite"}
+{"rubric":"explore","total":63,"dims":{"alignment":6,"correctness":5,"maintainability":8,"performance":4,"simplicity":10,"risk":9,"innovation":2},"verdict":"weak","at":"2026-08-18T09:45:20Z","label":"compatibility-docs-only"}
+{"rubric":"refine","cycle":1,"total":4.6,"min":4,"dims":{"clarity":5,"completeness":5,"actionability":4,"efficiency":4,"testability":5},"verdict":"pass","at":"2026-08-18T09:49:35Z","label":"critic-mandatory-corrections"}
+{"rubric":"confidence","total":93.5,"dims":{"pattern_match":92,"requirement_clarity":96,"decomposition_stability":90,"constraint_compliance":96},"verdict":"AUTO_PROCEED","at":"2026-08-18T09:50:00Z","label":"v0.3.0-refined-plan"}

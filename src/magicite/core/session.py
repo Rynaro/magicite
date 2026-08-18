@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from magicite.config import Config
+from magicite.errors import InvalidInputError
 from magicite.storage import ephemeral as ephemeral_mod
 
 #: spec §3.3: the event recorded when a call names a session_id whose
@@ -65,6 +66,12 @@ def resolve(cfg: Config, conn: sqlite3.Connection, session_id: str | None) -> Se
     if row is None:
         ephemeral_mod.upsert_session(conn, session_id)
         return SessionResolution(session_id=session_id, minted=False, resumed_after_expiry=False)
+
+    if row["ended_at"] is not None:
+        raise InvalidInputError(
+            f"session {session_id!r} has ended and cannot be resumed",
+            hint="omit session_id to mint a new session or provide a new identifier",
+        )
 
     ttl = timedelta(hours=cfg.session_ttl_hours)
     last_seen = _parse(row["last_seen_at"])
@@ -140,6 +147,15 @@ def session_end(
     now = now_dt.isoformat()
 
     closed = ephemeral_mod.close_session(conn, session_id)
+    if not closed:
+        return SessionEndOutcome(
+            session_id=session_id,
+            closed=False,
+            tags_expired=0,
+            captured_pending=0,
+            dream_run_id=None,
+            enqueued=False,
+        )
     # M6 defect fix (carried-forward defect #1, "session-suppression
     # hijack"): bound -- never eliminate -- how aggressively this call can
     # suppress a not-yet-captured tag; see storage.ephemeral.

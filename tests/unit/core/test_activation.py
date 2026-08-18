@@ -71,6 +71,18 @@ def test_apply_inhibition_noop_when_inhibitor_inactive() -> None:
     assert out[1] == a[1]
 
 
+def test_reciprocal_equal_strength_inhibition() -> None:
+    node_ids = ["a", "b"]
+    activation = np.array([0.6, 0.6])
+    out = activation_mod.apply_inhibition(
+        activation,
+        node_ids,
+        [("a", "b", 0.8), ("b", "a", 0.8)],
+        inhib_gain=0.245,
+    )
+    assert out[0] / activation[0] == out[1] / activation[1]
+
+
 def test_page_rank_ranks_hub_above_leaf() -> None:
     # star graph: four leaves all point at "hub".
     node_ids = ["hub", "l1", "l2", "l3", "l4"]

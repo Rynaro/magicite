@@ -44,11 +44,16 @@ One file per skill: `engrams/<name>.egr.md`. No mandatory companion directory; a
 # ── IDENTITY ──────────────────────────────────────────────
 spec: engram/0.2
 name: proton-ge-proton-downgrade      # 1–64 chars, lowercase-hyphen, == filename
-id: egr_9f2c7a1d                      # content-hash of identity+routing blocks
+id: egr_9f2c7a1d                      # immutable hash of identity+routing blocks
 version: 3                            # bumped on every sharpening event
 provenance: sharpened                 # authored | imported | distilled | sharpened
 parents: [egr_4b8e01cc]               # lineage: engrams this derives from
 ```
+
+The immutable ID is not a whole-file checksum. Registry synchronization tracks
+whole-file drift separately as `content_sha256` in the local index, while
+`body_sha256` tracks the rendered body. Editing mutable plasticity or provenance
+therefore never silently changes identity.
 
 ### Routing Block (Replaces SKILL.md Description)
 
@@ -57,14 +62,14 @@ parents: [egr_4b8e01cc]               # lineage: engrams this derives from
 intent:
   does: "Downgrade GE-Proton when a Steam game regresses after an update"
   use_when: "game crashes or performs worse immediately after GE-Proton update"
-  not_when: "game never worked on any version"  # negative intent → inhibitory edge
+  not_when: "game never worked on any version"  # separate contraindication routing view
 
 triggers:
   positive:                           # ≥3 required; embedded at register time
     - "game X broke after proton update"
     - "rollback ge-proton for steam"
     - "new proton version regression"
-  negative:                           # ≥1 required for precision
+  negative:                           # ≥1 required; separately embedded/penalized
     - "proton not launching at all"   # → inhibits proton-clean-install
 
 context_affinity: [steam, lutris, nvidia, fedora-kde]   # links to context nodes
@@ -138,11 +143,14 @@ synapses:
 ```yaml
 # ── COMPOSITION (declared first-class DAG edges) ───────────
 needs: [steam-prefix-access]          # inputs required → plan chaining
-yields: [working-ge-proton-version]   # outputs produced
+yields: [working-ge-proton-version]   # portable metadata; not a graph edge in 0.3
 composes: []                          # sub-engrams if this is a distilled composite
 inhibits: [proton-clean-install]      # mutual exclusion
 affinity: [steam, lutris]             # links to context nodes
 ```
+
+`yields` is metadata-only in 0.3. It is portable intent for a future governed
+producer/consumer semantics, not an activation or composition edge today.
 
 ### Provenance & Trust Block (Tier A: Durable Provenance)
 
@@ -231,7 +239,11 @@ exports:
 | **B (durable, edge)** | synapses block (S_edge, consolidated learned edges, provenance) | `.egr.md` frontmatter | Dream checkpoint only | No |
 | **C (ephemeral, edge)** | R, tags, candidate edges, cached embeddings | SQLite DB | Hot path | Yes; expires per session or decay |
 
-**Consequence:** The file is **never written by the hot path**. Only the offline Dream cycle checkpoints DB → file. Registry is always git-committable and clean between Dream runs.
+**Consequence:** The file is **never written by the hot path**. Dream and the
+explicit `checkpoint` tool may checkpoint learned state; register, sync,
+sharpen, promote, and archive may publish authored or lifecycle changes. These
+paths all use the durable writer protocol, so the registry remains reviewable
+and git-committable between writes.
 
 ---
 

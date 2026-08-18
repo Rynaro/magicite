@@ -32,20 +32,13 @@ Autonomous mode is a blast-radius decision, not a default: enable it only for a
 registry you trust end-to-end (e.g. a CI job re-running against a known-good
 corpus), never for a registry that ingests imported/third-party content unattended.
 
-**Known v1 gap — no "resume from approved" worker.** The frozen 16-tool surface has
-no dedicated "approve" or "execute" tool. In review mode, a proposal simply sits in
-`proposed` state after `.magicite/approvals/<id>.json` is written. To execute a
-reviewed proposal today:
-
-1. Inspect the JSON file, decide, and edit `state` to `"approved"` (and set
-   `decided_by`/`decided_at`) by hand, or via a small operator script calling
-   `core.approvals.decide()` directly against the registry's DB.
-2. Re-run the *same* R3 tool call with autonomous mode temporarily enabled for that
-   one operation, **or** apply the change manually (e.g. `sharpen`'s patch) and run
-   `magicite sync` to re-index it.
-
-A first-class "resume approved proposals" tool/worker is a reasonable M6+ addition;
-it is out of scope for this milestone (see the M5 delta for the full reasoning).
+**Reviewed execution.** The frozen 16-tool MCP surface has no dedicated `approve`
+or `execute` tool. An operator inspects the mirrored proposal, calls
+`core.approvals.decide()` to approve or reject it, then calls
+`mcp.bind_lifecycle.resume_approved()` for an approved proposal. Resume records the
+`approved -> executed -> succeeded|failed` transitions and actor in the durable
+audit log before and after dispatch. A terminal proposal cannot be resumed again,
+so retries cannot replay the governed mutation.
 
 ---
 

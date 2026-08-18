@@ -1,0 +1,361 @@
+{
+  "schema": "magicite-composition-corpus/1",
+  "corpus_id": "magicite-composition-v0.3",
+  "created_at": "2026-08-18T00:00:00Z",
+  "label_policy": {
+    "method": "manual_topological_reasoning",
+    "production_expansion_used": false,
+    "separation": "Expected plans were written from the declared task dependencies before production expansion outputs were inspected.",
+    "review_rule": "Every case has an explicit rationale and independent-review marker."
+  },
+  "cases": [
+    {
+      "id": "compose-001",
+      "query": "Build and publish a package after tests pass",
+      "winner": "publish-package",
+      "edges": [
+        {"src": "publish-package", "dst": "build-package", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "publish-package", "dst": "run-unit-tests", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["build-package", "run-unit-tests", "publish-package"],
+      "expected_confidence": 1.0,
+      "features": ["branch"],
+      "label_rationale": "The two prerequisites are independent and sort lexically before publication.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-002",
+      "query": "Deploy a service after backup, migration, and health preparation",
+      "winner": "deploy-service",
+      "edges": [
+        {"src": "deploy-service", "dst": "migrate-database", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "deploy-service", "dst": "health-check", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "migrate-database", "dst": "backup-database", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["backup-database", "health-check", "migrate-database", "deploy-service"],
+      "expected_confidence": 1.0,
+      "features": ["branch", "depth-2"],
+      "label_rationale": "Backup gates migration; health preparation can run independently before deployment.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-003",
+      "query": "Resolve an incident by collecting logs, diagnosing, then remediating",
+      "winner": "remediate-incident",
+      "edges": [
+        {"src": "remediate-incident", "dst": "diagnose-incident", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "diagnose-incident", "dst": "collect-logs", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["collect-logs", "diagnose-incident", "remediate-incident"],
+      "expected_confidence": 1.0,
+      "features": ["chain"],
+      "label_rationale": "Evidence collection precedes diagnosis, which precedes remediation.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-004",
+      "query": "Publish documentation after API extraction and example verification",
+      "winner": "publish-docs",
+      "edges": [
+        {"src": "publish-docs", "dst": "extract-api", "type": "composes", "strength": 1.0, "resolved": true},
+        {"src": "publish-docs", "dst": "verify-examples", "type": "composes", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["extract-api", "verify-examples", "publish-docs"],
+      "expected_confidence": 1.0,
+      "features": ["composes", "branch"],
+      "label_rationale": "Both authored inputs are ready before the publishing step.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-005",
+      "query": "Release an application through compile, test, sign, and publish",
+      "winner": "release-application",
+      "edges": [
+        {"src": "release-application", "dst": "sign-artifact", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "sign-artifact", "dst": "test-artifact", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "test-artifact", "dst": "compile-artifact", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["compile-artifact", "test-artifact", "sign-artifact", "release-application"],
+      "expected_confidence": 1.0,
+      "features": ["chain", "depth-3"],
+      "label_rationale": "Each stage consumes the output of the prior stage.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-006",
+      "query": "Provision a cluster after network and identity setup",
+      "winner": "provision-cluster",
+      "edges": [
+        {"src": "provision-cluster", "dst": "configure-identity", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "provision-cluster", "dst": "configure-network", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["configure-identity", "configure-network", "provision-cluster"],
+      "expected_confidence": 1.0,
+      "features": ["branch"],
+      "label_rationale": "Identity and network setup are peer prerequisites ordered deterministically.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-007",
+      "query": "Generate a report from one normalized shared dataset",
+      "winner": "generate-report",
+      "edges": [
+        {"src": "generate-report", "dst": "compute-summary", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "generate-report", "dst": "render-chart", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "compute-summary", "dst": "normalize-data", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "render-chart", "dst": "normalize-data", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["normalize-data", "compute-summary", "render-chart", "generate-report"],
+      "expected_confidence": 1.0,
+      "features": ["diamond"],
+      "label_rationale": "Normalization feeds both middle stages; both feed the final report.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-008",
+      "query": "Onboard a user after account, policy, and workspace setup",
+      "winner": "onboard-user",
+      "edges": [
+        {"src": "onboard-user", "dst": "create-account", "type": "composes", "strength": 1.0, "resolved": true},
+        {"src": "onboard-user", "dst": "assign-policy", "type": "composes", "strength": 1.0, "resolved": true},
+        {"src": "onboard-user", "dst": "create-workspace", "type": "composes", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["assign-policy", "create-account", "create-workspace", "onboard-user"],
+      "expected_confidence": 1.0,
+      "features": ["composes", "branch"],
+      "label_rationale": "Three independent components precede onboarding completion.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-009",
+      "query": "Rotate and validate secrets despite a two-node declaration cycle",
+      "winner": "rotate-secrets",
+      "edges": [
+        {"src": "rotate-secrets", "dst": "validate-secrets", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "validate-secrets", "dst": "rotate-secrets", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["validate-secrets", "rotate-secrets"],
+      "expected_confidence": 0.5,
+      "features": ["cycle"],
+      "label_rationale": "The deterministic total-order break drops rotate-secrets as validate-secrets' prerequisite.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-010",
+      "query": "Reconcile a three-step cyclic configuration declaration",
+      "winner": "reconcile-config",
+      "edges": [
+        {"src": "reconcile-config", "dst": "fetch-config", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "fetch-config", "dst": "validate-config", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "validate-config", "dst": "reconcile-config", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["reconcile-config", "validate-config", "fetch-config"],
+      "expected_confidence": 0.6667,
+      "features": ["cycle"],
+      "label_rationale": "The lexical cycle break removes fetch-config before reconcile-config, leaving two respected edges.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-011",
+      "query": "Deploy with a referenced but unavailable compliance checker",
+      "winner": "deploy-compliant-service",
+      "edges": [
+        {"src": "deploy-compliant-service", "dst": "missing-compliance-check", "type": "depends_on", "strength": 1.0, "resolved": false}
+      ],
+      "expected_plan": ["deploy-compliant-service"],
+      "expected_confidence": 0.0,
+      "features": ["dangling"],
+      "label_rationale": "The unresolved prerequisite cannot enter the emitted plan.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-012",
+      "query": "Ship an image with one present scanner and one missing signer",
+      "winner": "ship-image",
+      "edges": [
+        {"src": "ship-image", "dst": "scan-image", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "ship-image", "dst": "missing-image-signer", "type": "depends_on", "strength": 1.0, "resolved": false}
+      ],
+      "expected_plan": ["scan-image", "ship-image"],
+      "expected_confidence": 0.5,
+      "features": ["dangling", "partial"],
+      "label_rationale": "One of two declared dependencies resolves and is ordered correctly.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-013",
+      "query": "Publish a site through a build chain while an optional auditor is missing",
+      "winner": "publish-site",
+      "edges": [
+        {"src": "publish-site", "dst": "build-site", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "build-site", "dst": "compile-assets", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "publish-site", "dst": "missing-auditor", "type": "depends_on", "strength": 1.0, "resolved": false}
+      ],
+      "expected_plan": ["compile-assets", "build-site", "publish-site"],
+      "expected_confidence": 0.6667,
+      "features": ["dangling", "chain"],
+      "label_rationale": "The two resolved edges form the usable chain; the third edge remains unsatisfied.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-014",
+      "query": "Resolve a cyclic plan that also names an unavailable notifier",
+      "winner": "close-change",
+      "edges": [
+        {"src": "close-change", "dst": "verify-change", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "verify-change", "dst": "close-change", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "close-change", "dst": "missing-notifier", "type": "depends_on", "strength": 1.0, "resolved": false}
+      ],
+      "expected_plan": ["verify-change", "close-change"],
+      "expected_confidence": 0.3333,
+      "features": ["cycle", "dangling"],
+      "label_rationale": "One cycle edge is respected after deterministic breaking; the dangling edge is never satisfied.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-015",
+      "query": "Assemble a customer brief from research and review",
+      "winner": "assemble-brief",
+      "edges": [
+        {"src": "assemble-brief", "dst": "research-customer", "type": "composes", "strength": 1.0, "resolved": true},
+        {"src": "assemble-brief", "dst": "review-requirements", "type": "composes", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["research-customer", "review-requirements", "assemble-brief"],
+      "expected_confidence": 1.0,
+      "features": ["composes"],
+      "label_rationale": "The brief composes two independently prepared inputs.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-016",
+      "query": "Recover a database after identifying and restoring a snapshot",
+      "winner": "recover-database",
+      "edges": [
+        {"src": "recover-database", "dst": "restore-snapshot", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "restore-snapshot", "dst": "identify-snapshot", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["identify-snapshot", "restore-snapshot", "recover-database"],
+      "expected_confidence": 1.0,
+      "features": ["chain"],
+      "label_rationale": "A snapshot must be selected before it can be restored and verified as recovery.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-017",
+      "query": "Train a model after preparing data and choosing features",
+      "winner": "train-model",
+      "edges": [
+        {"src": "train-model", "dst": "prepare-data", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "train-model", "dst": "select-features", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "select-features", "dst": "prepare-data", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["prepare-data", "select-features", "train-model"],
+      "expected_confidence": 1.0,
+      "features": ["transitive"],
+      "label_rationale": "Prepared data feeds feature selection and both precede training.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-018",
+      "query": "Issue a certificate after key generation and domain validation",
+      "winner": "issue-certificate",
+      "edges": [
+        {"src": "issue-certificate", "dst": "generate-key", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "issue-certificate", "dst": "validate-domain", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["generate-key", "validate-domain", "issue-certificate"],
+      "expected_confidence": 1.0,
+      "features": ["branch"],
+      "label_rationale": "Key generation and validation are peer prerequisites.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-019",
+      "query": "Merge a change after lint, unit tests, and integration tests",
+      "winner": "merge-change",
+      "edges": [
+        {"src": "merge-change", "dst": "lint-change", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "merge-change", "dst": "run-integration-tests", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "merge-change", "dst": "run-unit-tests", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["lint-change", "run-integration-tests", "run-unit-tests", "merge-change"],
+      "expected_confidence": 1.0,
+      "features": ["branch"],
+      "label_rationale": "All three gates are independent and deterministically ordered before merge.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-020",
+      "query": "Create a backup after freezing writes and taking a snapshot",
+      "winner": "create-backup",
+      "edges": [
+        {"src": "create-backup", "dst": "take-snapshot", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "take-snapshot", "dst": "freeze-writes", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["freeze-writes", "take-snapshot", "create-backup"],
+      "expected_confidence": 1.0,
+      "features": ["chain"],
+      "label_rationale": "Writes are frozen before snapshotting; the snapshot becomes the backup.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-021",
+      "query": "Roll out a feature after configuration and monitoring preparation",
+      "winner": "rollout-feature",
+      "edges": [
+        {"src": "rollout-feature", "dst": "configure-feature", "type": "composes", "strength": 1.0, "resolved": true},
+        {"src": "rollout-feature", "dst": "prepare-monitoring", "type": "composes", "strength": 1.0, "resolved": true},
+        {"src": "prepare-monitoring", "dst": "define-alerts", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["configure-feature", "define-alerts", "prepare-monitoring", "rollout-feature"],
+      "expected_confidence": 1.0,
+      "features": ["composes", "depth-2"],
+      "label_rationale": "Alert definitions gate monitoring; configured feature and monitoring gate rollout.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-022",
+      "query": "Publish analytics after ingestion, cleaning, and aggregation",
+      "winner": "publish-analytics",
+      "edges": [
+        {"src": "publish-analytics", "dst": "aggregate-events", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "aggregate-events", "dst": "clean-events", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "clean-events", "dst": "ingest-events", "type": "depends_on", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["ingest-events", "clean-events", "aggregate-events", "publish-analytics"],
+      "expected_confidence": 1.0,
+      "features": ["chain", "depth-3"],
+      "label_rationale": "Events flow from ingestion through cleaning and aggregation to publication.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-023",
+      "query": "Provision access after identity verification with one missing legacy synchronizer",
+      "winner": "provision-access",
+      "edges": [
+        {"src": "provision-access", "dst": "verify-identity", "type": "depends_on", "strength": 1.0, "resolved": true},
+        {"src": "provision-access", "dst": "missing-legacy-sync", "type": "depends_on", "strength": 1.0, "resolved": false}
+      ],
+      "expected_plan": ["verify-identity", "provision-access"],
+      "expected_confidence": 0.5,
+      "features": ["dangling", "partial"],
+      "label_rationale": "Identity verification resolves; the legacy synchronization reference does not.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    },
+    {
+      "id": "compose-024",
+      "query": "Create a release note from changes, compatibility, and risk sections",
+      "winner": "create-release-note",
+      "edges": [
+        {"src": "create-release-note", "dst": "summarize-changes", "type": "composes", "strength": 1.0, "resolved": true},
+        {"src": "create-release-note", "dst": "document-compatibility", "type": "composes", "strength": 1.0, "resolved": true},
+        {"src": "create-release-note", "dst": "document-risks", "type": "composes", "strength": 1.0, "resolved": true}
+      ],
+      "expected_plan": ["document-compatibility", "document-risks", "summarize-changes", "create-release-note"],
+      "expected_confidence": 1.0,
+      "features": ["composes", "branch"],
+      "label_rationale": "All three authored sections precede assembly of the final release note.",
+      "label_provenance": {"method": "manual_topological_reasoning", "production_expansion_used": false, "reviewed": true}
+    }
+  ]
+}

@@ -39,7 +39,7 @@ Magicite creates and modifies skill artifacts autonomously (sharpening, nucleati
 | `pending` | Ingested, not yet verified | Quarantine; exclude from routing until review |
 | `quarantined` | Explicit user flag (suspicious content, injection risk detected, failed lint) | Must be manually reviewed and approved before moving to pending |
 
-**Example:** An imported engram starts `origin=imported, status=pending` and must be explicitly approved by a human or automated verifier to move to `status=pending→verified`.
+**Example:** An imported engram starts `origin=imported`, `lifecycle_status=nascent`, and `verification_status=pending`; approval changes the verification dimension to `verified` without pretending `pending` is a lifecycle state.
 
 ---
 
@@ -123,6 +123,18 @@ Appealed ─→ Re-review
 | `promote` (R3) | Evidence-gated | Automatic if evidence bar met; else requires manual approval | Check evidence (S ≥ θ, pass-rate ≥ φ) → auto-promote if pass; else propose + await review |
 | `archive` (R3) | Requires review | Manual approval | Proposed → review → approved → executed (moved to .magicite/archive/) |
 
+### Auditable decisions and resume
+
+Review mode uses one explicit `decide → resume` sequence. `core.approvals.decide`
+records approve or deny with the reviewer identity and reason. An approved row
+is resumed once through `core.approvals.resume`; the transition to `executed` is
+durable before the operation runs, and success or failure is terminal. Every
+row carries an append-only `audit_log` mirrored both in `payload_json` and in
+`.magicite/approvals/<id>.json`, including actor, timestamp, from/to state, and
+reason. `mcp.bind_lifecycle.resume_approved` dispatches approved lifecycle work
+without creating a duplicate proposal. This operator API does not add a
+seventeenth MCP tool; the public surface remains the generated 16-tool set.
+
 ### Autonomous Mode (Opt-In)
 
 Users may enable `--autonomous` to skip approval gates:
@@ -178,7 +190,9 @@ nascent ───────→ probation ───→ consolidated ───�
 
 ### Version Control
 
-- **Registry is git-repository-friendly:** All `.egr.md` files and `skill-graph.db` reside in `.magicite/` and can be committed.
+- **Registry is git-repository-friendly:** `.egr.md` files are the portable,
+  reviewable authority. `skill-graph.db` is local, rebuildable, and ignored by
+  default; tracking the cache requires an explicit operator opt-in.
 - **Provenance journal:** Every `.egr.md` carries an append-only journal in the file body; every modification is logged with timestamp, actor, and reason.
 - **Archive directory:** `.magicite/archive/` contains all archived engrams, timestamped (never deleted).
 
@@ -228,7 +242,7 @@ nascent ───────→ probation ───→ consolidated ───�
    ```bash
    magicite register path=./import/ --format=egr
    ```
-   Ingests shared engrams as `origin=imported, status=pending, verification_status=pending` (quarantine). Requires explicit human review + approval before entering routing.
+   Ingests shared engrams as `origin=imported, lifecycle_status=nascent, verification_status=pending` (quarantine). Requires explicit human review + approval before entering routing.
 
 4. **Review workflow:**
    ```

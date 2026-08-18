@@ -136,6 +136,13 @@ def upsert_embedding(
     )
 
 
+def delete_embedding(conn: sqlite3.Connection, *, engram_id: str, model_name: str) -> None:
+    conn.execute(
+        "DELETE FROM eph_embedding WHERE engram_id = ? AND model = ?",
+        (engram_id, model_name),
+    )
+
+
 # ── session resolution (spec §3.3's "one rule, every tool" + core/session.py) ──
 
 
@@ -149,14 +156,13 @@ def get_session(conn: sqlite3.Connection, session_id: str) -> sqlite3.Row | None
 def close_session(conn: sqlite3.Connection, session_id: str) -> bool:
     """spec §3.3 tool 7: ``session_end`` closes the session. Returns ``True``
     iff a live (previously-unclosed) session row existed to close."""
-    row = get_session(conn, session_id)
-    if row is None:
-        return False
-    conn.execute(
-        "UPDATE eph_session SET ended_at = ?, last_seen_at = ? WHERE session_id = ?",
-        (_now(), _now(), session_id),
+    now = _now()
+    cursor = conn.execute(
+        "UPDATE eph_session SET ended_at = ?, last_seen_at = ? "
+        "WHERE session_id = ? AND ended_at IS NULL",
+        (now, now, session_id),
     )
-    return True
+    return cursor.rowcount == 1
 
 
 # ── synaptic tags (spec §2.3 eph_tag, §3.3 tools 5-6 -- the two-phase commit) ──

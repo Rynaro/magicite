@@ -42,8 +42,9 @@ this module's own decision: callers (``mcp/bind_lifecycle.py``) check
 ``cfg.autonomous`` and choose whether to immediately call :func:`decide`
 themselves; a review-mode proposal simply stays ``proposed`` until a
 *separate* actor calls :func:`decide` (there is no standing "approve"
-tool in the frozen 16-tool surface -- v1's review workflow is
-operator-external, per docs/operations.md).
+tool in the frozen 16-tool surface). An operator then calls :func:`resume`
+through the governed lifecycle API; it durably records execution and terminal
+outcome transitions without exposing another public MCP tool.
 """
 
 from __future__ import annotations
@@ -52,6 +53,7 @@ import json
 import os
 import sqlite3
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -65,6 +67,7 @@ _VALID_OPS: frozenset[str] = frozenset({"sharpen", "promote", "archive", "nuclea
 _VALID_STATES: frozenset[str] = frozenset(
     {"proposed", "approved", "rejected", "executed", "succeeded", "failed"}
 )
+_ROW_ENVELOPE_VERSION = 1
 
 
 def _now() -> str:
@@ -73,6 +76,40 @@ def _now() -> str:
 
 def new_id() -> str:
     return f"appr_{uuid.uuid4().hex[:10]}"
+
+
+@dataclass(frozen=True)
+class ApprovalAuditEvent:
+    sequence: int
+    operation: str
+    actor: str
+    at: str
+    from_state: str | None
+    to_state: str
+    reason: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sequence": self.sequence,
+            "operation": self.operation,
+            "actor": self.actor,
+            "at": self.at,
+            "from_state": self.from_state,
+            "to_state": self.to_state,
+            "reason": self.reason,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ApprovalAuditEvent:
+        return cls(
+            sequence=int(data["sequence"]),
+            operation=str(data["operation"]),
+            actor=str(data["actor"]),
+            at=str(data["at"]),
+            from_state=data.get("from_state"),
+            to_state=str(data["to_state"]),
+            reason=data.get("reason"),
+        )
 
 
 @dataclass(frozen=True)
@@ -88,6 +125,7 @@ class ApprovalRecord:
     decided_at: str | None = None
     reason: str | None = None
     executed_run_id: str | None = None
+    audit_log: tuple[ApprovalAuditEvent, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -102,15 +140,40 @@ class ApprovalRecord:
             "decided_at": self.decided_at,
             "reason": self.reason,
             "executed_run_id": self.executed_run_id,
+            "audit_log": [event.to_dict() for event in self.audit_log],
         }
 
 
+def _decode_row_payload(raw: str) -> tuple[dict[str, Any], tuple[ApprovalAuditEvent, ...]]:
+    data = json.loads(raw)
+    if isinstance(data, dict) and data.get("__magicite_approval__") == _ROW_ENVELOPE_VERSION:
+        payload = data.get("payload") or {}
+        events = tuple(ApprovalAuditEvent.from_dict(event) for event in data.get("audit_log", []))
+        return payload, events
+    # v0.2/v0.3-rc1 rows stored only the business payload. Do not fabricate
+    # historical events which were never recorded.
+    return data, ()
+
+
+def _encode_row_payload(record: ApprovalRecord) -> str:
+    return json.dumps(
+        {
+            "__magicite_approval__": _ROW_ENVELOPE_VERSION,
+            "payload": record.payload,
+            "audit_log": [event.to_dict() for event in record.audit_log],
+        },
+        default=str,
+        sort_keys=True,
+    )
+
+
 def _row_to_record(row: sqlite3.Row) -> ApprovalRecord:
+    payload, audit_log = _decode_row_payload(row["payload_json"])
     return ApprovalRecord(
         id=row["id"],
         op=row["op"],
         target_name=row["target_name"],
-        payload=json.loads(row["payload_json"]),
+        payload=payload,
         state=row["state"],
         proposed_by=row["proposed_by"],
         proposed_at=row["proposed_at"],
@@ -118,6 +181,7 @@ def _row_to_record(row: sqlite3.Row) -> ApprovalRecord:
         decided_at=row["decided_at"],
         reason=row["reason"],
         executed_run_id=row["executed_run_id"],
+        audit_log=audit_log,
     )
 
 
@@ -165,7 +229,7 @@ def _upsert_row(conn: sqlite3.Connection, record: ApprovalRecord) -> None:
             record.id,
             record.op,
             record.target_name,
-            json.dumps(record.payload, default=str),
+            _encode_row_payload(record),
             record.state,
             record.proposed_by,
             record.proposed_at,
@@ -199,6 +263,7 @@ def propose(
     snapshot a ``promote()`` guard evaluated)."""
     if op not in _VALID_OPS:
         raise ValueError(f"unknown approval op {op!r}, expected one of {sorted(_VALID_OPS)}")
+    proposed_at = _now()
     record = ApprovalRecord(
         id=new_id(),
         op=op,
@@ -206,7 +271,17 @@ def propose(
         payload=payload,
         state="proposed",
         proposed_by=proposed_by,
-        proposed_at=_now(),
+        proposed_at=proposed_at,
+        audit_log=(
+            ApprovalAuditEvent(
+                sequence=1,
+                operation="propose",
+                actor=proposed_by,
+                at=proposed_at,
+                from_state=None,
+                to_state="proposed",
+            ),
+        ),
     )
     return _persist(cfg, conn, record)
 
@@ -231,13 +306,31 @@ _LEGAL_NEXT: dict[str, frozenset[str]] = {
 
 
 def _transition(
-    cfg: Config, conn: sqlite3.Connection, approval_id: str, *, to_state: str, **fields: Any
+    cfg: Config,
+    conn: sqlite3.Connection,
+    approval_id: str,
+    *,
+    to_state: str,
+    operation: str,
+    actor: str,
+    reason: str | None = None,
+    **fields: Any,
 ) -> ApprovalRecord:
     current = get(conn, approval_id)
     if current is None:
         raise ValueError(f"no approval {approval_id!r}")
     if to_state not in _LEGAL_NEXT.get(current.state, frozenset()):
         raise ValueError(f"approval {approval_id!r}: {current.state!r} -> {to_state!r} is not legal")
+    transitioned_at = _now()
+    event = ApprovalAuditEvent(
+        sequence=len(current.audit_log) + 1,
+        operation=operation,
+        actor=actor,
+        at=transitioned_at,
+        from_state=current.state,
+        to_state=to_state,
+        reason=reason,
+    )
     updated = ApprovalRecord(
         id=current.id,
         op=current.op,
@@ -248,8 +341,9 @@ def _transition(
         proposed_at=current.proposed_at,
         decided_by=fields.get("decided_by", current.decided_by),
         decided_at=fields.get("decided_at", current.decided_at),
-        reason=fields.get("reason", current.reason),
+        reason=reason if reason is not None else current.reason,
         executed_run_id=fields.get("executed_run_id", current.executed_run_id),
+        audit_log=(*current.audit_log, event),
     )
     return _persist(cfg, conn, updated)
 
@@ -268,20 +362,86 @@ def decide(
     value here, not a special code path -- the audit trail records it the
     same way it would a human reviewer's identity."""
     return _transition(
-        cfg, conn, approval_id, to_state="approved" if approve else "rejected", decided_by=decided_by,
-        decided_at=_now(), reason=reason,
+        cfg,
+        conn,
+        approval_id,
+        to_state="approved" if approve else "rejected",
+        operation="approve" if approve else "deny",
+        actor=decided_by,
+        decided_by=decided_by,
+        decided_at=_now(),
+        reason=reason,
     )
 
 
-def mark_executed(conn: sqlite3.Connection, cfg: Config, *, approval_id: str) -> ApprovalRecord:
-    return _transition(cfg, conn, approval_id, to_state="executed")
+def mark_executed(
+    conn: sqlite3.Connection,
+    cfg: Config,
+    *,
+    approval_id: str,
+    executed_by: str | None = None,
+) -> ApprovalRecord:
+    current = get(conn, approval_id)
+    actor = executed_by or (current.decided_by if current is not None else None) or "writer-executor"
+    return _transition(cfg, conn, approval_id, to_state="executed", operation="resume", actor=actor)
 
 
 def mark_outcome(
-    conn: sqlite3.Connection, cfg: Config, *, approval_id: str, succeeded: bool, reason: str | None = None
+    conn: sqlite3.Connection,
+    cfg: Config,
+    *,
+    approval_id: str,
+    succeeded: bool,
+    reason: str | None = None,
+    actor: str = "writer-executor",
+    executed_run_id: str | None = None,
 ) -> ApprovalRecord:
     return _transition(
-        cfg, conn, approval_id, to_state="succeeded" if succeeded else "failed", reason=reason
+        cfg,
+        conn,
+        approval_id,
+        to_state="succeeded" if succeeded else "failed",
+        operation="succeed" if succeeded else "fail",
+        actor=actor,
+        reason=reason,
+        executed_run_id=executed_run_id,
+    )
+
+
+def resume(
+    conn: sqlite3.Connection,
+    cfg: Config,
+    *,
+    approval_id: str,
+    resumed_by: str,
+    executor: Callable[[ApprovalRecord], str | None],
+) -> ApprovalRecord:
+    """Execute an approved proposal exactly once and persist its outcome.
+
+    The state transition to ``executed`` is durable before ``executor`` is
+    called. A repeat therefore cannot invoke the side effect again. Executor
+    failures become an auditable terminal ``failed`` state instead of leaving
+    an approved proposal that an operator might accidentally replay.
+    """
+    executing = mark_executed(conn, cfg, approval_id=approval_id, executed_by=resumed_by)
+    try:
+        run_id = executor(executing)
+    except Exception as exc:
+        return mark_outcome(
+            conn,
+            cfg,
+            approval_id=approval_id,
+            succeeded=False,
+            reason=str(exc),
+            actor=resumed_by,
+        )
+    return mark_outcome(
+        conn,
+        cfg,
+        approval_id=approval_id,
+        succeeded=True,
+        actor=resumed_by,
+        executed_run_id=run_id,
     )
 
 
@@ -313,6 +473,7 @@ def reload_from_mirror(cfg: Config, conn: sqlite3.Connection) -> int:
             decided_at=data.get("decided_at"),
             reason=data.get("reason"),
             executed_run_id=data.get("executed_run_id"),
+            audit_log=tuple(ApprovalAuditEvent.from_dict(event) for event in data.get("audit_log", [])),
         )
         _upsert_row(conn, record)
         count += 1

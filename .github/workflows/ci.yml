@@ -46,10 +46,10 @@ jobs:
       MAGICITE_EMBEDDING_PROVIDER: hashing
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.11.23"
           python-version: ${{ matrix.python-version }}
@@ -130,13 +130,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build magicite:verify (the exact VG-9 tag spec §7.2 names)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: Dockerfile
@@ -146,7 +146,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Install uv (host-side pytest runner for the smoke test)
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.11.23"
           python-version: "3.12"
@@ -170,12 +170,30 @@ jobs:
             --entrypoint python magicite:verify \
             -c "import truststore, opentelemetry.trace; print('VC-11 OK')"
 
+      # AC-046: blocking evidence from the actual production image and its
+      # baked, offline FastEmbed model. The runner reports every cold/index-
+      # miss/index-hit cell against a named 100ms budget; 10k misses are
+      # evidence, not a release gate. AC-025's 1k warm hashing target remains
+      # the explicit pass/fail latency assertion in test_route_latency.py.
+      - name: AC-046 — production-container benchmark matrix
+        run: |
+          image_id="$(docker image inspect --format '{{.Id}}' magicite:verify)"
+          docker run --rm --network none --cap-drop ALL \
+            --security-opt no-new-privileges --user 10001 \
+            --entrypoint python \
+            -e MAGICITE_CONTAINER_IMAGE_DIGEST="$image_id" \
+            -e MAGICITE_BENCHMARK_ENVIRONMENT=production-container \
+            -v "$PWD/scripts/run_benchmark_matrix.py:/tmp/run_benchmark_matrix.py:ro" \
+            magicite:verify /tmp/run_benchmark_matrix.py \
+            --provider production --sizes 1000 10000 --calls 2 --warmup 1 \
+            --environment-label production-container
+
       # Trivy HIGH/CRITICAL gate (mission directive: "CI: ... image build +
       # Trivy HIGH/CRITICAL gate"). SARIF always uploaded for visibility;
       # the table-format gate fails the build on any HIGH/CRITICAL finding
       # with an available fix.
       - name: Trivy scan — generate SARIF report
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: "magicite:verify"
           format: "sarif"
@@ -184,13 +202,13 @@ jobs:
           exit-code: "0"
 
       - name: Upload Trivy SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@f3712979fa5f215279b101dd0a2e3bdfb4353324 # v3
         if: always()
         with:
           sarif_file: "trivy-results.sarif"
 
       - name: Trivy scan — gate on HIGH/CRITICAL
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: "magicite:verify"
           format: "table"

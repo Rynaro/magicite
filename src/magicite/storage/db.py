@@ -35,6 +35,19 @@ def apply_pragmas(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA busy_timeout = 5000")
 
 
+def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    return any(str(row[1]) == column for row in conn.execute(f"PRAGMA table_info({table})"))
+
+
+def _migration_already_materialized(conn: sqlite3.Connection, number: int) -> bool:
+    """Recover from user_version loss without replaying non-idempotent ALTERs."""
+    if number == 2:
+        return _has_column(conn, "writer_lease", "fencing_token") and _has_column(
+            conn, "eph_idempotency", "state"
+        )
+    return False
+
+
 def run_migrations(conn: sqlite3.Connection) -> int:
     """Apply every migration whose number exceeds ``PRAGMA user_version``.
 
@@ -46,9 +59,27 @@ def run_migrations(conn: sqlite3.Connection) -> int:
     for number, path in _discover_migrations():
         if number <= current:
             continue
+        if _migration_already_materialized(conn, number):
+            conn.execute(f"PRAGMA user_version = {number}")
+            applied = number
+            continue
         script = path.read_text(encoding="utf-8")
-        conn.executescript(script)
-        conn.execute(f"PRAGMA user_version = {number}")
+        # sqlite3.Connection.executescript() commits any pending transaction
+        # before running its input. Put the migration body and version bump
+        # in the *same* script transaction so a failing statement cannot
+        # leave a partially-upgraded schema with an old user_version.
+        transactional_script = (
+            "BEGIN IMMEDIATE;\n"
+            f"{script}\n"
+            f"PRAGMA user_version = {number};\n"
+            "COMMIT;\n"
+        )
+        try:
+            conn.executescript(transactional_script)
+        except BaseException:
+            if conn.in_transaction:
+                conn.rollback()
+            raise
         applied = number
     return applied
 

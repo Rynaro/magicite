@@ -19,6 +19,7 @@ from __future__ import annotations
 from magicite.errors import NotFoundError
 from magicite.mcp.registry import ToolContext, magicite_tool
 from magicite.mcp.schemas import (
+    ConsolidationInfo,
     DeadCandidate,
     EdgeOut,
     FlagDeadInput,
@@ -46,7 +47,11 @@ from magicite.storage import queries as queries_mod
 def introspect(ctx: ToolContext, params: IntrospectInput) -> IntrospectOutput:
     if params.skill_id is not None:
         detail = queries_mod.skill_detail(
-            ctx.conn, params.skill_id, declared_edge_strength=ctx.cfg.declared_edge_strength
+            ctx.conn,
+            params.skill_id,
+            declared_edge_strength=ctx.cfg.declared_edge_strength,
+            lambda_s_per_day=ctx.cfg.lambda_s_per_day,
+            lambda_r_per_day=ctx.cfg.lambda_r_per_day,
         )
         if detail is None:
             raise NotFoundError(f"no engram named or id'd {params.skill_id!r}")
@@ -60,10 +65,10 @@ def introspect(ctx: ToolContext, params: IntrospectInput) -> IntrospectOutput:
         )
 
     if params.consolidation_id is not None:
-        raise NotFoundError(
-            f"no consolidation run {params.consolidation_id!r}",
-            hint="Dream lands in M4; no consolidation_run rows exist in M0",
-        )
+        detail = queries_mod.consolidation_detail(ctx.conn, params.consolidation_id)
+        if detail is None:
+            raise NotFoundError(f"no consolidation run {params.consolidation_id!r}")
+        return IntrospectOutput(consolidation=ConsolidationInfo(**detail))
 
     summary = queries_mod.registry_summary(
         ctx.conn, embedding_model=ctx.embedder.model_name, autonomous=ctx.cfg.autonomous

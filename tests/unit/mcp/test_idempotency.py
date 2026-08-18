@@ -8,6 +8,8 @@ this suite is the honest proving test the AC calls for, exercised against
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from magicite.core import registry as registry_mod
 from magicite.errors import ErrorCode
 from magicite.mcp import app as app_mod
@@ -143,3 +145,65 @@ def test_replay_without_request_id_repeats_the_side_effect(cfg, embedder) -> Non
     finally:
         state.conn.close()
         state.writer_conn.close()
+
+
+def test_expired_idempotency_key_executes_again(cfg, embedder) -> None:
+    state = app_mod.build_state(cfg)
+    try:
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
+        engram_id = state.conn.execute(
+            "SELECT id FROM engram WHERE name = ?", (PROTON,)
+        ).fetchone()["id"]
+        args = {"skill_ids": [PROTON], "session_id": "s1", "request_id": "expires"}
+        first = app_mod.dispatch_call(state, "signal_use", args)
+        assert first.is_error is False
+        state.conn.execute(
+            "UPDATE eph_idempotency SET expires_at = ? WHERE tool = ? AND request_id = ?",
+            ((datetime.now(UTC) - timedelta(seconds=1)).isoformat(), "signal_use", "expires"),
+        )
+
+        second = app_mod.dispatch_call(state, "signal_use", args)
+
+        assert second.is_error is False
+        assert _tag_count(state.conn, "s1", engram_id) == 2
+    finally:
+        state.conn.close()
+        state.writer_conn.close()
+
+
+def test_pending_idempotency_reservation_does_not_repeat_side_effect(cfg, embedder) -> None:
+    state = app_mod.build_state(cfg)
+    try:
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
+        args = {"skill_ids": [PROTON], "session_id": "s1", "request_id": "pending"}
+        args_hash = app_mod._args_sha256(args)
+        now = datetime.now(UTC)
+        state.conn.execute(
+            "INSERT INTO eph_idempotency "
+            "(tool, request_id, args_sha256, response_json, created_at, expires_at, state) "
+            "VALUES (?, ?, ?, '', ?, ?, 'pending')",
+            (
+                "signal_use",
+                "pending",
+                args_hash,
+                now.isoformat(),
+                (now + timedelta(days=1)).isoformat(),
+            ),
+        )
+
+        result = app_mod.dispatch_call(state, "signal_use", args)
+
+        assert result.is_error is True
+        assert result.structured_content["code"] == ErrorCode.BUSY.value
+        assert state.conn.execute("SELECT COUNT(*) AS n FROM eph_tag").fetchone()["n"] == 0
+    finally:
+        state.conn.close()
+        state.writer_conn.close()
+
+
+def test_idempotency_hash_does_not_persist_adapter_secret_verifier() -> None:
+    common = {"skill_ids": [PROTON], "session_id": "s1", "request_id": "redacted"}
+    first = app_mod._args_sha256({**common, "adapter_token": "weak-one"})
+    second = app_mod._args_sha256({**common, "adapter_token": "weak-two"})
+
+    assert first == second

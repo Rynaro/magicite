@@ -121,9 +121,9 @@ def upsert_engram(conn: sqlite3.Connection, engram: Engram, *, identity_sha256: 
     conn.execute("DELETE FROM engram_step WHERE engram_id = ?", (fm.id,))
     for step in engram.body.procedure:
         conn.execute(
-            "INSERT INTO engram_step (engram_id, step_no, text, ok_count, total_count) "
-            "VALUES (?,?,?,?,?)",
-            (fm.id, step.step_no, step.text, step.ok_count, step.total_count),
+            "INSERT INTO engram_step (engram_id, step_no, text, ok_count, total_count, fault_class) "
+            "VALUES (?,?,?,?,?,?)",
+            (fm.id, step.step_no, step.text, step.ok_count, step.total_count, step.fault_class),
         )
 
     conn.execute("DELETE FROM engram_trigger WHERE engram_id = ?", (fm.id,))
@@ -222,6 +222,35 @@ def wire_declared_edges(conn: sqlite3.Connection, engram: Engram) -> list[str]:
         (fm.id, fm.name),
     )
     return dangling
+
+
+def reconcile_file_edges(conn: sqlite3.Connection, engram: Engram) -> int:
+    """Replace the source-owned outgoing edge set for one engram.
+
+    The file is authoritative for declared fields and the checkpointed
+    ``synapses`` block. Derived ``similar_to`` rows remain DB-owned and are
+    rebuilt later in ``sync()``. Returns the number of stale rows removed.
+    """
+    assert_single_writer()
+    fm = engram.frontmatter
+    desired = {
+        (target_name, edge_type)
+        for field_name, edge_type in EDGE_TYPE_FOR_FIELD.items()
+        for target_name in getattr(fm, field_name)
+    }
+    desired.update((synapse.target, synapse.type) for synapse in fm.synapses)
+
+    rows = conn.execute(
+        "SELECT dst_name, type FROM edge WHERE src_id = ? AND provenance != 'derived'",
+        (fm.id,),
+    ).fetchall()
+    stale = [row for row in rows if (str(row["dst_name"]), str(row["type"])) not in desired]
+    for row in stale:
+        conn.execute(
+            "DELETE FROM edge WHERE src_id = ? AND dst_name = ? AND type = ?",
+            (fm.id, row["dst_name"], row["type"]),
+        )
+    return len(stale)
 
 
 def wire_synapse_edges(conn: sqlite3.Connection, engram: Engram) -> list[str]:
@@ -452,6 +481,16 @@ def set_verification_status(conn: sqlite3.Connection, *, engram_id: str, to_stat
         "UPDATE engram SET verification_status = ?, updated_at = ? WHERE id = ?",
         (to_status, _now(), engram_id),
     )
+
+
+def disable_projection_by_path(conn: sqlite3.Connection, path: str) -> int:
+    """Fail closed when the authoritative file at ``path`` is invalid."""
+    assert_single_writer()
+    cursor = conn.execute(
+        "UPDATE engram SET verification_status = 'quarantined', updated_at = ? WHERE path = ?",
+        (_now(), path),
+    )
+    return cursor.rowcount
 
 
 def append_transition_journal(

@@ -283,7 +283,8 @@ def render_body(body: EngramBody) -> str:
     parts: list[str] = ["## Procedure"]
     for step in sorted(body.procedure, key=lambda s: s.step_no):
         stat = f" [{step.ok_count}/{step.total_count}]" if step.total_count else ""
-        parts.append(f"{step.step_no}.{stat} {step.text}".rstrip())
+        fault = f" [fault: {step.fault_class}]" if step.fault_class else ""
+        parts.append(f"{step.step_no}.{stat}{fault} {step.text}".rstrip())
 
     parts.append("")
     parts.append("## Pitfalls")

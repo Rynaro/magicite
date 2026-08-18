@@ -119,6 +119,10 @@ class Config:
     #: theta_synapse moves, do not re-tune. 0.0 is forbidden: it makes AC-023
     #: and AC-034 arithmetically unprovable.
     inhib_gain: float = 0.245
+    #: Independent contraindication similarity contribution. It is applied
+    #: as ``-weight * max(0, cosine(query, contraindication_view))`` after
+    #: positive scoring. Zero is an exact rollback switch.
+    negative_cue_weight: float = 0.05
     context_gain: float = 0.20
     pref_gain: float = 0.10
     #: [DECLARED-EDGES-AMENDED 2026-08-15] was 0.30/0.15. PRECAUTIONARY
@@ -219,7 +223,7 @@ class Config:
     #: what CI exercises -- it changes what an unconfigured `magicite serve`
     #: actually does, which is the point (R4).
     embedding_provider: str = "fastembed"
-    embedding_offline: bool = False
+    embedding_offline: bool = True
     embedding_dim: int = 256
     embedding_cache_size: int = 256
     ollama_host: str = "http://localhost:11434"

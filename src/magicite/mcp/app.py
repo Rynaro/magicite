@@ -41,9 +41,9 @@ successful, non-replayed tool call appends a generic ``eph_event`` row.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -65,7 +65,7 @@ from mcp.types import (  # noqa: E402
 from magicite.config import Config  # noqa: E402
 from magicite.core import dream as dream_mod  # noqa: E402
 from magicite.embeddings import get_embedder  # noqa: E402
-from magicite.errors import IdempotencyKeyConflictError, MagiciteError  # noqa: E402
+from magicite.errors import BusyError, IdempotencyKeyConflictError, MagiciteError  # noqa: E402
 from magicite.mcp import (  # noqa: E402, F401  (imports register tools onto TOOL_REGISTRY)
     bind_dream,
     bind_inspect,
@@ -170,8 +170,7 @@ def build_mcp_tools() -> list[Tool]:
 
 
 def _args_sha256(arguments: dict[str, Any]) -> str:
-    canonical = json.dumps(arguments, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return events_mod.args_digest(arguments)
 
 
 def _error_result(error: MagiciteError) -> CallToolResult:
@@ -181,6 +180,123 @@ def _error_result(error: MagiciteError) -> CallToolResult:
         structured_content=envelope,
         is_error=True,
     )
+
+
+@dataclass(frozen=True)
+class IdempotencyInspection:
+    tool: str
+    request_id: str
+    args_sha256: str
+    state: str
+    created_at: str
+    expires_at: str
+    response_staged: bool
+
+
+def inspect_idempotency_reservation(
+    conn: sqlite3.Connection, *, tool: str, request_id: str
+) -> IdempotencyInspection | None:
+    """Return the non-secret operator view of one durable reservation."""
+    row = conn.execute(
+        "SELECT tool, request_id, args_sha256, state, created_at, expires_at, response_json "
+        "FROM eph_idempotency WHERE tool = ? AND request_id = ?",
+        (tool, request_id),
+    ).fetchone()
+    if row is None:
+        return None
+    return IdempotencyInspection(
+        tool=str(row["tool"]),
+        request_id=str(row["request_id"]),
+        args_sha256=str(row["args_sha256"]),
+        state=str(row["state"]),
+        created_at=str(row["created_at"]),
+        expires_at=str(row["expires_at"]),
+        response_staged=bool(row["response_json"]),
+    )
+
+
+def recover_idempotency_reservation(
+    conn: sqlite3.Connection,
+    *,
+    tool: str,
+    request_id: str,
+    expected_args_sha256: str,
+    actor: str,
+    reason: str,
+    response: dict[str, Any] | None = None,
+    abandon_uncommitted: bool = False,
+) -> IdempotencyInspection:
+    """Auditable operator recovery without re-executing a handler.
+
+    Supplying ``response`` completes a reservation whose side effect is
+    known to have landed.  ``abandon_uncommitted`` is deliberately explicit
+    and is only accepted while no response has been staged; it represents an
+    operator's external attestation that the effect did not commit.  The
+    arguments digest is a compare-and-swap guard against recovering the wrong
+    call.  Every transition appends a Tier-0 recovery event.
+    """
+    if not actor.strip() or not reason.strip():
+        raise ValueError("actor and reason are required for idempotency recovery")
+    row = conn.execute(
+        "SELECT args_sha256, response_json, state FROM eph_idempotency WHERE tool = ? AND request_id = ?",
+        (tool, request_id),
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"no idempotency reservation for {tool!r}/{request_id!r}")
+    if str(row["args_sha256"]) != expected_args_sha256:
+        raise IdempotencyKeyConflictError("idempotency recovery arguments digest does not match")
+
+    staged = str(row["response_json"] or "")
+    action: str
+    if response is not None:
+        payload = json.dumps(response, sort_keys=True)
+        updated = conn.execute(
+            "UPDATE eph_idempotency SET response_json = ?, state = 'completed' "
+            "WHERE tool = ? AND request_id = ? AND args_sha256 = ? AND state = 'pending'",
+            (payload, tool, request_id, expected_args_sha256),
+        )
+        if updated.rowcount != 1 and str(row["state"]) != "completed":
+            raise BusyError("idempotency reservation changed during operator recovery")
+        action = "completed"
+    elif abandon_uncommitted:
+        if staged:
+            raise ValueError("a staged response cannot be abandoned as uncommitted")
+        deleted = conn.execute(
+            "DELETE FROM eph_idempotency WHERE tool = ? AND request_id = ? "
+            "AND args_sha256 = ? AND state = 'pending' AND response_json = ''",
+            (tool, request_id, expected_args_sha256),
+        )
+        if deleted.rowcount != 1:
+            raise BusyError("idempotency reservation changed during operator recovery")
+        action = "abandoned_uncommitted"
+    else:
+        raise ValueError("provide response or explicitly set abandon_uncommitted=True")
+
+    events_mod.record_tool_call(
+        conn,
+        session_id=None,
+        tool="idempotency_recovery",
+        arguments={
+            "target_tool": tool,
+            "request_id": request_id,
+            "args_sha256": expected_args_sha256,
+            "actor": actor,
+            "reason": reason,
+            "action": action,
+        },
+    )
+    inspected = inspect_idempotency_reservation(conn, tool=tool, request_id=request_id)
+    if inspected is None:
+        return IdempotencyInspection(
+            tool=tool,
+            request_id=request_id,
+            args_sha256=expected_args_sha256,
+            state="abandoned",
+            created_at="",
+            expires_at="",
+            response_staged=False,
+        )
+    return inspected
 
 
 def _apply_session_end_enqueue(state: ServerState, result: Any) -> Any:
@@ -208,7 +324,13 @@ def _apply_session_end_enqueue(state: ServerState, result: Any) -> Any:
     return result.model_copy(update={"dream_run_id": outcome.consolidation_id, "enqueued": outcome.enqueued})
 
 
-def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any]) -> CallToolResult:
+def dispatch_call(
+    state: ServerState,
+    tool_name: str,
+    arguments: dict[str, Any],
+    *,
+    idempotency_fault_hook: Callable[[str], None] | None = None,
+) -> CallToolResult:
     """The single place every tool call passes through (spec §3.1's "the decorator").
 
     Strict validation -> idempotency replay -> handler call -> idempotency
@@ -244,22 +366,81 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
         # "identical arguments" replay contract, since the two calls were
         # never actually the same request.
         cached = state.conn.execute(
-            "SELECT args_sha256, response_json FROM eph_idempotency WHERE tool = ? AND request_id = ?",
+            "SELECT args_sha256, response_json, expires_at, state FROM eph_idempotency "
+            "WHERE tool = ? AND request_id = ?",
             (tool_name, request_id),
         ).fetchone()
         if cached is not None:
-            if cached["args_sha256"] != args_hash:
+            now = datetime.now(UTC).isoformat()
+            # Completed results have a real replay TTL. A pending reservation
+            # is deliberately not expired here: after process death its
+            # handler effect may already have landed, so retrying it would be
+            # less safe than surfacing the recoverable in-progress state.
+            if cached["state"] == "completed" and cached["expires_at"] < now:
+                state.conn.execute(
+                    "DELETE FROM eph_idempotency WHERE tool = ? AND request_id = ? "
+                    "AND state = 'completed'",
+                    (tool_name, request_id),
+                )
+                cached = None
+            elif cached["args_sha256"] != args_hash:
                 return _error_result(
                     IdempotencyKeyConflictError(
                         f"request_id {request_id!r} was already used with different arguments"
                     )
                 )
-            payload = json.loads(cached["response_json"])
-            return CallToolResult(
-                content=[TextContent(type="text", text=json.dumps(payload))],
-                structured_content=payload,
-                is_error=False,
+            elif cached["state"] == "pending":
+                if cached["response_json"]:
+                    # The handler result was staged before the generic event
+                    # write.  Process death after that event but before the
+                    # final state flip can therefore complete by CAS and
+                    # replay without invoking the handler again.
+                    promoted = state.conn.execute(
+                        "UPDATE eph_idempotency SET state = 'completed' "
+                        "WHERE tool = ? AND request_id = ? AND args_sha256 = ? "
+                        "AND state = 'pending' AND response_json != ''",
+                        (tool_name, request_id, args_hash),
+                    )
+                    if promoted.rowcount == 1:
+                        payload = json.loads(str(cached["response_json"]))
+                        return CallToolResult(
+                            content=[TextContent(type="text", text=json.dumps(payload))],
+                            structured_content=payload,
+                            is_error=False,
+                        )
+                return _error_result(
+                    BusyError(
+                        f"request_id {request_id!r} has an incomplete reserved operation",
+                        hint="do not repeat the side effect; inspect or recover the reserved operation",
+                    )
+                )
+            else:
+                payload = json.loads(cached["response_json"])
+                return CallToolResult(
+                    content=[TextContent(type="text", text=json.dumps(payload))],
+                    structured_content=payload,
+                    is_error=False,
+                )
+
+        if cached is None:
+            now_dt = datetime.now(UTC)
+            expires_at = (now_dt + timedelta(seconds=state.cfg.idempotency_ttl_s)).isoformat()
+            reserved = state.conn.execute(
+                """
+                INSERT INTO eph_idempotency
+                  (tool, request_id, args_sha256, response_json, created_at, expires_at, state)
+                VALUES (?, ?, ?, '', ?, ?, 'pending')
+                ON CONFLICT(tool, request_id) DO NOTHING
+                """,
+                (tool_name, request_id, args_hash, now_dt.isoformat(), expires_at),
             )
+            if reserved.rowcount != 1:
+                return _error_result(
+                    BusyError(
+                        f"request_id {request_id!r} was reserved concurrently",
+                        hint="retry to replay the completed result",
+                    )
+                )
 
     session_id = getattr(params, "session_id", None)
     # spec §6.2 G1 / AC-013: durable-write tools (§3.2 R2/R3) get the
@@ -271,17 +452,44 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
 
     try:
         result = meta.handler(ctx, params)
+        if tool_name == "session_end":
+            result = _apply_session_end_enqueue(state, result)
     except MagiciteError as exc:
+        if request_id:
+            state.conn.execute(
+                "DELETE FROM eph_idempotency WHERE tool = ? AND request_id = ? "
+                "AND args_sha256 = ? AND state = 'pending'",
+                (tool_name, request_id, args_hash),
+            )
         logger.warning("tool_error", tool=tool_name, code=exc.code.value, message=exc.message)
         return _error_result(exc)
     except Exception as exc:  # pragma: no cover - defensive: never leak a raw traceback
+        if request_id:
+            state.conn.execute(
+                "DELETE FROM eph_idempotency WHERE tool = ? AND request_id = ? "
+                "AND args_sha256 = ? AND state = 'pending'",
+                (tool_name, request_id, args_hash),
+            )
         logger.error("tool_internal_error", tool=tool_name, error=str(exc))
         return _error_result(MagiciteError(f"internal error in {tool_name}: {exc}"))
 
-    if tool_name == "session_end":
-        result = _apply_session_end_enqueue(state, result)
-
     payload = result.model_dump(mode="json")
+
+    if request_id:
+        staged = state.conn.execute(
+            "UPDATE eph_idempotency SET response_json = ? "
+            "WHERE tool = ? AND request_id = ? AND args_sha256 = ? AND state = 'pending'",
+            (json.dumps(payload, sort_keys=True), tool_name, request_id, args_hash),
+        )
+        if staged.rowcount != 1:
+            return _error_result(
+                BusyError(
+                    "idempotency reservation was lost before response staging",
+                    hint="do not repeat the side effect; recover the reserved operation",
+                )
+            )
+        if idempotency_fault_hook is not None:
+            idempotency_fault_hook("response_staged")
 
     # Tier-0 passive-inference capture (spec §3.3, obs/events.py): every
     # successful, non-replayed call is itself server-observable evidence --
@@ -303,23 +511,25 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
     events_mod.record_tool_call(
         state.conn, session_id=resolved_session_id, tool=tool_name, arguments=arguments
     )
+    if idempotency_fault_hook is not None:
+        idempotency_fault_hook("event_committed")
 
     if request_id:
-        now_dt = datetime.now(UTC)
-        now = now_dt.isoformat()
-        # M5 security fix #2: a real TTL (previously `expires_at` was set
-        # equal to `created_at` -- already-expired the instant it was
-        # written -- and nothing ever purged rows anyway, so replay rows
-        # accumulated forever). `core/decay.py::purge_retention` (Dream
-        # phase 3) now actually deletes rows past `expires_at`.
-        expires_at = (now_dt + timedelta(seconds=state.cfg.idempotency_ttl_s)).isoformat()
-        state.conn.execute(
+        completed = state.conn.execute(
             """
-            INSERT INTO eph_idempotency (tool, request_id, args_sha256, response_json, created_at, expires_at)
-            VALUES (?,?,?,?,?,?)
+            UPDATE eph_idempotency
+            SET state = 'completed'
+            WHERE tool = ? AND request_id = ? AND args_sha256 = ? AND state = 'pending'
             """,
-            (tool_name, request_id, args_hash, json.dumps(payload), now, expires_at),
+            (tool_name, request_id, args_hash),
         )
+        if completed.rowcount != 1:
+            return _error_result(
+                BusyError(
+                    "idempotency reservation was lost before result persistence",
+                    hint="do not repeat the side effect; recover the reserved operation",
+                )
+            )
 
     logger.info("tool_call", tool=tool_name, risk=meta.risk)
 

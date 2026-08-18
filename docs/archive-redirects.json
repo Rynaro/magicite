@@ -1,0 +1,9 @@
+{
+  "schema": "magicite/archive-redirects/1",
+  "redirects": {
+    ".spectra/changes/magicite-v1-implementation/spec.md": ".spectra/changes/archive/2026-08-15-magicite-v1-implementation/spec.md",
+    ".spectra/changes/magicite-v1-implementation/acceptance-criteria.md": ".spectra/changes/archive/2026-08-15-magicite-v1-implementation/acceptance-criteria.md",
+    ".spectra/changes/magicite-v1-implementation/acceptance-criteria-addendum-1.md": ".spectra/changes/archive/2026-08-15-magicite-v1-implementation/acceptance-criteria-addendum.md"
+  },
+  "policy": "Resolve stale references through this manifest; never rewrite an integrity-anchored archive."
+}

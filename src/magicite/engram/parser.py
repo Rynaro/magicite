@@ -31,7 +31,8 @@ _FENCE = "---"
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n(?P<yaml>.*?)\r?\n---\r?\n?", re.DOTALL)
 _EXEC_BLOCK_RE = re.compile(r"```([A-Za-z0-9_+-]*)\r?\n(.*?)```", re.DOTALL)
 _STEP_RE = re.compile(
-    r"^(?P<num>\d+)\.\s*(?:\[(?:(?P<label>[a-zA-Z]+):\s*)?(?P<ok>\d+)/(?P<total>\d+)\]\s*)?(?P<text>.*)$"
+    r"^(?P<num>\d+)\.\s*(?:\[(?:(?P<label>[a-zA-Z]+):\s*)?(?P<ok>\d+)/(?P<total>\d+)\]\s*)?"
+    r"(?:\[fault:\s*(?P<fault>[A-Za-z0-9_.:-]+)\]\s*)?(?P<text>.*)$"
 )
 _PITFALL_RE = re.compile(r"^-\s*(?:\(×(?P<count>\d+)\)\s*)?(?P<text>.*)$")
 _EXAMPLE_RE = re.compile(r"^(?P<sign>[+-])\s*(?P<text>.*)$")
@@ -97,6 +98,7 @@ def parse_body(body_text: str) -> EngramBody:
                     text=m.group("text").strip(),
                     ok_count=ok,
                     total_count=total,
+                    fault_class=m.group("fault"),
                 )
             )
         elif line.strip():

@@ -146,7 +146,18 @@ Test the cumulative effect of each design decision:
 #### Composition Metrics (for multi-step tasks)
 - **Plan F1:** Precision & recall of the skill sequence (correct skills in correct order)
 
-  **Validity limitation (2026-08-15).** As implemented (`eval/bench.py`), the expected plan is `composition.expand(expected_top1)` and the predicted plan is `composition.expand(ranked[0])` — the same function for every baseline. Plan F1 is therefore a monotone re-encoding of Hit@1 plus closure-overlap noise (measured offsets: +0.023 / +0.024 / +0.025 / +0.038 for a/b/c/d). **It does not measure composition quality and must not be cited as evidence for H-COMPOSE.** Testing H-COMPOSE requires the ≥20 genuinely multi-step queries this section already specifies and that no benchmark has yet supplied.
+  **Historical validity limitation (2026-08-15).** The old baseline harness
+  derived both the expected and predicted plan through `composition.expand`, so
+  its Plan F1 was a monotone re-encoding of Hit@1 plus closure-overlap noise. It
+  remains invalid as composition evidence.
+
+  **Superseding v0.3 result (2026-08-18).** The independently authored corpus
+  in `docs/evaluation/composition-v0.3.json` contains 24 ordered plans, including
+  cycle and dangling-reference cases. Production structural expansion matches
+  all 24 labels (Plan F1 and order accuracy 1.0). The reproducible record is
+  `docs/evaluation/v0.3-results.json`. Verdict: **SUPPORTED (structural only)**.
+  End-to-end decomposition, winner retrieval, and task success remain untested;
+  this bounded result must not be cited for those claims.
 
 - **Plan Success Rate:** Did the composed plan achieve the task goal?
 
@@ -350,13 +361,13 @@ S < 0.3:  nascent/failed (target: <10% of registry)
 | H-BODY-a (embedding beats lexical) | 88% | **SUPPORTED (direction).** +14.3pp Hit@1 (95% CI [+6.7, +21.9], p = 0.00064); registered ≥20pp effect size not demonstrated. | Measured 2026-08-15 |
 | H-BODY-b (graph/learning beats naive) | 90% | **FALSIFIED as implemented.** (b) > (d) > (c) > (a), design predicts d > c > b > a. Pipeline no longer actively hurts (prior p = 0.00053, now statistically indistinguishable). Declared-edges amendment and inhib_gain recalibration fixed mechanism defects; this is repair, not design validation. | Measured 2026-08-15 |
 | H-SCALE (hierarchy flattens log-decay) | 75% | **INCONCLUSIVE.** One unreplicated crossing (40–70 engrams, 39-query slice SE ≈ 0.08); does not replicate on 120 queries. Mechanism falsified at 70 skills (ΔHit@3 = 0.0000 with 5 communities). | Measured 2026-08-15 |
-| H-COMPOSE (composition planning works) | 92% | **UNTESTED.** Zero compositional queries run (0 of ≥20 docs/07 requires); Plan F1 is a monotone re-encoding of Hit@1. | Measured 2026-08-15 |
+| H-COMPOSE (composition planning works) | 92% | **SUPPORTED (structural only).** Production expansion matches 24 independently authored ordered plans, including cycle and dangling cases (Plan F1/order accuracy 1.0). End-to-end decomposition, winner retrieval, and task success remain untested. | Superseding result 2026-08-18 |
 | H-LEARN (plasticity improves routing) | 90% | **FALSIFIED as implemented under uniform demand.** Held-out Hit@1 fell 0.4697 → 0.1061 under oracle teacher; train Hit@1 fell 0.4583 → 0.2847. Unconditioned `R` prior at 63% query-signal amplitude. | Measured 2026-08-15 |
 | D1 (Three-tier state model) | 85% | Verify no weight loss on rebuild; test Tier B edge persistence | Integration test |
 | D2 (Local-first core, deployment profile) | 88% | Stdio/SQLite implementation; verify tool contracts are transport-agnostic | Implementation test |
 | D3 (Tier-0/1/2 signal fidelity) | 82% | Per-tier signal-yield measurement; Tier-0 works on hookless hosts | Eval + integration |
 | D4 (Analogy table verdicts) | 86% | Each ablation maps to a row; validate keep/kill/reframe decisions | Ablation suite |
-| Principle 0 (Never learn from hot path alone) | 90% | Ablation "no tag-capture"; verify two-phase commit stability | Ablation |
+| Principle 0 (Never learn from hot path alone) | unscored | Prior `no_tag_capture` result withdrawn; a query-conditioned replacement is required before assigning confidence | Replacement ablation |
 | Principle 1 (Retrieval is a write to ledger) | 87% | Verify R never changes on route(), only bookkeeping updated; S never changes on signal_use() | Unit test |
 
 ---

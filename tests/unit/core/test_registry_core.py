@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from magicite.core import registry as registry_mod
+from magicite.engram import parser as parser_mod
 from magicite.errors import PathOutsideProjectError
 
 
@@ -10,6 +13,19 @@ def test_register_rejects_path_outside_project(cfg, db_conn, embedder, tmp_path)
     outside = tmp_path.parent / "definitely-outside"
     with pytest.raises(PathOutsideProjectError):
         registry_mod.register(cfg, db_conn, embedder, path=str(outside))
+
+
+def test_canonical_routing_view_v1(cfg) -> None:
+    parsed = parser_mod.parse_file(
+        cfg.registry_dir / "proton-ge-proton-downgrade.egr.md",
+        registry_root=cfg.project_root,
+    )
+    view = json.loads(registry_mod.canonical_routing_view(parsed.engram))
+    assert view["schema"] == "magicite-routing-view/1"
+    assert view["fields"] == list(registry_mod.ROUTING_VIEW_FIELDS)
+    assert "intent.not_when" not in view
+    negative = json.loads(registry_mod.canonical_contraindication_view(parsed.engram) or "{}")
+    assert negative["schema"] == "magicite-contraindication-view/1"
 
 
 def test_register_is_idempotent_on_unchanged_content(cfg, db_conn, embedder) -> None:
@@ -87,3 +103,33 @@ def test_sync_removes_rows_for_deleted_files(cfg, db_conn, embedder) -> None:
     assert "nvidia-prime-render-offload" in outcome.removed
     remaining = db_conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"]
     assert remaining == 6
+
+
+def test_invalid_authoritative_file_disables_projection(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    victim = cfg.registry_dir / "proton-ge-proton-downgrade.egr.md"
+    victim.write_text("not valid frontmatter\n", encoding="utf-8")
+
+    outcome = registry_mod.sync(cfg, db_conn, embedder)
+
+    assert any(error.path.endswith(victim.name) for error in outcome.validation_errors)
+    row = db_conn.execute(
+        "SELECT verification_status FROM engram WHERE name = 'proton-ge-proton-downgrade'"
+    ).fetchone()
+    assert row["verification_status"] == "quarantined"
+
+
+def test_sync_reconciles_removed_edges(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    victim = cfg.registry_dir / "proton-ge-proton-downgrade.egr.md"
+    text = victim.read_text(encoding="utf-8")
+    victim.write_text(text.replace("needs: [steam-prefix-access]", "needs: []"), encoding="utf-8")
+
+    registry_mod.sync(cfg, db_conn, embedder)
+
+    edge = db_conn.execute(
+        "SELECT 1 FROM edge WHERE src_id = "
+        "(SELECT id FROM engram WHERE name = 'proton-ge-proton-downgrade') "
+        "AND dst_name = 'steam-prefix-access' AND type = 'depends_on'"
+    ).fetchone()
+    assert edge is None

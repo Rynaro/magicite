@@ -44,6 +44,7 @@ class Candidate(MagiciteModel):
     exposure_count: int
     body_ref: str
     signal_tier_0: bool = True
+    diagnostics: dict[str, float] = Field(default_factory=dict)
 
 
 class EdgeOut(MagiciteModel):
@@ -71,6 +72,7 @@ class TierState(MagiciteModel):
     storage_strength: float
     storage_strength_effective_now: float
     retrieval_strength: float
+    reliability: float
     live_tags: int = 0
     pending_dw: float = 0.0
 
@@ -79,9 +81,12 @@ class SkillIntrospect(MagiciteModel):
     id: str
     name: str
     status: str
+    verification_status: str
+    operation_execution_status: str | None = None
     storage_strength: float
     exposure_count: int
     outcome: dict[str, int]
+    reliability: float
 
 
 class ConsolidationInfo(MagiciteModel):
@@ -166,6 +171,7 @@ class LoadSkillBodyInput(MagiciteModel):
     name: str
     level: Literal["L2", "L3"] = "L2"
     max_bytes: int = Field(default=8192, ge=1)
+    cursor: int = Field(default=0, ge=0)
 
 
 class LoadSkillBodyOutput(MagiciteModel):

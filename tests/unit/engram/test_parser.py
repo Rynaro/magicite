@@ -58,3 +58,9 @@ def test_exec_blocks_captured_as_inert_text() -> None:
     assert len(parsed.engram.body.exec_blocks) == 1
     assert parsed.engram.body.exec_blocks[0].language == "bash"
     assert "rm -rf /" in parsed.engram.body.exec_blocks[0].text
+
+
+def test_procedure_fault_class_is_parsed_from_canonical_marker() -> None:
+    body = parser.parse_body("## Procedure\n1. [fault: OOMKilled] Reduce the batch.\n")
+    assert body.procedure[0].fault_class == "OOMKilled"
+    assert body.procedure[0].text == "Reduce the batch."
