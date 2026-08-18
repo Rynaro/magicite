@@ -77,6 +77,9 @@ The hot path (per-query routing, per-event signaling) is where **noisy, adversar
 
 **Principle:** Durable weight changes (to S) happen ONLY in the offline Dream cycle, after outcomes are logged and verified. Hot-path signals set **ephemeral tags** and boost **short-term retrieval strength (R)** — both are reversible; expiry depends on decay being applied at read (scheduled for M4).
 
+R remains a bounded routing input with `w_retrieval=0.05`; “ephemeral” describes
+its persistence, not an absence of routing influence.
+
 **Benefit:** Separates cheap, reversible in-session state from outcome-gated commits. Makes the system robust to single-session noise and mild adversarial confusion. Allows metaplastic saturation and rate-limiting to work without deadlocking the learning loop.
 
 **Binding:** This principle structurally underpins the three-tier state model (Section below) and D3's fidelity-weighted learning (doc 05). It is architectural, not tunable.

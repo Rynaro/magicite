@@ -1,5 +1,5 @@
-"""``core/approvals.py``: the docs/06 approval state machine (spec §5.2)
-and AC-027 (R3 requires approval by default)."""
+"""``core/approvals.py``: the docs/06 approval state machine (spec §5.2),
+AC-027 (R3 requires approval by default), and AC-030 (auditable resume)."""
 
 from __future__ import annotations
 
@@ -42,9 +42,7 @@ def test_decide_approve_then_execute_then_outcome_legal_sequence(cfg, db_conn) -
     record = approvals_mod.propose(
         db_conn, cfg, op="promote", target_name=PROTON, payload={}, proposed_by="tester"
     )
-    approved = approvals_mod.decide(
-        db_conn, cfg, approval_id=record.id, approve=True, decided_by="a-human"
-    )
+    approved = approvals_mod.decide(db_conn, cfg, approval_id=record.id, approve=True, decided_by="a-human")
     assert approved.state == "approved"
     assert approved.decided_by == "a-human"
 
@@ -53,6 +51,94 @@ def test_decide_approve_then_execute_then_outcome_legal_sequence(cfg, db_conn) -
 
     outcome = approvals_mod.mark_outcome(db_conn, cfg, approval_id=record.id, succeeded=True)
     assert outcome.state == "succeeded"
+
+
+def test_decide_and_resume_transitions(cfg, db_conn) -> None:
+    """AC-030: approve/deny/resume are durable, actor-attributed operations."""
+    denied_record = approvals_mod.propose(
+        db_conn, cfg, op="archive", target_name="reject-me", payload={}, proposed_by="requester"
+    )
+    denied = approvals_mod.decide(
+        db_conn,
+        cfg,
+        approval_id=denied_record.id,
+        approve=False,
+        decided_by="reviewer",
+        reason="insufficient evidence",
+    )
+    assert denied.state == "rejected"
+    assert [event.operation for event in denied.audit_log] == ["propose", "deny"]
+    assert denied.audit_log[-1].actor == "reviewer"
+
+    approved_record = approvals_mod.propose(
+        db_conn,
+        cfg,
+        op="archive",
+        target_name="resume-me",
+        payload={"reason": "retired"},
+        proposed_by="requester",
+    )
+    approved = approvals_mod.decide(
+        db_conn, cfg, approval_id=approved_record.id, approve=True, decided_by="reviewer"
+    )
+
+    executed: list[str] = []
+    resumed = approvals_mod.resume(
+        db_conn,
+        cfg,
+        approval_id=approved.id,
+        resumed_by="operator",
+        executor=lambda proposal: executed.append(proposal.target_name),
+    )
+
+    assert executed == ["resume-me"]
+    assert resumed.state == "succeeded"
+    assert [event.operation for event in resumed.audit_log] == [
+        "propose",
+        "approve",
+        "resume",
+        "succeed",
+    ]
+    assert resumed.audit_log[-2].actor == "operator"
+
+    mirror_path = cfg.approvals_dir / f"{approved.id}.json"
+    mirrored = json.loads(mirror_path.read_text(encoding="utf-8"))
+    assert [event["operation"] for event in mirrored["audit_log"]] == [
+        "propose",
+        "approve",
+        "resume",
+        "succeed",
+    ]
+
+    # The DB row is independently queryable and retains the same append-only
+    # audit sequence; it is not reconstructed from the latest state alone.
+    restored = approvals_mod.get(db_conn, approved.id)
+    assert restored is not None
+    assert restored.audit_log == resumed.audit_log
+
+
+def test_resume_records_executor_failure_and_cannot_repeat(cfg, db_conn) -> None:
+    record = approvals_mod.propose(
+        db_conn, cfg, op="sharpen", target_name=PROTON, payload={}, proposed_by="requester"
+    )
+    approvals_mod.decide(db_conn, cfg, approval_id=record.id, approve=True, decided_by="reviewer")
+
+    def fail(_proposal):  # noqa: ANN001, ANN202
+        raise RuntimeError("controlled executor failure")
+
+    failed = approvals_mod.resume(db_conn, cfg, approval_id=record.id, resumed_by="operator", executor=fail)
+    assert failed.state == "failed"
+    assert failed.reason == "controlled executor failure"
+    assert [event.operation for event in failed.audit_log][-2:] == ["resume", "fail"]
+
+    with pytest.raises(ValueError, match="is not legal"):
+        approvals_mod.resume(
+            db_conn,
+            cfg,
+            approval_id=record.id,
+            resumed_by="operator",
+            executor=lambda _proposal: None,
+        )
 
 
 def test_decide_reject_is_terminal(cfg, db_conn) -> None:
@@ -119,6 +205,33 @@ def test_r3_requires_approval_by_default(cfg, db_conn, embedder) -> None:
 
     file_path = cfg.registry_dir / f"{PROTON}.egr.md"
     assert file_path.is_file(), "the file must not have been moved in review mode"
+
+
+def test_reviewed_archive_can_be_resumed_without_reproposing(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    proposed = bind_lifecycle.archive(ctx, ArchiveInput(name=PROTON, reason="reviewed retirement"))
+    assert proposed.approval_id is not None
+    approvals_mod.decide(
+        db_conn,
+        cfg,
+        approval_id=proposed.approval_id,
+        approve=True,
+        decided_by="reviewer",
+    )
+
+    resumed = bind_lifecycle.resume_approved(ctx, approval_id=proposed.approval_id, resumed_by="operator")
+
+    assert resumed.state == "succeeded"
+    assert [event.operation for event in resumed.audit_log] == [
+        "propose",
+        "approve",
+        "resume",
+        "succeed",
+    ]
+    row = db_conn.execute("SELECT status FROM engram WHERE name = ?", (PROTON,)).fetchone()
+    assert row["status"] == "archived"
+    assert db_conn.execute("SELECT COUNT(*) AS n FROM approval").fetchone()["n"] == 1
 
 
 def test_r3_autonomous_mode_auto_executes_and_records_the_actor(cfg, db_conn, embedder) -> None:

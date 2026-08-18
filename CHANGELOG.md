@@ -12,6 +12,33 @@ Record could still move shipped defaults. A `1.0.0` would claim a
 confidence the evidence does not support, so the version does not move
 until that changes.
 
+## [0.3.0] — 2026-08-18
+
+The integrity-recovery release closes the runtime, evaluation, interface, and
+verification drifts identified by the full 0.2 audit. It retains Python as the
+single routing semantic reference; native C remains deferred until a measured
+production hotspot can justify the extra implementation and integrity risk.
+
+### Added
+
+- Resumable, fenced Dream checkpoints and crash-recovery coverage.
+- Process-level lease race and stale-writer verification.
+- Recoverable idempotency reservations spanning effects, event commit, and
+  response persistence.
+- Auditable approval decisions and resume transitions.
+- An independently authored composition corpus, superseding evaluation
+  results, executable documentation contracts, and a 1k/10k benchmark matrix.
+
+### Changed
+
+- Routing uses a versioned canonical view, separate contraindication vectors,
+  shared production/evaluation activation primitives, and bounded exact cache
+  reuse.
+- Embedding operation is offline by default and live introspection reports the
+  current lifecycle, verification, execution, and learned-state dimensions.
+- CI and release inputs are immutable; the release image is signed and
+  accompanied by SBOM and provenance attestations.
+
 ## [0.3.0rc1] — 2026-08-18
 
 Integrity-recovery release candidate. The final 0.3.0 tag remains blocked on

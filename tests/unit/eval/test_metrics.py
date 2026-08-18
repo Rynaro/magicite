@@ -3,7 +3,13 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from magicite.eval import metrics as metrics_mod
+
+ROOT = Path(__file__).resolve().parents[3]
+COMPOSITION_CORPUS = ROOT / "docs/evaluation/composition-v0.3.json"
 
 
 def test_hit_at_k_true_within_k() -> None:
@@ -161,3 +167,23 @@ def test_ndcg_at_k_worst_order_is_less_than_one() -> None:
 
 def test_ndcg_at_k_no_relevant_items_is_zero() -> None:
     assert metrics_mod.ndcg_at_k(["a", "b"], {}, 2) == 0.0
+
+
+def test_composition_corpus_is_independent_and_sufficient() -> None:
+    """AC-012/AC-038: independent labels, >=20 plans, cycle + dangling coverage."""
+    corpus = json.loads(COMPOSITION_CORPUS.read_text(encoding="utf-8"))
+    assert corpus["schema"] == "magicite-composition-corpus/1"
+    assert corpus["label_policy"]["production_expansion_used"] is False
+    assert corpus["label_policy"]["method"] == "manual_topological_reasoning"
+
+    cases = corpus["cases"]
+    assert len(cases) >= 20
+    assert len({case["id"] for case in cases}) == len(cases)
+    assert any("cycle" in case["features"] for case in cases)
+    assert any("dangling" in case["features"] for case in cases)
+    for case in cases:
+        assert case["expected_plan"]
+        assert len(case["expected_plan"]) == len(set(case["expected_plan"]))
+        assert case["label_provenance"]["production_expansion_used"] is False
+        assert case["label_provenance"]["method"] == "manual_topological_reasoning"
+        assert case["label_provenance"]["reviewed"] is True

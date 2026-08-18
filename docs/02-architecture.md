@@ -18,7 +18,9 @@ The exploratory corpus presented two apparent architectures: local-first (stdio/
 1. Works whenever the project is served to a host (dominant case: a coding agent with local filesystem access).
 2. Eliminates operational complexity (no database server, no auth infrastructure, no network I/O in the hot path).
 3. Preserves git-committable registry semantics (the registry directory is a clean snapshot of consolidated knowledge).
-4. Single-writer Dream model simplifies plasticity (all state mutations come from one batch worker; no race conditions on durable state).
+4. One lease-and-fencing protocol serializes every durable writer. Dream is the
+   sole learned-S consolidator; register, sync, sharpen, and lifecycle operations
+   also perform governed durable writes through the same protocol.
 
 **Why serving is "just" a profile:**
 The engine is a library with a **tool-call contract** (tool name, input schema, output schema, side-effect class). Any transport (stdio MCP, HTTP Streamable, gRPC, local Python function) that wraps the same contract preserves engine semantics. A later served profile may add OAuth, PostgreSQL, multi-tenancy, queues, and K8s — but none of these change the engine's decision-making logic.
@@ -86,7 +88,10 @@ consolidate():
   7. Checkpoint: DB → file (plasticity.storage_strength + per-step stats)
 ```
 
-**Invariant:** Only the Dream worker writes to `.egr.md` files and to S. This enforces the two-tier rule (doc 03) and makes the registry a clean, git-committable snapshot between Dream runs.
+**Invariant:** Only Dream changes learned S. Dream checkpoints and the explicit
+`checkpoint` tool render learned state, while register, sync, sharpen, promote,
+and archive may publish governed authored/lifecycle file changes. Every durable
+writer is serialized by the same lease and fencing token.
 
 **Reversibility:** All Dream operations are idempotent and audited. A failed or incorrect consolidation can be rolled back by restoring a prior checkpoint or re-running with different parameters.
 

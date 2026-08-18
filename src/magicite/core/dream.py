@@ -40,7 +40,7 @@ import json
 import os
 import sqlite3
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -63,7 +63,7 @@ from magicite.engram.model import (
     ProvenanceJournalEntry,
     Synapse,
 )
-from magicite.errors import NotFoundError, TransitionDeniedError
+from magicite.errors import BusyError, NotFoundError, TransitionDeniedError
 from magicite.storage import ephemeral as ephemeral_mod
 from magicite.storage import lease as lease_mod
 
@@ -492,6 +492,7 @@ class CheckpointStats:
 @dataclass
 class _CheckpointCandidate:
     engram: Engram
+    source_engram: Engram
     frontmatter_doc: Any
     path: Path
     changed: bool
@@ -592,17 +593,32 @@ def _build_checkpoint_candidate(
     candidate_text = writer_mod.render_document(candidate, parsed.frontmatter_doc)
     changed = candidate_text != original_rendered
     return _CheckpointCandidate(
-        engram=candidate, frontmatter_doc=parsed.frontmatter_doc, path=file_path, changed=changed
+        engram=candidate,
+        source_engram=engram,
+        frontmatter_doc=parsed.frontmatter_doc,
+        path=file_path,
+        changed=changed,
     )
 
 
 def _phase7_checkpoint(
-    cfg: Config, conn: sqlite3.Connection, project_root: Path, *, dominant_tier: dict[str, int] | None = None
+    cfg: Config,
+    conn: sqlite3.Connection,
+    project_root: Path,
+    *,
+    dominant_tier: dict[str, int] | None = None,
+    checkpoint_at: str | None = None,
+    fault_hook: Callable[[str], None] | None = None,
 ) -> CheckpointStats:
     dominant_tier = dominant_tier or {}
     rows = conn.execute("SELECT id, name, path, status FROM engram ORDER BY id").fetchall()
     total = len(rows)
-    now = _now()
+    # A resumed run must render the same bytes as its uninterrupted
+    # counterpart.  In particular, provenance timestamps cannot move merely
+    # because the process restarted after atomic_write() but before the DB
+    # checkpoint committed.  The orchestrator therefore pins this to the
+    # run's durable started_at value.
+    now = checkpoint_at or _now()
     modified: list[str] = []
 
     with checkpoint_phase():
@@ -610,7 +626,34 @@ def _phase7_checkpoint(
             if row["status"] == "archived":
                 continue  # relocated by Phase 3's decay-floor archival; nothing to checkpoint here
             built = _build_checkpoint_candidate(cfg, conn, project_root, row)
-            if built is None or not built.changed:
+            if built is None:
+                continue
+            if not built.changed:
+                source_plasticity = built.source_engram.frontmatter.plasticity
+                # Recovery case: atomic_write() landed this run's exact file
+                # before process death rolled back the enclosing SQLite
+                # transaction.  Reconcile the DB mirror from that file and
+                # count it exactly as the uninterrupted phase did.  A normal
+                # unchanged file (including a pure exposure delta) has a
+                # different/empty last_checkpoint and remains untouched.
+                if source_plasticity is not None and source_plasticity.last_checkpoint == now:
+                    final_text = built.path.read_text(encoding="utf-8")
+                    conn.execute(
+                        "UPDATE engram SET exposure_count = ?, last_checkpoint = ?, "
+                        "content_sha256 = ?, body_sha256 = ? WHERE id = ?",
+                        (
+                            source_plasticity.exposure_count,
+                            now,
+                            ids_mod.content_sha256(final_text.encode("utf-8")),
+                            ids_mod.body_sha256(writer_mod.render_body(built.source_engram.body)),
+                            row["id"],
+                        ),
+                    )
+                    conn.execute(
+                        "UPDATE eph_bookkeeping SET exposure_delta = 0 WHERE engram_id = ?",
+                        (row["id"],),
+                    )
+                    modified.append(str(row["name"]))
                 continue
 
             candidate = built.engram
@@ -629,21 +672,27 @@ def _phase7_checkpoint(
             )
 
             tier = dominant_tier.get(str(row["id"]))
-            candidate.frontmatter.provenance_journal = [
-                *candidate.frontmatter.provenance_journal,
-                ProvenanceJournalEntry(
-                    version=candidate.frontmatter.version,
-                    timestamp=now,
-                    author="dream-worker",
-                    event="consolidated",
-                    note=(
-                        f"Dream checkpoint: S={candidate.frontmatter.plasticity.storage_strength:.4f}, "
-                        f"status={candidate.frontmatter.plasticity.status}"
-                    ),
-                    signal_tier=(str(tier) if tier is not None else None),
-                    base_version=candidate.frontmatter.version,
+            journal_entry = ProvenanceJournalEntry(
+                version=candidate.frontmatter.version,
+                timestamp=now,
+                author="dream-worker",
+                event="consolidated",
+                note=(
+                    f"Dream checkpoint: S={candidate.frontmatter.plasticity.storage_strength:.4f}, "
+                    f"status={candidate.frontmatter.plasticity.status}"
                 ),
-            ]
+                signal_tier=(str(tier) if tier is not None else None),
+                base_version=candidate.frontmatter.version,
+            )
+            # If process death happened after the atomic file replacement,
+            # the file already contains this exact entry while the enclosing
+            # SQLite phase transaction was rolled back.  Do not append it a
+            # second time during recovery.
+            if journal_entry not in candidate.frontmatter.provenance_journal:
+                candidate.frontmatter.provenance_journal = [
+                    *candidate.frontmatter.provenance_journal,
+                    journal_entry,
+                ]
 
             writer_mod.write_plasticity(candidate)  # G3 gate
             writer_mod.write_synapses(candidate)  # G3 gate
@@ -665,6 +714,8 @@ def _phase7_checkpoint(
             # value this row carried before the rebuild.
             final_text = writer_mod.render_document(candidate, built.frontmatter_doc)
             writer_mod.atomic_write(built.path, final_text)
+            if fault_hook is not None:
+                fault_hook(f"checkpoint:file:{row['name']}")
             new_content_sha256 = ids_mod.content_sha256(final_text.encode("utf-8"))
             new_body_sha256 = ids_mod.body_sha256(writer_mod.render_body(candidate.body))
 
@@ -777,22 +828,142 @@ class DreamRunResult:
     finished_at: str
 
 
-def _claim_run(conn: sqlite3.Connection, *, trigger: str) -> str:
-    """Reuse an already-``queued`` run if one exists (so ``enqueue()`` +
-    ``run()`` compose correctly -- e.g. ``magicite dream --once`` picking up
-    what a prior ``consolidate()`` call queued); otherwise create+claim one
-    directly (e.g. running ``--once`` with nothing queued yet)."""
+def _claim_run(conn: sqlite3.Connection, *, trigger: str) -> sqlite3.Row:
+    """Claim the oldest recoverable consolidation before creating one.
+
+    The cross-process lease has already excluded a live owner at this point,
+    so a ``running`` row is evidence of process death, not concurrent work.
+    A ``failed`` row whose phase cursor is still present is similarly
+    resumable.  Reclaiming either row (rather than minting a replacement)
+    preserves the consolidation identity and its completed-phase ledger.
+    """
     existing = conn.execute(
-        "SELECT id FROM consolidation_run WHERE state = 'queued' ORDER BY rowid ASC LIMIT 1"
+        "SELECT * FROM consolidation_run "
+        "WHERE state = 'running' OR (state = 'failed' AND phase IS NOT NULL) "
+        "OR state = 'queued' "
+        "ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END, rowid "
+        "LIMIT 1"
     ).fetchone()
     if existing is not None:
-        return str(existing["id"])
+        return existing
     run_id = _new_run_id()
     conn.execute(
         "INSERT INTO consolidation_run (id, trigger, state, watermark_event_id) VALUES (?, ?, 'queued', 0)",
         (run_id, trigger),
     )
-    return run_id
+    created = conn.execute("SELECT * FROM consolidation_run WHERE id = ?", (run_id,)).fetchone()
+    assert created is not None
+    return created
+
+
+_PHASES: tuple[str, ...] = (
+    "replay",
+    "potentiate",
+    "decay",
+    "renormalise",
+    "distill",
+    "audit",
+    "checkpoint",
+)
+
+
+def _trace_to_json(trace: TraceIR) -> dict[str, list[dict[str, Any]]]:
+    return {
+        "node_tags": [dict(row) for row in trace.node_tags],
+        "edge_tags": [dict(row) for row in trace.edge_tags],
+        "candidate_edges": [dict(row) for row in trace.candidate_edges],
+    }
+
+
+def _trace_from_json(payload: dict[str, Any]) -> TraceIR:
+    # Phase 2 only relies on Mapping-style ``row[\"column\"]`` access, so
+    # plain dictionaries are a process-independent representation of the
+    # frozen replay input.
+    return TraceIR(
+        node_tags=list(payload.get("node_tags", [])),
+        edge_tags=list(payload.get("edge_tags", [])),
+        candidate_edges=list(payload.get("candidate_edges", [])),
+    )
+
+
+def _decode_run_state(row: sqlite3.Row) -> tuple[dict[str, Any], dict[str, Any]]:
+    persisted = json.loads(str(row["stats_json"])) if row["stats_json"] else {}
+    recovery = persisted.pop("_recovery", {})
+    return persisted, recovery
+
+
+def _encoded_run_state(stats: dict[str, Any], recovery: dict[str, Any]) -> str:
+    return json.dumps({**stats, "_recovery": recovery}, default=str, sort_keys=True)
+
+
+def _guarded_execute(
+    lease: lease_mod.CrossProcessLease,
+    conn: sqlite3.Connection,
+    sql: str,
+    parameters: tuple[Any, ...] = (),
+) -> sqlite3.Cursor:
+    """Fence every direct orchestration write with the current token."""
+    lease.assert_owned()
+    return conn.execute(sql, parameters)
+
+
+def _phase_transaction(
+    conn: sqlite3.Connection,
+    lease: lease_mod.CrossProcessLease,
+    *,
+    run_id: str,
+    phase: str,
+    next_phase: str | None,
+    stats: dict[str, Any],
+    recovery: dict[str, Any],
+    execute: Callable[[], None],
+    fault_hook: Callable[[str], None] | None,
+) -> None:
+    """Run one phase and its cursor advance as one fenced DB commit.
+
+    SQLite rolls back every intra-phase database effect after abrupt process
+    termination.  File writes use atomic replacement and are deterministic;
+    phase 7 can therefore replay a prefix after restart.  The ownership check
+    immediately before COMMIT is the decisive fencing guard: a stale worker
+    never publishes a phase checkpoint.
+    """
+    lease.assert_owned()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        execute()
+        if fault_hook is not None:
+            fault_hook(f"phase:{phase}:after-write")
+        lease.assert_owned()
+        if next_phase is None:
+            _guarded_execute(
+                lease,
+                conn,
+                "UPDATE consolidation_run SET state = 'succeeded', phase = NULL, "
+                "finished_at = ?, watermark_event_id = ?, stats_json = ?, error = NULL "
+                "WHERE id = ?",
+                (
+                    str(recovery["finished_at"]),
+                    int(recovery["watermark_to"]),
+                    json.dumps(stats, default=str, sort_keys=True),
+                    run_id,
+                ),
+            )
+        else:
+            _guarded_execute(
+                lease,
+                conn,
+                "UPDATE consolidation_run SET state = 'running', phase = ?, stats_json = ?, "
+                "error = NULL WHERE id = ?",
+                (next_phase, _encoded_run_state(stats, recovery), run_id),
+            )
+        lease.assert_owned()
+        conn.commit()
+    except BaseException:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+    if fault_hook is not None:
+        fault_hook(f"phase:{phase}:committed")
 
 
 def _last_successful_watermark(conn: sqlite3.Connection) -> int:
@@ -808,7 +979,13 @@ def _max_event_id(conn: sqlite3.Connection) -> int:
     return int(row["m"]) if row is not None and row["m"] is not None else 0
 
 
-def run(cfg: Config, conn: sqlite3.Connection, *, trigger: str = "manual") -> DreamRunResult:
+def run(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    trigger: str = "manual",
+    fault_hook: Callable[[str], None] | None = None,
+) -> DreamRunResult:
     """The seven-phase orchestrator (spec §4.3). ``conn`` MUST be an
     unrestricted writer connection (``storage.authorizer.writer_connection``)
     -- Dream both reads/writes ``eph_*`` tables directly (Tier C) and
@@ -828,91 +1005,135 @@ def run(cfg: Config, conn: sqlite3.Connection, *, trigger: str = "manual") -> Dr
 
     with cross_lease.acquire():
         with lease_mod.writer_lease(holder="dream-worker"):
-            run_id = _claim_run(conn, trigger=trigger)
-            started_at = _now()
-            conn.execute(
-                "UPDATE consolidation_run SET state = 'running', phase = 'replay', started_at = ? "
-                "WHERE id = ?",
-                (started_at, run_id),
-            )
-
-            stats: dict[str, Any] = {}
+            cross_lease.assert_owned()
+            conn.execute("BEGIN IMMEDIATE")
             try:
-                prev_watermark = _last_successful_watermark(conn)
-                now_watermark = _max_event_id(conn)
-
-                trace = _phase1_replay(conn)
-                stats["replay"] = {
-                    **trace.stats,
-                    "watermark_from": prev_watermark,
-                    "watermark_to": now_watermark,
-                }
-                cross_lease.heartbeat()
-
-                conn.execute("UPDATE consolidation_run SET phase = 'potentiate' WHERE id = ?", (run_id,))
-                potentiate_stats = _phase2_potentiate(cfg, conn, trace, run_id=run_id)
-                dominant_tier: dict[str, int] = potentiate_stats.pop("dominant_tier")
-                stats["potentiate"] = potentiate_stats
-                cross_lease.heartbeat()
-
-                conn.execute("UPDATE consolidation_run SET phase = 'decay' WHERE id = ?", (run_id,))
-                now_iso = _now()
-                retrieval_stats = decay_mod.materialize_retrieval(conn, cfg, now=now_iso)
-                storage_stats = decay_mod.materialize_storage_strength(conn, cfg, now=now_iso)
-                with checkpoint_phase():
-                    archived = decay_mod.archive_below_floor(cfg, conn, now=now_iso)
-                retention_stats = decay_mod.purge_retention(conn, cfg, now=now_iso)
-                stats["decay"] = {
-                    "retrieval_rows_decayed": retrieval_stats.rows_decayed,
-                    "engrams_s_materialized": storage_stats.engrams_materialized,
-                    "edges_s_materialized": storage_stats.edges_materialized,
-                    "archived": [a.name for a in archived],
-                    "retention": {
-                        "events_deleted": retention_stats.events_deleted,
-                        "tags_deleted": retention_stats.tags_deleted,
-                        "candidate_edges_deleted": retention_stats.candidate_edges_deleted,
-                    },
-                }
-                cross_lease.heartbeat()
-
-                conn.execute("UPDATE consolidation_run SET phase = 'renormalise' WHERE id = ?", (run_id,))
-                stats["renormalise"] = _phase4_renormalise(conn, cfg)
-
-                conn.execute("UPDATE consolidation_run SET phase = 'distill' WHERE id = ?", (run_id,))
-                stats["distill"] = _phase5_distill(cfg, conn, run_id=run_id)
-
-                conn.execute("UPDATE consolidation_run SET phase = 'audit' WHERE id = ?", (run_id,))
-                audit_report = audit_mod.run_audit(cfg, conn, run_id=run_id)
-                stats["audit"] = audit_report.stats()
-                cross_lease.heartbeat()
-
-                conn.execute("UPDATE consolidation_run SET phase = 'checkpoint' WHERE id = ?", (run_id,))
-                checkpoint_stats = _phase7_checkpoint(cfg, conn, project_root, dominant_tier=dominant_tier)
-                stats["checkpoint"] = checkpoint_stats.to_dict()
-
-                finished_at = _now()
-                conn.execute(
-                    "UPDATE consolidation_run SET state = 'succeeded', phase = NULL, finished_at = ?, "
-                    "watermark_event_id = ?, stats_json = ? WHERE id = ?",
-                    (finished_at, now_watermark, json.dumps(stats, default=str), run_id),
+                claimed = _claim_run(conn, trigger=trigger)
+                run_id = str(claimed["id"])
+                started_at = str(claimed["started_at"] or _now())
+                stats, recovery = _decode_run_state(claimed)
+                current_phase = str(claimed["phase"] or "replay")
+                if current_phase not in _PHASES:
+                    current_phase = "replay"
+                recovery.setdefault("version", 1)
+                recovery.setdefault("started_at", started_at)
+                _guarded_execute(
+                    cross_lease,
+                    conn,
+                    "UPDATE consolidation_run SET state = 'running', phase = ?, started_at = ?, "
+                    "finished_at = NULL, error = NULL, stats_json = ? WHERE id = ?",
+                    (current_phase, started_at, _encoded_run_state(stats, recovery), run_id),
                 )
+                cross_lease.assert_owned()
+                conn.commit()
+            except BaseException:
+                if conn.in_transaction:
+                    conn.rollback()
+                raise
+
+            try:
+                start_index = _PHASES.index(current_phase)
+                for phase in _PHASES[start_index:]:
+                    next_index = _PHASES.index(phase) + 1
+                    next_phase = _PHASES[next_index] if next_index < len(_PHASES) else None
+
+                    def execute_phase(phase_name: str = phase) -> None:
+                        nonlocal stats, recovery
+                        if phase_name == "replay":
+                            prev_watermark = _last_successful_watermark(conn)
+                            now_watermark = _max_event_id(conn)
+                            trace = _phase1_replay(conn)
+                            recovery["trace"] = _trace_to_json(trace)
+                            recovery["watermark_from"] = prev_watermark
+                            recovery["watermark_to"] = now_watermark
+                            stats["replay"] = {
+                                **trace.stats,
+                                "watermark_from": prev_watermark,
+                                "watermark_to": now_watermark,
+                            }
+                        elif phase_name == "potentiate":
+                            trace = _trace_from_json(dict(recovery.get("trace", {})))
+                            phase_stats = _phase2_potentiate(cfg, conn, trace, run_id=run_id)
+                            recovery["dominant_tier"] = phase_stats.pop("dominant_tier")
+                            stats["potentiate"] = phase_stats
+                        elif phase_name == "decay":
+                            now_iso = str(recovery["started_at"])
+                            retrieval = decay_mod.materialize_retrieval(conn, cfg, now=now_iso)
+                            storage = decay_mod.materialize_storage_strength(conn, cfg, now=now_iso)
+                            with checkpoint_phase():
+                                archived_entries = decay_mod.archive_below_floor(cfg, conn, now=now_iso)
+                            retention = decay_mod.purge_retention(conn, cfg, now=now_iso)
+                            stats["decay"] = {
+                                "retrieval_rows_decayed": retrieval.rows_decayed,
+                                "engrams_s_materialized": storage.engrams_materialized,
+                                "edges_s_materialized": storage.edges_materialized,
+                                "archived": [entry.name for entry in archived_entries],
+                                "retention": {
+                                    "events_deleted": retention.events_deleted,
+                                    "tags_deleted": retention.tags_deleted,
+                                    "candidate_edges_deleted": retention.candidate_edges_deleted,
+                                },
+                            }
+                        elif phase_name == "renormalise":
+                            stats["renormalise"] = _phase4_renormalise(conn, cfg)
+                        elif phase_name == "distill":
+                            stats["distill"] = _phase5_distill(cfg, conn, run_id=run_id)
+                        elif phase_name == "audit":
+                            report = audit_mod.run_audit(cfg, conn, run_id=run_id)
+                            stats["audit"] = report.stats()
+                        else:
+                            checkpoint = _phase7_checkpoint(
+                                cfg,
+                                conn,
+                                project_root,
+                                dominant_tier=dict(recovery.get("dominant_tier", {})),
+                                checkpoint_at=str(recovery["started_at"]),
+                                fault_hook=fault_hook,
+                            )
+                            stats["checkpoint"] = checkpoint.to_dict()
+                            recovery["finished_at"] = _now()
+
+                    _phase_transaction(
+                        conn,
+                        cross_lease,
+                        run_id=run_id,
+                        phase=phase,
+                        next_phase=next_phase,
+                        stats=stats,
+                        recovery=recovery,
+                        execute=execute_phase,
+                        fault_hook=fault_hook,
+                    )
+                    if next_phase is not None:
+                        cross_lease.heartbeat()
             except Exception as exc:
                 finished_at = _now()
-                conn.execute(
-                    "UPDATE consolidation_run SET state = 'failed', finished_at = ?, error = ? WHERE id = ?",
-                    (finished_at, str(exc), run_id),
-                )
+                try:
+                    _guarded_execute(
+                        cross_lease,
+                        conn,
+                        "UPDATE consolidation_run SET state = 'failed', finished_at = ?, error = ? "
+                        "WHERE id = ?",
+                        (finished_at, str(exc), run_id),
+                    )
+                except BusyError:
+                    # Lost ownership is itself the reason the phase could not
+                    # publish.  A newer token must remain the only writer.
+                    pass
                 raise
+
+            checkpoint_payload = stats["checkpoint"]
+            finished_at = str(recovery["finished_at"])
 
     return DreamRunResult(
         run_id=run_id,
         state="succeeded",
         trigger=trigger,
         stats=stats,
-        watermark_event_id=now_watermark,
-        checkpoint_write_ratio=checkpoint_stats.write_ratio,
-        modified_engrams=checkpoint_stats.modified_engrams,
-        archived_engrams=[a.name for a in archived],
+        watermark_event_id=int(recovery["watermark_to"]),
+        checkpoint_write_ratio=float(checkpoint_payload["write_ratio"]),
+        modified_engrams=list(checkpoint_payload["modified_engrams"]),
+        archived_engrams=list(stats["decay"]["archived"]),
         started_at=started_at,
         finished_at=finished_at,
     )

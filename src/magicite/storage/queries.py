@@ -124,6 +124,11 @@ def skill_detail(
         "WHERE src_id = ? OR dst_id = ?",
         (row["id"], row["id"]),
     ).fetchone()["dw"]
+    latest_operation = conn.execute(
+        "SELECT state FROM approval WHERE target_name = ? "
+        "ORDER BY proposed_at DESC, id DESC LIMIT 1",
+        (row["name"],),
+    ).fetchone()
 
     silent = bookkeeping is None or bookkeeping["route_returns"] == 0
 
@@ -132,6 +137,10 @@ def skill_detail(
             "id": row["id"],
             "name": row["name"],
             "status": row["status"],
+            "verification_status": row["verification_status"],
+            "operation_execution_status": (
+                str(latest_operation["state"]) if latest_operation is not None else None
+            ),
             "storage_strength": row["storage_strength"],
             "exposure_count": row["exposure_count"],
             "outcome": {"success": row["success_count"], "failure": row["failure_count"]},

@@ -8,6 +8,7 @@ import json
 
 from magicite.core import audit as audit_mod
 from magicite.core import registry as registry_mod
+from magicite.storage import durable as durable_mod
 
 PROTON = "proton-ge-proton-downgrade"
 
@@ -88,3 +89,13 @@ def test_audit_coverage_gaps_report_dangling_needs(cfg, db_conn, embedder) -> No
     # exist yet; assert the field is present and empty rather than absent.
     report = audit_mod.run_audit(cfg, db_conn, run_id="dream_test4")
     assert report.coverage_gaps == []
+
+
+def test_yields_reported_as_metadata_only() -> None:
+    """AC-027: ``yields`` remains portable metadata, never a graph edge."""
+    assert "yields" not in durable_mod.EDGE_TYPE_FOR_FIELD
+    assert "not wired to a DB edge type" in audit_mod.AuditReport(
+        run_id="contract",
+        generated_at="2026-08-18T00:00:00+00:00",
+        registry_size=0,
+    ).orphans_note

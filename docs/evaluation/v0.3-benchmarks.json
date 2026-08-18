@@ -1,0 +1,150 @@
+{
+  "schema": "magicite-benchmark-evidence/1",
+  "recorded_at": "2026-08-18T10:49:53.087945+00:00",
+  "budget_policy": {
+    "limit_ms": 100.0,
+    "note": "The existing AC-025 100 ms route target is reported uniformly for every matrix cell; failures are retained as evidence, not normalized away."
+  },
+  "runs": [
+    {
+      "schema": "magicite-benchmark-matrix/1",
+      "recorded_at": "2026-08-18T10:48:52.672239+00:00",
+      "status": "measured",
+      "provider_requested": "hashing",
+      "provider": "hashing",
+      "environment": {
+        "label": "local-workspace",
+        "python": "3.12.13",
+        "platform": "Linux-6.18.35-x86_64-with-glibc2.39",
+        "runtime_is_container": true,
+        "container_image_digest": null
+      },
+      "parameters": {
+        "sizes": [
+          1000,
+          10000
+        ],
+        "calls": 20,
+        "warmup": 3,
+        "budget_ms": 100.0
+      },
+      "measurements": [
+        {
+          "size": 1000,
+          "semantic_equality": true,
+          "cold": {
+            "latency_ms": 37.311,
+            "budget": {
+              "name": "route-cold-1000-100ms",
+              "limit_ms": 100.0,
+              "measured_ms": 37.311,
+              "passed": true
+            }
+          },
+          "miss": {
+            "calls": 20,
+            "p50_ms": 27.841,
+            "p95_ms": 41.785,
+            "max_ms": 46.517,
+            "budget": {
+              "name": "route-index-miss-p95-1000-100ms",
+              "limit_ms": 100.0,
+              "measured_ms": 41.785,
+              "passed": true
+            }
+          },
+          "hit": {
+            "calls": 20,
+            "p50_ms": 24.262,
+            "p95_ms": 60.128,
+            "max_ms": 517.879,
+            "budget": {
+              "name": "route-index-hit-p95-1000-100ms",
+              "limit_ms": 100.0,
+              "measured_ms": 60.128,
+              "passed": true
+            }
+          },
+          "cold_top_candidate": "egr_00523"
+        },
+        {
+          "size": 10000,
+          "semantic_equality": true,
+          "cold": {
+            "latency_ms": 765.842,
+            "budget": {
+              "name": "route-cold-10000-100ms",
+              "limit_ms": 100.0,
+              "measured_ms": 765.842,
+              "passed": false
+            }
+          },
+          "miss": {
+            "calls": 20,
+            "p50_ms": 732.924,
+            "p95_ms": 1276.719,
+            "max_ms": 2017.932,
+            "budget": {
+              "name": "route-index-miss-p95-10000-100ms",
+              "limit_ms": 100.0,
+              "measured_ms": 1276.719,
+              "passed": false
+            }
+          },
+          "hit": {
+            "calls": 20,
+            "p50_ms": 695.074,
+            "p95_ms": 845.356,
+            "max_ms": 958.382,
+            "budget": {
+              "name": "route-index-hit-p95-10000-100ms",
+              "limit_ms": 100.0,
+              "measured_ms": 845.356,
+              "passed": false
+            }
+          },
+          "cold_top_candidate": "egr_05843"
+        }
+      ]
+    },
+    {
+      "schema": "magicite-benchmark-matrix/1",
+      "recorded_at": "2026-08-18T10:49:53.087945+00:00",
+      "status": "unavailable",
+      "provider_requested": "production",
+      "provider": "fastembed",
+      "environment": {
+        "label": "local-workspace",
+        "python": "3.12.13",
+        "platform": "Linux-6.18.35-x86_64-with-glibc2.39",
+        "runtime_is_container": true,
+        "container_image_digest": null
+      },
+      "parameters": {
+        "sizes": [
+          1000,
+          10000
+        ],
+        "calls": 20,
+        "warmup": 3,
+        "budget_ms": 100.0
+      },
+      "measurements": [],
+      "error": "FastEmbedModelUnavailableError: could not construct fastembed model 'BAAI/bge-small-en-v1.5' (offline=True): Could not load model BAAI/bge-small-en-v1.5 from any source."
+    }
+  ],
+  "conclusions": {
+    "ac_025_local_hashing_1000_warm": "pass",
+    "cached_vs_uncached_semantic_equality": "pass at 1000 and 10000 nodes",
+    "local_hashing_10000_budget": "fail",
+    "production_provider_container_matrix": "unverified"
+  },
+  "unavailable_evidence": [
+    {
+      "scope": "production-provider/container",
+      "reason": "The local workspace does not contain the offline FastEmbed model and no built production image or image digest was available. The runner failed closed without downloading the model.",
+      "required_command": "python scripts/run_benchmark_matrix.py --provider production --sizes 1000 10000 --environment-label production-container",
+      "required_environment": "Run inside the built production image with MAGICITE_CONTAINER_IMAGE_DIGEST set to the tested immutable digest."
+    }
+  ]
+}

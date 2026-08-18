@@ -29,6 +29,7 @@ from magicite.mcp.schemas import (
     ArchiveOutput,
     PromoteInput,
     PromoteOutput,
+    SharpenChanges,
     SharpenInput,
     SharpenOutput,
 )
@@ -62,6 +63,77 @@ def _cross_process_lease(ctx: ToolContext, holder_prefix: str) -> lease_mod.Cros
     )
 
 
+def _execute_approved(ctx: ToolContext, proposal: approvals_mod.ApprovalRecord, *, actor: str) -> str | None:
+    """Run one already-approved R3 proposal without creating another proposal."""
+    if proposal.op == "archive":
+        entry = dream_mod.archive_engram(
+            ctx.cfg,
+            ctx.conn,
+            name=proposal.target_name,
+            reason=proposal.payload.get("reason"),
+            actor=actor,
+        )
+        return entry.archive_path
+
+    if proposal.op == "promote":
+        row = _fetch_engram_row(ctx.conn, proposal.target_name)
+        from_status = proposal.payload.get("from_status")
+        to_status = proposal.payload.get("to_status")
+        if not isinstance(to_status, str) or row["status"] != from_status:
+            raise ValueError(
+                f"approved promote precondition drifted: expected {from_status!r}, found {row['status']!r}"
+            )
+        with (
+            _cross_process_lease(ctx, "resume-promote").acquire(),
+            lease_mod.writer_lease(holder="resume-promote"),
+        ):
+            durable_mod.set_status(ctx.conn, engram_id=row["id"], to_status=to_status)
+            durable_mod.append_transition_journal(
+                ctx.conn,
+                engram_id=row["id"],
+                version=int(row["version"]),
+                author=actor,
+                event="promoted",
+                note=f"{from_status} -> {to_status}",
+            )
+        return None
+
+    if proposal.op == "sharpen":
+        changes = SharpenChanges.model_validate(proposal.payload.get("proposed_changes") or {})
+        result = lifecycle_mod.execute_sharpen(
+            ctx.cfg,
+            ctx.conn,
+            ctx.embedder,
+            name=proposal.target_name,
+            proposed_changes=changes,
+            actor=actor,
+        )
+        return f"engram-version:{result.new_version}"
+
+    if proposal.op == "nucleate":
+        # Nucleation approvals accept a mechanically generated candidate;
+        # CR-3 still requires the host to author and register the final prose.
+        return proposal.id
+
+    raise ValueError(f"unsupported approved operation {proposal.op!r}")
+
+
+def resume_approved(ctx: ToolContext, *, approval_id: str, resumed_by: str) -> approvals_mod.ApprovalRecord:
+    """Resume an approved proposal through its recorded operation.
+
+    This is an operator API rather than a seventeenth MCP tool: the public
+    16-tool surface remains frozen, while review-mode automation can call a
+    single implementation that cannot re-propose or replay a terminal row.
+    """
+    return approvals_mod.resume(
+        ctx.conn,
+        ctx.cfg,
+        approval_id=approval_id,
+        resumed_by=resumed_by,
+        executor=lambda proposal: _execute_approved(ctx, proposal, actor=resumed_by),
+    )
+
+
 @magicite_tool(
     risk="R3",
     side_effect="proposal->durable",
@@ -73,9 +145,7 @@ def _cross_process_lease(ctx: ToolContext, holder_prefix: str) -> lease_mod.Cros
 def sharpen(ctx: ToolContext, params: SharpenInput) -> SharpenOutput:
     _fetch_engram_row(ctx.conn, params.name)  # 404s before ever proposing
 
-    payload = {
-        "proposed_changes": params.proposed_changes.model_dump() if params.proposed_changes else {}
-    }
+    payload = {"proposed_changes": params.proposed_changes.model_dump() if params.proposed_changes else {}}
     approval = approvals_mod.propose(
         ctx.conn, ctx.cfg, op="sharpen", target_name=params.name, payload=payload, proposed_by=_ACTOR_PREFIX
     )
@@ -232,13 +302,20 @@ def archive(ctx: ToolContext, params: ArchiveInput) -> ArchiveOutput:
     # AC-027: review mode (the default) creates the proposal and stops --
     # the engram is not mutated until a separate decision executes it.
     approval = approvals_mod.propose(
-        ctx.conn, ctx.cfg, op="archive", target_name=params.name, payload={"reason": params.reason},
+        ctx.conn,
+        ctx.cfg,
+        op="archive",
+        target_name=params.name,
+        payload={"reason": params.reason},
         proposed_by=_ACTOR_PREFIX,
     )
 
     if not ctx.cfg.autonomous:
         return ArchiveOutput(
-            archived=False, name=params.name, approval_id=approval.id, state=approval.state,
+            archived=False,
+            name=params.name,
+            approval_id=approval.id,
+            state=approval.state,
             requires_approval=True,
         )
 

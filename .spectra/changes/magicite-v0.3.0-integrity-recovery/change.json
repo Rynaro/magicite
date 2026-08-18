@@ -2,7 +2,7 @@
   "schema": "magicite/change-provenance/1",
   "change_id": "magicite-v0.3.0-integrity-recovery",
   "release_train": "0.3.0",
-  "candidate": "0.3.0rc1",
+  "candidate": "0.3.0",
   "model": "GPT-5.6",
   "host": "ChatGPT Work Codex",
   "role": "maker-orchestrator",
@@ -12,4 +12,3 @@
   "historical_attribution": "Claude Opus trailers are preserved; no Fable attribution is inferred without evidence",
   "native_c": "no-go for 0.3"
 }
-

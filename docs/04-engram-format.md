@@ -50,6 +50,11 @@ provenance: sharpened                 # authored | imported | distilled | sharpe
 parents: [egr_4b8e01cc]               # lineage: engrams this derives from
 ```
 
+The immutable ID is not a whole-file checksum. Registry synchronization tracks
+whole-file drift separately as `content_sha256` in the local index, while
+`body_sha256` tracks the rendered body. Editing mutable plasticity or provenance
+therefore never silently changes identity.
+
 ### Routing Block (Replaces SKILL.md Description)
 
 ```yaml
@@ -144,6 +149,9 @@ inhibits: [proton-clean-install]      # mutual exclusion
 affinity: [steam, lutris]             # links to context nodes
 ```
 
+`yields` is metadata-only in 0.3. It is portable intent for a future governed
+producer/consumer semantics, not an activation or composition edge today.
+
 ### Provenance & Trust Block (Tier A: Durable Provenance)
 
 ```yaml
@@ -231,7 +239,11 @@ exports:
 | **B (durable, edge)** | synapses block (S_edge, consolidated learned edges, provenance) | `.egr.md` frontmatter | Dream checkpoint only | No |
 | **C (ephemeral, edge)** | R, tags, candidate edges, cached embeddings | SQLite DB | Hot path | Yes; expires per session or decay |
 
-**Consequence:** The file is **never written by the hot path**. Only the offline Dream cycle checkpoints DB → file. Registry is always git-committable and clean between Dream runs.
+**Consequence:** The file is **never written by the hot path**. Dream and the
+explicit `checkpoint` tool may checkpoint learned state; register, sync,
+sharpen, promote, and archive may publish authored or lifecycle changes. These
+paths all use the durable writer protocol, so the registry remains reviewable
+and git-committable between writes.
 
 ---
 

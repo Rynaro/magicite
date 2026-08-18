@@ -81,6 +81,8 @@ class SkillIntrospect(MagiciteModel):
     id: str
     name: str
     status: str
+    verification_status: str
+    operation_execution_status: str | None = None
     storage_strength: float
     exposure_count: int
     outcome: dict[str, int]

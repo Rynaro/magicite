@@ -10,9 +10,10 @@ never executes anything on your behalf. Routing, learning, and consolidation
 are local; 0.3 defaults embedding lookup to offline and requires an explicit
 `fetch-model` step before first source-based use.
 
-**Status:** 0.3.0rc1 — integrity-recovery release candidate. The authority
-order for current behavior is defined in `docs/AUTHORITY.md`; historical
-construction records remain immutable evidence rather than live authority.
+**Status:** 0.3.0 — governed integrity-recovery candidate for the final release
+tag. The authority order for current behavior is defined in
+`docs/AUTHORITY.md`; historical construction records remain immutable evidence
+rather than live authority.
 
 **Honest limits, up front (docs/01 Falsification Record, measured 2026-08-15):** At 70 skills with lexically independent queries, plain dense-embedding retrieval (baseline b: Hit@1 0.5476) remains stronger than the full Magicite pipeline (baseline d: Hit@1 0.5333). The gap is statistically indistinguishable (3 queries out of 210; prior measurement 0.4619 was 18-query gap, p = 0.00053). Full Magicite is not significantly better than native lexical matching (p = 0.19). The predicted ~50-skill break-even where Magicite's routing machinery should "pay off" remains **unevidenced** — a single unreplicated crossing on a 39-query core slice does not sustain that claim. *Caveats: these results come from a single-author corpus and queries, single annotator, single embedder (bge-small-en-v1.5), and uniform learning workload; see docs/01 "What the evidence licenses" for limitations and docs/07 §5–§6 for the mechanism.* Magicite ships as a **verified skill router with a portable format, lifecycle governance, and composition-plan expansion, whose graph and learning layers are not yet demonstrated to improve routing** — and whose actual design claim (spreading activation over declared edges, not re-derived embeddings) has never been tested. The improvement from 0.4619 to 0.5333 is mechanism repair (declared-edges amendment and inhib_gain recalibration fixed defects that were inhibiting measurement), not validation of the design hypothesis. `magicite doctor` reports your registry size and flags the cold-start case honestly: the ~50-skill number is a reference size from docs/07's original (pre-falsification) heuristic, never an asserted break-even — crossing it is not reported as evidence that hierarchy-aware routing pays off, consistent with this measurement — see [§ Diagnostics](#diagnostics-magicite-doctor).
 
@@ -93,8 +94,9 @@ It demonstrates that the surface works end-to-end, nothing more.
 
 ## Quickstart — pip (development)
 
-> **Not on PyPI yet.** 0.3.0rc1 ships as a release-candidate container; the wheel job is
-> gated behind `PUBLISH_TO_PYPI` until trusted publishing is registered.
+> **PyPI publication is opt-in.** The 0.3.0 release always publishes the signed,
+> attested container; the wheel job is gated behind `PUBLISH_TO_PYPI` until
+> trusted publishing is registered.
 > Install from source in the meantime.
 
 ```bash

@@ -170,6 +170,24 @@ jobs:
             --entrypoint python magicite:verify \
             -c "import truststore, opentelemetry.trace; print('VC-11 OK')"
 
+      # AC-046: blocking evidence from the actual production image and its
+      # baked, offline FastEmbed model. The runner reports every cold/index-
+      # miss/index-hit cell against a named 100ms budget; 10k misses are
+      # evidence, not a release gate. AC-025's 1k warm hashing target remains
+      # the explicit pass/fail latency assertion in test_route_latency.py.
+      - name: AC-046 — production-container benchmark matrix
+        run: |
+          image_id="$(docker image inspect --format '{{.Id}}' magicite:verify)"
+          docker run --rm --network none --cap-drop ALL \
+            --security-opt no-new-privileges --user 10001 \
+            --entrypoint python \
+            -e MAGICITE_CONTAINER_IMAGE_DIGEST="$image_id" \
+            -e MAGICITE_BENCHMARK_ENVIRONMENT=production-container \
+            -v "$PWD/scripts/run_benchmark_matrix.py:/tmp/run_benchmark_matrix.py:ro" \
+            magicite:verify /tmp/run_benchmark_matrix.py \
+            --provider production --sizes 1000 10000 --calls 2 --warmup 1 \
+            --environment-label production-container
+
       # Trivy HIGH/CRITICAL gate (mission directive: "CI: ... image build +
       # Trivy HIGH/CRITICAL gate"). SARIF always uploaded for visibility;
       # the table-format gate fails the build on any HIGH/CRITICAL finding

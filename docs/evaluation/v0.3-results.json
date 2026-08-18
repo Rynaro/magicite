@@ -1,0 +1,71 @@
+{
+  "schema": "magicite-evaluation-results/1",
+  "result_id": "magicite-v0.3-superseding-2026-08-18",
+  "published_at": "2026-08-18T00:00:00Z",
+  "status": "superseding",
+  "supersedes": [
+    {
+      "evidence": ".spectra/changes/archive/2026-08-15-magicite-v1-implementation/decisions/R12-FIRED.md",
+      "scope": "baseline-c composition conclusions that used production expansion as both prediction and label",
+      "disposition": "retained as historical evidence; superseded for current composition claims"
+    },
+    {
+      "evidence": "docs/07-evaluation-and-observability.md#composition-metrics",
+      "scope": "the prior zero-independent-query H-COMPOSE status",
+      "disposition": "retained in history; superseded by the bounded independent structural evaluation below"
+    }
+  ],
+  "implementation": {
+    "repository": "Rynaro/magicite",
+    "base_commit": "36e646807ab865510988e16eb0033c869a037e33",
+    "component": "magicite.core.composition.expand",
+    "execution": "fresh in-memory graph per case"
+  },
+  "composition": {
+    "corpus": "docs/evaluation/composition-v0.3.json",
+    "corpus_sha256": "9875ccb7aed0265f3d082aee4bdf5d015c396693fa80a35053f900eb345c5040",
+    "label_source": "independently authored expected_plan fields",
+    "n_cases": 24,
+    "n_cycle_cases": 3,
+    "n_dangling_cases": 5,
+    "prediction_digest_sha256": "e9060c0b7436c400246f011a5c8c9f8cabae745596d87c3214f3d21d89bf82bc",
+    "plan_precision": 1.0,
+    "plan_recall": 1.0,
+    "plan_f1": 1.0,
+    "order_accuracy": 1.0,
+    "confidence_accuracy": 1.0,
+    "mismatched_case_ids": [],
+    "scope": "Structural expansion conditional on the labelled winner; this does not measure query decomposition, winner retrieval, or task execution success."
+  },
+  "corrected_ranking_reference": {
+    "status": "carried-forward measured evidence, not rerun by this composition evaluation",
+    "registry_size": 70,
+    "n_queries": 210,
+    "evidence": [
+      ".spectra/changes/archive/2026-08-15-magicite-v1-implementation/decisions/INHIB-GAIN-RECALIBRATED.md",
+      "docs/07-evaluation-and-observability.md"
+    ],
+    "baseline_c_semantics": "production seed selection and declared-inhibition parity",
+    "hit_at_1": {"a": 0.4048, "b": 0.5476, "c": 0.5286, "d": 0.5333},
+    "hit_at_3": {"b": 0.7429, "d": 0.7476},
+    "limitations": [
+      "Only metrics explicitly preserved by current evidence are republished; missing values are not inferred.",
+      "The 24-case composition result is a separate structural evaluation and must not be merged numerically with the 210-query ranking run."
+    ]
+  },
+  "hypotheses": {
+    "H-BODY-b": {
+      "verdict": "FALSIFIED_AS_IMPLEMENTED",
+      "basis": "The full pipeline Hit@1 remains below dense embedding on the 70-skill ranking corpus."
+    },
+    "H-COMPOSE": {
+      "verdict": "SUPPORTED_STRUCTURAL_ONLY",
+      "basis": "All 24 independently labelled bounded plans, including cycle and dangling cases, match production expansion.",
+      "remaining": "End-to-end decomposition, winner retrieval, and task success remain untested."
+    },
+    "H-LEARN": {
+      "verdict": "FALSIFIED_AS_IMPLEMENTED",
+      "basis": "This structural composition run provides no new evidence for plasticity gains."
+    }
+  }
+}
