@@ -187,7 +187,6 @@ def _contraindication_contributions(
     if weight <= 0 or not node_ids:
         return np.zeros(len(node_ids), dtype=np.float64)
     out = np.zeros(len(node_ids), dtype=np.float64)
-    missing = [node_id for node_id in node_ids if row_by_id[node_id]["contraindication_vec"] is None]
     trigger_rows = conn.execute(
         "SELECT engram_id, ord, text FROM engram_trigger "
         "WHERE polarity = 'negative' ORDER BY engram_id, ord"
@@ -203,8 +202,6 @@ def _contraindication_contributions(
         if cached is not None:
             similarity = float(np.dot(query_vector, np.frombuffer(cached, dtype=np.float32)))
             out[i] = -weight * max(0.0, similarity)
-            continue
-        if node_id not in missing:
             continue
         not_when = row_by_id[node_id]["intent_not_when"]
         negative = triggers.get(node_id, [])
