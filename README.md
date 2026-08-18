@@ -1,6 +1,6 @@
 <div align="center">
 
-# Magicite
+<img src="docs/assets/magicite-logo.png" alt="Magicite" width="800">
 
 ### Skills that learn—without leaving your repository.
 
