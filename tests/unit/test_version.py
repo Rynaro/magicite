@@ -13,10 +13,10 @@ def _project() -> dict[str, object]:
         return tomllib.load(stream)["project"]
 
 
-def test_package_and_release_notes_identify_030() -> None:
+def test_package_and_release_notes_identify_031() -> None:
     project = _project()
-    assert project["version"] == "0.3.0"
-    assert (ROOT / "docs" / "releases" / "0.3.0.md").is_file()
+    assert project["version"] == "0.3.1"
+    assert (ROOT / "docs" / "releases" / "0.3.1.md").is_file()
 
 
 def test_package_metadata_has_no_self_digest() -> None:
