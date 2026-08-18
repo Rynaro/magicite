@@ -14,6 +14,8 @@ until that changes.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-08-18
+
 ### Changed
 
 - SKILL.md import/export now preserves arbitrary Markdown bodies and host-specific
