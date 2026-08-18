@@ -6,7 +6,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SHA = re.compile(r"[0-9a-f]{40}")
 
@@ -30,7 +29,11 @@ def main() -> int:
     for line in dockerfile.splitlines():
         stripped = line.strip()
         if stripped.startswith("FROM ") or stripped.startswith("COPY --from="):
-            image = stripped.split()[1] if stripped.startswith("FROM ") else stripped.split("=", 1)[1].split()[0]
+            image = (
+                stripped.split()[1]
+                if stripped.startswith("FROM ")
+                else stripped.split("=", 1)[1].split()[0]
+            )
             if image in {"builder", "runtime"}:
                 continue
             if "@sha256:" not in image:
