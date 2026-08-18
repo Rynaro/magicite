@@ -13,6 +13,13 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
+CONTRAINDICATION_MODEL_SUFFIX = "::contraindication-v1"
+
+
+def contraindication_model_name(model_name: str) -> str:
+    """Cache namespace for the independent negative routing view."""
+    return f"{model_name}{CONTRAINDICATION_MODEL_SUFFIX}"
+
 
 @runtime_checkable
 class Embedder(Protocol):

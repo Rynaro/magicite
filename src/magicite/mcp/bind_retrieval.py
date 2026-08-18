@@ -59,6 +59,7 @@ def route(ctx: ToolContext, params: RouteInput) -> RouteOutput:
                 exposure_count=c.exposure_count,
                 body_ref=c.body_ref,
                 signal_tier_0=c.signal_tier_0,
+                diagnostics=c.diagnostics,
             )
             for c in outcome.candidates
         ],
@@ -122,19 +123,27 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
     budget = params.max_bytes
     rendered: dict[str, str | None] = {name: None for name, _ in sections}
     consumed = 0
-    truncated = False
+    stream_offset = 0
     for name, text in sections:
         text_bytes = text.encode("utf-8")
-        if consumed + len(text_bytes) <= budget:
-            rendered[name] = text
-            consumed += len(text_bytes)
-        else:
-            remaining = max(budget - consumed, 0)
-            partial = text_bytes[:remaining].decode("utf-8", errors="ignore")
-            rendered[name] = partial
-            consumed += len(partial.encode("utf-8"))
-            truncated = True
+        section_end = stream_offset + len(text_bytes)
+        if section_end <= params.cursor:
+            stream_offset = section_end
+            continue
+        if consumed >= budget:
             break
+        local_start = max(params.cursor - stream_offset, 0)
+        remaining = budget - consumed
+        partial = text_bytes[local_start : local_start + remaining].decode(
+            "utf-8", errors="ignore"
+        )
+        rendered[name] = partial
+        consumed += len(partial.encode("utf-8"))
+        stream_offset = section_end
+
+    total_bytes = sum(len(text.encode("utf-8")) for _, text in sections)
+    next_offset = min(params.cursor + consumed, total_bytes)
+    truncated = next_offset < total_bytes
 
     exec_present = bool(body.exec_blocks) and params.level == "L3"
 
@@ -148,5 +157,5 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
         exec_blocks_present=exec_present,
         exec_blocks_warning=_L2_EXEC_WARNING if exec_present else None,
         truncated=truncated,
-        next_offset=consumed if truncated else None,
+        next_offset=next_offset if truncated else None,
     )

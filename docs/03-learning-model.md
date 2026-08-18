@@ -130,7 +130,7 @@ The contradiction resolves by distinguishing **two distinct S variables**:
 
 **Directed edges:** If engram A has learned an outbound edge to B (A → B, `composes` or `co_activation`), the edge is consolidated into A's `synapses:` block during Dream consolidation.
 
-**Symmetric edges (co-activation reflection):** If A and B co-activated heavily, both edges (A → B and B → A) reflect the same strength by design. Dream consolidation writes both directions to maintain symmetry. Consistency is enforced by having Dream as the only writer.
+**Symmetric edges (co-activation reflection):** If A and B co-activated heavily, both edges (A → B and B → A) reflect the same strength by design. Dream consolidation writes both directions to maintain symmetry. Consistency is enforced by the shared single-writer lease, fencing token, and source-set reconciliation.
 
 **Dangling targets:** If an engram references a skill that hasn't yet registered (e.g., `needs: [unknown-skill]`), the edge is degraded to an inert placeholder until resolution. Same semantics as unresolvable declared dependencies (engram-format :168).
 

@@ -35,6 +35,22 @@ from magicite.storage import ephemeral as ephemeral_mod
 #: (e.g. ``route``'s candidate-set event, ``core/router.py``) may carry a
 #: richer payload but is still Tier 0 for the same reason.
 PASSIVE_INFERENCE_TIER = 0
+REDACTED_ARGUMENT = "<redacted>"
+_SECRET_ARGUMENT_KEYS = frozenset({"adapter_token"})
+
+
+def redact_arguments(value: Any) -> Any:
+    """Return a canonical copy with credential values removed before hashing."""
+    if isinstance(value, dict):
+        return {
+            key: REDACTED_ARGUMENT if key in _SECRET_ARGUMENT_KEYS else redact_arguments(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact_arguments(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_arguments(item) for item in value)
+    return value
 
 
 def args_digest(arguments: dict[str, Any]) -> str:
@@ -42,7 +58,9 @@ def args_digest(arguments: dict[str, Any]) -> str:
     per spec, not the raw payload (bounded row size; the raw arguments
     already live in whatever tool-specific event a handler writes itself,
     e.g. ``route``'s ``candidate_ids`` payload)."""
-    canonical = json.dumps(arguments, sort_keys=True, separators=(",", ":"), default=str)
+    canonical = json.dumps(
+        redact_arguments(arguments), sort_keys=True, separators=(",", ":"), default=str
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 

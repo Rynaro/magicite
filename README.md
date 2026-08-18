@@ -6,14 +6,13 @@ Magicite treats a directory of `.egr.md` "engram" files as the source of
 truth for a skill registry, backs it with an embedded SQLite (WAL) index
 that is fully rebuildable from those files, and exposes a 16-tool MCP
 surface for retrieval, signal capture, and (approval-gated) learning. It
-never executes anything on your behalf and never phones home: routing,
-learning, and consolidation all happen inside your own project, offline.
+never executes anything on your behalf. Routing, learning, and consolidation
+are local; 0.3 defaults embedding lookup to offline and requires an explicit
+`fetch-model` step before first source-based use.
 
-**Status:** 0.2.0 — container-only. See
-`.spectra/changes/archive/2026-08-15-magicite-v1-implementation/spec.md` for
-the normative construction spec (archived, with its five recorded amendments)
-and `docs/` for the design corpus (start at
-`docs/01-vision-and-hypotheses.md`).
+**Status:** 0.3.0rc1 — integrity-recovery release candidate. The authority
+order for current behavior is defined in `docs/AUTHORITY.md`; historical
+construction records remain immutable evidence rather than live authority.
 
 **Honest limits, up front (docs/01 Falsification Record, measured 2026-08-15):** At 70 skills with lexically independent queries, plain dense-embedding retrieval (baseline b: Hit@1 0.5476) remains stronger than the full Magicite pipeline (baseline d: Hit@1 0.5333). The gap is statistically indistinguishable (3 queries out of 210; prior measurement 0.4619 was 18-query gap, p = 0.00053). Full Magicite is not significantly better than native lexical matching (p = 0.19). The predicted ~50-skill break-even where Magicite's routing machinery should "pay off" remains **unevidenced** — a single unreplicated crossing on a 39-query core slice does not sustain that claim. *Caveats: these results come from a single-author corpus and queries, single annotator, single embedder (bge-small-en-v1.5), and uniform learning workload; see docs/01 "What the evidence licenses" for limitations and docs/07 §5–§6 for the mechanism.* Magicite ships as a **verified skill router with a portable format, lifecycle governance, and composition-plan expansion, whose graph and learning layers are not yet demonstrated to improve routing** — and whose actual design claim (spreading activation over declared edges, not re-derived embeddings) has never been tested. The improvement from 0.4619 to 0.5333 is mechanism repair (declared-edges amendment and inhib_gain recalibration fixed defects that were inhibiting measurement), not validation of the design hypothesis. `magicite doctor` reports your registry size and flags the cold-start case honestly: the ~50-skill number is a reference size from docs/07's original (pre-falsification) heuristic, never an asserted break-even — crossing it is not reported as evidence that hierarchy-aware routing pays off, consistent with this measurement — see [§ Diagnostics](#diagnostics-magicite-doctor).
 
@@ -27,11 +26,12 @@ able to complete its MCP handshake with **zero network access** because the
 build time.
 
 ```bash
+MAGICITE_IMAGE='ghcr.io/rynaro/magicite@sha256:<digest-from-v0.3.0-release>'
 docker run --rm -i \
     --user "$(id -u):$(id -g)" \
     --cap-drop ALL --security-opt no-new-privileges \
     -v "$PWD":"$PWD":z -w "$PWD" \
-    ghcr.io/rynaro/magicite@sha256:486f3c510ad48d7e6a3ca32dfa2e40ba29b06e3572f13da9264e088834c87b67 \
+    "$MAGICITE_IMAGE" \
     serve --project-root "$PWD"
 ```
 
@@ -57,7 +57,7 @@ finding behind this.
         "--label", "eidolons.project=<project>",
         "-v", "<project_root>:<project_root>:z", "-w", "<project_root>",
         "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-        "ghcr.io/rynaro/magicite@sha256:486f3c510ad48d7e6a3ca32dfa2e40ba29b06e3572f13da9264e088834c87b67",
+        "ghcr.io/rynaro/magicite@sha256:<digest-from-v0.3.0-release>",
         "serve", "--project-root", "<project_root>"
       ]
     }
@@ -65,9 +65,11 @@ finding behind this.
 }
 ```
 
-Replace `1000:1000` with your own `$(id -u):$(id -g)` if different. The digest
-above is the published `v0.2.0` image; newer pinned digests appear on the
-[releases page](https://github.com/Rynaro/magicite/releases). See
+Replace `1000:1000` with your own `$(id -u):$(id -g)` if different. Obtain the
+immutable digest from the matching signed
+[release](https://github.com/Rynaro/magicite/releases); release digests are
+deliberately not embedded in the source/wheel that must exist before the image
+is built. See
 `docs/adapters/claude-code.md` for the fuller adapter walkthrough, including
 optional Tier-2 hook acceleration via `MAGICITE_HOOK_TOKEN`.
 
@@ -81,7 +83,9 @@ and 9 `inhibits` edges rather than left as a flat list, and
 over real stdio MCP. See `docs/adapters/dogfooding.md` for the loop, the
 `.mcp.json` generator, the Tier-2 hook wiring, and an honest account of what
 the exercise exposed — including that `triggers.negative` and `intent.not_when`
-turn out to have no effect on retrieval at all, as of 0.2.0.
+had no effect on retrieval in 0.2.0. The 0.3 recovery gives contraindications
+a distinct, diagnosable routing contribution rather than mixing them into the
+positive embedding.
 
 It is worth saying plainly what this is not: a self-authored registry is **not**
 evidence for any of the routing hypotheses in `docs/01`'s Falsification Record.
@@ -89,7 +93,7 @@ It demonstrates that the surface works end-to-end, nothing more.
 
 ## Quickstart — pip (development)
 
-> **Not on PyPI yet.** 0.2.0 ships as a container only; the wheel job is
+> **Not on PyPI yet.** 0.3.0rc1 ships as a release-candidate container; the wheel job is
 > gated behind `PUBLISH_TO_PYPI` until trusted publishing is registered.
 > Install from source in the meantime.
 

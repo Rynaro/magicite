@@ -79,6 +79,13 @@ _DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar(
     "magicite_writer_lease_depth", default=0
 )
 
+# The active cross-process lease, when the top-level writer uses one. Durable
+# helpers consult it from assert_single_writer(), turning the fencing token
+# into a write guard instead of acquisition-only metadata.
+_CROSS_PROCESS_LEASE: contextvars.ContextVar[object | None] = contextvars.ContextVar(
+    "magicite_cross_process_lease", default=None
+)
+
 
 class WriterLeaseError(BusyError):
     """Raised by :func:`assert_single_writer` when no lease is held."""
@@ -149,6 +156,9 @@ def assert_single_writer() -> None:
             hint="durable writes must happen inside register()/sync()/export()/"
             "checkpoint(), which acquire the writer lease before writing",
         )
+    cross_process = _CROSS_PROCESS_LEASE.get()
+    if cross_process is not None:
+        cross_process.assert_owned()  # type: ignore[attr-defined]
 
 
 # ── G3: the Dream-context assertion (M4, spec §6.2) ─────────────────────────
@@ -224,6 +234,7 @@ class LeaseAcquireResult:
     holder: str
     acquired_at: str
     expires_at: str
+    fencing_token: int
     stolen: bool  # True iff a stale (expired) lease row was reclaimed
 
 
@@ -254,13 +265,19 @@ class CrossProcessLease:
         conn: sqlite3.Connection,
         holder: str | None = None,
         ttl_s: float = DEFAULT_LEASE_TTL_S,
+        heartbeat_interval_s: float = DEFAULT_HEARTBEAT_INTERVAL_S,
     ) -> None:
         self.lock_path = Path(lock_path)
         self.conn = conn
         self.holder = holder or f"{os.uname().nodename}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
         self.ttl_s = ttl_s
+        self.heartbeat_interval_s = min(heartbeat_interval_s, max(ttl_s / 3.0, 0.01))
         self._flock_fd: int | None = None
         self._held = False
+        self._fencing_token: int | None = None
+        self._heartbeat_stop = threading.Event()
+        self._heartbeat_thread: threading.Thread | None = None
+        self._heartbeat_failure: BaseException | None = None
 
     def _try_flock(self) -> bool:
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -295,34 +312,53 @@ class CrossProcessLease:
             now = _now()
             acquired_at = _iso(now)
             expires_at = _iso(now + _td(self.ttl_s))
-
-            existing = self.conn.execute(
-                "SELECT holder, expires_at FROM writer_lease WHERE id = ?", (_LEASE_ROW_ID,)
-            ).fetchone()
-            stolen = False
-            if existing is not None:
-                still_live = datetime.fromisoformat(str(existing["expires_at"])) >= now
-                if still_live and existing["holder"] != self.holder:
+            self.conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self.conn.execute(
+                    "SELECT holder, expires_at, fencing_token FROM writer_lease WHERE id = ?",
+                    (_LEASE_ROW_ID,),
+                ).fetchone()
+                stolen = existing is not None
+                cursor = self.conn.execute(
+                    """
+                    INSERT INTO writer_lease
+                      (id, holder, pid, acquired_at, heartbeat_at, expires_at, fencing_token)
+                    VALUES (?,?,?,?,?,?,1)
+                    ON CONFLICT(id) DO UPDATE SET
+                      holder=excluded.holder, pid=excluded.pid,
+                      acquired_at=excluded.acquired_at,
+                      heartbeat_at=excluded.heartbeat_at,
+                      expires_at=excluded.expires_at,
+                      fencing_token=writer_lease.fencing_token + 1
+                    WHERE writer_lease.expires_at < excluded.acquired_at
+                    """,
+                    (_LEASE_ROW_ID, self.holder, os.getpid(), acquired_at, acquired_at, expires_at),
+                )
+                if cursor.rowcount != 1:
+                    assert existing is not None
                     raise BusyError(
                         f"writer lease DB row is held by {existing['holder']!r} until "
                         f"{existing['expires_at']}",
                         hint="retry once the current holder's lease expires or finishes",
                     )
-                stolen = not still_live
-
-            self.conn.execute(
-                """
-                INSERT INTO writer_lease (id, holder, pid, acquired_at, heartbeat_at, expires_at)
-                VALUES (?,?,?,?,?,?)
-                ON CONFLICT(id) DO UPDATE SET
-                  holder=excluded.holder, pid=excluded.pid, acquired_at=excluded.acquired_at,
-                  heartbeat_at=excluded.heartbeat_at, expires_at=excluded.expires_at
-                """,
-                (_LEASE_ROW_ID, self.holder, os.getpid(), acquired_at, acquired_at, expires_at),
-            )
+                row = self.conn.execute(
+                    "SELECT fencing_token FROM writer_lease WHERE id = ?", (_LEASE_ROW_ID,)
+                ).fetchone()
+                assert row is not None
+                fencing_token = int(row["fencing_token"])
+                self.conn.commit()
+            except BaseException:
+                if self.conn.in_transaction:
+                    self.conn.rollback()
+                raise
             self._held = True
+            self._fencing_token = fencing_token
             return LeaseAcquireResult(
-                holder=self.holder, acquired_at=acquired_at, expires_at=expires_at, stolen=stolen
+                holder=self.holder,
+                acquired_at=acquired_at,
+                expires_at=expires_at,
+                fencing_token=fencing_token,
+                stolen=stolen,
             )
         except BaseException:
             self._release_flock()
@@ -337,25 +373,125 @@ class CrossProcessLease:
             return
         now = _now()
         expires_at = _iso(now + _td(self.ttl_s))
-        self.conn.execute(
-            "UPDATE writer_lease SET heartbeat_at = ?, expires_at = ? WHERE id = ? AND holder = ?",
-            (_iso(now), expires_at, _LEASE_ROW_ID, self.holder),
+        cursor = self.conn.execute(
+            "UPDATE writer_lease SET heartbeat_at = ?, expires_at = ? "
+            "WHERE id = ? AND holder = ? AND fencing_token = ? AND expires_at >= ?",
+            (
+                _iso(now),
+                expires_at,
+                _LEASE_ROW_ID,
+                self.holder,
+                self._fencing_token,
+                _iso(now),
+            ),
         )
+        if cursor.rowcount != 1:
+            self._held = False
+            raise BusyError(
+                "writer lease ownership was lost before heartbeat",
+                hint="abort the current write; a newer fencing token owns the lease",
+            )
+
+    def _database_path(self) -> str | None:
+        rows = self.conn.execute("PRAGMA database_list").fetchall()
+        for row in rows:
+            name = row["name"] if isinstance(row, sqlite3.Row) else row[1]
+            path = row["file"] if isinstance(row, sqlite3.Row) else row[2]
+            if name == "main" and path:
+                return str(path)
+        return None
+
+    def _heartbeat_loop(self, db_path: str) -> None:
+        conn = sqlite3.connect(db_path, isolation_level=None)
+        conn.execute("PRAGMA busy_timeout = 5000")
+        try:
+            while not self._heartbeat_stop.wait(self.heartbeat_interval_s):
+                now = _now()
+                cursor = conn.execute(
+                    "UPDATE writer_lease SET heartbeat_at = ?, expires_at = ? "
+                    "WHERE id = ? AND holder = ? AND fencing_token = ? AND expires_at >= ?",
+                    (
+                        _iso(now),
+                        _iso(now + _td(self.ttl_s)),
+                        _LEASE_ROW_ID,
+                        self.holder,
+                        self._fencing_token,
+                        _iso(now),
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    self._heartbeat_failure = BusyError(
+                        "periodic heartbeat lost writer lease ownership"
+                    )
+                    self._held = False
+                    return
+        except BaseException as exc:  # surfaced by assert_owned on the writer thread
+            self._heartbeat_failure = exc
+        finally:
+            conn.close()
+
+    def _start_periodic_heartbeat(self) -> None:
+        db_path = self._database_path()
+        if db_path is None:
+            return
+        self._heartbeat_stop.clear()
+        self._heartbeat_failure = None
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop,
+            args=(db_path,),
+            name=f"magicite-lease-heartbeat-{self.holder}",
+            daemon=True,
+        )
+        self._heartbeat_thread.start()
+
+    def _stop_periodic_heartbeat(self) -> None:
+        self._heartbeat_stop.set()
+        if self._heartbeat_thread is not None:
+            self._heartbeat_thread.join(timeout=max(self.heartbeat_interval_s * 2.0, 1.0))
+            self._heartbeat_thread = None
+
+    def assert_owned(self) -> None:
+        """Reject a protected mutation after token loss or TTL expiry."""
+        if self._heartbeat_failure is not None:
+            raise BusyError(
+                f"writer lease heartbeat failed: {self._heartbeat_failure}",
+                hint="abort the current write and acquire a fresh fencing token",
+            )
+        if not self._held or self._fencing_token is None:
+            raise BusyError("writer lease is no longer owned by this worker")
+        now = _iso(_now())
+        row = self.conn.execute(
+            "SELECT 1 FROM writer_lease "
+            "WHERE id = ? AND holder = ? AND fencing_token = ? AND expires_at >= ?",
+            (_LEASE_ROW_ID, self.holder, self._fencing_token, now),
+        ).fetchone()
+        if row is None:
+            self._held = False
+            raise BusyError(
+                "writer lease ownership was lost before a durable mutation",
+                hint="abort the current write; a newer fencing token owns the lease",
+            )
 
     def release(self) -> None:
         if self._held:
             self.conn.execute(
-                "DELETE FROM writer_lease WHERE id = ? AND holder = ?", (_LEASE_ROW_ID, self.holder)
+                "DELETE FROM writer_lease WHERE id = ? AND holder = ? AND fencing_token = ?",
+                (_LEASE_ROW_ID, self.holder, self._fencing_token),
             )
             self._held = False
+            self._fencing_token = None
         self._release_flock()
 
     @contextmanager
     def acquire(self) -> Iterator[LeaseAcquireResult]:
         result = self.try_acquire()
+        token = _CROSS_PROCESS_LEASE.set(self)
+        self._start_periodic_heartbeat()
         try:
             yield result
         finally:
+            self._stop_periodic_heartbeat()
+            _CROSS_PROCESS_LEASE.reset(token)
             self.release()
 
 

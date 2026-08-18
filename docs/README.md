@@ -1,11 +1,15 @@
 # Magicite: Organic Skill Learning & Refinement — Documentation Index
 
-**Status:** Draft-refined / v1  
+**Status:** Current design index for 0.3
 **Scope:** Refined design layer (new, 2026-08-14)  
 **Provenance:** docs/research/exploratory/ (frozen original layer)  
 **Decisions implemented:** FINDING-013, FINDING-014, D1 (evidence policy)
 
 ---
+
+Current normative interpretation starts with [AUTHORITY.md](AUTHORITY.md).
+Archived construction records and `research/exploratory/` remain evidence and
+context, but do not override the 0.3 acceptance criteria or runtime schemas.
 
 ## Overview
 

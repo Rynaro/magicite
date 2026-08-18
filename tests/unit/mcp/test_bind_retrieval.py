@@ -51,3 +51,27 @@ def test_load_skill_body_l2_via_adapter(cfg, db_conn, embedder) -> None:
     )
     assert out.procedure
     assert out.examples is None  # L2 excludes Examples/Provenance
+
+
+def test_load_skill_body_cursor_round_trip(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    full = bind_retrieval.load_skill_body(
+        ctx, LoadSkillBodyInput(name="proton-ge-proton-downgrade", level="L2", max_bytes=100000)
+    )
+    expected = full.procedure + full.pitfalls
+    chunks: list[str] = []
+    cursor = 0
+    while True:
+        page = bind_retrieval.load_skill_body(
+            ctx,
+            LoadSkillBodyInput(
+                name="proton-ge-proton-downgrade", level="L2", max_bytes=23, cursor=cursor
+            ),
+        )
+        chunks.append(page.procedure + page.pitfalls)
+        if page.next_offset is None:
+            break
+        assert page.next_offset > cursor
+        cursor = page.next_offset
+    assert "".join(chunks) == expected

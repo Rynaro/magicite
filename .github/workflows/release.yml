@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # ────────────────────────────────────────────────────────────────
       # 1. Version consistency check — the git tag is the SemVer source
@@ -68,38 +68,42 @@ jobs:
         run: |
           TAG_VERSION="${{ github.ref_name }}"
           TAG_VERSION="${TAG_VERSION#v}"
-          BASE_TAG_VERSION="${TAG_VERSION%%-*}"
+          # Normalize the supported SemVer prerelease spelling to PEP 440,
+          # so v0.3.0-rc.1 builds package version 0.3.0rc1 rather than a
+          # misleading final-version wheel.
+          PACKAGE_TAG_VERSION="${TAG_VERSION/-rc./rc}"
+          PACKAGE_TAG_VERSION="${PACKAGE_TAG_VERSION/-beta./b}"
 
           PYPROJECT_VERSION="$(grep -E '^version = "[^"]+"' pyproject.toml \
             | head -1 | sed 's/version = "//;s/"//')"
 
-          echo "Tag version (base):     ${BASE_TAG_VERSION}"
+          echo "Tag version (package):  ${PACKAGE_TAG_VERSION}"
           echo "pyproject.toml version: ${PYPROJECT_VERSION}"
 
-          if [ "${BASE_TAG_VERSION}" != "${PYPROJECT_VERSION}" ]; then
+          if [ "${PACKAGE_TAG_VERSION}" != "${PYPROJECT_VERSION}" ]; then
             echo ""
             echo "ERROR: Version mismatch!"
-            echo "  git tag '${TAG_VERSION}' implies base version '${BASE_TAG_VERSION}'"
+            echo "  git tag '${TAG_VERSION}' implies package version '${PACKAGE_TAG_VERSION}'"
             echo "  but pyproject.toml declares version '${PYPROJECT_VERSION}'."
             echo ""
-            echo "Fix: update pyproject.toml version to '${BASE_TAG_VERSION}'"
+            echo "Fix: update pyproject.toml version to '${PACKAGE_TAG_VERSION}'"
             echo "     before pushing a release tag."
             exit 1
           fi
 
-          echo "Version check passed: ${BASE_TAG_VERSION}"
+          echo "Version check passed: ${PACKAGE_TAG_VERSION}"
 
       # ────────────────────────────────────────────────────────────────
       # 2. Multi-arch build prerequisites
       # ────────────────────────────────────────────────────────────────
       - name: Set up QEMU (for linux/arm64 cross-compile)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -111,7 +115,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ${{ env.IMAGE_NAME }}
           flavor: |
@@ -128,7 +132,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────
       - name: Build and push multi-arch image
         id: build-push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: Dockerfile
@@ -152,7 +156,7 @@ jobs:
       # 5. Trivy HIGH/CRITICAL gate on the published digest
       # ────────────────────────────────────────────────────────────────
       - name: Trivy scan — generate SARIF report
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}@${{ steps.build-push.outputs.digest }}
           format: "sarif"
@@ -161,13 +165,13 @@ jobs:
           exit-code: "0"
 
       - name: Upload Trivy SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@f3712979fa5f215279b101dd0a2e3bdfb4353324 # v3
         if: always()
         with:
           sarif_file: "trivy-results.sarif"
 
       - name: Trivy scan — gate on HIGH/CRITICAL (GA releases only)
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-beta') }}
         with:
           image-ref: ${{ env.IMAGE_NAME }}@${{ steps.build-push.outputs.digest }}
@@ -180,14 +184,14 @@ jobs:
       # 6-7. SBOM + provenance attestation
       # ────────────────────────────────────────────────────────────────
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
           image: ${{ env.IMAGE_NAME }}@${{ steps.build-push.outputs.digest }}
           artifact-name: sbom.spdx.json
           output-file: /tmp/sbom.spdx.json
 
       - name: Attest SBOM
-        uses: actions/attest-sbom@v1
+        uses: actions/attest-sbom@5026d3663739160db546203eeaffa6aa1c51a4d6 # v1
         with:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build-push.outputs.digest }}
@@ -195,7 +199,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1
         with:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build-push.outputs.digest }}
@@ -205,7 +209,7 @@ jobs:
       # 8. Cosign keyless signing via OIDC
       # ────────────────────────────────────────────────────────────────
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Sign image with cosign (keyless OIDC)
         env:
@@ -217,7 +221,7 @@ jobs:
       # 9. GitHub Release
       # ────────────────────────────────────────────────────────────────
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
@@ -289,10 +293,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           version: "0.11.23"
           python-version: "3.12"
@@ -312,10 +316,10 @@ jobs:
 
       - name: Publish to PyPI (OIDC trusted publishing)
         if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-beta') }}
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
 
       - name: Publish to TestPyPI (pre-releases)
         if: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           repository-url: https://test.pypi.org/legacy/

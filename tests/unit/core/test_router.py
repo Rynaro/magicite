@@ -85,6 +85,63 @@ def test_inhibition_lowers_score(cfg, db_conn, embedder) -> None:
     assert inhibited_score < baseline_score
 
 
+def test_negative_cue_penalty_is_diagnosable(cfg, db_conn, embedder) -> None:
+    _insert_engram(db_conn, "egr_a", "a")
+    _insert_engram(db_conn, "egr_b", "b")
+    _embed_and_store(db_conn, embedder, "egr_a", "shared positive route")
+    _embed_and_store(db_conn, embedder, "egr_b", "shared positive route")
+    db_conn.execute(
+        "INSERT INTO engram_trigger (engram_id, polarity, ord, text) VALUES (?,?,?,?)",
+        ("egr_a", "negative", 0, "do not use for database outage"),
+    )
+
+    result = router_mod.route(
+        cfg, db_conn, embedder, query="database outage", k=5
+    )
+    candidate = next(c for c in result.candidates if c.name == "a")
+    assert candidate.diagnostics["contraindication"] <= 0.0
+    assert candidate.diagnostics["contraindication"] < 0.0
+
+
+def test_route_index_reused_for_same_generation(cfg, db_conn, embedder) -> None:
+    router_mod._cached_route_index.cache_clear()
+    _insert_engram(db_conn, "egr_a", "a")
+    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
+    router_mod.route(cfg, db_conn, embedder, query="shared text")
+    before = router_mod._cached_route_index.cache_info()
+    router_mod.route(cfg, db_conn, embedder, query="shared text")
+    after = router_mod._cached_route_index.cache_info()
+    assert after.hits == before.hits + 1
+
+
+def test_route_index_invalidated_on_mutation(cfg, db_conn, embedder) -> None:
+    router_mod._cached_route_index.cache_clear()
+    _insert_engram(db_conn, "egr_a", "a")
+    _insert_engram(db_conn, "egr_b", "b")
+    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
+    _embed_and_store(db_conn, embedder, "egr_b", "shared text")
+    router_mod.route(cfg, db_conn, embedder, query="shared text")
+    before = router_mod._cached_route_index.cache_info()
+    _insert_edge(db_conn, "egr_a", "b", "egr_b", "composes", 1.0)
+    router_mod.route(cfg, db_conn, embedder, query="shared text")
+    after = router_mod._cached_route_index.cache_info()
+    assert after.misses == before.misses + 1
+
+
+def test_cached_and_uncached_routes_match(cfg, db_conn, embedder) -> None:
+    _insert_engram(db_conn, "egr_a", "a")
+    _insert_engram(db_conn, "egr_b", "b")
+    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
+    _embed_and_store(db_conn, embedder, "egr_b", "shared text")
+    _insert_edge(db_conn, "egr_a", "b", "egr_b", "composes", 1.0)
+    router_mod._cached_route_index.cache_clear()
+    uncached = router_mod.route(cfg, db_conn, embedder, query="shared text")
+    cached = router_mod.route(cfg, db_conn, embedder, query="shared text")
+    assert [(c.id, c.score, c.diagnostics) for c in cached.candidates] == [
+        (c.id, c.score, c.diagnostics) for c in uncached.candidates
+    ]
+
+
 def test_hub_penalty_dampens_a_structural_hub(cfg, db_conn, embedder) -> None:
     """Not gated by a numbered AC (AC-023's frozen text is inhibition-only)
     but named explicitly in the M2 story action plan ("hub penalty

@@ -1,0 +1,15 @@
+{
+  "schema": "magicite/change-provenance/1",
+  "change_id": "magicite-v0.3.0-integrity-recovery",
+  "release_train": "0.3.0",
+  "candidate": "0.3.0rc1",
+  "model": "GPT-5.6",
+  "host": "ChatGPT Work Codex",
+  "role": "maker-orchestrator",
+  "commit_range": "fd309e6..HEAD",
+  "checker": "critic-v030 plus GitHub required reviewers",
+  "approval": "pending human-governed PR review",
+  "historical_attribution": "Claude Opus trailers are preserved; no Fable attribution is inferred without evidence",
+  "native_c": "no-go for 0.3"
+}
+

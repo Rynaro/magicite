@@ -12,6 +12,43 @@ Record could still move shipped defaults. A `1.0.0` would claim a
 confidence the evidence does not support, so the version does not move
 until that changes.
 
+## [0.3.0rc1] — 2026-08-18
+
+Integrity-recovery release candidate. The final 0.3.0 tag remains blocked on
+independent review and the acceptance gates in the governed recovery plan.
+
+### Added
+
+- Recoverable durable-write checkpoints, lease fencing, fail-closed registry
+  reconciliation, migration rollback safety, and idempotency recovery.
+- A distinct contraindication routing view, production/baseline seed parity,
+  truthful live introspection, and resumable skill-body pagination.
+- `docs/AUTHORITY.md`, archive redirects, prospective agent provenance, and
+  an explicit 0.3 release-gate record.
+- Immutable GitHub Action SHAs and digest-pinned Python/uv container inputs.
+
+### Changed
+
+- Source operation is offline by default; model acquisition is explicit.
+- The route/evaluation contract supersedes 0.2 baseline-(c) measurements that
+  used a different seed rule and omitted documented inhibition.
+- Package metadata no longer embeds the image digest produced after the
+  package itself is built; the signed release record is the digest authority.
+- Performance work uses generation-keyed index reuse and differential tests.
+  No native C implementation is included.
+
+### Append-only errata for 0.1/0.2
+
+- The frozen acceptance categories total 33 (19 event-driven, 3 state-driven,
+  5 ubiquitous, 6 unwanted-behavior), plus 9 addendum criteria; the prior
+  chronicle total of 35 was an accounting error.
+- The runtime lifecycle is `nascent → probation → consolidated → promoted →
+  archived`; `active` and `dormant` in the 0.1 prose were stale design names.
+- Declared edges use the accepted effective-strength floor; the 0.1 paragraph
+  saying they remained at zero effect is superseded.
+- The `no_tag_capture` ablation is invalid and supports no Principle 0 claim.
+  Prior evidence is preserved; corrected results must be published separately.
+
 ## [0.2.0] — 2026-08-16
 
 ### Changed — BREAKING (data layout)

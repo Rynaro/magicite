@@ -7,6 +7,9 @@ in M4 -- not a silently-passing stub).
 
 from __future__ import annotations
 
+import threading
+import time
+
 import pytest
 
 from magicite.errors import BusyError
@@ -200,3 +203,89 @@ def test_cross_process_lease_context_manager_releases_on_exception(tmp_path, lea
     other = lease.CrossProcessLease(lock_path=tmp_path / "dream.lock", conn=lease_conn, holder="holder-b")
     other.try_acquire()
     other.release()
+
+
+def test_concurrent_expired_acquisition_has_one_winner(tmp_path, monkeypatch) -> None:
+    from magicite.storage import db as db_mod
+
+    db_path = tmp_path / "lease.db"
+    seed = db_mod.connect(db_path)
+    seed.execute(
+        "INSERT INTO writer_lease "
+        "(id, holder, pid, acquired_at, heartbeat_at, expires_at, fencing_token) "
+        "VALUES (1, 'expired', 1, '2000-01-01T00:00:00+00:00', "
+        "'2000-01-01T00:00:00+00:00', '2000-01-01T00:00:00+00:00', 4)"
+    )
+    seed.close()
+
+    monkeypatch.setattr(lease.CrossProcessLease, "_try_flock", lambda self: True)
+    barrier = threading.Barrier(2)
+    winners: list[tuple[str, int]] = []
+    busy: list[str] = []
+
+    def contend(holder: str) -> None:
+        conn = db_mod.connect(db_path)
+        candidate = lease.CrossProcessLease(
+            lock_path=tmp_path / "dream.lock", conn=conn, holder=holder
+        )
+        barrier.wait(timeout=5)
+        try:
+            result = candidate.try_acquire()
+            winners.append((holder, result.fencing_token))
+        except BusyError:
+            busy.append(holder)
+        finally:
+            conn.close()
+
+    threads = [threading.Thread(target=contend, args=(holder,)) for holder in ("a", "b")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert len(winners) == 1
+    assert len(busy) == 1
+    assert winners[0][1] == 5
+
+
+def test_ttl_overrun_fences_stale_writer(tmp_path, lease_conn) -> None:
+    cp_lease = lease.CrossProcessLease(
+        lock_path=tmp_path / "dream.lock", conn=lease_conn, holder="holder-a", ttl_s=0.01
+    )
+    cp_lease.try_acquire()
+    time.sleep(0.03)
+    with pytest.raises(BusyError):
+        cp_lease.heartbeat()
+    cp_lease.release()
+
+
+def test_context_heartbeats_during_long_work(tmp_path, lease_conn) -> None:
+    cp_lease = lease.CrossProcessLease(
+        lock_path=tmp_path / "dream.lock",
+        conn=lease_conn,
+        holder="holder-a",
+        ttl_s=0.08,
+        heartbeat_interval_s=0.01,
+    )
+    with cp_lease.acquire():
+        time.sleep(0.16)
+        cp_lease.assert_owned()
+
+
+def test_lost_token_fences_durable_write(tmp_path, lease_conn) -> None:
+    from magicite.storage import durable as durable_mod
+
+    cp_lease = lease.CrossProcessLease(
+        lock_path=tmp_path / "dream.lock", conn=lease_conn, holder="holder-a"
+    )
+    with cp_lease.acquire():
+        lease_conn.execute(
+            "UPDATE writer_lease SET holder = 'replacement', fencing_token = fencing_token + 1 "
+            "WHERE id = 1"
+        )
+        with lease.writer_lease():
+            with pytest.raises(BusyError):
+                durable_mod.write_schema_meta(lease_conn, "fenced", "must-not-land")
+    assert lease_conn.execute(
+        "SELECT value FROM schema_meta WHERE key = 'fenced'"
+    ).fetchone() is None

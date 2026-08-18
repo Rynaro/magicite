@@ -41,7 +41,6 @@ successful, non-replayed tool call appends a generic ``eph_event`` row.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -65,7 +64,7 @@ from mcp.types import (  # noqa: E402
 from magicite.config import Config  # noqa: E402
 from magicite.core import dream as dream_mod  # noqa: E402
 from magicite.embeddings import get_embedder  # noqa: E402
-from magicite.errors import IdempotencyKeyConflictError, MagiciteError  # noqa: E402
+from magicite.errors import BusyError, IdempotencyKeyConflictError, MagiciteError  # noqa: E402
 from magicite.mcp import (  # noqa: E402, F401  (imports register tools onto TOOL_REGISTRY)
     bind_dream,
     bind_inspect,
@@ -170,8 +169,7 @@ def build_mcp_tools() -> list[Tool]:
 
 
 def _args_sha256(arguments: dict[str, Any]) -> str:
-    canonical = json.dumps(arguments, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return events_mod.args_digest(arguments)
 
 
 def _error_result(error: MagiciteError) -> CallToolResult:
@@ -244,22 +242,63 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
         # "identical arguments" replay contract, since the two calls were
         # never actually the same request.
         cached = state.conn.execute(
-            "SELECT args_sha256, response_json FROM eph_idempotency WHERE tool = ? AND request_id = ?",
+            "SELECT args_sha256, response_json, expires_at, state FROM eph_idempotency "
+            "WHERE tool = ? AND request_id = ?",
             (tool_name, request_id),
         ).fetchone()
         if cached is not None:
-            if cached["args_sha256"] != args_hash:
+            now = datetime.now(UTC).isoformat()
+            # Completed results have a real replay TTL. A pending reservation
+            # is deliberately not expired here: after process death its
+            # handler effect may already have landed, so retrying it would be
+            # less safe than surfacing the recoverable in-progress state.
+            if cached["state"] == "completed" and cached["expires_at"] < now:
+                state.conn.execute(
+                    "DELETE FROM eph_idempotency WHERE tool = ? AND request_id = ? "
+                    "AND state = 'completed'",
+                    (tool_name, request_id),
+                )
+                cached = None
+            elif cached["args_sha256"] != args_hash:
                 return _error_result(
                     IdempotencyKeyConflictError(
                         f"request_id {request_id!r} was already used with different arguments"
                     )
                 )
-            payload = json.loads(cached["response_json"])
-            return CallToolResult(
-                content=[TextContent(type="text", text=json.dumps(payload))],
-                structured_content=payload,
-                is_error=False,
+            elif cached["state"] == "pending":
+                return _error_result(
+                    BusyError(
+                        f"request_id {request_id!r} has an incomplete reserved operation",
+                        hint="do not repeat the side effect; inspect or recover the reserved operation",
+                    )
+                )
+            else:
+                payload = json.loads(cached["response_json"])
+                return CallToolResult(
+                    content=[TextContent(type="text", text=json.dumps(payload))],
+                    structured_content=payload,
+                    is_error=False,
+                )
+
+        if cached is None:
+            now_dt = datetime.now(UTC)
+            expires_at = (now_dt + timedelta(seconds=state.cfg.idempotency_ttl_s)).isoformat()
+            reserved = state.conn.execute(
+                """
+                INSERT INTO eph_idempotency
+                  (tool, request_id, args_sha256, response_json, created_at, expires_at, state)
+                VALUES (?, ?, ?, '', ?, ?, 'pending')
+                ON CONFLICT(tool, request_id) DO NOTHING
+                """,
+                (tool_name, request_id, args_hash, now_dt.isoformat(), expires_at),
             )
+            if reserved.rowcount != 1:
+                return _error_result(
+                    BusyError(
+                        f"request_id {request_id!r} was reserved concurrently",
+                        hint="retry to replay the completed result",
+                    )
+                )
 
     session_id = getattr(params, "session_id", None)
     # spec §6.2 G1 / AC-013: durable-write tools (§3.2 R2/R3) get the
@@ -271,15 +310,26 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
 
     try:
         result = meta.handler(ctx, params)
+        if tool_name == "session_end":
+            result = _apply_session_end_enqueue(state, result)
     except MagiciteError as exc:
+        if request_id:
+            state.conn.execute(
+                "DELETE FROM eph_idempotency WHERE tool = ? AND request_id = ? "
+                "AND args_sha256 = ? AND state = 'pending'",
+                (tool_name, request_id, args_hash),
+            )
         logger.warning("tool_error", tool=tool_name, code=exc.code.value, message=exc.message)
         return _error_result(exc)
     except Exception as exc:  # pragma: no cover - defensive: never leak a raw traceback
+        if request_id:
+            state.conn.execute(
+                "DELETE FROM eph_idempotency WHERE tool = ? AND request_id = ? "
+                "AND args_sha256 = ? AND state = 'pending'",
+                (tool_name, request_id, args_hash),
+            )
         logger.error("tool_internal_error", tool=tool_name, error=str(exc))
         return _error_result(MagiciteError(f"internal error in {tool_name}: {exc}"))
-
-    if tool_name == "session_end":
-        result = _apply_session_end_enqueue(state, result)
 
     payload = result.model_dump(mode="json")
 
@@ -305,21 +355,21 @@ def dispatch_call(state: ServerState, tool_name: str, arguments: dict[str, Any])
     )
 
     if request_id:
-        now_dt = datetime.now(UTC)
-        now = now_dt.isoformat()
-        # M5 security fix #2: a real TTL (previously `expires_at` was set
-        # equal to `created_at` -- already-expired the instant it was
-        # written -- and nothing ever purged rows anyway, so replay rows
-        # accumulated forever). `core/decay.py::purge_retention` (Dream
-        # phase 3) now actually deletes rows past `expires_at`.
-        expires_at = (now_dt + timedelta(seconds=state.cfg.idempotency_ttl_s)).isoformat()
-        state.conn.execute(
+        completed = state.conn.execute(
             """
-            INSERT INTO eph_idempotency (tool, request_id, args_sha256, response_json, created_at, expires_at)
-            VALUES (?,?,?,?,?,?)
+            UPDATE eph_idempotency
+            SET response_json = ?, state = 'completed'
+            WHERE tool = ? AND request_id = ? AND args_sha256 = ? AND state = 'pending'
             """,
-            (tool_name, request_id, args_hash, json.dumps(payload), now, expires_at),
+            (json.dumps(payload), tool_name, request_id, args_hash),
         )
+        if completed.rowcount != 1:
+            return _error_result(
+                BusyError(
+                    "idempotency reservation was lost before result persistence",
+                    hint="do not repeat the side effect; recover the reserved operation",
+                )
+            )
 
     logger.info("tool_call", tool=tool_name, risk=meta.risk)
 

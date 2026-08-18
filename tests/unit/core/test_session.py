@@ -5,7 +5,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from magicite.core import session as session_mod
+from magicite.errors import InvalidInputError
 
 
 def test_resolve_mints_a_fresh_uuid_when_omitted(cfg, db_conn) -> None:
@@ -169,3 +172,14 @@ def test_session_end_reports_an_already_queued_run_without_enqueuing_a_second(cf
     outcome = session_mod.session_end(cfg, db_conn, session_id=sid)
     assert outcome.dream_run_id == "c1"
     assert outcome.enqueued is False
+
+
+def test_ended_session_is_terminal(cfg, db_conn) -> None:
+    session_mod.resolve(cfg, db_conn, "terminal-session")
+    first = session_mod.session_end(cfg, db_conn, session_id="terminal-session")
+    second = session_mod.session_end(cfg, db_conn, session_id="terminal-session")
+
+    assert first.closed is True
+    assert second.closed is False
+    with pytest.raises(InvalidInputError):
+        session_mod.resolve(cfg, db_conn, "terminal-session")

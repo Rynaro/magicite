@@ -35,6 +35,10 @@ def test_data_dir_defaults_to_dot_magicite(tmp_path: Path) -> None:
     assert cfg.uses_legacy_layout is False
 
 
+def test_default_embedding_operation_is_offline(tmp_path: Path) -> None:
+    assert Config.load(tmp_path, env={}).embedding_offline is True
+
+
 def test_data_dir_ensure_dirs_creates_under_magicite(tmp_path: Path) -> None:
     """AC-M1: ``ensure_dirs()`` creates the tree in the new location, and
     creates nothing at all under the legacy one."""

@@ -20,6 +20,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from magicite.config import Config
 from magicite.embeddings import fastembed_provider as fe_mod
 
 
@@ -73,6 +74,10 @@ def test_first_embed_passes_offline_flag_as_local_files_only() -> None:
     )
     provider.embed("hi")
     assert calls[0]["local_files_only"] is True
+
+
+def test_default_is_offline(tmp_path) -> None:
+    assert Config.load(tmp_path, env={}).embedding_offline is True
 
 
 def test_offline_false_by_default() -> None:

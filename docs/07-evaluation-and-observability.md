@@ -356,7 +356,7 @@ S < 0.3:  nascent/failed (target: <10% of registry)
 | D2 (Local-first core, deployment profile) | 88% | Stdio/SQLite implementation; verify tool contracts are transport-agnostic | Implementation test |
 | D3 (Tier-0/1/2 signal fidelity) | 82% | Per-tier signal-yield measurement; Tier-0 works on hookless hosts | Eval + integration |
 | D4 (Analogy table verdicts) | 86% | Each ablation maps to a row; validate keep/kill/reframe decisions | Ablation suite |
-| Principle 0 (Never learn from hot path alone) | 90% | Ablation "no tag-capture"; verify two-phase commit stability | Ablation |
+| Principle 0 (Never learn from hot path alone) | unscored | Prior `no_tag_capture` result withdrawn; a query-conditioned replacement is required before assigning confidence | Replacement ablation |
 | Principle 1 (Retrieval is a write to ledger) | 87% | Verify R never changes on route(), only bookkeeping updated; S never changes on signal_use() | Unit test |
 
 ---

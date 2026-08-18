@@ -64,9 +64,9 @@
 #
 # ─────────────────────────────────────────────────────────────────────────
 
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim@sha256:2c941e860699f878900b0edc2403613c234d4b32eda3cc9fa7036991a2a63c4a AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.11.23@sha256:d0a0a753ab981624b49c97abc98821c1c09f4ca69d1ef5cee69c501be3d88479 /uv /usr/local/bin/uv
 
 WORKDIR /build
 COPY pyproject.toml uv.lock README.md ./
@@ -84,7 +84,7 @@ RUN uv export --frozen --no-dev --no-emit-project --format requirements-txt \
 
 # ─────────────────────────────────────────────────────────────────────────
 
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim@sha256:2c941e860699f878900b0edc2403613c234d4b32eda3cc9fa7036991a2a63c4a AS runtime
 
 LABEL org.opencontainers.image.title="magicite" \
       org.opencontainers.image.description="Local-first, plasticity-inspired skill router speaking MCP over stdio" \

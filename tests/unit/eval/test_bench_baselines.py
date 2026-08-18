@@ -46,6 +46,39 @@ def test_baseline_c_uses_graph_structure(cfg, db_conn, embedder) -> None:
     assert len(ranked) == 7
 
 
+def test_baseline_c_seed_parity(cfg, db_conn, embedder, monkeypatch) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    calls: list[int] = []
+    original = bench_mod.activation_mod.select_seed_cosines
+
+    def recording_select(node_ids, cosine, *, k):
+        calls.append(k)
+        return original(node_ids, cosine, k=k)
+
+    monkeypatch.setattr(bench_mod.activation_mod, "select_seed_cosines", recording_select)
+    from magicite.core import router as router_mod
+
+    router_mod.route(cfg, db_conn, embedder, query="rollback proton", k=3)
+    bench_mod._baseline_c_rank(cfg, db_conn, embedder, "rollback proton", k=3)
+    assert calls == [3, 3]
+
+
+def test_baseline_c_inhibition_parity(cfg, db_conn, embedder, monkeypatch) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    captured: list[list[tuple[str, str, float]]] = []
+    original = bench_mod.activation_mod.spread_activation
+
+    def recording_spread(node_ids, seeds, positive_edges, inhibition_edges, **kwargs):
+        captured.append(inhibition_edges)
+        return original(node_ids, seeds, positive_edges, inhibition_edges, **kwargs)
+
+    monkeypatch.setattr(bench_mod.activation_mod, "spread_activation", recording_spread)
+    bench_mod._baseline_c_rank(cfg, db_conn, embedder, "rollback proton")
+    assert captured
+    assert captured[0]
+    assert all(weight == cfg.declared_edge_strength for _, _, weight in captured[0])
+
+
 def test_baseline_d_is_the_real_route(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)

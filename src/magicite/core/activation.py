@@ -20,6 +20,23 @@ from dataclasses import dataclass, field
 import numpy as np
 
 
+def seed_count(k: int) -> int:
+    """Canonical production/evaluation seed-count rule."""
+    return min(max(5 * k, 25), 200)
+
+
+def select_seed_cosines(
+    node_ids: list[str], cosine: np.ndarray, *, k: int
+) -> dict[str, float]:
+    """Select seeds deterministically using the canonical count rule.
+
+    Node id is the tie-break rather than incidental SQLite row order, so the
+    same registry/query pair has one reproducible personalization vector.
+    """
+    order = sorted(range(len(node_ids)), key=lambda i: (-float(cosine[i]), node_ids[i]))
+    return {node_ids[i]: float(cosine[i]) for i in order[: seed_count(k)]}
+
+
 @dataclass(frozen=True)
 class SparseGraph:
     """A directed, row-normalized weighted graph over a fixed node universe.
@@ -168,6 +185,57 @@ def apply_inhibition(
         if a[j] > 0:
             out[i] = out[i] * (1 - s_eff_ji * inhib_gain)
     return out
+
+
+def spread_activation(
+    node_ids: list[str],
+    seed_cosines: dict[str, float],
+    positive_edges: list[tuple[str, str, float]],
+    inhibition_edges: list[tuple[str, str, float]],
+    *,
+    temperature: float,
+    restart: float,
+    max_iter: int,
+    tol: float,
+    inhib_gain: float,
+) -> np.ndarray:
+    """Shared production/baseline seed -> PPR -> inhibition primitive."""
+    graph = build_graph(node_ids, positive_edges)
+    return activate_graph(
+        node_ids,
+        seed_cosines,
+        graph,
+        inhibition_edges,
+        temperature=temperature,
+        restart=restart,
+        max_iter=max_iter,
+        tol=tol,
+        inhib_gain=inhib_gain,
+    )
+
+
+def activate_graph(
+    node_ids: list[str],
+    seed_cosines: dict[str, float],
+    graph: SparseGraph,
+    inhibition_edges: list[tuple[str, str, float]],
+    *,
+    temperature: float,
+    restart: float,
+    max_iter: int,
+    tol: float,
+    inhib_gain: float,
+) -> np.ndarray:
+    """Shared activation semantics when a normalized graph is prebuilt."""
+    personalization = softmax_personalization(
+        node_ids, seed_cosines, temperature=temperature
+    )
+    activation = personalized_pagerank(
+        graph, personalization, restart=restart, max_iter=max_iter, tol=tol
+    )
+    return apply_inhibition(
+        activation, node_ids, inhibition_edges, inhib_gain=inhib_gain
+    )
 
 
 def page_rank(

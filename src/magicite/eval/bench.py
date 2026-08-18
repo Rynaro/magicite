@@ -81,7 +81,7 @@ BASELINE_LABELS: dict[str, str] = {
 #: value, but a ``derived`` ``similar_to`` kNN edge's ``storage_strength``
 #: *is* its cosine similarity (not a Hebbian value), so it now carries
 #: that instead of one flat gain for every neighbour.
-_GRAPH_EDGE_TYPES: tuple[str, ...] = ("co_activation", "composes", "depends_on", "similar_to")
+_GRAPH_EDGE_TYPES: tuple[str, ...] = ("composes", "similar_to")
 
 #: Baseline (c)'s own fixed activation/similarity split (distinct from
 #: ``Config.w_activation``/``w_similarity`` -- those also blend retrieval
@@ -169,7 +169,14 @@ def _baseline_b_rank(conn: sqlite3.Connection, embedder: Embedder, query: str) -
     return [name for _, name in scored]
 
 
-def _baseline_c_rank(cfg: Config, conn: sqlite3.Connection, embedder: Embedder, query: str) -> list[str]:
+def _baseline_c_rank(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    embedder: Embedder,
+    query: str,
+    *,
+    k: int = 5,
+) -> list[str]:
     """Embedding + structural spreading activation, learned channel
     suppressed -- "static-weighted graph edges", no learned weights. See
     module docstring and :data:`_GRAPH_EDGE_TYPES`."""
@@ -184,10 +191,8 @@ def _baseline_c_rank(cfg: Config, conn: sqlite3.Connection, embedder: Embedder, 
         vec = np.frombuffer(r["vec"], dtype=np.float32)
         cosine[str(r["id"])] = float(np.dot(qvec, vec))
 
-    m = min(max(5 * len(node_ids), 25), 200)
-    seed_order = sorted(node_ids, key=lambda nid: cosine[nid], reverse=True)[:m]
-    seed_cos = {nid: cosine[nid] for nid in seed_order}
-    p = activation_mod.softmax_personalization(node_ids, seed_cos, temperature=cfg.temperature)
+    cosine_vector = np.array([cosine[nid] for nid in node_ids], dtype=np.float64)
+    seed_cos = activation_mod.select_seed_cosines(node_ids, cosine_vector, k=k)
 
     placeholders = ",".join("?" for _ in _GRAPH_EDGE_TYPES)
     edge_rows = conn.execute(
@@ -206,9 +211,31 @@ def _baseline_c_rank(cfg: Config, conn: sqlite3.Connection, embedder: Embedder, 
         )
         for r in edge_rows
     ]
-    graph = activation_mod.build_graph(node_ids, edges)
-    a = activation_mod.personalized_pagerank(
-        graph, p, restart=cfg.ppr_restart, max_iter=cfg.ppr_max_iter, tol=cfg.ppr_tol
+    inhibition_rows = conn.execute(
+        "SELECT src_id, dst_id, storage_strength, provenance FROM edge "
+        "WHERE type = 'inhibits' AND provenance = 'declared' "
+        "AND dangling = 0 AND dst_id IS NOT NULL"
+    ).fetchall()
+    inhibition_edges = [
+        (
+            str(r["src_id"]),
+            str(r["dst_id"]),
+            edge_weight_mod.effective_strength_no_learned(
+                float(r["storage_strength"]), r["provenance"], cfg.declared_edge_strength
+            ),
+        )
+        for r in inhibition_rows
+    ]
+    a = activation_mod.spread_activation(
+        node_ids,
+        seed_cos,
+        edges,
+        inhibition_edges,
+        temperature=cfg.temperature,
+        restart=cfg.ppr_restart,
+        max_iter=cfg.ppr_max_iter,
+        tol=cfg.ppr_tol,
+        inhib_gain=cfg.inhib_gain,
     )
     index = {nid: i for i, nid in enumerate(node_ids)}
     scored = [
@@ -291,7 +318,7 @@ def run_baseline(
         elif baseline == "b":
             ranked = _baseline_b_rank(conn, embedder, q.query)
         elif baseline == "c":
-            ranked = _baseline_c_rank(cfg, conn, embedder, q.query)
+            ranked = _baseline_c_rank(cfg, conn, embedder, q.query, k=k)
         else:  # "d": the real, unmodified route()
             route_outcome = router_mod.route(cfg, conn, embedder, query=q.query, k=k)
             ranked = [c.name for c in route_outcome.candidates]

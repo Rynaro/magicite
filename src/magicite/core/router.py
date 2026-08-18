@@ -46,9 +46,11 @@ fully self-contained on either):
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import lru_cache
 
 import numpy as np
 
@@ -58,11 +60,12 @@ from magicite.core import composition as composition_mod
 from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import session as session_mod
 from magicite.core.decay_math import effective_value
-from magicite.embeddings.base import Embedder
+from magicite.embeddings.base import Embedder, contraindication_model_name
 from magicite.engram.model import ROUTABLE_STATUSES
 from magicite.storage import ephemeral as ephemeral_mod
 
 INTENT_TRUNCATE = 200
+CONTRAINDICATION_VIEW_SCHEMA = "magicite-contraindication-view/1"
 
 #: spec §3.3 step 4: positive-weight edge types fed to the activation
 #: graph. ``inhibits`` is deliberately excluded -- it is applied as a
@@ -82,6 +85,7 @@ class Candidate:
     exposure_count: int
     body_ref: str
     signal_tier_0: bool = True
+    diagnostics: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -110,14 +114,16 @@ def _fetch_candidates(conn: sqlite3.Connection, model_name: str) -> list[sqlite3
     return conn.execute(
         f"""
         SELECT e.id, e.name, e.intent_does, e.intent_use_when, e.status, e.exposure_count,
-               e.path, e.excitability, x.vec, x.dim,
+               e.path, e.excitability, e.intent_not_when, e.identity_sha256,
+               x.vec, x.dim, nx.vec AS contraindication_vec,
                COALESCE(r.r, 0.0) AS retrieval_strength, r.r_decayed_at AS retrieval_decayed_at
         FROM engram e
         JOIN eph_embedding x ON x.engram_id = e.id AND x.model = ?
+        LEFT JOIN eph_embedding nx ON nx.engram_id = e.id AND nx.model = ?
         LEFT JOIN eph_retrieval r ON r.engram_id = e.id
         WHERE e.status IN ({placeholders}) AND e.verification_status = 'verified'
         """,
-        (model_name, *ROUTABLE_STATUSES),
+        (model_name, contraindication_model_name(model_name), *ROUTABLE_STATUSES),
     ).fetchall()
 
 
@@ -153,6 +159,90 @@ def _fetch_inhibition_edges(
         )
         for r in rows
     ]
+
+
+@lru_cache(maxsize=16)
+def _cached_route_index(
+    node_ids: tuple[str, ...],
+    activation_edges: tuple[tuple[str, str, float], ...],
+    structural_edges: tuple[tuple[str, str, float], ...],
+) -> tuple[activation_mod.SparseGraph, np.ndarray]:
+    """Reuse immutable graph normalization for an exact registry view."""
+    ids = list(node_ids)
+    graph = activation_mod.build_graph(ids, list(activation_edges))
+    hub_graph = activation_mod.build_graph(ids, list(structural_edges))
+    return graph, activation_mod.page_rank(hub_graph)
+
+
+def _contraindication_contributions(
+    conn: sqlite3.Connection,
+    embedder: Embedder,
+    query_vector: np.ndarray,
+    node_ids: list[str],
+    row_by_id: dict[str, sqlite3.Row],
+    *,
+    weight: float,
+) -> np.ndarray:
+    """Independent, monotonic negative-cue contribution for each node."""
+    if weight <= 0 or not node_ids:
+        return np.zeros(len(node_ids), dtype=np.float64)
+    out = np.zeros(len(node_ids), dtype=np.float64)
+    missing = [node_id for node_id in node_ids if row_by_id[node_id]["contraindication_vec"] is None]
+    trigger_rows = conn.execute(
+        "SELECT engram_id, ord, text FROM engram_trigger "
+        "WHERE polarity = 'negative' ORDER BY engram_id, ord"
+    ).fetchall()
+    triggers: dict[str, list[str]] = {}
+    for row in trigger_rows:
+        triggers.setdefault(str(row["engram_id"]), []).append(str(row["text"]))
+
+    texts: list[str] = []
+    active_indices: list[int] = []
+    for i, node_id in enumerate(node_ids):
+        cached = row_by_id[node_id]["contraindication_vec"]
+        if cached is not None:
+            similarity = float(np.dot(query_vector, np.frombuffer(cached, dtype=np.float32)))
+            out[i] = -weight * max(0.0, similarity)
+            continue
+        if node_id not in missing:
+            continue
+        not_when = row_by_id[node_id]["intent_not_when"]
+        negative = triggers.get(node_id, [])
+        if not_when is None and not negative:
+            continue
+        texts.append(
+            json.dumps(
+                {
+                    "schema": CONTRAINDICATION_VIEW_SCHEMA,
+                    "fields": ["intent.not_when", "triggers.negative"],
+                    "intent.not_when": not_when,
+                    "triggers.negative": negative,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
+        active_indices.append(i)
+
+    # Missing vectors occur for upgraded v0.2 databases that have not yet
+    # synced. Compute and persist the Tier-C cache lazily once.
+    if not texts:
+        return out
+    vectors = embedder.embed_batch(texts)
+    similarities = vectors @ query_vector
+    for index, vector, similarity in zip(active_indices, vectors, similarities, strict=True):
+        out[index] = -weight * max(0.0, float(similarity))
+        node_id = node_ids[index]
+        ephemeral_mod.upsert_embedding(
+            conn,
+            engram_id=node_id,
+            model_name=contraindication_model_name(embedder.model_name),
+            dim=embedder.dim,
+            vec=vector,
+            source_sha256=str(row_by_id[node_id]["identity_sha256"]),
+        )
+    return out
 
 
 def _apply_context_conditioning(
@@ -309,12 +399,7 @@ def route(
         excitability_list.append(float(row["excitability"]))
     cosine = np.array(cosine_list, dtype=np.float64)
 
-    m = min(max(5 * k, 25), 200)
-    seed_order = sorted(range(len(node_ids)), key=lambda i: cosine[i], reverse=True)[:m]
-    seed_cos = {node_ids[i]: cosine[i] for i in seed_order}
-
-    # step 3: p = softmax(cos_sim(seeds) / temperature)
-    p = activation_mod.softmax_personalization(node_ids, seed_cos, temperature=cfg.temperature)
+    seed_cos = activation_mod.select_seed_cosines(node_ids, cosine, k=k)
 
     # step 4: a = PPR(p, W, ...), W_ij = S_eff_ij * type_gain[type] (§3.3.1
     # call site 1: S_eff, NOT the raw storage_strength column -- a
@@ -332,17 +417,27 @@ def route(
         )
         for r in edge_rows
     ]
-    graph = activation_mod.build_graph(node_ids, activation_edges)
-    a = activation_mod.personalized_pagerank(
-        graph, p, restart=cfg.ppr_restart, max_iter=cfg.ppr_max_iter, tol=cfg.ppr_tol
+    inhibition_edges = _fetch_inhibition_edges(
+        conn, declared_edge_strength=cfg.declared_edge_strength
     )
 
-    # step 5: inhibition (§3.3.1 call site 2: S_eff directly, never x
-    # type_gain -- type_gain['inhibits']=0.0 by design)
-    a = activation_mod.apply_inhibition(
-        a,
+    structural_edges = [
+        (r["src_id"], r["dst_id"], cfg.type_gain.get(r["type"], 0.0))
+        for r in edge_rows
+        if cfg.type_gain.get(r["type"], 0.0) > 0
+    ]
+    graph, usage_pagerank = _cached_route_index(
+        tuple(node_ids), tuple(activation_edges), tuple(structural_edges)
+    )
+    a = activation_mod.activate_graph(
         node_ids,
-        _fetch_inhibition_edges(conn, declared_edge_strength=cfg.declared_edge_strength),
+        seed_cos,
+        graph,
+        inhibition_edges,
+        temperature=cfg.temperature,
+        restart=cfg.ppr_restart,
+        max_iter=cfg.ppr_max_iter,
+        tol=cfg.ppr_tol,
         inhib_gain=cfg.inhib_gain,
     )
 
@@ -354,6 +449,10 @@ def route(
         retrieval=np.array(retrieval_list, dtype=np.float64),
         excitability=np.array(excitability_list, dtype=np.float64),
     )
+    activation_contribution = cfg.w_activation * a
+    similarity_contribution = cfg.w_similarity * cosine
+    retrieval_contribution = cfg.w_retrieval * score_inputs.retrieval
+    excitability_contribution = cfg.w_excitability * score_inputs.excitability
     score = activation_mod.combine_scores(
         score_inputs,
         w_activation=cfg.w_activation,
@@ -363,21 +462,28 @@ def route(
     )
 
     # step 7: hub penalty (structural usage-PageRank proxy -- see module docstring)
-    structural_edges = [
-        (r["src_id"], r["dst_id"], cfg.type_gain.get(r["type"], 0.0))
-        for r in edge_rows
-        if cfg.type_gain.get(r["type"], 0.0) > 0
-    ]
-    hub_graph = activation_mod.build_graph(node_ids, structural_edges)
-    usage_pagerank = activation_mod.page_rank(hub_graph)
+    before_hub = score.copy()
     score = activation_mod.apply_hub_penalty(
         score, usage_pagerank, hub_penalty=cfg.hub_penalty, percentile=cfg.hub_penalty_percentile
     )
 
     # step 7b: context conditioning
+    hub_contribution = score - before_hub
+    before_context = score.copy()
     score, excluded_ids, unresolved_context = _apply_context_conditioning(
         conn, node_ids, id_by_name, score, context, context_gain=cfg.context_gain, pref_gain=cfg.pref_gain
     )
+    context_contribution = score - before_context
+
+    contraindication_contribution = _contraindication_contributions(
+        conn,
+        embedder,
+        qvec,
+        node_ids,
+        row_by_id,
+        weight=cfg.negative_cue_weight,
+    )
+    score = score + contraindication_contribution
 
     kept_ids = [nid for nid in node_ids if nid not in excluded_ids]
     scores_by_id = {nid: float(score[i]) for i, nid in enumerate(node_ids)}
@@ -404,8 +510,19 @@ def route(
             status=row_by_id[nid]["status"],
             exposure_count=row_by_id[nid]["exposure_count"],
             body_ref=row_by_id[nid]["path"],
+            diagnostics={
+                "activation": round(float(activation_contribution[row_index]), 6),
+                "similarity": round(float(similarity_contribution[row_index]), 6),
+                "retrieval": round(float(retrieval_contribution[row_index]), 6),
+                "excitability": round(float(excitability_contribution[row_index]), 6),
+                "hub": round(float(hub_contribution[row_index]), 6),
+                "context": round(float(context_contribution[row_index]), 6),
+                "contraindication": round(float(contraindication_contribution[row_index]), 6),
+                "final": round(float(score[row_index]), 6),
+            },
         )
         for i, nid in enumerate(top_ids)
+        for row_index in [node_ids.index(nid)]
     ]
 
     composition_plan: list[str] = []

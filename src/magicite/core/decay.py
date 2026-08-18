@@ -153,7 +153,9 @@ def purge_retention(conn, cfg: Config, *, now: str) -> RetentionStats:  # noqa: 
         (cutoff,),
     )
     candidates = conn.execute("DELETE FROM eph_candidate_edge WHERE last_updated < ?", (cutoff,))
-    idempotency = conn.execute("DELETE FROM eph_idempotency WHERE expires_at < ?", (now,))
+    idempotency = conn.execute(
+        "DELETE FROM eph_idempotency WHERE expires_at < ? AND state = 'completed'", (now,)
+    )
     return RetentionStats(
         events_deleted=events.rowcount,
         tags_deleted=tags.rowcount,

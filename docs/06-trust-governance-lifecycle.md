@@ -39,7 +39,7 @@ Magicite creates and modifies skill artifacts autonomously (sharpening, nucleati
 | `pending` | Ingested, not yet verified | Quarantine; exclude from routing until review |
 | `quarantined` | Explicit user flag (suspicious content, injection risk detected, failed lint) | Must be manually reviewed and approved before moving to pending |
 
-**Example:** An imported engram starts `origin=imported, status=pending` and must be explicitly approved by a human or automated verifier to move to `status=pending→verified`.
+**Example:** An imported engram starts `origin=imported`, `lifecycle_status=nascent`, and `verification_status=pending`; approval changes the verification dimension to `verified` without pretending `pending` is a lifecycle state.
 
 ---
 
@@ -228,7 +228,7 @@ nascent ───────→ probation ───→ consolidated ───�
    ```bash
    magicite register path=./import/ --format=egr
    ```
-   Ingests shared engrams as `origin=imported, status=pending, verification_status=pending` (quarantine). Requires explicit human review + approval before entering routing.
+   Ingests shared engrams as `origin=imported, lifecycle_status=nascent, verification_status=pending` (quarantine). Requires explicit human review + approval before entering routing.
 
 4. **Review workflow:**
    ```

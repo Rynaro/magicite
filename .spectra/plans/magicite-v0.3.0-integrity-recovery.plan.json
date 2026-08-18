@@ -1,0 +1,19 @@
+{
+  "schema": "junction-plan/v1",
+  "id": "magicite-v0.3.0-integrity-recovery",
+  "release_train": "0.3.0",
+  "candidate_version": "0.3.0rc1",
+  "strategy": "staged-integrity-first",
+  "checkpoints": [
+    "governance-containment",
+    "durable-state-recovery",
+    "routing-interface-parity",
+    "evaluation-repair",
+    "performance-index",
+    "documentation-release-rc"
+  ],
+  "acceptance_criteria_count": 46,
+  "audit_drift_count": 31,
+  "native_c": "no-go",
+  "merge_and_release": "human-governed"
+}

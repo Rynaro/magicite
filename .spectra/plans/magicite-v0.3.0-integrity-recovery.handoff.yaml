@@ -1,0 +1,22 @@
+schema: ramza-handoff/v1
+plan: magicite-v0.3.0-integrity-recovery
+release_train: 0.3.0
+candidate_version: 0.3.0rc1
+executor: vivi
+author: codex-root
+checker: critic-v030
+strategy: staged-integrity-first
+checkpoints:
+  - governance-containment
+  - durable-state-recovery
+  - routing-interface-parity
+  - evaluation-repair
+  - performance-index
+  - documentation-release-rc
+acceptance_criteria: magicite-v0.3.0-integrity-recovery.acceptance.md
+output_contract:
+  kind: candidate-diff
+  merge_policy: parent-integrates-verified-diffs
+  final_release: human-governed
+native_c: no-go
+

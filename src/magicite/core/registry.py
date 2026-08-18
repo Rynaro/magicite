@@ -25,6 +25,7 @@ honestly reports whichever :class:`~magicite.core.communities
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import uuid
@@ -39,7 +40,7 @@ from magicite.core import approvals as approvals_mod
 from magicite.core import communities as communities_mod
 from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import lifecycle as lifecycle_mod
-from magicite.embeddings.base import Embedder
+from magicite.embeddings.base import Embedder, contraindication_model_name
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
 from magicite.engram import parser as parser_mod
@@ -57,6 +58,15 @@ _EXPORT_STATUS_RANK: dict[str, int] = {"consolidated": 0, "promoted": 1}
 #: structure. ``inhibits`` is excluded -- it is an anti-affinity signal
 #: (spec §3.3 step 5), never a co-membership one.
 _COMMUNITY_EDGE_TYPES: tuple[str, ...] = ("co_activation", "composes", "depends_on", "similar_to")
+
+ROUTING_VIEW_SCHEMA = "magicite-routing-view/1"
+ROUTING_VIEW_FIELDS: tuple[str, ...] = (
+    "intent.does",
+    "intent.use_when",
+    "triggers.positive",
+    "procedure.text",
+)
+CONTRAINDICATION_VIEW_SCHEMA = "magicite-contraindication-view/1"
 
 #: [DECLARED-EDGES-AMENDED 2026-08-15] ``_COMMUNITY_WEIGHT_FLOOR = 0.1``
 #: used to live here (``max(S_edge, 0.1)``): a freshly-``declared``
@@ -76,18 +86,45 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def embeddable_text(engram: Engram) -> str:
-    """The text register()/sync() embed (docs/04: "embed triggers + procedure").
-
-    Extended with the routing intent fields, since those are the primary
-    routing signal per docs/04's Routing Block and their absence would
-    make the toy registry's lexical overlap far weaker than intended.
-    """
+def canonical_routing_view(engram: Engram) -> str:
+    """Canonical, versioned positive routing text embedded for an engram."""
     fm = engram.frontmatter
-    parts = [fm.intent.does, fm.intent.use_when]
-    parts.extend(fm.triggers.positive)
-    parts.extend(step.text for step in engram.body.procedure)
-    return " ".join(p for p in parts if p)
+    return json.dumps(
+        {
+            "schema": ROUTING_VIEW_SCHEMA,
+            "fields": list(ROUTING_VIEW_FIELDS),
+            "intent.does": fm.intent.does,
+            "intent.use_when": fm.intent.use_when,
+            "triggers.positive": list(fm.triggers.positive),
+            "procedure.text": [step.text for step in engram.body.procedure],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def canonical_contraindication_view(engram: Engram) -> str | None:
+    """Canonical negative routing text, kept separate from positive text."""
+    fm = engram.frontmatter
+    if fm.intent.not_when is None and not fm.triggers.negative:
+        return None
+    return json.dumps(
+        {
+            "schema": CONTRAINDICATION_VIEW_SCHEMA,
+            "fields": ["intent.not_when", "triggers.negative"],
+            "intent.not_when": fm.intent.not_when,
+            "triggers.negative": list(fm.triggers.negative),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def embeddable_text(engram: Engram) -> str:
+    """Compatibility alias for the canonical v1 positive routing view."""
+    return canonical_routing_view(engram)
 
 
 @dataclass
@@ -191,6 +228,21 @@ def embed_and_store(conn: sqlite3.Connection, embedder: Embedder, engram: Engram
         vec=vec,
         source_sha256=engram.body_sha256,
     )
+    contraindication_text = canonical_contraindication_view(engram)
+    negative_model = contraindication_model_name(embedder.model_name)
+    if contraindication_text is None:
+        ephemeral_mod.delete_embedding(
+            conn, engram_id=engram.id, model_name=negative_model
+        )
+    else:
+        ephemeral_mod.upsert_embedding(
+            conn,
+            engram_id=engram.id,
+            model_name=negative_model,
+            dim=embedder.dim,
+            vec=embedder.embed(contraindication_text),
+            source_sha256=identity_hash(engram),
+        )
     durable_mod.set_embedding_ref(
         conn, engram_id=engram.id, model_name=embedder.model_name, source_sha256=engram.body_sha256
     )
@@ -262,6 +314,7 @@ def _ingest_one(
 
     durable_mod.upsert_engram(conn, engram, identity_sha256=identity_hash(engram))
     durable_mod.wire_context_affinity(conn, engram)
+    durable_mod.reconcile_file_edges(conn, engram)
     dangling = durable_mod.wire_declared_edges(conn, engram)
     # spec §2.6 step 4, second half: upsert learned/declared-with-learned-
     # weight edges from the file's own `synapses:` block, provenance from
@@ -552,6 +605,7 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
                 parsed = parser_mod.parse_file(file_path, registry_root=project_root)
             except parser_mod.EngramParseError as exc:
                 outcome.validation_errors.append(ValidationError(path=relpath, message=str(exc)))
+                durable_mod.disable_projection_by_path(conn, relpath)
                 continue
 
             _entry, verr, _skipped, _dangling = _ingest_one(
@@ -563,6 +617,7 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
             )
             if verr:
                 outcome.validation_errors.append(verr)
+                durable_mod.disable_projection_by_path(conn, relpath)
 
         # M5 data-integrity fix: an archived engram's DB row legitimately
         # points at `.magicite/archive/...`, outside `registry_dir` -- this
