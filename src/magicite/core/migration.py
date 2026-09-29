@@ -19,6 +19,7 @@ import shutil
 import sqlite3
 import stat
 import tempfile
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -31,7 +32,7 @@ from magicite.engram.model import Engram
 from magicite.engram.parser import EngramParseError, load_artifact_file, parse_file
 from magicite.engram.transform import TransformDiagnostic, transform_0_2_to_1_0
 from magicite.engram.writer import write_engram_as
-from magicite.errors import InvalidInputError, NotFoundError
+from magicite.errors import BusyError, InvalidInputError, NotFoundError
 from magicite.storage import db as db_mod
 from magicite.storage import lease as lease_mod
 from magicite.storage import migration_ops as ops
@@ -180,7 +181,7 @@ def _fsync_dir(path: Path) -> None:
 
 
 def _mkdir_secure(path: Path, *, mode: int = 0o700) -> None:
-    """Create ``path`` (mode 0700) and fsync each parent that gained a new dirent."""
+    """Create ``path`` and any missing parents at ``mode``; fsync each new parent."""
     to_create: list[Path] = []
     cursor = path
     while not cursor.exists():
@@ -190,7 +191,10 @@ def _mkdir_secure(path: Path, *, mode: int = 0o700) -> None:
             break
         cursor = parent
     path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, mode)
+    # chmod every newly created intermediate (not just the leaf) so umask
+    # cannot leave world-readable 0755 parents in the tree.
+    for created in to_create:
+        os.chmod(created, mode)
     # Durability: fsync the parent of each newly created directory so the
     # directory entry itself survives a crash (macOS/Linux support dir fsync).
     for created in to_create:
@@ -282,6 +286,44 @@ def _constrained_under(root: Path, rel: str, *, label: str) -> Path:
     return resolved
 
 
+def _file_identity(path: Path) -> tuple[int, int, int] | None:
+    """Return ``(st_ino, st_size, st_mtime_ns)`` or ``None`` if missing."""
+    try:
+        st = path.stat()
+    except FileNotFoundError:
+        return None
+    return (st.st_ino, st.st_size, st.st_mtime_ns)
+
+
+def _clear_preview_copy_bundle(dest: Path) -> None:
+    for companion in (dest, Path(f"{dest}-wal"), Path(f"{dest}-shm")):
+        try:
+            companion.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _open_preview_uri(uri: str) -> sqlite3.Connection:
+    conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA query_only = ON")
+        row = conn.execute("PRAGMA quick_check").fetchone()
+        if row is None or str(row[0]) != "ok":
+            raise sqlite3.DatabaseError(
+                f"preview open quick_check failed: {row[0] if row else None!r}"
+            )
+        conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        db_mod.assert_schema_supported(conn)
+    except Exception:
+        conn.close()
+        raise
+    return conn
+
+
+_PREVIEW_WAL_COPY_ATTEMPTS = 5
+
+
 def _connect_preview_readonly(
     cfg: Config,
 ) -> tuple[sqlite3.Connection | None, int, bool, Path | None]:
@@ -289,7 +331,7 @@ def _connect_preview_readonly(
 
     Returns ``(conn_or_None, schema_version, owns_conn, temp_dir_or_None)``.
     When ``temp_dir_or_None`` is set, the caller must ``shutil.rmtree`` it after
-    closing the connection (private copy of db+wal+shm).
+    closing the connection (private copy of db+wal).
 
     Behaviour:
     * Missing/empty DB → ``(None, MAX_KNOWN_SCHEMA_VERSION, False, None)``.
@@ -297,40 +339,74 @@ def _connect_preview_readonly(
       not create ``-wal``/``-shm`` companions in the data dir.
     * Non-empty ``-wal`` (un-checkpointed frames) → ``immutable=1`` would ignore
       the WAL and return a stale snapshot. Instead, copy the database file plus
-      any ``-wal``/``-shm`` sidecars into a private temp directory and open that
-      copy with ``mode=ro``. The data directory is never written.
+      ``-wal`` (never ``-shm``; SQLite rebuilds it in the temp dir) via a
+      retry-until-stable identity check (inode/size/mtime_ns before and after),
+      validate with ``PRAGMA quick_check``, and open that copy with ``mode=ro``.
+      Concurrent checkpoint/write that never stabilizes fails closed with
+      :class:`BusyError`. The data directory is never written.
 
     Preview is best-effort without the writer lease.
     """
     if not cfg.db_path.is_file() or cfg.db_path.stat().st_size == 0:
         return None, MAX_KNOWN_SCHEMA_VERSION, False, None
 
-    wal_path = Path(f"{cfg.db_path}-wal")
-    use_wal_copy = wal_path.is_file() and wal_path.stat().st_size > 0
     temp_dir: Path | None = None
+    last_problem = "unstable"
     try:
-        if use_wal_copy:
-            temp_dir = Path(tempfile.mkdtemp(prefix="magicite-mig-preview-"))
-            dest = temp_dir / cfg.db_path.name
-            shutil.copy2(cfg.db_path, dest)
-            for suffix in ("-wal", "-shm"):
-                src = Path(f"{cfg.db_path}{suffix}")
-                if src.is_file():
-                    shutil.copy2(src, Path(f"{dest}{suffix}"))
-            uri = f"file:{dest.resolve().as_posix()}?mode=ro"
-        else:
-            # ``immutable=1`` prevents SQLite from creating -wal/-shm on open.
-            uri = f"file:{cfg.db_path.resolve().as_posix()}?mode=ro&immutable=1"
+        for attempt in range(_PREVIEW_WAL_COPY_ATTEMPTS):
+            wal_path = Path(f"{cfg.db_path}-wal")
+            use_wal_copy = wal_path.is_file() and wal_path.stat().st_size > 0
 
-        conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        try:
-            conn.execute("PRAGMA query_only = ON")
-            db_mod.assert_schema_supported(conn)
+            if not use_wal_copy:
+                if temp_dir is not None:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    temp_dir = None
+                uri = f"file:{cfg.db_path.resolve().as_posix()}?mode=ro&immutable=1"
+                conn = _open_preview_uri(uri)
+                return conn, db_mod.schema_version(conn), True, None
+
+            if temp_dir is None:
+                temp_dir = Path(tempfile.mkdtemp(prefix="magicite-mig-preview-"))
+            dest = temp_dir / cfg.db_path.name
+            _clear_preview_copy_bundle(dest)
+
+            before_db = _file_identity(cfg.db_path)
+            before_wal = _file_identity(wal_path)
+            if before_db is None:
+                last_problem = "db-missing"
+                time.sleep(0.01 * (attempt + 1))
+                continue
+
+            shutil.copy2(cfg.db_path, dest)
+            # Never copy -shm; SQLite recreates it beside the temp copy.
+            if wal_path.is_file() and wal_path.stat().st_size > 0:
+                shutil.copy2(wal_path, Path(f"{dest}-wal"))
+
+            after_db = _file_identity(cfg.db_path)
+            after_wal = _file_identity(wal_path)
+            if before_db != after_db or before_wal != after_wal:
+                last_problem = "unstable"
+                time.sleep(0.01 * (attempt + 1))
+                continue
+
+            try:
+                uri = f"file:{dest.resolve().as_posix()}?mode=ro"
+                conn = _open_preview_uri(uri)
+            except (sqlite3.Error, OSError) as exc:
+                last_problem = f"validate:{exc}"
+                time.sleep(0.01 * (attempt + 1))
+                continue
             return conn, db_mod.schema_version(conn), True, temp_dir
-        except Exception:
-            conn.close()
-            raise
+
+        raise BusyError(
+            "database is being written; stop the server or retry preview",
+            hint="checkpoint or stop writers, then retry migration preview",
+            details={
+                "attempts": _PREVIEW_WAL_COPY_ATTEMPTS,
+                "last_problem": last_problem,
+                "db_path": str(cfg.db_path),
+            },
+        )
     except Exception:
         if temp_dir is not None:
             shutil.rmtree(temp_dir, ignore_errors=True)
