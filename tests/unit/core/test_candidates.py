@@ -284,6 +284,34 @@ def test_fts5_query_escaping(query: str, expected_substr: str) -> None:
     assert built is not None
     assert expected_substr in built or built == expected_substr
     # Prefix star must survive outside the quotes.
-    if query.endswith("*") and not query.endswith('"'):
+    if query.rstrip("\x00").endswith("*") and query.strip() not in {"*", ""}:
         assert built.endswith("*")
         assert '"*"' not in built
+
+
+@pytest.mark.parametrize("query", ["*", "   *  ", "", "   ", "\x00", "**"])
+def test_fts5_operator_only_query_yields_no_match(query: str) -> None:
+    """Bare/empty/operator-only queries must not produce a MATCH expression."""
+    assert build_fts5_query(query) is None
+
+
+def test_sparse_bare_star_returns_no_candidates() -> None:
+    """Sparse path: bare ``*`` → no MATCH → empty candidate list (not ``\"\"*``)."""
+    proj = _projection(
+        engram_id="egr_eeeeeeee",
+        name="star-noise",
+        body_text="something searchable UNIQUE_STAR_BODY",
+    )
+    entries = {proj.engram_id: indexed_entry_from_projection(proj, dense_vec=np.ones(64, dtype=np.float32))}
+    index = RetrievalIndex.build_in_memory(
+        generation_id="gen_star",
+        snapshot_id="snap_star",
+        fingerprint=_fingerprint(64),
+        entries=entries,
+    )
+    try:
+        hits, trunc = sparse_candidates("*", index, limit=5, scan_budget=50)
+        assert hits == []
+        assert trunc == 0
+    finally:
+        index.close()

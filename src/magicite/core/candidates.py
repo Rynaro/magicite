@@ -186,17 +186,22 @@ def reciprocal_rank_fuse(
     return sorted(scores.items(), key=lambda item: (-item[1], item[0]))
 
 
-def escape_fts5_token(token: str) -> str:
-    """Quote a token for FTS5 MATCH; preserve trailing ``*`` prefix operator."""
+def escape_fts5_token(token: str) -> str | None:
+    """Quote a token for FTS5 MATCH; preserve trailing ``*`` prefix operator.
+
+    Returns ``None`` when the token has no searchable core (e.g. bare ``*``).
+    """
     if "\x00" in token:
         token = token.replace("\x00", "")
     if not token:
-        return '""'
-    prefix = token.endswith("*") and not token.endswith("\\*")
+        return None
+    prefix = token.endswith("*") and len(token) > 1
     core = token[:-1] if prefix else token
     # Strip wrapping quotes from a phrase token.
     if len(core) >= 2 and core[0] == '"' and core[-1] == '"':
         core = core[1:-1]
+    if not core:
+        return None
     cleaned = core.replace('"', '""')
     quoted = f'"{cleaned}"'
     return quoted + ("*" if prefix else "")
@@ -208,24 +213,35 @@ def fts5_query_tokens(query: str) -> list[str]:
         query = query.replace("\x00", " ")
     tokens: list[str] = []
     for match in _FTS_TOKEN_RE.finditer(query):
-        raw = match.group(0)
-        if raw.startswith('"'):
-            tokens.append(raw)
-        else:
-            tokens.append(raw)
+        tokens.append(match.group(0))
     return tokens
 
 
 def build_fts5_query(query: str) -> str | None:
-    """Build a safe FTS5 MATCH expression (operators/column filters quoted)."""
-    tokens = fts5_query_tokens(query)
+    """Build a safe FTS5 MATCH expression (operators/column filters quoted).
+
+    Empty queries and operator-only / bare-``*`` inputs return ``None`` so
+    sparse retrieval yields no candidates instead of an invalid MATCH.
+    """
+    cleaned = query.replace("\x00", " ").strip()
+    if not cleaned or cleaned == "*":
+        return None
+
+    tokens = fts5_query_tokens(cleaned)
     if not tokens:
-        raw = query.strip().replace("\x00", "")
-        if not raw:
-            return None
-        return escape_fts5_token(raw)
+        # Leftover punctuation / wildcards only — not a searchable query.
+        return None
+
+    parts: list[str] = []
+    for token in tokens:
+        escaped = escape_fts5_token(token)
+        if escaped is None:
+            continue
+        parts.append(escaped)
+    if not parts:
+        return None
     # Always quote so AND/OR/NOT/NEAR and col:term cannot act as syntax.
-    return " AND ".join(escape_fts5_token(t) for t in tokens)
+    return " AND ".join(parts)
 
 
 # Back-compat aliases used by older call sites / tests.
@@ -272,7 +288,14 @@ def sparse_candidates(
     eligible_ids: frozenset[str] | None = None,
     scan_budget: int = DEFAULT_SCAN_BUDGET,
 ) -> tuple[list[ComponentHit], int]:
-    """FTS5 BM25 with eligibility refill across the scan budget."""
+    """FTS5 BM25 with eligibility refill across the scan budget.
+
+    Paging uses ``LIMIT/OFFSET`` over BM25 order. Cost is acceptable while
+    ``scan_budget`` stays at the default (≤ ``DEFAULT_SCAN_BUDGET``): worst
+    case examines ``scan_budget`` rows with O(pages) queries. Raising the
+    budget beyond that default requires keyset/cursor paging before ship —
+    deep OFFSET on FTS5 is not free.
+    """
     if index.sparse_conn is None:
         raise FTS5UnavailableError("sparse index connection is not available")
     match = build_fts5_query(query)
