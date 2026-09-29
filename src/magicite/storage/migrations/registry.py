@@ -60,8 +60,8 @@ ALLOCATIONS: tuple[MigrationAllocation, ...] = (
         number=5,
         stem="bundle_trust",
         owner_slice="S04",
-        status="provisional",
-        purpose="Local trust/admission tables (provisional; finalize at S03 integration)",
+        status="shipped",
+        purpose="Local trust/admission cache tables (authoritative ledger is .magicite/trust/)",
     ),
     MigrationAllocation(
         number=6,
