@@ -18,6 +18,8 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+dist/
+build/
 
 # Magicite runtime state — the graph DB is a rebuildable index (CR-2).
 # Set MAGICITE_COMMIT_DB=1 and remove these lines to track it instead.
