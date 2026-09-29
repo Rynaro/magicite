@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import sqlite3
+import stat
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -25,7 +27,7 @@ from typing import Any, Literal, cast
 
 from magicite.config import Config
 from magicite.engram.model import Engram
-from magicite.engram.parser import EngramParseError, parse_artifact_file, parse_file
+from magicite.engram.parser import EngramParseError, load_artifact_file, parse_file
 from magicite.engram.transform import TransformDiagnostic, transform_0_2_to_1_0
 from magicite.engram.writer import write_engram_as
 from magicite.errors import InvalidInputError, NotFoundError
@@ -67,8 +69,9 @@ class ArtifactPlan:
 @dataclass(frozen=True, slots=True)
 class EligibilityDelta:
     engram_id: str
-    before_ok_for_composition: bool
-    after_ok_for_composition: bool
+    #: Always ``None`` until S06 wires live eligibility; do not treat as OK.
+    before_ok_for_composition: bool | None
+    after_ok_for_composition: bool | None
     reason_codes: tuple[str, ...]
 
 
@@ -83,6 +86,8 @@ class MigrationPreview:
     blocking_diagnostics: tuple[dict[str, Any], ...]
     preview_digest: str
     storage_schema_version: int
+    #: S06 owns live eligibility diffs; S03 only reports transform diagnostics.
+    eligibility_diff: Literal["unevaluated"] = "unevaluated"
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +162,153 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _fsync_file(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _fsync_dir(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _mkdir_secure(path: Path, *, mode: int = 0o700) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    os.chmod(path, mode)
+
+
+def _write_bytes_durable(path: Path, data: bytes, *, mode: int = 0o600) -> None:
+    _mkdir_secure(path.parent)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "wb") as fh:
+        fh.write(data)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+    os.chmod(path, mode)
+    _fsync_file(path)
+    _fsync_dir(path.parent)
+
+
+def _copy_file_durable(src: Path, dest: Path, *, mode: int = 0o600) -> dict[str, Any]:
+    """Copy ``src`` → ``dest``, fsync, and verify dest digest/size match source."""
+    _mkdir_secure(dest.parent)
+    source_sha = _sha256_file(src)
+    source_size = src.stat().st_size
+    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    with open(src, "rb") as rf, open(tmp, "wb") as wf:
+        shutil.copyfileobj(rf, wf, length=1024 * 1024)
+        wf.flush()
+        os.fsync(wf.fileno())
+    os.replace(tmp, dest)
+    os.chmod(dest, mode)
+    _fsync_file(dest)
+    _fsync_dir(dest.parent)
+    dest_sha = _sha256_file(dest)
+    dest_size = dest.stat().st_size
+    if dest_sha != source_sha or dest_size != source_size:
+        raise InvalidInputError(
+            f"backup copy integrity failure for {dest.name}",
+            details={
+                "source_sha256": source_sha,
+                "dest_sha256": dest_sha,
+                "source_size": source_size,
+                "dest_size": dest_size,
+            },
+        )
+    return {"sha256": dest_sha, "size": dest_size, "source_sha256": source_sha}
+
+
+def _is_symlink(path: Path) -> bool:
+    try:
+        return stat.S_ISLNK(os.lstat(path).st_mode)
+    except FileNotFoundError:
+        return False
+
+
+def _constrained_under(root: Path, rel: str, *, label: str) -> Path:
+    """Resolve ``rel`` under ``root``; reject absolute paths, ``..``, and escapes."""
+    if not isinstance(rel, str) or not rel:
+        raise InvalidInputError(f"{label} path must be a non-empty relative string")
+    candidate = Path(rel)
+    if candidate.is_absolute():
+        raise InvalidInputError(
+            f"{label} path must be relative, got absolute {rel!r}",
+            details={"path": rel},
+        )
+    if any(part == ".." for part in candidate.parts):
+        raise InvalidInputError(
+            f"{label} path escapes root via '..': {rel!r}",
+            details={"path": rel},
+        )
+    root_resolved = root.resolve()
+    joined = root_resolved.joinpath(*candidate.parts)
+    cursor = root_resolved
+    for part in candidate.parts:
+        cursor = cursor / part
+        if _is_symlink(cursor):
+            raise InvalidInputError(
+                f"{label} path contains a symlink: {rel!r}",
+                details={"path": rel, "symlink": str(cursor)},
+            )
+    resolved = joined.resolve()
+    try:
+        resolved.relative_to(root_resolved)
+    except ValueError as exc:
+        raise InvalidInputError(
+            f"{label} path escapes backup/data root: {rel!r}",
+            details={"path": rel, "resolved": str(resolved), "root": str(root_resolved)},
+        ) from exc
+    return resolved
+
+
+def _connect_preview_readonly(cfg: Config) -> tuple[sqlite3.Connection | None, int, bool]:
+    """Open an existing DB read-only for preview (no WAL/SHM creation).
+
+    Returns ``(conn_or_None, schema_version, owns_conn)``.
+    Preview is best-effort without the writer lease.
+    """
+    if not cfg.db_path.is_file() or cfg.db_path.stat().st_size == 0:
+        return None, MAX_KNOWN_SCHEMA_VERSION, False
+    # ``immutable=1`` prevents SQLite from creating -wal/-shm companions on open.
+    uri = f"file:{cfg.db_path.resolve().as_posix()}?mode=ro&immutable=1"
+    conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA query_only = ON")
+        db_mod.assert_schema_supported(conn)
+        return conn, db_mod.schema_version(conn), True
+    except Exception:
+        conn.close()
+        raise
+
+
+def _durable_journal_append(path: Path, line: dict[str, Any]) -> None:
+    _mkdir_secure(path.parent)
+    payload = json.dumps(line, sort_keys=True, separators=(",", ":")) + "\n"
+    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
+    fd = os.open(path, flags, 0o600)
+    try:
+        os.write(fd, payload.encode("utf-8"))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.chmod(path, 0o600)
+    _fsync_dir(path.parent)
+
+
+def _with_full_sync(conn: sqlite3.Connection) -> None:
+    """Bump durability for journal step commits (C8 crash safety)."""
+    conn.execute("PRAGMA synchronous = FULL")
+    conn.execute("PRAGMA wal_checkpoint(FULL)")
+
+
 def _canonical_json(payload: Any) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
@@ -205,7 +357,9 @@ def _revision_map(cfg: Config, conn: sqlite3.Connection | None = None) -> dict[s
             mapping[str(row["name"])] = int(row["version"])
     for path in _scan_registry_files(cfg):
         try:
-            artifact, _doc = parse_artifact_file(path, registry_root=cfg.project_root)
+            artifact, _doc = load_artifact_file(
+                path, registry_root=cfg.project_root, require_asset_files=False
+            )
         except EngramParseError:
             continue
         if isinstance(artifact, Engram):
@@ -226,7 +380,7 @@ def _build_artifact_plan(
     revision_map: dict[str, int],
     target_format: str,
 ) -> ArtifactPlan:
-    artifact, _doc = parse_artifact_file(path, registry_root=cfg.project_root)
+    artifact, _doc = load_artifact_file(path, registry_root=cfg.project_root, require_asset_files=False)
     relpath = path.relative_to(cfg.project_root).as_posix()
     source_sha = _sha256_file(path)
 
@@ -274,21 +428,26 @@ def preview(
     *,
     target_format: str = "engram/1.0",
 ) -> MigrationPreview:
-    """Dry-run migration plan. Guaranteed zero durable writes (AC-S03-01)."""
+    """Dry-run migration plan. Guaranteed zero durable writes (AC-S03-01).
+
+    Preview is best-effort without the writer lease. When ``conn`` is omitted
+    and a DB already exists, it is opened read-only (``mode=ro``) so no
+    ``-wal``/``-shm`` sidecars are created.
+    """
     if target_format not in SUPPORTED_TARGET_ENGRAM_FORMATS:
         raise InvalidInputError(
             f"unsupported target format {target_format!r}",
             details={"supported": sorted(SUPPORTED_TARGET_ENGRAM_FORMATS)},
         )
 
-    own_conn = conn is None
-    if own_conn:
+    own_conn = False
+    if conn is None:
         cfg.ensure_dirs()
-        conn = db_mod.connect(cfg.db_path, migrate=True)
-    assert conn is not None
-    try:
+        conn, schema_ver, own_conn = _connect_preview_readonly(cfg)
+    else:
         db_mod.assert_schema_supported(conn)
         schema_ver = db_mod.schema_version(conn)
+    try:
         # Capture digests *before* any incidental filesystem touches.
         digests_before = _input_digests(cfg)
         revision_map = _revision_map(cfg, conn)
@@ -304,13 +463,12 @@ def preview(
             if plan.source_format == target_format:
                 continue
             codes = tuple(sorted({d.code for d in plan.diagnostics}))
-            before_ok = True  # 0.2 artifacts were already admitted
-            after_ok = plan.ok_for_composition
+            # Live eligibility is S06; S03 only surfaces transform diagnostics.
             eligibility.append(
                 EligibilityDelta(
                     engram_id=plan.engram_id,
-                    before_ok_for_composition=before_ok,
-                    after_ok_for_composition=after_ok,
+                    before_ok_for_composition=None,
+                    after_ok_for_composition=None,
                     reason_codes=codes,
                 )
             )
@@ -330,6 +488,7 @@ def preview(
             "source_format": "engram/0.2",
             "target_format": target_format,
             "input_digests": digests_before,
+            "eligibility_diff": "unevaluated",
             "artifacts": [
                 {
                     "relpath": p.relpath,
@@ -354,13 +513,14 @@ def preview(
             blocking_diagnostics=tuple(blocking),
             preview_digest=_digest_payload(preview_body),
             storage_schema_version=schema_ver,
+            eligibility_diff="unevaluated",
         )
         digests_after = _input_digests(cfg)
         if digests_after != digests_before:
             raise RuntimeError("migration preview mutated durable bytes (invariant violation)")
         return result
     finally:
-        if own_conn:
+        if own_conn and conn is not None:
             conn.close()
 
 
@@ -420,29 +580,37 @@ def _write_backup_manifest(
     }
     manifest_path = _operation_dir(cfg, operation_id) / "manifest.json"
     payload = _canonical_json(manifest)
-    manifest_path.write_bytes(payload)
+    _write_bytes_durable(manifest_path, payload)
     return manifest_path, hashlib.sha256(payload).hexdigest()
 
 
-def _copy_authoritative_backup(cfg: Config, operation_id: str) -> list[dict[str, Any]]:
+def _copy_authoritative_backup(
+    cfg: Config,
+    operation_id: str,
+    *,
+    fault_hook: FaultHook | None = None,
+) -> list[dict[str, Any]]:
+    """Build a durable backup tree. Safe to rebuild until STEP_BACKUP commits."""
     backup_root = _backup_dir(cfg, operation_id)
     if backup_root.exists():
         shutil.rmtree(backup_root)
-    backup_root.mkdir(parents=True)
+    _mkdir_secure(backup_root)
+    _mkdir_secure(_operation_dir(cfg, operation_id))
 
     entries: list[dict[str, Any]] = []
 
     def _copy_file(src: Path, dest_rel: str) -> None:
         dest = backup_root / dest_rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
+        meta = _copy_file_durable(src, dest)
         entries.append(
             {
                 "path": dest_rel,
-                "sha256": _sha256_file(dest),
-                "size": dest.stat().st_size,
+                "sha256": meta["sha256"],
+                "size": meta["size"],
+                "source_sha256": meta["source_sha256"],
             }
         )
+        _invoke_fault(fault_hook, f"boundary:backup_file:{dest_rel}")
 
     for path in _scan_registry_files(cfg):
         _copy_file(path, f"engrams/{path.name}")
@@ -453,7 +621,7 @@ def _copy_authoritative_backup(cfg: Config, operation_id: str) -> list[dict[str,
 
     if cfg.archive_dir.is_dir():
         for path in sorted(cfg.archive_dir.rglob("*")):
-            if path.is_file():
+            if path.is_file() and not _is_symlink(path):
                 rel = path.relative_to(cfg.archive_dir).as_posix()
                 _copy_file(path, f"archive/{rel}")
 
@@ -466,6 +634,7 @@ def _copy_authoritative_backup(cfg: Config, operation_id: str) -> list[dict[str,
             conn.close()
         _copy_file(cfg.db_path, "skill-graph.db")
 
+    _invoke_fault(fault_hook, "boundary:backup_files_copied")
     return entries
 
 
@@ -480,24 +649,25 @@ def _commit_step(
     detail: dict[str, Any] | None = None,
     boundary: str | None = None,
 ) -> None:
+    _with_full_sync(ctx.conn)
     ops.record_journal_step(
         ctx.conn,
         operation_id=ctx.operation_id,
         step_key=step_key,
         detail=detail,
     )
+    _with_full_sync(ctx.conn)
     # Append-only file journal for forensics (retained even on restore).
     journal_path = _operation_dir(ctx.cfg, ctx.operation_id) / "journal.jsonl"
-    journal_path.parent.mkdir(parents=True, exist_ok=True)
-    line = {
-        "ts": _now(),
-        "operation_id": ctx.operation_id,
-        "step_key": step_key,
-        "detail": detail or {},
-    }
-    with journal_path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(line, sort_keys=True, separators=(",", ":")) + "\n")
-        fh.flush()
+    _durable_journal_append(
+        journal_path,
+        {
+            "ts": _now(),
+            "operation_id": ctx.operation_id,
+            "step_key": step_key,
+            "detail": detail or {},
+        },
+    )
     ctx.steps_done.append(step_key)
     _invoke_fault(ctx.fault_hook, boundary or f"step:{step_key}")
 
@@ -508,8 +678,8 @@ def _ensure_backup(ctx: _ApplyContext) -> str:
         assert row is not None and row["backup_relpath"]
         return str(row["backup_relpath"])
 
-    entries = _copy_authoritative_backup(ctx.cfg, ctx.operation_id)
-    _invoke_fault(ctx.fault_hook, "boundary:backup_files_copied")
+    # Rebuild from scratch until STEP_BACKUP is committed (partial-backup resume).
+    entries = _copy_authoritative_backup(ctx.cfg, ctx.operation_id, fault_hook=ctx.fault_hook)
     _manifest_path, manifest_digest = _write_backup_manifest(
         ctx.cfg, ctx.operation_id, preview=ctx.preview, file_entries=entries
     )
@@ -546,10 +716,16 @@ def _migrate_artifacts(ctx: _ApplyContext) -> None:
             continue
         path = ctx.cfg.project_root / plan.relpath
         if plan.source_format == ctx.preview.target_format:
+            # Already target format (or resume after precommit write before journal).
             _commit_step(
                 ctx,
                 step_key,
-                detail={"skipped": True, "reason": "already_target_format"},
+                detail={
+                    "engram_id": plan.engram_id,
+                    "source_sha256": plan.source_sha256,
+                    "target_sha256": _sha256_file(path),
+                    "already_target_format": True,
+                },
                 boundary=f"boundary:file:{plan.relpath}",
             )
             continue
@@ -561,6 +737,8 @@ def _migrate_artifacts(ctx: _ApplyContext) -> None:
             target_format="engram/1.0",
             revision_map=revision_map,
         )
+        # True commit-boundary fault: bytes on disk, journal step not yet durable.
+        _invoke_fault(ctx.fault_hook, f"precommit:file:{plan.relpath}")
         _commit_step(
             ctx,
             step_key,
@@ -576,22 +754,31 @@ def _migrate_artifacts(ctx: _ApplyContext) -> None:
 def _update_db_mirrors(ctx: _ApplyContext) -> None:
     if _step_done(ctx, STEP_DB_MIRROR):
         return
-    for plan in ctx.preview.artifact_plans:
-        if plan.source_format == ctx.preview.target_format:
-            continue
-        path = ctx.cfg.project_root / plan.relpath
-        artifact, _doc = parse_artifact_file(path, registry_root=ctx.cfg.project_root)
+    # Always refresh from on-disk artifacts so resume after a mid-loop fault
+    # still converges (preview may already report target_format for rewritten files).
+    for path in _scan_registry_files(ctx.cfg):
+        artifact, _doc = load_artifact_file(
+            path, registry_root=ctx.cfg.project_root, require_asset_files=False
+        )
+        if isinstance(artifact, Engram):
+            engram_id = artifact.frontmatter.id
+            spec: str = artifact.frontmatter.spec
+            body_sha = artifact.body_sha256
+        else:
+            engram_id = artifact.frontmatter.id
+            spec = str(artifact.frontmatter.spec)
+            body_sha = artifact.body_sha256
         content_sha = hashlib.sha256(path.read_bytes()).hexdigest()
-        body_sha = artifact.body_sha256 or content_sha
         ops.update_engram_format_mirror(
             ctx.conn,
-            engram_id=plan.engram_id,
-            spec_version=ctx.preview.target_format,
+            engram_id=engram_id,
+            spec_version=spec,
             content_sha256=content_sha,
-            body_sha256=body_sha,
+            body_sha256=body_sha or content_sha,
             file_mtime_ns=path.stat().st_mtime_ns,
-            path=plan.relpath,
+            path=path.relative_to(ctx.cfg.project_root).as_posix(),
         )
+        _invoke_fault(ctx.fault_hook, f"boundary:db_mirror:{engram_id}")
     _commit_step(ctx, STEP_DB_MIRROR, boundary="boundary:db_mirror_committed")
 
 
@@ -794,9 +981,16 @@ def _load_manifest(manifest_path: Path) -> dict[str, Any]:
 
 
 def _verify_backup_files(backup_root: Path, manifest: dict[str, Any]) -> None:
+    """Validate every manifest entry BEFORE any restore I/O into the live tree."""
+    root = backup_root.resolve()
     for entry in manifest.get("files", []):
         rel = entry["path"]
-        path = backup_root / rel
+        path = _constrained_under(root, rel, label="backup manifest")
+        if _is_symlink(path):
+            raise InvalidInputError(
+                f"backup entry is a symlink: {rel!r}",
+                details={"path": rel},
+            )
         if not path.is_file():
             raise InvalidInputError(f"backup missing file {rel!r}")
         digest = _sha256_file(path)
@@ -832,32 +1026,58 @@ def _resolve_backup_paths(backup_path: str | Path) -> tuple[Path, Path]:
         return root / "backup", root / "manifest.json"
 
     if (root / "manifest.json").is_file():
-        # Manifest living inside the backup tree itself.
         return root, root / "manifest.json"
 
     raise InvalidInputError(f"no manifest.json adjacent to backup at {backup_path}")
 
 
-def _restore_tree(src: Path, dest: Path, *, clear_glob: str | None = None) -> None:
-    dest.mkdir(parents=True, exist_ok=True)
+def _restore_tree(
+    src: Path,
+    dest: Path,
+    *,
+    data_root: Path,
+    clear_glob: str | None = None,
+) -> None:
+    """Copy ``src`` → ``dest``, constraining every path under ``data_root``."""
+    dest_resolved = dest.resolve()
+    data_resolved = data_root.resolve()
+    try:
+        dest_resolved.relative_to(data_resolved)
+    except ValueError as exc:
+        raise InvalidInputError(
+            f"restore destination escapes data_dir: {dest}",
+            details={"dest": str(dest), "data_dir": str(data_root)},
+        ) from exc
+
+    _mkdir_secure(dest)
     if clear_glob is not None:
         for stale in dest.glob(clear_glob):
-            if stale.is_file():
+            if stale.is_file() and not _is_symlink(stale):
                 stale.unlink()
     elif dest.exists():
         for child in dest.iterdir():
+            if _is_symlink(child):
+                raise InvalidInputError(f"refusing to clear symlink in restore dest: {child}")
             if child.is_file():
                 child.unlink()
             elif child.is_dir():
                 shutil.rmtree(child)
     if not src.is_dir():
         return
+    src_root = src.resolve()
     for path in src.rglob("*"):
-        if path.is_file():
-            rel = path.relative_to(src)
-            target = dest / rel
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, target)
+        if _is_symlink(path):
+            raise InvalidInputError(
+                f"backup tree contains symlink: {path}",
+                details={"path": str(path)},
+            )
+        if not path.is_file():
+            continue
+        rel = path.relative_to(src_root).as_posix()
+        _constrained_under(src_root, rel, label="backup tree")
+        target = _constrained_under(dest_resolved, rel, label="restore target")
+        _mkdir_secure(target.parent)
+        _copy_file_durable(path, target)
 
 
 def restore(
@@ -909,24 +1129,38 @@ def restore(
             )
             _invoke_fault(fault_hook, "boundary:restore_begin")
 
-            _restore_tree(backup_root / "engrams", cfg.registry_dir, clear_glob="*.egr.md")
+            _restore_tree(
+                backup_root / "engrams",
+                cfg.registry_dir,
+                data_root=cfg.data_dir,
+                clear_glob="*.egr.md",
+            )
             _invoke_fault(fault_hook, "boundary:restore_tree:engrams")
-            _restore_tree(backup_root / "approvals", cfg.approvals_dir)
+            _restore_tree(backup_root / "approvals", cfg.approvals_dir, data_root=cfg.data_dir)
             _invoke_fault(fault_hook, "boundary:restore_tree:approvals")
-            _restore_tree(backup_root / "archive", cfg.archive_dir)
+            _restore_tree(backup_root / "archive", cfg.archive_dir, data_root=cfg.data_dir)
             _invoke_fault(fault_hook, "boundary:restore_tree:archive")
 
             # Refresh rebuildable mirrors from restored authoritative files.
             for path in _scan_registry_files(cfg):
-                parsed = parse_file(path, registry_root=cfg.project_root)
-                fm = parsed.engram.frontmatter
+                artifact, _doc = load_artifact_file(
+                    path, registry_root=cfg.project_root, require_asset_files=False
+                )
+                if isinstance(artifact, Engram):
+                    fm_id = artifact.frontmatter.id
+                    spec: str = artifact.frontmatter.spec
+                    body_sha = artifact.body_sha256
+                else:
+                    fm_id = artifact.frontmatter.id
+                    spec = str(artifact.frontmatter.spec)
+                    body_sha = artifact.body_sha256
                 content_sha = hashlib.sha256(path.read_bytes()).hexdigest()
                 ops.update_engram_format_mirror(
                     conn,
-                    engram_id=fm.id,
-                    spec_version=fm.spec,
+                    engram_id=fm_id,
+                    spec_version=spec,
                     content_sha256=content_sha,
-                    body_sha256=parsed.engram.body_sha256 or content_sha,
+                    body_sha256=body_sha or content_sha,
                     file_mtime_ns=path.stat().st_mtime_ns,
                     path=path.relative_to(cfg.project_root).as_posix(),
                 )
@@ -992,6 +1226,7 @@ def preview_as_dict(preview_result: MigrationPreview) -> dict[str, Any]:
         "target_format": preview_result.target_format,
         "preview_digest": preview_result.preview_digest,
         "storage_schema_version": preview_result.storage_schema_version,
+        "eligibility_diff": preview_result.eligibility_diff,
         "input_digests": preview_result.input_digests,
         "artifact_plans": [
             {
