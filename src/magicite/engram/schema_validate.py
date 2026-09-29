@@ -1,4 +1,13 @@
-"""JSON-Schema and semantic validation for Engram frontmatter (0.2 / 1.0)."""
+"""JSON-Schema and semantic validation for Engram frontmatter (0.2 / 1.0).
+
+Parse vs admit
+--------------
+Structural parse (``parser.parse_artifact(..., admit=False)``) only builds
+typed models. Admission (``load_artifact`` / ``parse_artifact(..., admit=True)``)
+runs this module: JSON Schema, version-constraint grammar, unknown required
+extensions, asset path containment, and ``routing.body_digest`` match.
+Invalid caret ranges (``^1.2.3``) therefore parse structurally but fail admit.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +20,8 @@ from typing import Any, Literal
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 
+from magicite.engram.assets import validate_assets
+from magicite.engram.digests import routing_body_digest
 from magicite.engram.model_v1 import (
     KNOWN_EXTENSIONS,
     Compatibility,
@@ -46,11 +57,19 @@ def load_schema(spec: SpecName) -> dict[str, Any]:
         return json.load(fh)
 
 
+def clear_schema_cache() -> None:
+    """Test helper after schema file edits in-process."""
+    load_schema.cache_clear()
+
+
 def validate_frontmatter_dict(
     data: dict[str, Any],
     *,
     spec: SpecName | None = None,
     known_extensions: frozenset[str] | None = None,
+    registry_root: Path | None = None,
+    body_text: str | None = None,
+    require_asset_files: bool = False,
 ) -> SchemaValidationResult:
     """Validate a frontmatter mapping against JSON Schema + C1 semantics."""
     errors: list[str] = []
@@ -72,8 +91,18 @@ def validate_frontmatter_dict(
         path = ".".join(str(p) for p in err.absolute_path) or "<root>"
         errors.append(f"{path}: {err.message}")
 
-    if resolved_spec == "engram/1.0" and not errors:
-        errors.extend(_semantic_v1_errors(data, known_extensions=known_extensions))
+    if resolved_spec == "engram/1.0":
+        # Always run semantic gates (asset paths, constraints) even when JSON
+        # Schema already failed — fail closed with full diagnostics.
+        errors.extend(
+            _semantic_v1_errors(
+                data,
+                known_extensions=known_extensions,
+                registry_root=registry_root,
+                body_text=body_text,
+                require_asset_files=require_asset_files,
+            )
+        )
 
     return SchemaValidationResult(ok=not errors, errors=errors)
 
@@ -82,12 +111,20 @@ def validate_frontmatter_v1(
     frontmatter: EngramFrontmatterV1,
     *,
     known_extensions: frozenset[str] | None = None,
+    registry_root: Path | None = None,
+    body_text: str | None = None,
+    require_asset_files: bool = False,
 ) -> SchemaValidationResult:
     """Validate a typed 1.0 model (schema round-trip + semantic gates)."""
     data = frontmatter.model_dump(mode="json", exclude_none=False)
-    # Drop nulls that JSON Schema optional objects treat as absent-friendly,
-    # but keep structure for required fields.
-    return validate_frontmatter_dict(data, spec="engram/1.0", known_extensions=known_extensions)
+    return validate_frontmatter_dict(
+        data,
+        spec="engram/1.0",
+        known_extensions=known_extensions,
+        registry_root=registry_root,
+        body_text=body_text,
+        require_asset_files=require_asset_files,
+    )
 
 
 def assert_valid_frontmatter(
@@ -95,8 +132,18 @@ def assert_valid_frontmatter(
     *,
     spec: SpecName | None = None,
     known_extensions: frozenset[str] | None = None,
+    registry_root: Path | None = None,
+    body_text: str | None = None,
+    require_asset_files: bool = False,
 ) -> None:
-    result = validate_frontmatter_dict(data, spec=spec, known_extensions=known_extensions)
+    result = validate_frontmatter_dict(
+        data,
+        spec=spec,
+        known_extensions=known_extensions,
+        registry_root=registry_root,
+        body_text=body_text,
+        require_asset_files=require_asset_files,
+    )
     if not result.ok:
         raise EngramSchemaError("; ".join(result.errors))
 
@@ -105,6 +152,9 @@ def _semantic_v1_errors(
     data: dict[str, Any],
     *,
     known_extensions: frozenset[str] | None,
+    registry_root: Path | None,
+    body_text: str | None,
+    require_asset_files: bool,
 ) -> list[str]:
     errors: list[str] = []
     known = KNOWN_EXTENSIONS if known_extensions is None else known_extensions
@@ -118,14 +168,12 @@ def _semantic_v1_errors(
             if value.get("required") is True and key not in known:
                 errors.append(f"extensions.{key}: unknown required extension rejected (fail closed)")
 
-    # Walk every VersionConstraint-shaped object.
     for label, constraint in _iter_version_constraints(data):
         try:
             validate_version_constraint(VersionConstraint.model_validate(constraint))
-        except (VersionConstraintError, Exception) as exc:  # noqa: BLE001 — surface as schema error
+        except (VersionConstraintError, Exception) as exc:  # noqa: BLE001
             errors.append(f"{label}: {exc}")
 
-    # Produced capabilities must be artifact-kind (schema const, but double-check).
     caps = data.get("capabilities") or {}
     if isinstance(caps, dict):
         for i, prod in enumerate(caps.get("produces") or []):
@@ -137,12 +185,31 @@ def _semantic_v1_errors(
             if isinstance(req, dict) and "kind" not in req:
                 errors.append(f"capabilities.requires[{i}].kind: missing kind is invalid")
 
-    # Optional: re-validate Compatibility via pydantic for key normalization certainty.
     if data.get("compatibility") is not None:
         try:
             Compatibility.model_validate(data["compatibility"])
         except Exception as exc:  # noqa: BLE001
             errors.append(f"compatibility: {exc}")
+
+    assets = data.get("assets") or {}
+    if isinstance(assets, dict) and assets:
+        for issue in validate_assets(
+            assets,
+            registry_root=registry_root,
+            require_files=require_asset_files and registry_root is not None,
+        ):
+            errors.append(f"assets.{issue.path}: {issue.reason}")
+
+    if body_text is not None:
+        routing = data.get("routing") or {}
+        declared = routing.get("body_digest") if isinstance(routing, dict) else None
+        if isinstance(declared, str):
+            expected = routing_body_digest(body_text)
+            if declared != expected:
+                errors.append(
+                    f"routing.body_digest: mismatch (declared {declared}, "
+                    f"expected {expected} from LF-normalized body)"
+                )
 
     return errors
 
@@ -175,5 +242,4 @@ def schema_path(spec: SpecName) -> Path:
     return _SCHEMA_DIR / name
 
 
-# Re-export for callers that catch jsonschema errors directly.
 JsonSchemaValidationError = JsonSchemaValidationError

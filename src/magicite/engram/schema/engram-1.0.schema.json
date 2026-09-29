@@ -136,7 +136,7 @@
         "body_digest": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$",
-          "description": "SHA-256 of UTF-8 body bytes (LF-normalized path separators only; no destructive prose rewrite)."
+          "description": "Normative routing.body_digest (engram/1.0): hex SHA-256 of UTF-8 bytes of the Markdown body after the closing frontmatter fence, with newlines normalized to LF (CRLF/CR → LF). No Unicode NFC, no trimming, no path rewriting, no prose rewrite. Distinct from 0.2 ids.body_sha256, which hashes raw body_text UTF-8 bytes without newline normalization. Computed by magicite.engram.digests.routing_body_digest."
         }
       }
     },
@@ -176,7 +176,8 @@
       "propertyNames": {
         "type": "string",
         "minLength": 1,
-        "pattern": "^[^/].*$"
+        "description": "Relative POSIX path under the registry root. Rejects absolute paths, drive letters, backslashes, empty segments, and '..' traversal.",
+        "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*/\\.\\.(?:/|$))(?!\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
       },
       "additionalProperties": { "$ref": "#/$defs/assetDescriptor" }
     },
