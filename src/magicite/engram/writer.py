@@ -32,19 +32,22 @@ import copy
 import io
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import LiteralScalarString
 
 from magicite.engram.model import Engram, EngramBody
+from magicite.engram.model_v1 import EngramV1
 from magicite.storage.lease import assert_dream_context, assert_single_writer
 
 _yaml = YAML(typ="rt")
 _yaml.preserve_quotes = True
 _yaml.default_flow_style = False
 _yaml.width = 100000
+
+TargetFormat = Literal["engram/0.2", "engram/1.0"]
 
 
 def write_plasticity(engram: Engram) -> CommentedMap:
@@ -354,3 +357,231 @@ def render_document(engram: Engram, frontmatter_doc: Any | None = None) -> str:
 def write_engram(path: str | Path, engram: Engram, frontmatter_doc: Any | None = None) -> None:
     """Render and atomically write a full engram document to ``path``."""
     atomic_write(path, render_document(engram, frontmatter_doc))
+
+
+def _dump_frontmatter_doc(doc: CommentedMap) -> str:
+    buf = io.StringIO()
+    _yaml.dump(doc, buf)
+    text = buf.getvalue()
+    lines = [line.rstrip() for line in text.split("\n")]
+    return "\n".join(lines).rstrip("\n")
+
+
+def _render_version_constraint(constraint: Any) -> CommentedMap:
+    node = CommentedMap()
+    node["scheme"] = constraint.scheme
+    node["range"] = constraint.range
+    return node
+
+
+def _fresh_doc_v1(engram: EngramV1) -> CommentedMap:
+    """Build a ruamel document for an engram/1.0 frontmatter."""
+    doc: CommentedMap = CommentedMap()
+    fm = engram.frontmatter
+    doc["spec"] = fm.spec
+    doc["name"] = fm.name
+    doc["id"] = fm.id
+    doc["version"] = fm.version
+    if fm.parents:
+        doc["parents"] = list(fm.parents)
+
+    intent = CommentedMap()
+    intent["does"] = fm.intent.does
+    intent["use_when"] = fm.intent.use_when
+    if fm.intent.not_when is not None:
+        intent["not_when"] = fm.intent.not_when
+    doc["intent"] = intent
+
+    if fm.compatibility is not None:
+        compat = CommentedMap()
+        if fm.compatibility.os:
+            compat["os"] = list(fm.compatibility.os)
+        for dim in ("languages", "frameworks", "package_managers"):
+            mapping = getattr(fm.compatibility, dim)
+            if mapping:
+                block = CommentedMap()
+                for key, constraint in sorted(mapping.items()):
+                    block[key] = _render_version_constraint(constraint)
+                compat[dim] = block
+        if fm.compatibility.hosts:
+            hosts = CommentedSeq()
+            for host in fm.compatibility.hosts:
+                item = CommentedMap()
+                item["id"] = host.id
+                if host.version is not None:
+                    item["version"] = _render_version_constraint(host.version)
+                hosts.append(item)
+            compat["hosts"] = hosts
+        doc["compatibility"] = compat
+
+    if fm.capabilities is not None:
+        caps = CommentedMap()
+        reqs = CommentedSeq()
+        for req in fm.capabilities.requires:
+            item = CommentedMap()
+            item["kind"] = req.kind
+            item["id"] = req.id
+            if req.version is not None:
+                item["version"] = _render_version_constraint(req.version)
+            reqs.append(item)
+        caps["requires"] = reqs
+        prods = CommentedSeq()
+        for prod in fm.capabilities.produces:
+            item = CommentedMap()
+            item["kind"] = prod.kind
+            item["id"] = prod.id
+            if prod.version is not None:
+                item["version"] = prod.version
+            prods.append(item)
+        caps["produces"] = prods
+        caps["alternatives"] = list(fm.capabilities.alternatives)
+        caps["conflicts_with"] = list(fm.capabilities.conflicts_with)
+        doc["capabilities"] = caps
+
+    if fm.relations is not None:
+        rel = CommentedMap()
+        for field_name in ("requires", "before", "supersedes"):
+            seq = CommentedSeq()
+            for ref in getattr(fm.relations, field_name):
+                item = CommentedMap()
+                item["id"] = ref.id
+                item["version"] = ref.version
+                seq.append(item)
+            rel[field_name] = seq
+        doc["relations"] = rel
+
+    if fm.risk is not None:
+        risk = CommentedMap()
+        risk["filesystem"] = fm.risk.filesystem
+        sub = CommentedMap()
+        sub["mode"] = fm.risk.subprocess.mode
+        sub["tools"] = list(fm.risk.subprocess.tools)
+        risk["subprocess"] = sub
+        net = CommentedMap()
+        net["mode"] = fm.risk.network.mode
+        net["destinations"] = list(fm.risk.network.destinations)
+        risk["network"] = net
+        risk["secrets"] = fm.risk.secrets
+        doc["risk"] = risk
+
+    routing = CommentedMap()
+    routing["positive"] = list(fm.routing.positive)
+    routing["negative"] = list(fm.routing.negative)
+    routing["body_digest"] = fm.routing.body_digest
+    doc["routing"] = routing
+
+    origin = CommentedMap()
+    origin["channel"] = fm.origin.channel
+    origin["verification_status"] = fm.origin.verification_status
+    if fm.origin.signer is not None:
+        origin["signer"] = fm.origin.signer
+    if fm.origin.import_source is not None:
+        origin["import_source"] = fm.origin.import_source
+    if fm.origin.content_hashes:
+        origin["content_hashes"] = CommentedMap(dict(sorted(fm.origin.content_hashes.items())))
+    if fm.origin.journal:
+        origin["journal"] = _render_provenance_journal(fm.origin.journal)
+    doc["origin"] = origin
+
+    if fm.assets:
+        assets = CommentedMap()
+        for path_key in sorted(fm.assets):
+            desc = fm.assets[path_key]
+            item = CommentedMap()
+            item["sha256"] = desc.sha256
+            item["size"] = desc.size
+            if desc.media_type is not None:
+                item["media_type"] = desc.media_type
+            assets[path_key] = item
+        doc["assets"] = assets
+
+    if fm.extensions:
+        extensions = CommentedMap()
+        for key in sorted(fm.extensions):
+            ext = fm.extensions[key]
+            item = CommentedMap(ext.model_dump(mode="json"))
+            extensions[key] = item
+        doc["extensions"] = extensions
+
+    if fm.skill_md_source is not None:
+        doc["skill_md_source"] = _render_skill_md_source(fm.skill_md_source)
+
+    if fm.legacy:
+        doc["legacy"] = CommentedMap(copy.deepcopy(fm.legacy))
+
+    return doc
+
+
+def render_frontmatter_v1(engram: EngramV1, frontmatter_doc: Any | None = None) -> str:
+    """Render engram/1.0 YAML frontmatter (without ``---`` fences)."""
+    doc = frontmatter_doc if frontmatter_doc is not None else _fresh_doc_v1(engram)
+    if frontmatter_doc is not None:
+        # Refresh identity/routing digests that must track in-memory state.
+        doc["version"] = engram.frontmatter.version
+        if "routing" in doc:
+            doc["routing"]["body_digest"] = engram.frontmatter.routing.body_digest
+        if engram.frontmatter.skill_md_source is not None:
+            doc["skill_md_source"] = _render_skill_md_source(engram.frontmatter.skill_md_source)
+        else:
+            doc.pop("skill_md_source", None)
+    return _dump_frontmatter_doc(doc)
+
+
+def render_document_v1(engram: EngramV1, frontmatter_doc: Any | None = None) -> str:
+    """Assemble a full engram/1.0 ``.egr.md`` document."""
+    fm_text = render_frontmatter_v1(engram, frontmatter_doc)
+    body_text = render_body(engram.body)
+    return f"---\n{fm_text}\n---\n{body_text}"
+
+
+def render_as(
+    artifact: Engram | EngramV1,
+    *,
+    target_format: TargetFormat,
+    frontmatter_doc: Any | None = None,
+    revision_map: dict[str, int] | None = None,
+) -> str:
+    """Explicit target-format rendering (C8). Never auto-emits 1.0 to a 0.2 consumer.
+
+    - ``engram/0.2`` artifact → ``engram/0.2``: native render
+    - ``engram/0.2`` artifact → ``engram/1.0``: pure transform then render
+    - ``engram/1.0`` artifact → ``engram/1.0``: native render
+    - ``engram/1.0`` artifact → ``engram/0.2``: refused (downgrade is S03)
+    """
+    if target_format == "engram/0.2":
+        if isinstance(artifact, EngramV1):
+            raise ValueError(
+                "refusing to emit engram/0.2 from an engram/1.0 artifact; "
+                "downgrade/migration authority belongs to S03"
+            )
+        return render_document(artifact, frontmatter_doc)
+
+    if target_format == "engram/1.0":
+        if isinstance(artifact, EngramV1):
+            return render_document_v1(artifact, frontmatter_doc)
+        from magicite.engram.transform import transform_0_2_to_1_0
+
+        transformed = transform_0_2_to_1_0(artifact, revision_map=revision_map).engram
+        return render_document_v1(transformed)
+
+    raise ValueError(f"unsupported target_format: {target_format!r}")
+
+
+def write_engram_as(
+    path: str | Path,
+    artifact: Engram | EngramV1,
+    *,
+    target_format: TargetFormat,
+    frontmatter_doc: Any | None = None,
+    revision_map: dict[str, int] | None = None,
+) -> None:
+    """Atomically write ``artifact`` rendered at ``target_format``."""
+    atomic_write(
+        path,
+        render_as(
+            artifact,
+            target_format=target_format,
+            frontmatter_doc=frontmatter_doc,
+            revision_map=revision_map,
+        ),
+    )
