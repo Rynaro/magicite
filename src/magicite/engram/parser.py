@@ -5,6 +5,11 @@ order preserved) so ``engram/writer.py`` can re-render byte-deterministic
 files later without clobbering author comments. Body sections are matched
 by heading; fenced code blocks anywhere in the body are captured as
 **inert text** and never evaluated (spec §2.5, docs/04 exec-block rule).
+
+Engram 1.0 dual reader (C8 / S02): :func:`parse_artifact` accepts
+``engram/0.2`` and ``engram/1.0``. Legacy :func:`parse_text` /
+:func:`parse_file` remain 0.2-oriented for existing call sites and raise
+when handed a 1.0 document (use :func:`parse_artifact` instead).
 """
 
 from __future__ import annotations
@@ -26,6 +31,7 @@ from magicite.engram.model import (
     PitfallEntry,
     ProcedureStep,
 )
+from magicite.engram.model_v1 import EngramFrontmatterV1, EngramV1
 
 _FENCE = "---"
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n(?P<yaml>.*?)\r?\n---\r?\n?", re.DOTALL)
@@ -75,8 +81,7 @@ def load_frontmatter_doc(yaml_text: str) -> Any:
 
 def parse_body(body_text: str) -> EngramBody:
     exec_blocks = [
-        ExecBlock(language=lang or "text", text=text)
-        for lang, text in _EXEC_BLOCK_RE.findall(body_text)
+        ExecBlock(language=lang or "text", text=text) for lang, text in _EXEC_BLOCK_RE.findall(body_text)
     ]
     # Strip exec blocks before section splitting so fenced code doesn't get
     # mistaken for section prose; the blocks themselves are preserved above.
@@ -155,22 +160,131 @@ def _split_sections(body_text: str) -> dict[str, list[str]]:
     return sections
 
 
-def parse_text(raw_text: str, *, relpath: str, file_mtime_ns: int = 0) -> ParsedFile:
-    """Parse ``.egr.md`` text already read from disk (or an in-memory fixture)."""
+def parse_artifact(
+    raw_text: str,
+    *,
+    relpath: str,
+    file_mtime_ns: int = 0,
+    admit: bool = False,
+    registry_root: Path | None = None,
+    require_asset_files: bool = False,
+) -> tuple[Engram | EngramV1, Any]:
+    """Pure dual reader for ``engram/0.2`` and ``engram/1.0`` (C8).
+
+    Returns ``(artifact, frontmatter_doc)`` where ``frontmatter_doc`` is the
+    ruamel round-trip carrier for writers.
+
+    Parse vs admit
+    --------------
+    Default ``admit=False`` is a structural parse only (typed models). Invalid
+    version ranges (e.g. ``^1.2.3``) and asset-path violations are **not**
+    rejected here — use :func:`load_artifact` (or ``admit=True``) for
+    registry intake. When ``admit=True`` and ``spec`` is ``engram/1.0``, runs
+    full C1 admission (JSON Schema + semantics + assets + body_digest).
+    """
     yaml_text, body_text = split_frontmatter(raw_text)
     doc = load_frontmatter_doc(yaml_text)
-    frontmatter = EngramFrontmatter.model_validate(dict(doc))
+    as_dict = dict(doc)
+    spec = as_dict.get("spec", "engram/0.2")
     body = parse_body(body_text)
+    content_sha = ids.content_sha256(raw_text.encode("utf-8"))
+    body_sha = ids.body_sha256(body_text)
 
-    engram = Engram(
-        frontmatter=frontmatter,
+    if spec == "engram/1.0":
+        frontmatter = EngramFrontmatterV1.model_validate(as_dict)
+        v1 = EngramV1(
+            frontmatter=frontmatter,
+            body=body,
+            path=relpath,
+            content_sha256=content_sha,
+            body_sha256=body_sha,
+            file_mtime_ns=file_mtime_ns,
+        )
+        if admit:
+            _admit_v1(
+                v1,
+                as_dict=as_dict,
+                body_text=body_text,
+                registry_root=registry_root,
+                require_asset_files=require_asset_files,
+            )
+        return v1, doc
+
+    if spec != "engram/0.2":
+        raise EngramParseError(f"unsupported engram spec version: {spec!r}")
+
+    frontmatter_v02 = EngramFrontmatter.model_validate(as_dict)
+    artifact = Engram(
+        frontmatter=frontmatter_v02,
         body=body,
         path=relpath,
-        content_sha256=ids.content_sha256(raw_text.encode("utf-8")),
-        body_sha256=ids.body_sha256(body_text),
+        content_sha256=content_sha,
+        body_sha256=body_sha,
         file_mtime_ns=file_mtime_ns,
     )
-    return ParsedFile(engram=engram, frontmatter_doc=doc)
+    return artifact, doc
+
+
+def load_artifact(
+    raw_text: str,
+    *,
+    relpath: str,
+    file_mtime_ns: int = 0,
+    registry_root: Path | None = None,
+    require_asset_files: bool = True,
+) -> tuple[Engram | EngramV1, Any]:
+    """Admit an engram for registry intake (AC-S02-04 'loaded').
+
+    For ``engram/1.0`` this is the fail-closed dual-reader path: structural
+    parse plus schema/semantic/asset/body_digest validation. For ``engram/0.2``
+    this is equivalent to :func:`parse_artifact` (legacy lint remains separate).
+
+    ``require_asset_files`` defaults True so intake rejects missing/mismatched
+    assets when ``registry_root`` is provided. Pass ``registry_root`` from the
+    registry root S03 uses for containment.
+    """
+    return parse_artifact(
+        raw_text,
+        relpath=relpath,
+        file_mtime_ns=file_mtime_ns,
+        admit=True,
+        registry_root=registry_root,
+        require_asset_files=require_asset_files,
+    )
+
+
+def _admit_v1(
+    artifact: EngramV1,
+    *,
+    as_dict: dict[str, Any],
+    body_text: str,
+    registry_root: Path | None,
+    require_asset_files: bool,
+) -> None:
+    from magicite.engram.schema_validate import EngramSchemaError, validate_frontmatter_dict
+
+    result = validate_frontmatter_dict(
+        as_dict,
+        spec="engram/1.0",
+        registry_root=registry_root,
+        body_text=body_text,
+        require_asset_files=require_asset_files,
+    )
+    if not result.ok:
+        raise EngramParseError(
+            "engram/1.0 admission failed: " + "; ".join(result.errors)
+        ) from EngramSchemaError("; ".join(result.errors))
+
+
+def parse_text(raw_text: str, *, relpath: str, file_mtime_ns: int = 0) -> ParsedFile:
+    """Parse ``.egr.md`` text as engram/0.2 for existing call sites.
+
+    For dual-format intake use :func:`load_artifact` / :func:`parse_artifact`.
+    """
+    artifact, doc = parse_artifact(raw_text, relpath=relpath, file_mtime_ns=file_mtime_ns)
+    if not isinstance(artifact, Engram):
+        raise EngramParseError("engram/1.0 artifact requires parse_artifact(); parse_text() is 0.2-only")
+    return ParsedFile(engram=artifact, frontmatter_doc=doc)
 
 
 def parse_file(path: Path, *, registry_root: Path) -> ParsedFile:
@@ -178,3 +292,39 @@ def parse_file(path: Path, *, registry_root: Path) -> ParsedFile:
     relpath = str(path.resolve().relative_to(registry_root.resolve()))
     mtime_ns = path.stat().st_mtime_ns
     return parse_text(raw_text, relpath=relpath, file_mtime_ns=mtime_ns)
+
+
+def parse_artifact_file(
+    path: Path,
+    *,
+    registry_root: Path,
+    admit: bool = False,
+    require_asset_files: bool = False,
+) -> tuple[Engram | EngramV1, Any]:
+    """Dual-reader file entrypoint (0.2 or 1.0). Use admit=True for intake."""
+    raw_text = path.read_text(encoding="utf-8")
+    relpath = str(path.resolve().relative_to(registry_root.resolve()))
+    mtime_ns = path.stat().st_mtime_ns
+    return parse_artifact(
+        raw_text,
+        relpath=relpath,
+        file_mtime_ns=mtime_ns,
+        admit=admit,
+        registry_root=registry_root,
+        require_asset_files=require_asset_files,
+    )
+
+
+def load_artifact_file(
+    path: Path,
+    *,
+    registry_root: Path,
+    require_asset_files: bool = True,
+) -> tuple[Engram | EngramV1, Any]:
+    """File admission entrypoint for S03 registry intake (AC-S02-04)."""
+    return parse_artifact_file(
+        path,
+        registry_root=registry_root,
+        admit=True,
+        require_asset_files=require_asset_files,
+    )
