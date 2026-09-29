@@ -1,0 +1,564 @@
+{
+  "schema": "magicite/slice-plan/1",
+  "base_commit": "496e4eded09f7c0b8e0b776c3c709bccadc0321a",
+  "intent": "specifications-only",
+  "calendar_deadlines": false,
+  "shared_contract": "contracts.md",
+  "criteria": "acceptance.md",
+  "criteria_count": 74,
+  "slices": [
+    {
+      "id": "S00",
+      "title": "Stable policy boundary and dense incumbent",
+      "spec": "slices/s00-stable-policy-boundary-and-dense-incumbent.md",
+      "build_after": [],
+      "merge_after": [],
+      "owned_paths": [
+        "src/magicite/core/router.py",
+        "src/magicite/config.py",
+        "src/magicite/core/dream.py",
+        "tests/unit/core/test_router*.py",
+        "tests/unit/core/test_dream*.py"
+      ],
+      "acceptance_ids": [
+        "AC-S00-01",
+        "AC-S00-02",
+        "AC-S00-03",
+        "AC-S00-04"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S01",
+      "title": "Evidence integrity and reproducible evaluation",
+      "spec": "slices/s01-evidence-integrity-and-reproducible-evaluation.md",
+      "build_after": [],
+      "merge_after": [],
+      "owned_paths": [
+        "src/magicite/eval/*",
+        "scripts/check_evaluation_results.py",
+        "tests/unit/eval/*",
+        "tests/integration/test_bench.py",
+        "docs/evaluation/*"
+      ],
+      "acceptance_ids": [
+        "AC-S01-01",
+        "AC-S01-02",
+        "AC-S01-03",
+        "AC-S01-04"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S02",
+      "title": "Engram 1.0 schema and lossless artifacts",
+      "spec": "slices/s02-engram-1.0-schema-and-lossless-artifacts.md",
+      "build_after": [],
+      "merge_after": [],
+      "owned_paths": [
+        "src/magicite/engram/*",
+        "tests/unit/engram/*",
+        "tests/fixtures/engram-v1/*",
+        "tests/integration/test_skillmd_roundtrip.py"
+      ],
+      "acceptance_ids": [
+        "AC-S02-01",
+        "AC-S02-02",
+        "AC-S02-03",
+        "AC-S02-04",
+        "AC-S02-05"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S03",
+      "title": "Migration authority and index-safe storage transitions",
+      "spec": "slices/s03-migration-authority-and-index-safe-storage-transitions.md",
+      "build_after": [
+        "S02"
+      ],
+      "merge_after": [
+        "S02"
+      ],
+      "owned_paths": [
+        "src/magicite/storage/db.py",
+        "src/magicite/storage/durable.py",
+        "src/magicite/storage/migrations/*",
+        "src/magicite/core/migration.py",
+        "tests/integration/test_upgrade*.py",
+        "tests/integration/test_migration_v1.py"
+      ],
+      "acceptance_ids": [
+        "AC-S03-01",
+        "AC-S03-02",
+        "AC-S03-03",
+        "AC-S03-04"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S04",
+      "title": "Bundle verification and digest-bound local trust",
+      "spec": "slices/s04-bundle-verification-and-digest-bound-local-trust.md",
+      "build_after": [
+        "S02",
+        "S03"
+      ],
+      "merge_after": [
+        "S02",
+        "S03"
+      ],
+      "owned_paths": [
+        "src/magicite/core/trust.py",
+        "src/magicite/core/bundles.py",
+        "src/magicite/core/registry.py",
+        "src/magicite/core/lifecycle.py",
+        "src/magicite/core/approvals.py",
+        "tests/unit/core/test_trust*.py",
+        "tests/integration/test_register_import.py"
+      ],
+      "acceptance_ids": [
+        "AC-S04-01",
+        "AC-S04-02",
+        "AC-S04-03",
+        "AC-S04-04"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S05",
+      "title": "Full-text indexes and hybrid candidates",
+      "spec": "slices/s05-full-text-indexes-and-hybrid-candidates.md",
+      "build_after": [
+        "S02"
+      ],
+      "merge_after": [
+        "S02",
+        "S03"
+      ],
+      "owned_paths": [
+        "src/magicite/core/candidates.py",
+        "src/magicite/core/index_generation.py",
+        "src/magicite/embeddings/*",
+        "tests/unit/core/test_candidates.py",
+        "tests/integration/test_index_generation.py"
+      ],
+      "acceptance_ids": [
+        "AC-S05-01",
+        "AC-S05-02",
+        "AC-S05-03",
+        "AC-S05-04"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S06",
+      "title": "Shared eligibility and context evaluation",
+      "spec": "slices/s06-shared-eligibility-and-context-evaluation.md",
+      "build_after": [
+        "S02"
+      ],
+      "merge_after": [
+        "S02",
+        "S04"
+      ],
+      "owned_paths": [
+        "src/magicite/core/eligibility.py",
+        "src/magicite/core/context.py",
+        "tests/unit/core/test_eligibility.py"
+      ],
+      "acceptance_ids": [
+        "AC-S06-01",
+        "AC-S06-02",
+        "AC-S06-03",
+        "AC-S06-04",
+        "AC-S06-05"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S07",
+      "title": "Route orchestration, explanations and abstention",
+      "spec": "slices/s07-route-orchestration-explanations-and-abstention.md",
+      "build_after": [
+        "S00",
+        "S01",
+        "S04",
+        "S05",
+        "S06"
+      ],
+      "merge_after": [
+        "S00",
+        "S01",
+        "S04",
+        "S05",
+        "S06"
+      ],
+      "owned_paths": [
+        "src/magicite/core/router.py",
+        "src/magicite/core/calibration.py",
+        "src/magicite/config.py",
+        "tests/unit/core/test_router*.py",
+        "tests/integration/test_route_end_to_end.py",
+        "src/magicite/core/policy_store.py"
+      ],
+      "acceptance_ids": [
+        "AC-S07-01",
+        "AC-S07-02",
+        "AC-S07-03",
+        "AC-S07-04",
+        "AC-S07-05"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S08",
+      "title": "Typed bounded composition and host verification harness",
+      "spec": "slices/s08-typed-bounded-composition-and-host-verification-harness.md",
+      "build_after": [
+        "S02",
+        "S06"
+      ],
+      "merge_after": [
+        "S02",
+        "S04",
+        "S06",
+        "S07"
+      ],
+      "owned_paths": [
+        "src/magicite/core/composition.py",
+        "tests/unit/core/test_composition.py",
+        "tests/fixtures/composition-v1/*",
+        "tests/integration/test_composition_v1.py"
+      ],
+      "acceptance_ids": [
+        "AC-S08-01",
+        "AC-S08-02",
+        "AC-S08-03",
+        "AC-S08-04",
+        "AC-S08-05",
+        "AC-S08-06"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S09",
+      "title": "Evidence receipts, durable ledger and privacy",
+      "spec": "slices/s09-evidence-receipts-durable-ledger-and-privacy.md",
+      "build_after": [
+        "S00",
+        "S02",
+        "S03"
+      ],
+      "merge_after": [
+        "S00",
+        "S02",
+        "S03"
+      ],
+      "owned_paths": [
+        "src/magicite/core/evidence.py",
+        "src/magicite/core/signals.py",
+        "src/magicite/obs/events.py",
+        "tests/unit/core/test_evidence.py",
+        "tests/integration/test_evidence_recovery.py"
+      ],
+      "acceptance_ids": [
+        "AC-S09-01",
+        "AC-S09-02",
+        "AC-S09-03",
+        "AC-S09-04"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S10",
+      "title": "Experimental shadow policy and reviewed promotion",
+      "spec": "slices/s10-experimental-shadow-policy-and-reviewed-promotion.md",
+      "build_after": [
+        "S01",
+        "S07",
+        "S09"
+      ],
+      "merge_after": [
+        "S01",
+        "S07",
+        "S09"
+      ],
+      "owned_paths": [
+        "src/magicite/core/policy_learning.py",
+        "src/magicite/core/learning_transitions.py",
+        "src/magicite/core/dream.py",
+        "tests/unit/core/test_policy_learning.py",
+        "tests/integration/test_policy_promotion.py"
+      ],
+      "acceptance_ids": [
+        "AC-S10-01",
+        "AC-S10-02",
+        "AC-S10-03",
+        "AC-S10-04"
+      ],
+      "optional": true
+    },
+    {
+      "id": "S11",
+      "title": "MCP and CLI contract integration and conformance",
+      "spec": "slices/s11-mcp-and-cli-contract-integration-and-conformance.md",
+      "build_after": [
+        "S03",
+        "S04",
+        "S07",
+        "S08",
+        "S09",
+        "S12",
+        "S13"
+      ],
+      "merge_after": [
+        "S03",
+        "S04",
+        "S07",
+        "S08",
+        "S09",
+        "S12",
+        "S13"
+      ],
+      "owned_paths": [
+        "src/magicite/mcp/*",
+        "src/magicite/__main__.py",
+        "tests/unit/mcp/*",
+        "tests/acceptance/test_stdio_handshake.py",
+        "tests/acceptance/test_tool_manifest.py",
+        "tests/fixtures/protocol-v1/*"
+      ],
+      "acceptance_ids": [
+        "AC-S11-01",
+        "AC-S11-02",
+        "AC-S11-03",
+        "AC-S11-04"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S12",
+      "title": "Read-only diagnosis, backup and crash recovery",
+      "spec": "slices/s12-read-only-diagnosis-backup-and-crash-recovery.md",
+      "build_after": [
+        "S03",
+        "S04",
+        "S09"
+      ],
+      "merge_after": [
+        "S03",
+        "S04",
+        "S09"
+      ],
+      "owned_paths": [
+        "src/magicite/obs/doctor.py",
+        "src/magicite/core/backup.py",
+        "src/magicite/storage/lease.py",
+        "tests/unit/obs/test_doctor.py",
+        "tests/integration/test_lease_multiprocess.py",
+        "tests/integration/test_backup_restore_v1.py"
+      ],
+      "acceptance_ids": [
+        "AC-S12-01",
+        "AC-S12-02",
+        "AC-S12-03",
+        "AC-S12-04",
+        "AC-S12-05"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S13",
+      "title": "Clean installation and verifiable distribution",
+      "spec": "slices/s13-clean-installation-and-verifiable-distribution.md",
+      "build_after": [],
+      "merge_after": [
+        "S01",
+        "S02",
+        "S03",
+        "S04"
+      ],
+      "owned_paths": [
+        "pyproject.toml",
+        "uv.lock",
+        "Dockerfile",
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        "tests/acceptance/test_install_channels.py",
+        "scripts/check_supply_chain.py"
+      ],
+      "acceptance_ids": [
+        "AC-S13-01",
+        "AC-S13-02",
+        "AC-S13-03",
+        "AC-S13-04"
+      ],
+      "optional": false,
+      "milestones": [
+        {
+          "id": "S13-scaffold",
+          "unblocks": "S11",
+          "evidence": "clean built-wheel fixture, CI/release harness and channel probe interfaces"
+        },
+        {
+          "id": "S13-published-channels",
+          "after": [
+            "S11",
+            "S15"
+          ],
+          "unblocks": "S16",
+          "evidence": "actual published channel installs and fetched signature/provenance verification"
+        }
+      ]
+    },
+    {
+      "id": "S14",
+      "title": "Scale, external corpora and task-outcome evidence",
+      "spec": "slices/s14-scale-external-corpora-and-task-outcome-evidence.md",
+      "build_after": [
+        "S01",
+        "S07",
+        "S08"
+      ],
+      "merge_after": [
+        "S01",
+        "S07",
+        "S08"
+      ],
+      "owned_paths": [
+        "scripts/run_benchmark_matrix.py",
+        "src/magicite/eval/*",
+        "tests/unit/eval/*",
+        "docs/evaluation/v1/*"
+      ],
+      "acceptance_ids": [
+        "AC-S14-01",
+        "AC-S14-02",
+        "AC-S14-03",
+        "AC-S14-04"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S15",
+      "title": "Operator documentation, governance and generated authority",
+      "spec": "slices/s15-operator-documentation-governance-and-generated-authority.md",
+      "build_after": [
+        "S11",
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "merge_after": [
+        "S11",
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "owned_paths": [
+        "README.md",
+        "docs/*",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+        "scripts/check_docs.py",
+        "scripts/check_generated_docs.py"
+      ],
+      "acceptance_ids": [
+        "AC-S15-01",
+        "AC-S15-02",
+        "AC-S15-03",
+        "AC-S15-04"
+      ],
+      "optional": false
+    },
+    {
+      "id": "S16",
+      "title": "Release candidates, external validation and GA decision",
+      "spec": "slices/s16-release-candidates-external-validation-and-ga-decision.md",
+      "build_after": [
+        "S00",
+        "S01",
+        "S02",
+        "S03",
+        "S04",
+        "S05",
+        "S06",
+        "S07",
+        "S08",
+        "S09",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "merge_after": [
+        "S00",
+        "S01",
+        "S02",
+        "S03",
+        "S04",
+        "S05",
+        "S06",
+        "S07",
+        "S08",
+        "S09",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15"
+      ],
+      "owned_paths": [
+        "docs/releases/*",
+        "docs/evaluation/v1/external/*",
+        ".github/BRANCH_PROTECTION.md"
+      ],
+      "acceptance_ids": [
+        "AC-S16-01",
+        "AC-S16-02",
+        "AC-S16-03",
+        "AC-S16-04"
+      ],
+      "optional": false
+    }
+  ],
+  "shared_file_locks": {
+    "router_config": [
+      "S00",
+      "S07"
+    ],
+    "engram_parser_writer": [
+      "S02",
+      "S03"
+    ],
+    "registry_lifecycle_approvals": [
+      "S04"
+    ],
+    "storage_migrations": [
+      "S03"
+    ],
+    "mcp_cli": [
+      "S11"
+    ],
+    "eval": [
+      "S01",
+      "S14"
+    ],
+    "workflows_packaging": [
+      "S13"
+    ],
+    "readme_docs_authority": [
+      "S15"
+    ],
+    "policy_store": [
+      "S07"
+    ],
+    "optional_learning_integration": [
+      "S10-domain",
+      "S07-router-config",
+      "S11-bindings"
+    ]
+  }
+}
