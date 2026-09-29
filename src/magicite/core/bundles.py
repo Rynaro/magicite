@@ -198,13 +198,18 @@ SequenceTrustRoots = list[TrustRoot] | tuple[TrustRoot, ...]
 
 
 def _assert_safe_member_path(name: str) -> PurePosixPath:
-    """Reject zip-slip, absolute paths, empty names, and backslash escapes."""
+    """Reject zip-slip, absolute paths, drive letters, UNC, and backslash escapes."""
     if not name or name.endswith("/"):
         raise InvalidInputError(f"unsafe archive member path {name!r}")
     if "\\" in name:
         raise InvalidInputError(f"archive member path must use POSIX separators: {name!r}")
     if name.startswith("/") or name.startswith("\\"):
         raise InvalidInputError(f"absolute archive member path rejected: {name!r}")
+    # Windows drive-letter and UNC-style names (C10 path containment).
+    if len(name) >= 2 and name[1] == ":" and name[0].isalpha():
+        raise InvalidInputError(f"drive-letter archive member path rejected: {name!r}")
+    if name.startswith("//") or name.startswith("\\\\"):
+        raise InvalidInputError(f"UNC-style archive member path rejected: {name!r}")
     posix = PurePosixPath(name)
     if posix.is_absolute() or ".." in posix.parts or posix.parts[0] == "":
         raise InvalidInputError(f"path escape rejected for archive member: {name!r}")
