@@ -18,12 +18,12 @@
     "kind": "spec",
     "schema_version": "1.0",
     "path": ".spectra/plans/magicite-v1.md",
-    "sha256": "e52d0098d7cd1516f9d9b1c3404db5ceeb762c26805e10babfb57debf06a5988",
-    "size_bytes": 8304
+    "sha256": "c9aed40d822f118a336d2b900bb8a89f83cc71795c2ca4f2323ea27692b3df99",
+    "size_bytes": 8493
   },
   "integrity": {
     "method": "sha256",
-    "value": "e52d0098d7cd1516f9d9b1c3404db5ceeb762c26805e10babfb57debf06a5988"
+    "value": "c9aed40d822f118a336d2b900bb8a89f83cc71795c2ca4f2323ea27692b3df99"
   },
   "trace": {
     "ts": "2026-09-29T15:07:20.096097Z",
@@ -51,10 +51,10 @@
   },
   "x_ramza_acceptance_criteria": {
     "path": ".spectra/plans/magicite-v1/acceptance.md",
-    "sha256": "77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458"
+    "sha256": "20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673"
   },
   "x_magicite_packet": {
     "path": ".spectra/plans/magicite-v1/packet-manifest.json",
-    "sha256": "89f31e5c7a670fc67e4477b81cfb0c5681dff7ad66c13807824c2dff019212b0"
+    "sha256": "20e7031e0283dd4e7ba5b840839b9f5c74d7862efee2b6c0c5bc9e4dc1a89b63"
   }
 }

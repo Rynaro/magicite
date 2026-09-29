@@ -29,7 +29,8 @@ The planning state's drift scope is this specs-only publication under `.spectra/
 
 - Independent second review passed: all five refine dimensions 4/5, total 4.0, no remaining blockers. See review.md and state gates.
 - Confidence instrument: 92.5%, AUTO_PROCEED (pattern match 88, requirement clarity 94, decomposition stability 92, constraint compliance 96). This is planning confidence, not runtime evidence.
-- Acceptance criteria frozen SHA-256: `77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458`.
+- Acceptance criteria frozen SHA-256: `77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458` (original Assemble freeze).
+- Amendment A01 (`ramza-freeze --amend`, 2026-09-29T22:42:58Z) re-froze AC-S02-01 preserved-bytes identity. Current SHA-256: `20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673`. Log: [amendments/A01-ac-s02-01-preserved-bytes.md](amendments/A01-ac-s02-01-preserved-bytes.md). Independent ATLAS review ruled the original THEN over-broad versus C1 payload losslessness; body/payload identity is unchanged.
 - Scope drift check: every changed file is under the declared `.spectra/` planning scope.
 - Remote main checked against `496e4eded09f7c0b8e0b776c3c709bccadc0321a`; dedicated publication branch is `codex/v1-delivery-specs`.
 
@@ -38,3 +39,7 @@ The packet manifest binds the master spec, shared contracts, slice specs, dispat
 Final emission passed `ramza-verify-emit`; `ramza-freeze --verify` matched the frozen criteria. State reached DONE with no skipped phases and one refinement loop. Final structural/EARS checks passed (74 criteria), and all packet payload/envelope SHA-256 values and byte lengths were recomputed successfully. The remote publication result is reported by the parent after push; no pre-push claim of remote availability is embedded here.
 
 Publication review rejected the initial outgoing commit because it included a copied local source dossier. The source copy was removed from the unpushed commit before publication; the original local file remains untouched. Only derived specifications, research references and the source digest are included in the final branch. Payload hashes and handoff envelopes were regenerated after this packaging correction; frozen acceptance criteria are unchanged.
+
+## Amendment A01 (post-publication, 2026-09-29)
+
+Formal amendment of AC-S02-01 only. Criteria count remains 74. `ramza-ears-lint` passed (74). `ramza-lint` passed (full). `ramza-freeze --amend` chained `77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458` → `20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673`. Packet manifest and ECL sidecar fingerprints were regenerated after the amendment. See [amendments/A01-ac-s02-01-preserved-bytes.md](amendments/A01-ac-s02-01-preserved-bytes.md).

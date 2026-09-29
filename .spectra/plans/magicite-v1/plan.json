@@ -6,6 +6,14 @@
   "shared_contract": "contracts.md",
   "criteria": "acceptance.md",
   "criteria_count": 74,
+  "criteria_amendments": [
+    {
+      "id": "A01",
+      "criterion": "AC-S02-01",
+      "log": "amendments/A01-ac-s02-01-preserved-bytes.md",
+      "summary": "Scope preserved-bytes identity to skill_md_source.body_raw plus extra_frontmatter, writer-canonical engram/0.2 parse-write bytes, and on-disk archives under the pure transform"
+    }
+  ],
   "slices": [
     {
       "id": "S00",

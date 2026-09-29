@@ -41,7 +41,7 @@ Each S00–S16 file is one bounded owner assignment containing a user story, sou
 
 ## Acceptance Criteria
 
-Canonical [acceptance.md](magicite-v1/acceptance.md) contains AC-S00-01 through AC-S16-04 plus six seam criteria (74 criteria); each is duplicated verbatim in its slice for standalone assignment. It is frozen with `ramza-freeze`; change requires an amendment and regeneration of both representations. VERIFY entries describe future evidence to produce, not tests run during planning.
+Canonical [acceptance.md](magicite-v1/acceptance.md) contains AC-S00-01 through AC-S16-04 plus six seam criteria (74 criteria); each is duplicated verbatim in its slice for standalone assignment. It is frozen with `ramza-freeze`; change requires an amendment and regeneration of both representations. Recorded amendments live under [magicite-v1/amendments](magicite-v1/amendments/A01-ac-s02-01-preserved-bytes.md) (A01 scopes AC-S02-01 preserved-bytes identity to the C1 payload surfaces). VERIFY entries describe future evidence to produce, not tests run during planning.
 
 This packet is complete only when references/JSON/dependency DAG/criterion coverage are checked, RAMZA structure/EARS/emission gates pass, independent critique is recorded and the remote branch contains the specs-only commit. Runtime CI/benchmarks/GA evidence remain unevaluated until implementation. [Verification record](magicite-v1/verification.md) distinguishes planning checks from future runtime checks.
 

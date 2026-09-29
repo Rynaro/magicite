@@ -32,7 +32,7 @@ Out of scope: unrelated refactors, changing another slice's contract or threshol
 ## Action plan
 
 1. Add engram/1.0 schema and typed compatibility/capability/risk/assets/extension models.
-2. Preserve original SKILL.md bytes and procedure_raw through parse/write/export; retain frontmatter extensions.
+2. Preserve imported skill_md_source.body_raw plus extra_frontmatter and procedure_raw through persist/export; keep writer-canonical engram/0.2 parse-write identity; leave on-disk source archives untouched by the pure transform; retain frontmatter extensions. Re-rendered host frontmatter YAML and non-canonical 0.2 YAML layout are outside the identity set.
 3. Define canonical manifest/projection digests and external resource containment validation.
 4. Expose explicit target-format rendering and pure 0.2-to-1.0 transform for S03; keep unsupported legacy state in a nonauthoritative namespace.
 
@@ -40,9 +40,9 @@ Out of scope: unrelated refactors, changing another slice's contract or threshol
 
 ### AC-S02-01 (event-driven)
 GIVEN archived 0.2 and SKILL.md fixtures with prose, fences and extensions
-WHEN parse/write/export roundtrip runs
-THEN preserved source bytes SHALL remain identical
-VERIFY: extend tests/integration/test_skillmd_roundtrip.py with v1 fixture corpus
+WHEN persist, export, writer-canonical parse/write, or the pure 0.2-to-1.0 transform runs
+THEN preserved source bytes SHALL remain identical on the C1 identity set: imported skill_md_source.body_raw plus extra_frontmatter through persist/export; writer-canonical engram/0.2 parse-write bytes; on-disk source archives after the pure transform
+VERIFY: extend tests/integration/test_skillmd_roundtrip.py with v1 fixture corpus covering body_raw/extra_frontmatter persist-export identity, writer-canonical 0.2 parse-write identity, and untouched on-disk archives under the pure transform
 
 ### AC-S02-02 (event-driven)
 GIVEN a legacy ID and references

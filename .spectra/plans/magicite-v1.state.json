@@ -136,12 +136,19 @@
       "label": "v1-spec-packet-reviewed"
     }
   ],
-  "amendments": [],
+  "amendments": [
+    {
+      "prev": "77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458",
+      "new": "20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673",
+      "reason": "A01: scope AC-S02-01 preserved-bytes identity to C1 payload surfaces (body_raw plus extra_frontmatter, writer-canonical 0.2 parse-write, untouched archives); exclude re-rendered host YAML and non-canonical 0.2 layout",
+      "at": "2026-09-29T22:42:58Z"
+    }
+  ],
   "declared_scope": [
     ".spectra/plans/magicite-v1*",
     ".spectra/plans/ramza-calibration.jsonl"
   ],
-  "criteria_sha256": "77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458",
+  "criteria_sha256": "20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673",
   "critic": {
     "author": "root-spec-author",
     "checker": "spec-critic",
@@ -160,6 +167,12 @@
       "at": "2026-09-29T15:06:11Z",
       "range": "staged",
       "files_changed": 36,
+      "uncovered": []
+    },
+    {
+      "at": "2026-09-29T22:43:22Z",
+      "range": "worktree-vs-HEAD",
+      "files_changed": 9,
       "uncovered": []
     }
   ]

@@ -9,8 +9,13 @@
     },
     {
       "path": ".spectra/plans/magicite-v1/acceptance.md",
-      "sha256": "77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458",
-      "size_bytes": 18491
+      "sha256": "20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673",
+      "size_bytes": 18903
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/amendments/A01-ac-s02-01-preserved-bytes.md",
+      "sha256": "20931679262357f29b701d6a12f87d92c57ea9e8a3d755fdd29622c354ca1181",
+      "size_bytes": 4725
     },
     {
       "path": ".spectra/plans/magicite-v1/contracts.md",
@@ -34,8 +39,8 @@
     },
     {
       "path": ".spectra/plans/magicite-v1/plan.json",
-      "sha256": "451cb23c955dd3e0c36d1439fbd569593a4d16d2404b60f594294b0807608ce8",
-      "size_bytes": 13574
+      "sha256": "db31caa57e1203b9609c8e96117e1fe9966f0dfd749cd4af438b51da8f41d9ba",
+      "size_bytes": 13924
     },
     {
       "path": ".spectra/plans/magicite-v1/release-gates.md",
@@ -64,8 +69,8 @@
     },
     {
       "path": ".spectra/plans/magicite-v1/slices/s02-engram-1.0-schema-and-lossless-artifacts.md",
-      "sha256": "e542b04cbbb92bc3044fba5d2cf6c47a98058f7b5e403d093c76b711770b68a8",
-      "size_bytes": 4683
+      "sha256": "bbf55a389a2372fc6cd63955b6e6fa7ee122dce8ad9f580373a44c2a6b8a08f0",
+      "size_bytes": 5340
     },
     {
       "path": ".spectra/plans/magicite-v1/slices/s03-migration-authority-and-index-safe-storage-transitions.md",
@@ -139,8 +144,8 @@
     },
     {
       "path": ".spectra/plans/magicite-v1.md",
-      "sha256": "e52d0098d7cd1516f9d9b1c3404db5ceeb762c26805e10babfb57debf06a5988",
-      "size_bytes": 8304
+      "sha256": "c9aed40d822f118a336d2b900bb8a89f83cc71795c2ca4f2323ea27692b3df99",
+      "size_bytes": 8493
     }
   ]
 }

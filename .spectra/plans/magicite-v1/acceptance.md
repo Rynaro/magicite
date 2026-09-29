@@ -52,9 +52,9 @@ VERIFY: extend tests/integration/test_bench.py with a production-planner sentine
 
 ### AC-S02-01 (event-driven)
 GIVEN archived 0.2 and SKILL.md fixtures with prose, fences and extensions
-WHEN parse/write/export roundtrip runs
-THEN preserved source bytes SHALL remain identical
-VERIFY: extend tests/integration/test_skillmd_roundtrip.py with v1 fixture corpus
+WHEN persist, export, writer-canonical parse/write, or the pure 0.2-to-1.0 transform runs
+THEN preserved source bytes SHALL remain identical on the C1 identity set: imported skill_md_source.body_raw plus extra_frontmatter through persist/export; writer-canonical engram/0.2 parse-write bytes; on-disk source archives after the pure transform
+VERIFY: extend tests/integration/test_skillmd_roundtrip.py with v1 fixture corpus covering body_raw/extra_frontmatter persist-export identity, writer-canonical 0.2 parse-write identity, and untouched on-disk archives under the pure transform
 
 ### AC-S02-02 (event-driven)
 GIVEN a legacy ID and references
