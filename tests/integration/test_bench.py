@@ -1,6 +1,8 @@
 """AC-029: GIVEN the labelled toy benchmark WHEN
-``magicite-bench --baseline b --baseline d`` runs THEN it SHALL emit
-Hit@1, Hit@3, Hit@5, MRR and Plan F1 for both baselines."""
+``magicite-bench --baseline b --baseline d --allow-circular-diagnostic-gold``
+runs THEN it SHALL emit Hit@1, Hit@3, Hit@5, MRR and Plan F1 for both
+baselines. Circular expand()-as-gold requires the explicit switch; omit it
+only when independent ``expected_plans`` are supplied via the Python API."""
 
 from __future__ import annotations
 
@@ -18,7 +20,8 @@ def test_baseline_metrics_emitted(cfg, db_conn, embedder) -> None:
     """AC-029, exercised at the function level (the same code the
     ``magicite-bench`` CLI calls -- see
     ``test_baseline_metrics_emitted_via_cli`` below for the literal
-    ``magicite-bench --baseline b --baseline d`` invocation)."""
+    ``magicite-bench --baseline b --baseline d --allow-circular-diagnostic-gold``
+    invocation)."""
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     from pathlib import Path
@@ -48,9 +51,9 @@ def test_baseline_metrics_emitted(cfg, db_conn, embedder) -> None:
 
 
 def test_baseline_metrics_emitted_via_cli(cfg, embedder) -> None:
-    """The literal AC-029 invocation shape: ``magicite-bench --baseline b
-    --baseline d``, run in-process through Click's CliRunner (no
-    subprocess) against a project root the fixture prepared."""
+    """AC-029 CLI shape with explicit diagnostic gold:
+    ``magicite-bench --baseline b --baseline d --allow-circular-diagnostic-gold``.
+    """
     from magicite.storage import db as db_mod
 
     conn = db_mod.connect(cfg.db_path)

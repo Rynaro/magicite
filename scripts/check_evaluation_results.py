@@ -162,7 +162,7 @@ def check_v1_claim_bundle(path: Path, payload: dict[str, Any]) -> list[str]:
     errors.extend(
         validate_claim_integrity(
             claim,
-            result=result if isinstance(result, dict) else {"prediction_digests": [], "aggregates": {}},
+            result=result if isinstance(result, dict) else None,
             predictions=pred_arg,
             experiment=experiment if isinstance(experiment, dict) else None,
             current_labels_sha256=str(labels_sha256) if labels_sha256 is not None else None,

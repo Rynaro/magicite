@@ -385,6 +385,25 @@ def validate_claim_data(
 
     errors.extend(claim_eligible_for_new_run_gate(data))
 
+    # Supported claims must carry a full evidence chain so seal/digest
+    # checks cannot be skipped by omitting arguments (S14/S16 gate path).
+    if data.get("status") == "supported":
+        missing_parts: list[str] = []
+        if result is None:
+            missing_parts.append("result")
+        if predictions is None:
+            missing_parts.append("predictions")
+        if experiment is None:
+            missing_parts.append("experiment")
+        if corpus is None:
+            missing_parts.append("corpus")
+        if missing_parts:
+            errors.append(
+                "incomplete evidence chain for status=supported "
+                f"(missing: {', '.join(missing_parts)}; require experiment, "
+                "corpus, result, and predictions)"
+            )
+
     metric = data.get("metric")
     value = data.get("value")
     evidence_class = data.get("evidence_class")
@@ -471,7 +490,7 @@ def validate_claim_data(
 def validate_claim_integrity(
     claim: Claim | dict[str, Any],
     *,
-    result: ResultManifest | dict[str, Any],
+    result: ResultManifest | dict[str, Any] | None,
     predictions: list[Prediction] | list[dict[str, Any]] | None,
     experiment: ExperimentManifest | dict[str, Any] | None = None,
     current_labels_sha256: str | None = None,
@@ -479,7 +498,13 @@ def validate_claim_integrity(
 ) -> list[str]:
     """High-level integrity gate used by AC-S01-03 and check scripts."""
     claim_data = claim.to_dict() if isinstance(claim, Claim) else claim
-    result_data = result.to_dict() if isinstance(result, ResultManifest) else result
+    result_data: dict[str, Any] | None
+    if isinstance(result, ResultManifest):
+        result_data = result.to_dict()
+    elif isinstance(result, dict):
+        result_data = result
+    else:
+        result_data = None
     expected_labels: str | None = None
     if isinstance(experiment, ExperimentManifest):
         expected_labels = experiment.labels_sha256

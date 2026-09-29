@@ -62,6 +62,16 @@ def _corpus_from_offline():
     return load_offline_skillret_fixture()
 
 
+def _seal(experiment: ExperimentManifest) -> ExperimentManifest:
+    """Open final/holdout labels on a frozen experiment (returns same object)."""
+    object.__setattr__(
+        experiment,
+        "label_provenance",
+        {**experiment.label_provenance, "final_labels_opened": True},
+    )
+    return experiment
+
+
 def test_reproducible_predictions() -> None:
     """AC-S01-01: identical pins → identical per-query semantic predictions."""
     corpus = _corpus_from_offline()
@@ -109,9 +119,11 @@ def test_leakage_rejected() -> None:
 def test_claim_digest_failure() -> None:
     """AC-S01-03: changed labels or missing prediction bytes fail claim integrity."""
     corpus = _corpus_from_offline()
-    experiment = _experiment(
-        corpus_sha256=corpus.content_identity_sha256,
-        labels_sha256=corpus.content_identity_sha256,
+    experiment = _seal(
+        _experiment(
+            corpus_sha256=corpus.content_identity_sha256,
+            labels_sha256=corpus.content_identity_sha256,
+        )
     )
     predictions = run_predictions(experiment, corpus)
     result = build_result_manifest(
@@ -141,6 +153,7 @@ def test_claim_digest_failure() -> None:
             predictions=predictions,
             experiment=experiment,
             current_labels_sha256=experiment.labels_sha256,
+            corpus=corpus,
         )
         == []
     )
@@ -152,6 +165,7 @@ def test_claim_digest_failure() -> None:
         predictions=[],
         experiment=experiment,
         current_labels_sha256=experiment.labels_sha256,
+        corpus=corpus,
     )
     assert any("missing prediction bytes" in error for error in missing)
 
@@ -162,6 +176,7 @@ def test_claim_digest_failure() -> None:
         predictions=predictions,
         experiment=experiment,
         current_labels_sha256=_hex(99),
+        corpus=corpus,
     )
     assert any("labels digest changed" in error for error in changed)
 
@@ -185,6 +200,7 @@ def test_claim_digest_failure() -> None:
         predictions=predictions,
         experiment=experiment,
         current_labels_sha256=experiment.labels_sha256,
+        corpus=corpus,
     )
     assert any("does not match result.aggregates" in error for error in mismatched)
 
@@ -335,9 +351,11 @@ def test_historical_supported_claim_fails_new_run_gate() -> None:
 def test_omitted_predictions_fail_when_result_present() -> None:
     """ATLAS #2: predictions=None must fail when a result is provided."""
     corpus = _corpus_from_offline()
-    experiment = _experiment(
-        corpus_sha256=corpus.content_identity_sha256,
-        labels_sha256=corpus.content_identity_sha256,
+    experiment = _seal(
+        _experiment(
+            corpus_sha256=corpus.content_identity_sha256,
+            labels_sha256=corpus.content_identity_sha256,
+        )
     )
     predictions = run_predictions(experiment, corpus)
     result = build_result_manifest(
@@ -366,8 +384,10 @@ def test_omitted_predictions_fail_when_result_present() -> None:
         predictions=None,
         experiment=experiment,
         current_labels_sha256=experiment.labels_sha256,
+        corpus=corpus,
     )
     assert any("missing prediction bytes" in e for e in errors)
+    assert any("incomplete evidence chain" in e for e in errors)
 
 
 def test_claim_binds_experiment_and_corpus_digests() -> None:
@@ -437,6 +457,131 @@ def test_claim_binds_experiment_and_corpus_digests() -> None:
     )
     assert any("experiment_sha256 does not match" in e for e in bad)
     assert any("corpus digest does not match experiment.corpus_sha256" in e for e in bad)
+
+
+def test_supported_claim_requires_experiment() -> None:
+    """ATLAS residual: omitting experiment fails the supported evidence chain."""
+    corpus = _corpus_from_offline()
+    experiment = _seal(
+        _experiment(
+            corpus_sha256=corpus.content_identity_sha256,
+            labels_sha256=corpus.content_identity_sha256,
+        )
+    )
+    predictions = run_predictions(experiment, corpus)
+    result = build_result_manifest(
+        result_id="need-exp/1",
+        experiment=experiment,
+        predictions=predictions,
+        aggregates={"hit_at_1": 0.5},
+    )
+    claim = Claim(
+        claim_id="need-exp",
+        text_location="docs/evaluation/v1/README.md",
+        metric="hit_at_1",
+        value=0.5,
+        unit="fraction",
+        population_split="final",
+        result_digest=result.digest(),
+        confidence_interval=None,
+        evidence_class="retrieval",
+        status="supported",
+        limitations="fixture",
+        schema=SCHEMA_CLAIM,
+    )
+    errors = validate_claim_integrity(
+        claim,
+        result=result,
+        predictions=predictions,
+        experiment=None,
+        current_labels_sha256=experiment.labels_sha256,
+        corpus=corpus,
+    )
+    assert any("incomplete evidence chain" in e and "experiment" in e for e in errors)
+
+
+def test_supported_claim_requires_corpus() -> None:
+    """ATLAS residual: omitting corpus fails the supported evidence chain."""
+    corpus = _corpus_from_offline()
+    experiment = _seal(
+        _experiment(
+            corpus_sha256=corpus.content_identity_sha256,
+            labels_sha256=corpus.content_identity_sha256,
+        )
+    )
+    predictions = run_predictions(experiment, corpus)
+    result = build_result_manifest(
+        result_id="need-corpus/1",
+        experiment=experiment,
+        predictions=predictions,
+        aggregates={"hit_at_1": 0.5},
+    )
+    claim = Claim(
+        claim_id="need-corpus",
+        text_location="docs/evaluation/v1/README.md",
+        metric="hit_at_1",
+        value=0.5,
+        unit="fraction",
+        population_split="final",
+        result_digest=result.digest(),
+        confidence_interval=None,
+        evidence_class="retrieval",
+        status="supported",
+        limitations="fixture",
+        schema=SCHEMA_CLAIM,
+    )
+    errors = validate_claim_integrity(
+        claim,
+        result=result,
+        predictions=predictions,
+        experiment=experiment,
+        current_labels_sha256=experiment.labels_sha256,
+        corpus=None,
+    )
+    assert any("incomplete evidence chain" in e and "corpus" in e for e in errors)
+
+
+def test_supported_claim_full_bundle_passes() -> None:
+    """ATLAS residual: complete experiment+corpus+result+predictions passes."""
+    corpus = _corpus_from_offline()
+    experiment = _seal(
+        _experiment(
+            corpus_sha256=corpus.content_identity_sha256,
+            labels_sha256=corpus.content_identity_sha256,
+        )
+    )
+    predictions = run_predictions(experiment, corpus)
+    result = build_result_manifest(
+        result_id="full-bundle/1",
+        experiment=experiment,
+        predictions=predictions,
+        aggregates={"hit_at_1": 0.5},
+    )
+    claim = Claim(
+        claim_id="full-bundle",
+        text_location="docs/evaluation/v1/README.md",
+        metric="hit_at_1",
+        value=0.5,
+        unit="fraction",
+        population_split="final",
+        result_digest=result.digest(),
+        confidence_interval=None,
+        evidence_class="retrieval",
+        status="supported",
+        limitations="fixture",
+        schema=SCHEMA_CLAIM,
+    )
+    assert (
+        validate_claim_integrity(
+            claim,
+            result=result,
+            predictions=predictions,
+            experiment=experiment,
+            current_labels_sha256=experiment.labels_sha256,
+            corpus=corpus,
+        )
+        == []
+    )
 
 
 def test_circular_plan_f1_cannot_be_supported() -> None:

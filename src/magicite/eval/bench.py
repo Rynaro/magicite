@@ -480,7 +480,13 @@ def cli(
     sync: bool,
     allow_circular_diagnostic_gold: bool,
 ) -> None:
-    """Run the docs/07 baseline benchmark (a-d) and print Hit@k/MRR/Plan F1 as JSON."""
+    """Run baselines a-d; print Hit@k/MRR/Plan F1 as JSON.
+
+    Circular expand()-as-gold Plan F1 requires
+    ``--allow-circular-diagnostic-gold`` (diagnostic only; not eligible for
+    ``status=supported``). Prefer independent corpus annotations via the
+    Python API ``expected_plans=``.
+    """
     from magicite.core import registry as registry_mod
     from magicite.embeddings import get_embedder
     from magicite.storage import db as db_mod

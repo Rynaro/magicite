@@ -12,6 +12,8 @@ Immutable evidence-chain schemas implemented under `src/magicite/eval/`.
 
 Validators: `magicite.eval.validate`. Digests: `magicite.eval.digests` (SHA-256 over raw bytes or canonical JSON).
 
-Historical v0.3 artifacts under `docs/evaluation/v0.3-*.json` remain addressable and are labeled `evidence_class=historical`; they cannot satisfy a new-run gate (`claim_eligible_for_new_run_gate` rejects `status=supported` with historical evidence). Structural evidence cannot support efficacy/retrieval metrics.
+Historical v0.3 artifacts under `docs/evaluation/v0.3-*.json` remain addressable and are labeled `evidence_class=historical`; they cannot satisfy a new-run gate (`claim_eligible_for_new_run_gate` rejects `status=supported` with historical evidence). Structural evidence cannot support efficacy/retrieval metrics. A `status=supported` claim requires the full evidence chain (experiment, corpus, result, and predictions) so seal and digest checks cannot be skipped.
 
 Offline SkillRet adapter fixture: `fixtures/skillret-tiny/`. Official download is explicit via `magicite.eval.external.record_external_download` (license + digest record only; no auto-fetch).
+
+Diagnostic circular Plan F1 (expand()-as-gold) requires an explicit switch: CLI `--allow-circular-diagnostic-gold`, or Python `allow_circular_diagnostic_gold=True`. Prefer independent corpus annotations via `expected_plans=`; circular gold cannot satisfy `status=supported`.
