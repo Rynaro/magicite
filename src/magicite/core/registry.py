@@ -27,12 +27,16 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import sqlite3
 import time
+import unicodedata
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -945,6 +949,167 @@ class BundleImportOutcome:
     signer_fingerprint: str | None
 
 
+_IMPORT_STAGING_DIRNAME = ".import-staging"
+_ENGRAM_ID_RE = re.compile(r"(?m)^id:\s*[\"']?([^\s\"'#]+)[\"']?\s*$")
+
+
+def normalize_registry_path_key(rel: str) -> str:
+    """NFKC + casefold key for registry path collision checks (APFS-safe)."""
+    return unicodedata.normalize("NFKC", rel.replace("\\", "/")).casefold()
+
+
+def build_registry_path_index(registry_root: Path) -> dict[str, Path]:
+    """Map normalize_registry_path_key → relative Path for existing files."""
+    root = registry_root.resolve()
+    index: dict[str, Path] = {}
+    if not root.is_dir():
+        return index
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root).as_posix()
+        if rel == ".gitignore" or rel.startswith(f"{_IMPORT_STAGING_DIRNAME}/"):
+            continue
+        if rel.endswith(".db") or ".db-" in rel or rel.endswith(".db-wal") or rel.endswith(".db-shm"):
+            continue
+        index[normalize_registry_path_key(rel)] = Path(rel)
+    return index
+
+
+def assert_no_registry_path_collision(
+    existing_index: dict[str, Path],
+    *,
+    candidate: str,
+) -> None:
+    """Refuse when ``candidate`` casefold/NFC-collides with a different spelling."""
+    cand = candidate.replace("\\", "/")
+    key = normalize_registry_path_key(cand)
+    prior = existing_index.get(key)
+    if prior is None:
+        return
+    prior_s = prior.as_posix()
+    if prior_s != cand:
+        raise InvalidInputError(
+            f"casefold collision with existing registry path: {prior_s!r} vs {cand!r}"
+        )
+
+
+def _parse_engram_id_from_bytes(raw: bytes) -> str | None:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    match = _ENGRAM_ID_RE.search(text)
+    return match.group(1) if match else None
+
+
+def _engram_id_owning_registry_path(
+    conn: sqlite3.Connection,
+    cfg: Config,
+    *,
+    rel_posix: str,
+) -> str | None:
+    """Best-effort owner of an on-disk registry relative path."""
+    project_root = cfg.project_root.resolve()
+    registry_root = cfg.registry_dir.resolve()
+    abs_path = (registry_root / rel_posix).resolve()
+    try:
+        project_rel = str(abs_path.relative_to(project_root))
+    except ValueError:
+        project_rel = rel_posix
+
+    row = conn.execute(
+        "SELECT id FROM engram WHERE path = ? OR path = ?",
+        (project_rel, rel_posix),
+    ).fetchone()
+    if row is not None:
+        return str(row["id"])
+
+    # Fallback: parse the on-disk .egr.md if present.
+    if abs_path.is_file() and rel_posix.endswith(".egr.md"):
+        return _parse_engram_id_from_bytes(abs_path.read_bytes())
+    return None
+
+
+def _assert_import_destinations_safe(
+    *,
+    conn: sqlite3.Connection,
+    cfg: Config,
+    registry_root: Path,
+    verified_staging: Path,
+    manifest_entries: list[Any],
+) -> dict[str, bool]:
+    """Pre-check every destination. Returns rel → skip_publish (idempotent).
+
+    Refuses the whole import (no destination writes) when any destination
+    exists with differing bytes, a casefold collision with a different
+    spelling, or byte-identical content owned by a different engram.
+    """
+    existing = build_registry_path_index(registry_root)
+    skip_publish: dict[str, bool] = {}
+    bundle_keys: dict[str, str] = {}
+
+    for entry in manifest_entries:
+        rel = entry.path.replace("\\", "/")
+        key = normalize_registry_path_key(rel)
+        if key in bundle_keys and bundle_keys[key] != rel:
+            raise InvalidInputError(
+                f"casefold collision among bundle members: "
+                f"{bundle_keys[key]!r} vs {rel!r}"
+            )
+        bundle_keys[key] = rel
+
+        # Casefold vs existing registry (distinct spelling).
+        assert_no_registry_path_collision(existing, candidate=rel)
+
+        dest = registry_root / rel
+        src = verified_staging / rel
+        incoming = src.read_bytes()
+
+        # Exact path exists?
+        if dest.exists() or (key in existing and existing[key].as_posix() == rel):
+            # Resolve through the index when FS is case-insensitive.
+            existing_rel = existing.get(key)
+            if existing_rel is not None and existing_rel.as_posix() != rel:
+                raise InvalidInputError(
+                    f"casefold collision with existing registry path: "
+                    f"{existing_rel.as_posix()!r} vs {rel!r}"
+                )
+            on_disk = (registry_root / (existing_rel.as_posix() if existing_rel else rel)).read_bytes()
+            if on_disk != incoming:
+                raise InvalidInputError(
+                    f"import would overwrite existing registry path: {rel!r}",
+                    details={"path": rel, "reason": "clobber"},
+                )
+            # Byte-identical: require same-engram ownership for .egr.md.
+            if rel.endswith(".egr.md"):
+                incoming_id = _parse_engram_id_from_bytes(incoming)
+                owner = _engram_id_owning_registry_path(conn, cfg, rel_posix=rel)
+                if owner is None:
+                    owner = _parse_engram_id_from_bytes(on_disk)
+                if incoming_id is None or owner is None or incoming_id != owner:
+                    raise InvalidInputError(
+                        f"import would clobber path owned by another engram: {rel!r}",
+                        details={
+                            "path": rel,
+                            "incoming_id": incoming_id,
+                            "owner_id": owner,
+                            "reason": "clobber",
+                        },
+                    )
+            skip_publish[rel] = True
+        else:
+            # Destination absent under this spelling, but casefold hit?
+            if key in existing:
+                raise InvalidInputError(
+                    f"casefold collision with existing registry path: "
+                    f"{existing[key].as_posix()!r} vs {rel!r}"
+                )
+            skip_publish[rel] = False
+
+    return skip_publish
+
+
 def import_bundle(
     cfg: Config,
     conn: sqlite3.Connection,
@@ -957,11 +1122,13 @@ def import_bundle(
 
     Preserves archive-relative hierarchy under the registry root (including
     non-``.egr.md`` assets) so admitted resource digests match on-disk bytes.
-    Fail closed on zip-slip, digest mismatch, unknown/revoked keys, or
-    non-canonical manifests. Successful members remain pending until
-    :func:`review_approve`.
+    Fail closed on zip-slip, digest mismatch, unknown/revoked keys,
+    non-canonical manifests, or any destination that would clobber an
+    existing registry path (unless byte-identical same-engram re-import).
+    Successful members remain pending until :func:`review_approve`.
     """
     from magicite.core import bundles as bundles_mod
+    from magicite.engram.digests import sha256_hex
 
     cfg.ensure_dirs()
     trust_mod.ensure_trust_dirs(cfg)
@@ -979,56 +1146,87 @@ def import_bundle(
     registry_root = cfg.registry_dir.resolve()
     outcome = IngestOutcome()
     cross_lease = _cross_process_lease(cfg, conn, "bundle-import")
+    publish_staging: Path | None = None
     with cross_lease.acquire(), lease_mod.writer_lease():
-        # Stage every verified member (engrams + assets) preserving hierarchy.
-        staged_egr: list[Path] = []
-        for entry in verified.manifest.entries:
-            src = verified.staging_dir / entry.path
-            dest = (registry_root / entry.path).resolve()
-            try:
-                dest.relative_to(registry_root)
-            except ValueError as exc:
-                raise InvalidInputError(
-                    f"bundle member escapes registry root: {entry.path!r}"
-                ) from exc
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(src.read_bytes())
-            if entry.path.endswith(".egr.md"):
-                staged_egr.append(dest)
+        skip_publish = _assert_import_destinations_safe(
+            conn=conn,
+            cfg=cfg,
+            registry_root=registry_root,
+            verified_staging=verified.staging_dir,
+            manifest_entries=list(verified.manifest.entries),
+        )
 
-        for dest in staged_egr:
-            rel_in_registry = str(dest.relative_to(registry_root).as_posix())
-            try:
-                artifact, _doc = parser_mod.load_artifact_file(
-                    dest,
-                    registry_root=registry_root,
-                    require_asset_files=True,
+        # Stage under the registry root; publish only after checks + re-hash.
+        publish_staging = registry_root / _IMPORT_STAGING_DIRNAME / uuid.uuid4().hex
+        try:
+            for entry in verified.manifest.entries:
+                rel = entry.path.replace("\\", "/")
+                src = verified.staging_dir / rel
+                staged = publish_staging / rel
+                staged.parent.mkdir(parents=True, exist_ok=True)
+                raw = src.read_bytes()
+                # TOCTOU: re-hash staged bytes against the verified manifest.
+                if sha256_hex(raw) != entry.sha256 or len(raw) != entry.size:
+                    raise InvalidInputError(
+                        f"staged bytes diverged from verified manifest for {rel!r}"
+                    )
+                staged.write_bytes(raw)
+
+            staged_egr: list[Path] = []
+            for entry in verified.manifest.entries:
+                rel = entry.path.replace("\\", "/")
+                dest = (registry_root / rel).resolve()
+                try:
+                    dest.relative_to(registry_root)
+                except ValueError as exc:
+                    raise InvalidInputError(
+                        f"bundle member escapes registry root: {rel!r}"
+                    ) from exc
+                if skip_publish.get(rel):
+                    if rel.endswith(".egr.md"):
+                        staged_egr.append(dest)
+                    continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(publish_staging / rel, dest)
+                if rel.endswith(".egr.md"):
+                    staged_egr.append(dest)
+
+            for dest in staged_egr:
+                rel_in_registry = str(dest.relative_to(registry_root).as_posix())
+                try:
+                    artifact, _doc = parser_mod.load_artifact_file(
+                        dest,
+                        registry_root=registry_root,
+                        require_asset_files=True,
+                    )
+                    engram = _artifact_to_engram(artifact, intake_channel="bundle_import")
+                    engram.path = str(dest.resolve().relative_to(project_root))
+                except parser_mod.EngramParseError as exc:
+                    outcome.validation_errors.append(
+                        ValidationError(path=rel_in_registry, message=str(exc))
+                    )
+                    continue
+                resource = trust_mod.compute_resource_digest_at(cfg, relpath=engram.path)
+                registered, verr, _skipped, dangling = _ingest_one(
+                    conn,
+                    embedder,
+                    engram,
+                    profile="import",
+                    registry_dir=cfg.registry_dir,
+                    cfg=cfg,
+                    intake_channel="bundle_import",
+                    signature_valid=True,
+                    signer_fingerprint=verified.signer_fingerprint,
+                    resource_digest=resource,
                 )
-                engram = _artifact_to_engram(artifact, intake_channel="bundle_import")
-                engram.path = str(dest.resolve().relative_to(project_root))
-            except parser_mod.EngramParseError as exc:
-                outcome.validation_errors.append(
-                    ValidationError(path=rel_in_registry, message=str(exc))
-                )
-                continue
-            resource = trust_mod.compute_resource_digest_at(cfg, relpath=engram.path)
-            registered, verr, _skipped, dangling = _ingest_one(
-                conn,
-                embedder,
-                engram,
-                profile="import",
-                registry_dir=cfg.registry_dir,
-                cfg=cfg,
-                intake_channel="bundle_import",
-                signature_valid=True,
-                signer_fingerprint=verified.signer_fingerprint,
-                resource_digest=resource,
-            )
-            if verr:
-                outcome.validation_errors.append(verr)
-            if registered:
-                outcome.registered.append(registered)
-            outcome.dangling.extend(dangling)
+                if verr:
+                    outcome.validation_errors.append(verr)
+                if registered:
+                    outcome.registered.append(registered)
+                outcome.dangling.extend(dangling)
+        finally:
+            if publish_staging is not None:
+                shutil.rmtree(publish_staging, ignore_errors=True)
 
     return BundleImportOutcome(
         ingested=len(outcome.registered),
