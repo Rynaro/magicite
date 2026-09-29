@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import threading
 from pathlib import Path
 
@@ -20,6 +21,12 @@ from magicite.errors import BusyError, InvalidInputError
 from magicite.storage import db as db_mod
 from magicite.storage import migration_ops as ops
 from magicite.storage.migrations.registry import MAX_KNOWN_SCHEMA_VERSION
+
+
+def _tree_relpaths(root: Path) -> set[str]:
+    if not root.exists():
+        return set()
+    return {p.relative_to(root).as_posix() for p in root.rglob("*")}
 
 
 class MigrationFault(RuntimeError):
@@ -377,3 +384,84 @@ def test_unsupported_future_schema_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(InvalidInputError, match="newer than this build"):
         db_mod.connect(db_path, migrate=True)
+
+
+def test_preview_sees_uncheckpointed_wal_without_data_dir_writes(cfg: Config) -> None:
+    """Preview must read post-change WAL state without writing into the data dir.
+
+    ``immutable=1`` ignores the WAL and would report a stale snapshot when a
+    non-empty ``-wal`` exists; the copy-based open must see the marker row and
+    leave the data directory's path set unchanged.
+    """
+    _prepare_registered(cfg)
+    writer = sqlite3.connect(str(cfg.db_path), isolation_level=None, check_same_thread=False)
+    try:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute("CREATE TABLE preview_wal_marker(x TEXT NOT NULL)")
+        writer.execute("INSERT INTO preview_wal_marker(x) VALUES ('post-change')")
+        wal = Path(str(cfg.db_path) + "-wal")
+        assert wal.is_file() and wal.stat().st_size > 0
+
+        before_tree = _tree_relpaths(cfg.data_dir)
+        preview = migration_mod.preview(cfg)
+        assert preview.kind == "upgrade_engram_0_2_to_1_0"
+        assert _tree_relpaths(cfg.data_dir) == before_tree
+
+        # Directly verify the readonly open path sees WAL frames (copy approach).
+        conn, _ver, owns, temp_dir = migration_mod._connect_preview_readonly(cfg)
+        assert owns is True
+        assert conn is not None
+        try:
+            row = conn.execute("SELECT x FROM preview_wal_marker").fetchone()
+            assert row is not None
+            assert row[0] == "post-change"
+        finally:
+            conn.close()
+            if temp_dir is not None:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+        assert _tree_relpaths(cfg.data_dir) == before_tree
+    finally:
+        writer.close()
+
+
+def test_preview_nonexistent_data_dir_creates_nothing(tmp_path: Path) -> None:
+    """Preview must not call ensure_dirs: missing data dir stays missing."""
+    root = tmp_path / "uninitialized"
+    root.mkdir()
+    cfg = Config.load(root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    assert not cfg.data_dir.exists()
+    before = _tree_relpaths(root)
+
+    preview = migration_mod.preview(cfg)
+
+    assert _tree_relpaths(root) == before
+    assert not cfg.data_dir.exists()
+    assert preview.artifact_plans == ()
+    assert preview.input_digests == {}
+    assert preview.kind == "upgrade_engram_0_2_to_1_0"
+
+
+def test_mkdir_secure_fsyncs_parent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """After creating a directory, the parent dirent must be fsynced."""
+    synced_paths: list[Path] = []
+    real_open = os.open
+    real_fsync = os.fsync
+    fd_to_path: dict[int, Path] = {}
+
+    def tracking_open(path: str | bytes | os.PathLike[str], flags: int, *args: object) -> int:
+        fd = real_open(path, flags, *args) if args else real_open(path, flags)
+        fd_to_path[fd] = Path(os.fsdecode(path)).resolve()
+        return fd
+
+    def tracking_fsync(fd: int) -> None:
+        synced_paths.append(fd_to_path.get(fd, Path(f"<fd:{fd}>")))
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "open", tracking_open)
+    monkeypatch.setattr(os, "fsync", tracking_fsync)
+
+    child = tmp_path / "secure-child"
+    migration_mod._mkdir_secure(child)
+    assert child.is_dir()
+    assert tmp_path.resolve() in synced_paths

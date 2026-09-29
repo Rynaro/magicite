@@ -18,6 +18,7 @@ import os
 import shutil
 import sqlite3
 import stat
+import tempfile
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -179,8 +180,21 @@ def _fsync_dir(path: Path) -> None:
 
 
 def _mkdir_secure(path: Path, *, mode: int = 0o700) -> None:
+    """Create ``path`` (mode 0700) and fsync each parent that gained a new dirent."""
+    to_create: list[Path] = []
+    cursor = path
+    while not cursor.exists():
+        to_create.append(cursor)
+        parent = cursor.parent
+        if parent == cursor:
+            break
+        cursor = parent
     path.mkdir(parents=True, exist_ok=True)
     os.chmod(path, mode)
+    # Durability: fsync the parent of each newly created directory so the
+    # directory entry itself survives a crash (macOS/Linux support dir fsync).
+    for created in to_create:
+        _fsync_dir(created.parent)
 
 
 def _write_bytes_durable(path: Path, data: bytes, *, mode: int = 0o600) -> None:
@@ -268,24 +282,58 @@ def _constrained_under(root: Path, rel: str, *, label: str) -> Path:
     return resolved
 
 
-def _connect_preview_readonly(cfg: Config) -> tuple[sqlite3.Connection | None, int, bool]:
-    """Open an existing DB read-only for preview (no WAL/SHM creation).
+def _connect_preview_readonly(
+    cfg: Config,
+) -> tuple[sqlite3.Connection | None, int, bool, Path | None]:
+    """Open an existing DB read-only for preview (zero writes to the data dir).
 
-    Returns ``(conn_or_None, schema_version, owns_conn)``.
+    Returns ``(conn_or_None, schema_version, owns_conn, temp_dir_or_None)``.
+    When ``temp_dir_or_None`` is set, the caller must ``shutil.rmtree`` it after
+    closing the connection (private copy of db+wal+shm).
+
+    Behaviour:
+    * Missing/empty DB → ``(None, MAX_KNOWN_SCHEMA_VERSION, False, None)``.
+    * No non-empty ``-wal`` → open with ``mode=ro&immutable=1`` so SQLite does
+      not create ``-wal``/``-shm`` companions in the data dir.
+    * Non-empty ``-wal`` (un-checkpointed frames) → ``immutable=1`` would ignore
+      the WAL and return a stale snapshot. Instead, copy the database file plus
+      any ``-wal``/``-shm`` sidecars into a private temp directory and open that
+      copy with ``mode=ro``. The data directory is never written.
+
     Preview is best-effort without the writer lease.
     """
     if not cfg.db_path.is_file() or cfg.db_path.stat().st_size == 0:
-        return None, MAX_KNOWN_SCHEMA_VERSION, False
-    # ``immutable=1`` prevents SQLite from creating -wal/-shm companions on open.
-    uri = f"file:{cfg.db_path.resolve().as_posix()}?mode=ro&immutable=1"
-    conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+        return None, MAX_KNOWN_SCHEMA_VERSION, False, None
+
+    wal_path = Path(f"{cfg.db_path}-wal")
+    use_wal_copy = wal_path.is_file() and wal_path.stat().st_size > 0
+    temp_dir: Path | None = None
     try:
-        conn.execute("PRAGMA query_only = ON")
-        db_mod.assert_schema_supported(conn)
-        return conn, db_mod.schema_version(conn), True
+        if use_wal_copy:
+            temp_dir = Path(tempfile.mkdtemp(prefix="magicite-mig-preview-"))
+            dest = temp_dir / cfg.db_path.name
+            shutil.copy2(cfg.db_path, dest)
+            for suffix in ("-wal", "-shm"):
+                src = Path(f"{cfg.db_path}{suffix}")
+                if src.is_file():
+                    shutil.copy2(src, Path(f"{dest}{suffix}"))
+            uri = f"file:{dest.resolve().as_posix()}?mode=ro"
+        else:
+            # ``immutable=1`` prevents SQLite from creating -wal/-shm on open.
+            uri = f"file:{cfg.db_path.resolve().as_posix()}?mode=ro&immutable=1"
+
+        conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA query_only = ON")
+            db_mod.assert_schema_supported(conn)
+            return conn, db_mod.schema_version(conn), True, temp_dir
+        except Exception:
+            conn.close()
+            raise
     except Exception:
-        conn.close()
+        if temp_dir is not None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
         raise
 
 
@@ -430,9 +478,14 @@ def preview(
 ) -> MigrationPreview:
     """Dry-run migration plan. Guaranteed zero durable writes (AC-S03-01).
 
-    Preview is best-effort without the writer lease. When ``conn`` is omitted
-    and a DB already exists, it is opened read-only (``mode=ro``) so no
-    ``-wal``/``-shm`` sidecars are created.
+    Preview never creates directories or files under the project/data dir
+    (no ``ensure_dirs``). If the data dir / DB is missing, returns an empty
+    plan (nothing to migrate / not initialized).
+
+    When ``conn`` is omitted and a DB already exists, it is opened read-only
+    without writing into the data dir: ``mode=ro&immutable=1`` when no
+    non-empty ``-wal`` is present; otherwise a private temp copy of
+    db+wal+shm is opened (see :func:`_connect_preview_readonly`).
     """
     if target_format not in SUPPORTED_TARGET_ENGRAM_FORMATS:
         raise InvalidInputError(
@@ -441,9 +494,10 @@ def preview(
         )
 
     own_conn = False
+    temp_dir: Path | None = None
     if conn is None:
-        cfg.ensure_dirs()
-        conn, schema_ver, own_conn = _connect_preview_readonly(cfg)
+        # Zero-write: do not ensure_dirs — missing data dir → empty plan.
+        conn, schema_ver, own_conn, temp_dir = _connect_preview_readonly(cfg)
     else:
         db_mod.assert_schema_supported(conn)
         schema_ver = db_mod.schema_version(conn)
@@ -522,6 +576,8 @@ def preview(
     finally:
         if own_conn and conn is not None:
             conn.close()
+        if temp_dir is not None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def status(cfg: Config, operation_id: str, conn: sqlite3.Connection | None = None) -> MigrationStatus:
