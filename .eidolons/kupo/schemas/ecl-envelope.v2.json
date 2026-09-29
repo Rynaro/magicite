@@ -126,7 +126,7 @@
     },
     "ise": {
       "$ref": "#/$defs/ise",
-      "description": "ISE (Intent, Source, Entitlement) trust-hierarchy block. Optional at v2.0. Composes with, does not replace, constraints.trust_level. ECL v2.0 §6.5. Kupo's PROPOSE sets assertion_grade=\"validated\" — see SPEC.md §5 and skills/patch-verify.md."
+      "description": "ISE (Intent, Source, Entitlement) trust-hierarchy block. Optional at v2.0. Composes with, does not replace, constraints.trust_level. ECL v2.0 §6.5. Kupo's PROPOSE sets assertion_grade=\"validated\" — see SPEC.md §5 and skills/patch-verify/SKILL.md."
     },
     "expected_response": {
       "type": "object",

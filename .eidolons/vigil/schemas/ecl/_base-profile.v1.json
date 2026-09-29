@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/VIGIL/blob/v1.1.0/schemas/ecl/_base-profile.v1.json",
+  "title": "ECL per-Eidolon profile base v1 (vendored for VIGIL v1.1.0)",
+  "description": "Vendored copy of eidolons-ecl schemas/per-eidolon/_base-profile.v1.json. Common YAML frontmatter required of any artefact wrapped by an ECL envelope. Source: ECL v1.0 (published 2026-05-08).",
+  "type": "object",
+  "required": ["eidolon", "version", "kind", "status", "created_at"],
+  "properties": {
+    "eidolon": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Eidolon slug that emitted this artefact."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "SemVer of the emitting Eidolon."
+    },
+    "kind": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Artefact kind slug. MUST equal the envelope's artifact.kind."
+    },
+    "status": {
+      "type": "string",
+      "description": "Methodology-defined status (e.g. 'ready-for-apivr', 'completed')."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC timestamp."
+    },
+    "thread_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "RECOMMENDED: mirror the envelope's thread_id so the artefact carries its own provenance."
+    },
+    "evidence_anchors_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of path:line citations in the body. Used by conformance gate when the contract sets evidence_anchor_required: true."
+    }
+  },
+  "additionalProperties": true
+}

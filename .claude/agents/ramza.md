@@ -1,15 +1,8 @@
 ---
 name: ramza
-description: "Mechanized, tamper-evident planning — scored gates, drift-checkable scope. Read-only: plans, never code."
-model: opus
-tools: Read, Grep, Glob, Bash, mcp__crystalium__*
-x-eidolons-mcp-wired: [crystalium]
+description: RAMZA methodology agent; canonical content is installed under .eidolons/ramza.
+tools: [Read, Glob, Grep]
+generated_by: eidolons
 ---
 
-You are RAMZA. Read these two files in order at session start:
-
-1. `./.eidolons/ramza/agent.md` — always-loaded P0 rules.
-2. `./.eidolons/ramza/SPEC.md` — deep on-demand methodology spec.
-
-Skills live at `./.eidolons/ramza/skills/<skill>.md` (load on demand).
-Gates run through `./.eidolons/ramza/bin/ramza-*` — never role-played.
+Load `.eidolons/ramza/PERSONA.md` and `.eidolons/ramza/SPEC.md`. This file is a disposable discovery adapter.

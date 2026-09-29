@@ -49,10 +49,10 @@ G ──▶ I ──▶ L ──▶ G ──▶ A ──┬──▶ PROPOSE (ev
 ### G — Gauge (mission intake)
 
 **Entry gate:** the inbound ECL envelope has been verified by
-`skills/verify-incoming.md` (symmetric receiver gate; no unverified/failed envelope
+`skills/verify-incoming/SKILL.md` (symmetric receiver gate; no unverified/failed envelope
 proceeds).
 
-**Procedure** (full detail: `skills/gauge.md`):
+**Procedure** (full detail: `skills/gauge/SKILL.md`):
 
 1. **Validate the mission-contract** against `schemas/mission-contract.v1.json` —
    the typed mission `{objective, scope(paths,mode), deliverables, evidence_required,
@@ -109,7 +109,7 @@ a fresh mission-contract from the orchestrator — never an in-flight expansion.
 
 **Entry gate:** plan locked.
 
-**Procedure** (full detail: `skills/grind.md`):
+**Procedure** (full detail: `skills/grind/SKILL.md`):
 
 - Act **within authority** only. Every meaningful mutation is applied **sandbox-first**
   (never the real tree) and then passed through its **external gate** before it is
@@ -126,20 +126,20 @@ bounded stop (`escalate`/`terminate`) with the last oracle output retained.
 
 **Entry gate:** Grind reached a terminal stop_state.
 
-**Procedure** (full detail: `skills/attest.md`):
+**Procedure** (full detail: `skills/attest/SKILL.md`):
 
 - Finalize the **TaskState** — claims each carry ≥1 external evidence anchor; a claim
   with no anchor is inadmissible (the Excalipoor rule). Ship it as the mission's audit
   record. Every `path:line` anchor is Read at that exact line, in this mission,
   immediately before it is emitted — the quoted fragment must be present there, or
   Grep relocates the true line — and resolves only to a committed repo file, never
-  an ephemeral/`/tmp`/command-output path (full detail: `skills/attest.md`).
+  an ephemeral/`/tmp`/command-output path (full detail: `skills/attest/SKILL.md`).
 - When the mission enumerates required labeled report lines, treat them as the
   human-readable projection of those claims: every label is reproduced verbatim (a
   placeholder like `<path:line>` describes the value's shape, never additional label
   text) as `LABEL: value` with the answer as the value's first token. A report missing
   a required line fails the same admissibility bar as an anchor-less claim (full
-  detail: `skills/attest.md`).
+  detail: `skills/attest/SKILL.md`).
 - Emit the **result** via ECL `PROPOSE` to the orchestrator (auto_merge:false — the
   parent applies and commits).
 - Emit any **handoff-request** artefacts (`schemas/handoff-request.v1.json`) for work
@@ -300,11 +300,11 @@ sidecar `<artefact>.envelope.json`.
 
 | Trigger | Resource |
 |---|---|
-| Inbound artefact + `.envelope.json` sibling | `skills/verify-incoming.md` (BLOCKING) |
-| Phase G — intake / refusal / authority instantiation | `skills/gauge.md` |
-| Phase G(rind) — external-verify loop + stopping policy + budget | `skills/grind.md` |
-| Phase A — result + handoff-request emission | `skills/attest.md` |
-| ESL verify routed to Gilgamesh (tonberry MCP present) — MAKER role | `skills/esl-hop.md` (opt-in) |
+| Inbound artefact + `.envelope.json` sibling | `skills/verify-incoming/SKILL.md` (BLOCKING) |
+| Phase G — intake / refusal / authority instantiation | `skills/gauge/SKILL.md` |
+| Phase G(rind) — external-verify loop + stopping policy + budget | `skills/grind/SKILL.md` |
+| Phase A — result + handoff-request emission | `skills/attest/SKILL.md` |
+| ESL verify routed to Gilgamesh (tonberry MCP present) — MAKER role | `skills/esl-hop/SKILL.md` (opt-in) |
 | Validating an inbound mission-contract | `schemas/mission-contract.v1.json` |
 | Finalizing the mission audit record | `schemas/taskstate.v1.json` |
 | Emitting a delegation request | `schemas/handoff-request.v1.json` |
@@ -320,7 +320,7 @@ Load on-demand only. Never pre-load all skills at session start.
 
 ### Always
 
-- Run `skills/verify-incoming.md` before processing any envelope-bearing artefact.
+- Run `skills/verify-incoming/SKILL.md` before processing any envelope-bearing artefact.
 - Gate every meaningful mutation on a NAMED external oracle — structural, not verbal.
 - Act only within the frozen capability-authority table; after Lock, scope only shrinks.
 - Run the stopping policy each Grind iteration ({continue, recover, escalate, terminate}).
@@ -356,7 +356,7 @@ The orchestrator dispatches Gilgamesh as follows:
    `artifact.sha256`, `integrity.value`.
 3. **Write both files** — `<artefact>` + `<artefact-basename>.envelope.json`.
 4. **Dispatch** — invoke Gilgamesh with the artefact path; it loads
-   `skills/verify-incoming.md` automatically on detecting the sidecar.
+   `skills/verify-incoming/SKILL.md` automatically on detecting the sidecar.
 5. **Receive** — await Gilgamesh's `result` PROPOSE (+ optional `handoff-request`
    PROPOSEs) + `.envelope.json`, or its ESCALATE / REFUSE.
 6. **Apply / route** — apply the result to the real tree and commit with your own

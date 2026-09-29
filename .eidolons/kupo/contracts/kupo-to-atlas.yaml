@@ -1,0 +1,14 @@
+contract_version: "1.0"
+from: kupo
+to: atlas
+edge_origin: roster
+performatives_allowed:
+  - INFORM
+  - ESCALATE
+  - REFUSE
+  - ACKNOWLEDGE
+notes: >
+  Kupo may send INFORM/ESCALATE/REFUSE/ACKNOWLEDGE to ATLAS (e.g., to surface a
+  discovery made during Phase U gather that ATLAS should know about, or to escalate
+  a gather failure back). PROPOSE is NOT allowed on this edge — ATLAS is read-only
+  and cannot apply or commit patches.

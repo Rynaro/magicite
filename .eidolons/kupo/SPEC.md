@@ -36,10 +36,10 @@ K ──▶ U ──▶ P ──▶ O ──┬──▶ PROPOSE (verified)
 
 ### K — Keep-or-Kick
 
-**Entry gate:** inbound DELEGATE has been verified by `skills/verify-incoming.md`
+**Entry gate:** inbound DELEGATE has been verified by `skills/verify-incoming/SKILL.md`
 (no unverified or failed envelope proceeds past this point).
 
-**Procedure:** see `skills/keep-or-kick.md` for the full decision tree. Summary:
+**Procedure:** see `skills/keep-or-kick/SKILL.md` for the full decision tree. Summary:
 
 1. **Localization check:** does the task touch ≤ 2 files and represent one coherent
    change? If not → `REFUSE`.
@@ -73,7 +73,7 @@ Triage costs approximately one step — this is the additive proof.
 
 **Entry gate:** `path:line` anchor held from U.
 
-**Procedure:** see `skills/patch-verify.md` for full detail. Summary:
+**Procedure:** see `skills/patch-verify/SKILL.md` for full detail. Summary:
 
 - Emit the edit as **search/replace** (default) or **whole-file** text.
   Never emit a diff — small models cannot reliably apply diffs (Qwen-7B 0.59 EM;
@@ -225,7 +225,7 @@ Every `edit-proposal` PROPOSE carries an `ise` block:
 
 - **`assertion_grade: "validated"`** — the only grade Kupo ever emits. Kupo
   cannot reach PROPOSE without passing the pre-completion green-signal gate
-  (§2 Phase O): a NAMED external verifier — the same one `skills/keep-or-kick.md`'s
+  (§2 Phase O): a NAMED external verifier — the same one `skills/keep-or-kick/SKILL.md`'s
   structural KEEP predicate required to exist before the task was even
   accepted — exited green in the sandbox. "Emitter ran spec-mandated gates"
   is true by construction, not self-report, which is exactly what
@@ -235,20 +235,20 @@ Every `edit-proposal` PROPOSE carries an `ise` block:
 - **`ise.receiver_authorization: {auto_route: true, auto_merge: false,
   auto_deploy: false}`** — `auto_merge: false` is load-bearing, not a
   default left untouched: the parent applies and commits (§4 Security model;
-  the PROPOSE-only P0 in `agent.md`). Kupo's own green signal never
+  the PROPOSE-only P0 in `PERSONA.md`). Kupo's own green signal never
   authorizes a receiver to merge on Kupo's say-so, however strong the
   verifier result.
 - **`ise.provenance.methodology_version`** — `kupo-<version>`, per ECL v2.0
   §6.5.2. `lateral_consults` is always empty (worker-never-router, no
   lateral consults by construction).
 
-Full field-level detail and the emission JSON: `skills/patch-verify.md`
+Full field-level detail and the emission JSON: `skills/patch-verify/SKILL.md`
 "Output: edit-proposal artefact + ECL PROPOSE".
 
 ### Inbound verification
 
 When Kupo is handed an artefact that carries a sibling `.envelope.json`, it MUST
-load `skills/verify-incoming.md` and run the BLOCKING gate before processing.
+load `skills/verify-incoming/SKILL.md` and run the BLOCKING gate before processing.
 Failure codes and the full trace protocol are specified in that skill.
 
 ### Inbound-edge table
@@ -286,10 +286,10 @@ ECL sidecar `<artefact>.envelope.json`.
 
 | Trigger | Resource |
 |---|---|
-| Inbound artefact + `.envelope.json` sibling | `skills/verify-incoming.md` (BLOCKING) |
-| Phase K triage | `skills/keep-or-kick.md` |
-| Phase P+O loop | `skills/patch-verify.md` |
-| ESL verify routed to Kupo (tonberry MCP present) — CHECKER role | `skills/esl-hop.md` (opt-in) |
+| Inbound artefact + `.envelope.json` sibling | `skills/verify-incoming/SKILL.md` (BLOCKING) |
+| Phase K triage | `skills/keep-or-kick/SKILL.md` |
+| Phase P+O loop | `skills/patch-verify/SKILL.md` |
+| ESL verify routed to Kupo (tonberry MCP present) — CHECKER role | `skills/esl-hop/SKILL.md` (opt-in) |
 | Validating an `edit-proposal` artefact | `schemas/kupo-edit-proposal.v1.json` |
 | Validating an outbound PROPOSE envelope | `schemas/ecl-envelope.v2.json` |
 | Validating an inbound v1.x envelope (ECL §7.3 back-compat window) | `schemas/ecl-envelope.v1.json` |
@@ -302,7 +302,7 @@ Load on-demand only. Never pre-load all skills at session start.
 
 ### Always
 
-- Run `skills/verify-incoming.md` before processing any envelope-bearing artefact.
+- Run `skills/verify-incoming/SKILL.md` before processing any envelope-bearing artefact.
 - Anchor on a named external verifier at phase K — structural, not verbal.
 - Keep context at 40–60% utilization during phase U.
 - Emit PROPOSE only after a green external signal in phase O.
@@ -340,7 +340,7 @@ A parent Eidolon dispatches Kupo as follows:
 3. **Write both files** — `<artefact>` + `<artefact-basename>.envelope.json` in
    the same directory.
 4. **Dispatch** — invoke Kupo with the artefact path. Kupo will load
-   `skills/verify-incoming.md` automatically upon detecting the sidecar.
+   `skills/verify-incoming/SKILL.md` automatically upon detecting the sidecar.
 5. **Receive** — await Kupo's `edit-proposal.<task_ref>.json` +
    `.envelope.json` (PROPOSE) or its ESCALATE / REFUSE signal.
 6. **Apply** — on PROPOSE, validate the `edit-proposal` against
@@ -377,7 +377,7 @@ CRYSTALIUM `layer=procedural` with `quality: "verified"`. This is additive,
 not a new gate: it never blocks or delays PROPOSE. Repeated across
 delegations, it builds a reusable weak-host fix library — the next Kupo
 session recalls a prior verified pattern for the same task class instead of
-re-deriving it from scratch. See `skills/patch-verify.md` step 5.
+re-deriving it from scratch. See `skills/patch-verify/SKILL.md` step 5.
 
 **Graceful skip:** all `mcp__crystalium__*` calls, including the post-flight
 commit above, are skipped silently when CRYSTALIUM is not installed. Kupo

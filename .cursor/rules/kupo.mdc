@@ -1,0 +1,7 @@
+---
+name: kupo
+description: KUPO methodology agent; canonical content is installed under .eidolons/kupo.
+generated_by: eidolons
+---
+
+Load `.eidolons/kupo/PERSONA.md` and `.eidolons/kupo/SPEC.md`. This file is a disposable discovery adapter.

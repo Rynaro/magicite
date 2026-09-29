@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0",
+  "eiis_version": "3.0.0",
+  "package": {
+    "name": "vigil",
+    "version": "1.9.0",
+    "manifest_sha256": "2da2cee657bb79430b659bd005b30e4c00722330258e8b9b68124187f5b02fae"
+  },
+  "installed_at": "2026-09-29T20:59:46Z",
+  "target": "./.eidolons/vigil",
+  "tree_sha256": "8df292afcb82ab5054653f8a7c433b53ebbedae2518199e3da57b485cd9d24c5",
+  "adapters": [
+    {
+      "host": "claude-code",
+      "path": ".claude/agents/vigil.md",
+      "type": "pointer",
+      "canonical": ".eidolons/vigil/PERSONA.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vigil-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vigil-graph/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/graph/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vigil-intervene/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/intervene/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vigil-isolate/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/isolate/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vigil-learn/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/learn/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vigil-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/verify-incoming/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vigil-verify/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/verify/SKILL.md"
+    },
+    {
+      "host": "codex",
+      "path": ".codex/agents/vigil.toml",
+      "type": "pointer",
+      "canonical": ".eidolons/vigil/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/rules/vigil.mdc",
+      "type": "pointer",
+      "canonical": ".eidolons/vigil/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/agents/vigil.md",
+      "type": "pointer",
+      "canonical": ".eidolons/vigil/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vigil-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vigil-graph/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/graph/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vigil-intervene/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/intervene/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vigil-isolate/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/isolate/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vigil-learn/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/learn/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vigil-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/verify-incoming/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vigil-verify/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vigil/skills/verify/SKILL.md"
+    }
+  ]
+}

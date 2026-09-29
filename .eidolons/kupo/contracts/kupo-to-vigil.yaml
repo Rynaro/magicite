@@ -1,0 +1,18 @@
+contract_version: "1.0"
+from: kupo
+to: vigil
+edge_origin: roster
+performatives_allowed:
+  - PROPOSE
+  - INFORM
+  - ESCALATE
+  - REFUSE
+  - ACKNOWLEDGE
+  - RESUME
+artifacts:
+  - kind: edit-proposal
+    schema_ref: schemas/kupo-edit-proposal.v1.json
+notes: >
+  Kupo returns a verified edit-proposal (PROPOSE) or a REFUSE/ESCALATE to
+  VIGIL after completing the KUPO cycle on a delegated remediation task.
+  VIGIL applies the patch and closes the forensic loop.

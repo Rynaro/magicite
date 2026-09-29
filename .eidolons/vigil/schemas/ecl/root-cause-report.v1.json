@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/VIGIL/blob/v1.1.0/schemas/ecl/root-cause-report.v1.json",
+  "title": "ECL root-cause-report profile v1 (vendored for VIGIL v1.1.0)",
+  "description": "Vendored copy of eidolons-ecl schemas/per-eidolon/root-cause-report.v1.json with _base-profile.v1.json constraints inlined. Strict subset of the local schemas/root-cause-report.v1.json. VIGIL emits after V→I→G→I→L cycle; consumed by APIVR-Δ (or SPECTRA/IDG for systemic findings). Source: ECL v1.0 (published 2026-05-08).",
+  "type": "object",
+  "required": [
+    "eidolon",
+    "version",
+    "kind",
+    "status",
+    "created_at",
+    "reproduction_runs",
+    "hypotheses_count",
+    "interventions_count",
+    "blame_target"
+  ],
+  "properties": {
+    "eidolon": {
+      "const": "vigil",
+      "description": "MUST be 'vigil' for root-cause-report payloads."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "SemVer of the emitting VIGIL instance."
+    },
+    "kind": {
+      "const": "root-cause-report",
+      "description": "MUST equal the envelope's artifact.kind."
+    },
+    "status": {
+      "type": "string",
+      "description": "Methodology-defined status (e.g. 'ready-for-apivr', 'ready-for-spectra', 'completed')."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC timestamp."
+    },
+    "thread_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "RECOMMENDED: mirror the envelope's thread_id."
+    },
+    "evidence_anchors_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of path:line citations in the body."
+    },
+    "reproduction_runs": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "VIGIL P0 (I-1): >=2 deterministic runs OR statistical CI >=85%. Mirrors local schema constraint."
+    },
+    "reproduction_ci": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Statistical confidence interval when reproduction_mode is statistical."
+    },
+    "hypotheses_count": {
+      "type": "integer",
+      "minimum": 3,
+      "description": "VIGIL P0 (I-3): >=3 hypotheses before any intervention. Mirrors local schema constraint."
+    },
+    "interventions_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "VIGIL P0 (I-5): <=5 intervention budget. Mirrors local schema constraint."
+    },
+    "blame_target": {
+      "type": "string",
+      "description": "path:line of the root cause. VIGIL P0 (I-7): evidence-anchored."
+    },
+    "verified_patch_path": {
+      "type": "string",
+      "description": "Optional path to verified-patch.diff (emitted when authority >= sandbox and survivor was code-change type)."
+    },
+    "non_determinism_declared": {
+      "type": "boolean",
+      "description": "VIGIL P0 (I-8): true if [FLAKE] mode was active during this mission."
+    }
+  },
+  "additionalProperties": true
+}

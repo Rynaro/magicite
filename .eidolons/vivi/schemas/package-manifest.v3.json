@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/eidolons-eiis/blob/v3.0.0/schemas/package-manifest.v3.json",
+  "title": "EIIS v3 package manifest",
+  "description": "Immutable metadata for a self-contained EIIS v3 Eidolon package.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "eiis_version", "name", "version", "methodology", "entrypoints", "skills", "resources"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": "3.0" },
+    "eiis_version": { "type": "string", "pattern": "^3\\.[0-9]+(\\.[0-9]+)?$" },
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "methodology": { "type": "string", "minLength": 1 },
+    "entrypoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["persona", "spec"],
+      "properties": {
+        "persona": { "const": "PERSONA.md" },
+        "spec": { "const": "SPEC.md" }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["entrypoint"],
+        "properties": {
+          "entrypoint": { "type": "string", "pattern": "^skills/[a-z][a-z0-9-]*/SKILL\\.md$" },
+          "resources": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^(skills/[a-z][a-z0-9-]*/|shared/)[^/].*$" }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Package-relative files or directories installed unchanged beside the canonical entrypoints.",
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$" }
+    },
+    "hooks": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "event"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^hooks/[a-z][a-z0-9-]*\\.sh$" },
+          "event": { "enum": ["session-start", "prompt-submit", "pre-tool", "stop"] }
+        }
+      }
+    },
+    "security": { "type": "object" }
+  }
+}

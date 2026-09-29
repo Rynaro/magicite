@@ -1,0 +1,27 @@
+contract_version: "1.0"
+from: apivr
+to: vigil
+edge_origin: roster
+performatives_allowed:
+  - ESCALATE
+  - REQUEST
+  - ACKNOWLEDGE
+artifacts:
+  - kind: repair-failed-report
+    schema_ref: ../schemas/per-eidolon/repair-failed-report.v1.json
+    required_sections:
+      - failing_tests
+      - reflect_attempts
+      - last_known_state
+      - sandbox_authority
+    evidence_anchor_required: true
+context_delta:
+  token_budget_max: 4000
+  required_handles: []
+trust_level: high
+notes: >
+  APIVR-Δ escalates to VIGIL when the Reflect phase exhausts its 3-failure
+  threshold on the same category. Performative MUST be ESCALATE for the
+  threshold path; REQUEST is reserved for ad-hoc forensic asks that do not
+  cross the threshold. Listed in roster: apivr.handoffs.lateral contains
+  vigil.

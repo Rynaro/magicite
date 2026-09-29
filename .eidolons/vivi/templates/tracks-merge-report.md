@@ -1,7 +1,7 @@
 # Tracks Merge Report (TRANCE G4)
 
 > Aggregation artifact emitted by the **single-threaded merge step** of the
-> Parallel Multi-Track Mode (`skills/parallel-tracks.md`). It aggregates the
+> Parallel Multi-Track Mode (`skills/parallel-tracks/SKILL.md`). It aggregates the
 > per-track `vivi-completion-report` envelopes — it is a Markdown report, NOT
 > a new ECL kind (the closed 10-performative set is preserved).
 

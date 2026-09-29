@@ -1,0 +1,68 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "{{ message_id }}",
+  "thread_id": "{{ thread_id }}",
+  "parent_id": "{{ parent_id }}",
+  "from": {
+    "eidolon": "vigil",
+    "version": "1.8.0"
+  },
+  "to": {
+    "eidolon": "{{ to.eidolon }}",
+    "version": "{{ to.version }}"
+  },
+  "performative": "{{ performative }}",
+  "edge_origin": "roster",
+  "objective": "{{ objective }}",
+  "artifact": {
+    "kind": "root-cause-report",
+    "schema_version": "1.0",
+    "path": "{{ artifact.path }}",
+    "sha256": "{{ artifact.sha256 }}",
+    "size_bytes": "{{ artifact.size_bytes }}"
+  },
+  "context_delta": {
+    "token_budget": 4000,
+    "tokens_used": "{{ context_delta.tokens_used }}",
+    "input_handles": [
+      "{{ context_delta.input_handles[0] }}",
+      "{{ context_delta.input_handles[1] }}",
+      "{{ context_delta.input_handles[2] }}"
+    ],
+    "summary": "{{ context_delta.summary }}"
+  },
+  "constraints": {
+    "trust_level": "{{ constraints.trust_level }}"
+  },
+  "ise": {
+    "assertion_grade": "{{ ise.assertion_grade }}",
+    "provenance": {
+      "methodology_version": "vigil-1.8.0",
+      "tool_surface": ["Read", "Grep", "Glob", "Bash"],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  },
+  "expected_response": {
+    "performative": "ACKNOWLEDGE",
+    "shape_hint": "envelope-only (artifact.size_bytes <= 256)"
+  },
+  "confidence": "{{ confidence }}",
+  "assumptions": [
+    "{{ assumptions[0] }}"
+  ],
+  "integrity": {
+    "method": "sha256",
+    "value": "{{ integrity.value }}"
+  },
+  "trace": {
+    "ts": "{{ trace.ts }}",
+    "host": "{{ trace.host }}",
+    "model": "{{ trace.model }}",
+    "tier": "standard"
+  }
+}

@@ -177,7 +177,7 @@ finding with `confidence ≥ M` *or* is documented in `GAPS` with rationale.
 mode* for large surfaces. Scatter-Gather is the G1 TRANCE form: parallel
 read-only fan-out of Locate probes across topologically-disjoint module
 clusters, each in a clean-context subagent, merged back into `findings.md`.
-Full mechanical contract: `skills/scatter.md`.
+Full mechanical contract: `skills/scatter/SKILL.md`.
 
 **Default-or-gated.** GATED, never default. Standard-tier Locate stays serial.
 Scatter adds *parallelism only* — never a write tool, never a fresh budget,
@@ -297,7 +297,7 @@ sub-questions answered or explicitly marked unanswerable.
 **Purpose.** A READ-ONLY, evidence-anchored *re-run* that reuses a prior
 scout-report + its Memex store + a git-diff range to re-probe **only** the
 changed surface, carrying unchanged findings forward verbatim. Full mechanical
-contract: `skills/rescout.md`.
+contract: `skills/rescout/SKILL.md`.
 
 **Honest scope.** The delta re-scout **narrows** the staleness penalty of the
 always-on-live-index gap — it does **not close** it. ATLAS-as-a-separate-step
@@ -395,7 +395,7 @@ SWE-bench (repository-navigation subset) and `AgencyBench` when available.
   cleanly separable. Max recursion depth: 1.
 - **ESL discover hop (opt-in).** In an ESL-enabled consumer project
   (`.spectra/` present) with a change-worthy finding, Phase S loads
-  `skills/esl-hop.md` and frames the emitted scout-report + envelope as a
+  `skills/esl-hop/SKILL.md` and frames the emitted scout-report + envelope as a
   proposal to open an ESL change at `proposed`. ATLAS never calls a tonberry
   write verb itself; SPECTRA's own `esl-hop` owns `propose`/`specify` on
   receipt over the unchanged ATLAS→SPECTRA edge.
@@ -409,7 +409,7 @@ phase contract, artifact schemas, or invariants require a minor-version bump
 and a migration note.
 
 Downstream implementations SHOULD declare ATLAS version compatibility in
-their `agent.md` frontmatter.
+their `PERSONA.md` frontmatter.
 
 ATLAS targets ECL v2.0 (declared in `ECL_VERSION`). ECL adoption is opt-in; live consumers MAY ignore the envelope sidecar without losing scout-report functionality.
 

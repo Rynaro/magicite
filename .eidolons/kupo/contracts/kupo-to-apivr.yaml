@@ -1,0 +1,18 @@
+contract_version: "1.0"
+from: kupo
+to: apivr
+edge_origin: roster
+performatives_allowed:
+  - PROPOSE
+  - INFORM
+  - ESCALATE
+  - REFUSE
+  - ACKNOWLEDGE
+  - RESUME
+artifacts:
+  - kind: edit-proposal
+    schema_ref: schemas/kupo-edit-proposal.v1.json
+notes: >
+  Kupo returns a verified edit-proposal (PROPOSE) or a REFUSE/ESCALATE to
+  APIVR-Delta after completing the KUPO cycle. APIVR-Delta applies the patch
+  in its own session and continues its broader implementation plan.

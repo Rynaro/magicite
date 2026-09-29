@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0",
+  "eiis_version": "3.0.0",
+  "package": {
+    "name": "forge",
+    "version": "1.11.0",
+    "manifest_sha256": "2fc415d7503ee34d44fddb506776a6b3fdbbf01bad6d8bb0e89a6db864d8b5a2"
+  },
+  "installed_at": "2026-09-29T20:59:44Z",
+  "target": "./.eidolons/forge",
+  "tree_sha256": "3b80fcc7719b07faaab4a59c0124041cba9f816cd987a587b690326313ae1e4c",
+  "adapters": [
+    {
+      "host": "claude-code",
+      "path": ".claude/agents/forge.md",
+      "type": "pointer",
+      "canonical": ".eidolons/forge/PERSONA.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/forge-checker-handoff/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/checker-handoff/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/forge-deliberation/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/deliberation/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/forge-framing/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/framing/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/forge-self-consistency/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/self-consistency/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/forge-verification/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/verification/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/forge-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/verify-incoming/SKILL.md"
+    },
+    {
+      "host": "codex",
+      "path": ".codex/agents/forge.toml",
+      "type": "pointer",
+      "canonical": ".eidolons/forge/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/rules/forge.mdc",
+      "type": "pointer",
+      "canonical": ".eidolons/forge/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/agents/forge.md",
+      "type": "pointer",
+      "canonical": ".eidolons/forge/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/forge-checker-handoff/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/checker-handoff/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/forge-deliberation/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/deliberation/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/forge-framing/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/framing/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/forge-self-consistency/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/self-consistency/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/forge-verification/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/verification/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/forge-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/forge/skills/verify-incoming/SKILL.md"
+    }
+  ]
+}

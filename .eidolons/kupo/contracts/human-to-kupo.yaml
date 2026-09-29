@@ -1,0 +1,18 @@
+contract_version: "1.0"
+from: human
+to: kupo
+edge_origin: implicit
+performatives_allowed:
+  - REQUEST
+  - INFORM
+  - ACKNOWLEDGE
+  - REFUSE
+artifacts:
+  - kind: task-brief
+    schema_ref: null
+notes: >
+  A human operator dispatches Kupo directly with a task-brief. The brief must
+  scope the task to ≤2 files and name an external verifier; Kupo will REFUSE
+  if these conditions are not met. Edge origin is implicit (no roster contract
+  governs human senders). The human is responsible for applying Kupo's verified
+  PROPOSE to the real tree.

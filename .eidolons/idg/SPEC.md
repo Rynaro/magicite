@@ -21,7 +21,7 @@ IDG declares `comm.envelope_version: "2.0"`. It is a **terminal** Eidolon in the
 
 ### Inbound verification flow
 
-During the **I — Intake** phase, when IDG is handed a source artefact (e.g. `apivr-completion-report.md`) carrying a sibling `<basename>.envelope.json`, verification is a single **blocking** gate owned by `skills/verify-incoming.md` (ECL §6.2.2, converged with the canonical shape (Kupo reference implementation)) — schema validation against the vendored `schemas/ecl-envelope.v2.json` (with `schemas/ecl-envelope.v1.json` retained for the §7.3 compatibility window), sha256 integrity, and performative/contract conformance all happen there, once. IDG's Intake classification only ever sees a payload that has already cleared `verify_pass`; a failed gate **REFUSES** before Intake begins — see `skills/verify-incoming.md` Failure Mode. `skills/composition.md`'s "Envelope-Aware Intake" keeps the same four-step intake numbering as a Draft-phase reference, but every mechanical check now defers to the gate — **one gate, not two**.
+During the **I — Intake** phase, when IDG is handed a source artefact (e.g. `apivr-completion-report.md`) carrying a sibling `<basename>.envelope.json`, verification is a single **blocking** gate owned by `skills/verify-incoming/SKILL.md` (ECL §6.2.2, converged with the canonical shape (Kupo reference implementation)) — schema validation against the vendored `schemas/ecl-envelope.v2.json` (with `schemas/ecl-envelope.v1.json` retained for the §7.3 compatibility window), sha256 integrity, and performative/contract conformance all happen there, once. IDG's Intake classification only ever sees a payload that has already cleared `verify_pass`; a failed gate **REFUSES** before Intake begins — see `skills/verify-incoming/SKILL.md` Failure Mode. `skills/composition/SKILL.md`'s "Envelope-Aware Intake" keeps the same four-step intake numbering as a Draft-phase reference, but every mechanical check now defers to the gate — **one gate, not two**.
 
 IDG does **not** fetch `input_handles` that resolve outside the in-context source set; P0 forbids retrieval. If a handle points to a path already available in-context, reading it is permitted; otherwise, mark `[GAP]`.
 
@@ -31,11 +31,11 @@ IDG emits no enumerated outbound envelopes. An optional `ACKNOWLEDGE` emit-back 
 
 ### ISE consumption (ECL v2.0 §6.5)
 
-IDG never emits the optional `ise` (Intent, Source, Entitlement) block — it emits nothing. When an **inbound** envelope carries `ise.assertion_grade` (`unverified` / `self-attested` / `validated` / `human-reviewed`), `skills/verify-incoming.md` surfaces it into working memory and the chronicle's provenance block records it alongside the other envelope fields — so a reader can tell whether the upstream artefact was mechanically validated or only self-attested. See the Provenance section of each template.
+IDG never emits the optional `ise` (Intent, Source, Entitlement) block — it emits nothing. When an **inbound** envelope carries `ise.assertion_grade` (`unverified` / `self-attested` / `validated` / `human-reviewed`), `skills/verify-incoming/SKILL.md` surfaces it into working memory and the chronicle's provenance block records it alongside the other envelope fields — so a reader can tell whether the upstream artefact was mechanically validated or only self-attested. See the Provenance section of each template.
 
 ### Gate — Truthfulness (ECL extension)
 
-The CHT Gate's Truthfulness dimension includes a fourth check (see `skills/verification.md`): if the source artefact arrived with an `*.envelope.json` sidecar, the chronicle's provenance block records the envelope's `message_id`, `thread_id`, `from`, `performative`, `ise.assertion_grade` (when present), and the `verify_pass` outcome already confirmed by `skills/verify-incoming.md`.
+The CHT Gate's Truthfulness dimension includes a fourth check (see `skills/verification/SKILL.md`): if the source artefact arrived with an `*.envelope.json` sidecar, the chronicle's provenance block records the envelope's `message_id`, `thread_id`, `from`, `performative`, `ise.assertion_grade` (when present), and the `verify_pass` outcome already confirmed by `skills/verify-incoming/SKILL.md`.
 
 ## IDG Cycle
 
@@ -78,7 +78,7 @@ Single verification pass against three dimensions:
 G5 parallel mode (above) it runs at **two granularities**: a per-section mini-gate inside
 each subagent (one revision max per section) plus a single parent-level coherence pass
 over the assembled document. Both granularities share the same Completeness / Helpfulness
-/ Truthfulness rubric (`skills/verification.md`).
+/ Truthfulness rubric (`skills/verification/SKILL.md`).
 
 **Provenance is structured notes, merged.** Each section's provenance — source citations,
 ECL envelope outcome, `[GAP]`/`[DISPUTED]` flags — is a structured note (memory-as-files
@@ -104,7 +104,7 @@ topological layer, the composition is read-only (always true for IDG), and the c
 routed at the **TRANCE** tier. Small ADRs/runbooks and documents below the threshold are
 an explicit **no-op** — compose sequentially.
 
-**Mode (five steps, see `skills/section-parallel.md`):**
+**Mode (five steps, see `skills/section-parallel/SKILL.md`):**
 
 1. **Dependency-layering** — topologically layer the section graph; sections within a
    layer are mutually independent.
@@ -153,10 +153,10 @@ Load skills on-demand. Do NOT load all skills upfront.
 
 | Trigger | Skill File |
 |---------|-----------|
-| Starting any document composition | `skills/composition.md` |
-| Entering Gate phase or verification | `skills/verification.md` |
-| Large doc (≥6 independent sections) at TRANCE tier | `skills/section-parallel.md` |
-| ESL lifecycle hop (opt-in, tonberry available) — archive + chronicle + promote | `skills/esl-hop.md` |
+| Starting any document composition | `skills/composition/SKILL.md` |
+| Entering Gate phase or verification | `skills/verification/SKILL.md` |
+| Large doc (≥6 independent sections) at TRANCE tier | `skills/section-parallel/SKILL.md` |
+| ESL lifecycle hop (opt-in, tonberry available) — archive + chronicle + promote | `skills/esl-hop/SKILL.md` |
 
 ## Template Loading
 

@@ -1,0 +1,27 @@
+contract_version: "1.0"
+from: vigil
+to: apivr
+edge_origin: roster
+performatives_allowed:
+  - PROPOSE
+  - CRITIQUE
+  - INFORM
+artifacts:
+  - kind: root-cause-report
+    schema_ref: ../schemas/per-eidolon/root-cause-report.v1.json
+    required_sections:
+      - reproduction
+      - hypotheses
+      - interventions
+      - blame_target
+    evidence_anchor_required: true
+context_delta:
+  token_budget_max: 4000
+  required_handles: []
+trust_level: high
+notes: >
+  VIGIL returns a root-cause attribution (and, when authority allows, a
+  verified patch) to the APIVR-Δ that escalated. Listed in roster:
+  vigil.handoffs.lateral contains apivr. CRITIQUE is reserved for the case
+  where VIGIL disputes APIVR-Δ's repair hypothesis without yet supplying a
+  verified alternative.

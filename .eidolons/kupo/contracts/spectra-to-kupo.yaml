@@ -1,0 +1,13 @@
+contract_version: "1.0"
+from: spectra
+to: kupo
+edge_origin: roster
+performatives_allowed:
+  - DELEGATE
+artifacts:
+  - kind: spec
+    schema_ref: null
+notes: >
+  SPECTRA delegates a localized implementation micro-task to Kupo. The spec artefact
+  contains a scoped change description with a named verifier. Kupo runs the KUPO cycle
+  and returns a verified PROPOSE or REFUSE/ESCALATE. SPECTRA owns the real commit.

@@ -1,0 +1,19 @@
+contract_version: "1.0"
+from: kupo
+to: spectra
+edge_origin: roster
+performatives_allowed:
+  - PROPOSE
+  - INFORM
+  - ESCALATE
+  - REFUSE
+  - ACKNOWLEDGE
+  - RESUME
+artifacts:
+  - kind: edit-proposal
+    schema_ref: schemas/kupo-edit-proposal.v1.json
+notes: >
+  Kupo returns a verified edit-proposal (PROPOSE) or a REFUSE/ESCALATE to
+  SPECTRA after completing the KUPO cycle. SPECTRA applies the edit-proposal
+  to the real tree and commits with its own authority. ESCALATE includes the
+  last verifier failure output and the circuit-breaker reason.

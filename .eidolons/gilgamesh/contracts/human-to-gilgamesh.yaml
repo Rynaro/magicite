@@ -1,0 +1,18 @@
+contract_version: "1.0"
+from: human
+to: gilgamesh
+edge_origin: implicit
+performatives_allowed:
+  - REQUEST
+  - INFORM
+  - ACKNOWLEDGE
+  - REFUSE
+artifacts:
+  - kind: mission-contract
+    schema_ref: schemas/mission-contract.v1.json
+notes: >
+  A human operator may dispatch Gilgamesh directly with a mission-contract. The mission
+  must fit no specialist and stay within the grantable authority ceiling (deploy is
+  never grantable); Gilgamesh will REFUSE otherwise. Edge origin is implicit (no roster
+  contract governs human senders). The human is responsible for applying Gilgamesh's
+  verified result to the real tree.

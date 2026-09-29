@@ -1,0 +1,14 @@
+contract_version: "1.0"
+from: forge
+to: kupo
+edge_origin: roster
+performatives_allowed:
+  - DELEGATE
+artifacts:
+  - kind: decision-record
+    schema_ref: null
+notes: >
+  FORGE delegates a mechanical consequence of a deliberation decision to Kupo.
+  The decision-record artefact specifies the concrete config or code change and
+  its verifier. Kupo executes the KUPO cycle and returns a verified PROPOSE or
+  REFUSE/ESCALATE without re-deliberating the decision.

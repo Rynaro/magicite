@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "eiis_version": "3.0.0",
+  "package": {
+    "name": "idg",
+    "version": "1.11.0",
+    "manifest_sha256": "ff1d2818cff215ab4d9f3f2956fc3ae89d38d987eb3e01ada32530f77a0343d4"
+  },
+  "installed_at": "2026-09-29T20:59:43Z",
+  "target": "./.eidolons/idg",
+  "tree_sha256": "f36cc68e7b0da8fbb211f9a67fa5448f07aac4e3f25935d84eaa7ad5f320d03e",
+  "adapters": [
+    {
+      "host": "claude-code",
+      "path": ".claude/agents/idg.md",
+      "type": "pointer",
+      "canonical": ".eidolons/idg/PERSONA.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/idg-composition/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/composition/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/idg-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/idg-section-parallel/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/section-parallel/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/idg-verification/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/verification/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/idg-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/verify-incoming/SKILL.md"
+    },
+    {
+      "host": "codex",
+      "path": ".codex/agents/idg.toml",
+      "type": "pointer",
+      "canonical": ".eidolons/idg/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/rules/idg.mdc",
+      "type": "pointer",
+      "canonical": ".eidolons/idg/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/agents/idg.md",
+      "type": "pointer",
+      "canonical": ".eidolons/idg/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/idg-composition/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/composition/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/idg-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/idg-section-parallel/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/section-parallel/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/idg-verification/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/verification/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/idg-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/idg/skills/verify-incoming/SKILL.md"
+    }
+  ]
+}

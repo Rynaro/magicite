@@ -1,0 +1,14 @@
+contract_version: "1.0"
+from: atlas
+to: kupo
+edge_origin: roster
+performatives_allowed:
+  - DELEGATE
+artifacts:
+  - kind: scout-report
+    schema_ref: null
+notes: >
+  ATLAS delegates a mechanical follow-up action identified during scouting (e.g.,
+  update a stale path reference, fix a broken import flagged in a scout-report).
+  ATLAS is read-only; it cannot apply its own fixes. Kupo patches the sandbox and
+  returns a verified PROPOSE or REFUSE/ESCALATE to the orchestrator.

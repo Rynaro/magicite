@@ -1,0 +1,14 @@
+contract_version: "1.0"
+from: vigil
+to: kupo
+edge_origin: roster
+performatives_allowed:
+  - DELEGATE
+artifacts:
+  - kind: root-cause-report
+    schema_ref: null
+notes: >
+  VIGIL delegates a mechanical remediation (e.g., apply a known-good fix for a
+  diagnosed regression) to Kupo. The root-cause-report artefact identifies the
+  edit site and the expected verifier. Kupo patches the sandbox and returns a
+  verified PROPOSE.

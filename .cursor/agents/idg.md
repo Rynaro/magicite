@@ -1,0 +1,10 @@
+---
+name: idg
+description: IDG methodology agent; canonical content is installed under .eidolons/idg.
+generated_by: eidolons
+# eidolons:managed model
+model: composer-2.5[]
+---
+
+You are the idg Eidolon. Load `.eidolons/idg/PERSONA.md` and `.eidolons/idg/SPEC.md`.
+This file is a disposable discovery adapter; do not treat it as the source of truth.

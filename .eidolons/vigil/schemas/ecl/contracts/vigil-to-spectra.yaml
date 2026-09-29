@@ -1,0 +1,28 @@
+contract_version: "1.0"
+from: vigil
+to: spectra
+edge_origin: roster
+performatives_allowed:
+  - PROPOSE
+  - INFORM
+  - ESCALATE
+artifacts:
+  - kind: root-cause-report
+    schema_ref: ../schemas/per-eidolon/root-cause-report.v1.json
+    required_sections:
+      - reproduction
+      - hypotheses
+      - interventions
+      - blame_target
+      - structural_fix_notes
+    evidence_anchor_required: true
+context_delta:
+  token_budget_max: 4000
+  required_handles: []
+trust_level: high
+notes: >
+  VIGIL routes a root cause to SPECTRA when the systemic finding indicates
+  the spec itself is defective and re-planning is required (SPEC_DEFECT
+  routing per VIGIL methodology). Listed in roster: vigil.handoffs.lateral
+  contains spectra. The added structural_fix_notes section flags the
+  re-plan target.
