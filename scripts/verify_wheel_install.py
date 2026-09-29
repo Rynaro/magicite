@@ -113,12 +113,13 @@ def isolated_subprocess_env(base: dict[str, str] | None = None) -> dict[str, str
 
 def _resolve_wheel(explicit: Path | None) -> Path:
     if explicit is not None:
-        if not explicit.is_file():
+        path = explicit.resolve()
+        if not path.is_file():
             raise FileNotFoundError(f"wheel not found: {explicit}")
-        return explicit
+        return path
     env_wheel = os.environ.get("MAGICITE_TEST_WHEEL")
     if env_wheel:
-        path = Path(env_wheel)
+        path = Path(env_wheel).resolve()
         if not path.is_file():
             raise FileNotFoundError(f"MAGICITE_TEST_WHEEL not found: {path}")
         return path
@@ -130,6 +131,7 @@ def _resolve_wheel(explicit: Path | None) -> Path:
 
 
 def run_probe(*, wheel: Path, keep_env: Path | None = None) -> dict:
+    wheel = Path(wheel).resolve()
     if not TOY_ENGRAMS.is_dir():
         raise FileNotFoundError(f"toy registry fixtures missing: {TOY_ENGRAMS}")
 
