@@ -23,6 +23,15 @@ pseudonyms and re-HMACs every correlator under a per-export random key
 that is never persisted. Retention defaults: operational 30d, audit 90d.
 Deletion physically erases payloads from ledger segments and keeps a
 minimal tombstone (event id, deletion time, reason) so audit reconciles.
+Segment stubs and tombstones intentionally retain ``event_id`` /
+``target_event_id`` as the erasure residual for audit reconciliation —
+they MUST NOT carry raw query, context text, secrets, or absolute paths.
+
+Managed export artifacts live under ``evidence/exports/``. Exports written
+to caller-chosen destinations outside that directory are recorded in
+``registered_exports.json`` so privacy deletion can purge them. Unregistered
+operator copies are out of scope (AC-S09-05); every export manifest carries
+a notice that deletion cannot follow such copies (AC-S09-06).
 
 Backup handling (C6): backups are documented separately. Backup expiry
 and restore-time tombstone replay belong to S12 — operators must replay
@@ -109,6 +118,13 @@ _TOMBSTONES_FILENAME = "tombstones.jsonl"
 _INDEX_FILENAME = "event_index.json"
 _OPEN_SEGMENT_NAME = "open.events.jsonl"
 _OPEN_MANIFEST_NAME = "open.manifest.json"
+_REGISTERED_EXPORTS_FILENAME = "registered_exports.json"
+
+EXPORT_COPY_DELETION_NOTICE = (
+    "Privacy deletion covers the managed evidence/exports directory and any "
+    "paths registered in registered_exports.json. Operator copies outside "
+    "those locations cannot be followed or purged automatically."
+)
 
 _buffer_lock = threading.Lock()
 #: Bounded ephemeral decision receipts (process-local). Crash loses these.
@@ -122,7 +138,11 @@ _checkpoint_fault_hook: Callable[[str], None] | None = None
 
 
 def set_checkpoint_fault_hook(hook: Callable[[str], None] | None) -> None:
-    """Test-only crash-injection hook; labels: after_segment, after_index, before_meta."""
+    """Test-only crash-injection hook.
+
+    Labels include: after_segment, after_index, before_meta, after_tombstone,
+    after_purge_sealed, mid_rotation_after_seal.
+    """
     global _checkpoint_fault_hook
     _checkpoint_fault_hook = hook
 
@@ -732,6 +752,7 @@ def _repair_torn_open_segment(segments: Path) -> None:
     data = path.read_bytes()
     if not data:
         return
+    changed = False
     if data.endswith(b"\n"):
         lines = data.split(b"\n")
         complete = [ln for ln in lines[:-1] if ln]
@@ -744,10 +765,14 @@ def _repair_torn_open_segment(segments: Path) -> None:
             complete = complete[:-1]
             rebuilt = b"\n".join(complete) + (b"\n" if complete else b"")
             _atomic_write_bytes(path, rebuilt)
-            return
-    last_nl = data.rfind(b"\n")
-    repaired = data[: last_nl + 1] if last_nl >= 0 else b""
-    _atomic_write_bytes(path, repaired)
+            changed = True
+    else:
+        last_nl = data.rfind(b"\n")
+        repaired = data[: last_nl + 1] if last_nl >= 0 else b""
+        _atomic_write_bytes(path, repaired)
+        changed = True
+    if changed:
+        _rewrite_segment_manifest(path, sealed=False)
 
 
 def _append_line_fsync(path: Path, line: str) -> None:
@@ -790,7 +815,11 @@ def _record_event_id(row: dict[str, Any]) -> str | None:
 
 
 def _scan_segment_authority(root: Path) -> tuple[dict[str, dict[str, Any]], int]:
-    """Segment is source of truth. Returns (event_id -> row, max_seq)."""
+    """Segment is source of truth. Returns (event_id -> row, max_seq).
+
+    A deleted stub for an event_id always wins over live rows regardless of
+    sequence order (crash-safe mid-delete / mid-rotation).
+    """
     by_id: dict[str, dict[str, Any]] = {}
     max_seq = 0
     for row in _iter_segment_records(root):
@@ -803,19 +832,20 @@ def _scan_segment_authority(root: Path) -> tuple[dict[str, dict[str, Any]], int]
         if prev is None:
             by_id[eid] = row
             continue
+        # Deleted stub always wins over any live payload row.
+        if row.get("deleted"):
+            by_id[eid] = row
+            continue
+        if prev.get("deleted"):
+            continue
         prev_digest = prev.get("payload_digest")
         cur_digest = row.get("payload_digest")
-        if (
-            not prev.get("deleted")
-            and not row.get("deleted")
-            and prev_digest
-            and cur_digest
-            and prev_digest != cur_digest
-        ):
+        if prev_digest and cur_digest and prev_digest != cur_digest:
             raise IdempotencyKeyConflictError(
                 f"segment contains conflicting payloads for event_id {eid!r}",
                 details={"event_id": eid, "digests": [prev_digest, cur_digest]},
             )
+        # Same digest duplicates (e.g. mid-rotation re-copy): keep either.
         if seq >= int(prev.get("sequence", 0)):
             by_id[eid] = row
     return by_id, max_seq
@@ -926,9 +956,11 @@ def _maybe_rotate_open_segment(root: Path, *, max_bytes: int | None = None) -> s
             "kind": LEDGER_KIND,
             "sha256": file_digest,
             "sealed": True,
+            "record_count": sum(1 for ln in data.splitlines() if ln.strip()),
             "updated_at": _now(),
         },
     )
+    _maybe_fault("mid_rotation_after_seal")
     # Reset open segment.
     _atomic_write_bytes(open_path, b"")
     next_id = f"{int(segment_id) + 1:08d}"
@@ -1239,6 +1271,12 @@ def rebuild_projections(cfg: Config, conn: sqlite3.Connection) -> int:
     """Rebuild SQLite projections AND derived index/meta from the file ledger."""
     with _evidence_write_guard(cfg, conn, "evidence-rebuild"):
         root = _ensure_ledger_dirs(cfg)
+        _repair_torn_open_segment(root / _SEGMENTS_DIRNAME)
+        # Detect conflicting digests before checksum verify so integrity
+        # conflicts surface as IdempotencyKeyConflictError.
+        _scan_segment_authority(root)
+        _repurge_tombstoned_payloads(root)
+        verify_segments(root)
         index, meta = _rewrite_derived_caches(root)
         tombstone_path = root / _TOMBSTONES_FILENAME
         tombstoned: set[str] = set()
@@ -1301,10 +1339,86 @@ def rebuild_projections(cfg: Config, conn: sqlite3.Connection) -> int:
         return count
 
 
-def _physically_purge_event_from_segments(root: Path, event_id: str) -> None:
-    """Rewrite segments atomically, replacing payloads with deleted stubs (C6)."""
+def _manifest_path_for_segment(segment_path: Path) -> Path:
+    if segment_path.name == _OPEN_SEGMENT_NAME:
+        return segment_path.with_name(_OPEN_MANIFEST_NAME)
+    # 00000001.events.jsonl -> 00000001.manifest.json
+    stem = segment_path.name.replace(".events.jsonl", "")
+    return segment_path.with_name(f"{stem}.manifest.json")
+
+
+def _rewrite_segment_manifest(segment_path: Path, *, sealed: bool | None = None) -> dict[str, Any]:
+    """Recompute sha256 / record_count and atomically rewrite the sibling manifest."""
+    data = segment_path.read_bytes() if segment_path.is_file() else b""
+    digest = hashlib.sha256(data).hexdigest()
+    count = sum(1 for ln in data.splitlines() if ln.strip())
+    if sealed is None:
+        sealed = segment_path.name != _OPEN_SEGMENT_NAME
+    if segment_path.name == _OPEN_SEGMENT_NAME:
+        # Prefer open_segment_id from parent meta when available.
+        segment_id = "open"
+        try:
+            meta = _load_meta(segment_path.parent.parent)
+            segment_id = str(meta.get("open_segment_id", "open"))
+        except Exception:  # noqa: BLE001 — best-effort id for open manifest
+            pass
+    else:
+        segment_id = segment_path.name.replace(".events.jsonl", "")
+    payload = {
+        "segment_id": segment_id,
+        "kind": LEDGER_KIND,
+        "record_count": count,
+        "sha256": digest,
+        "sealed": sealed,
+        "updated_at": _now(),
+    }
+    _atomic_write_json(_manifest_path_for_segment(segment_path), payload)
+    return payload
+
+
+def verify_segments(root: Path) -> None:
+    """Fail closed if any segment file's sha256 mismatches its sibling manifest."""
     segments = root / _SEGMENTS_DIRNAME
+    if not segments.is_dir():
+        return
     for path in sorted(segments.glob("*.events.jsonl")):
+        manifest_path = _manifest_path_for_segment(path)
+        if not manifest_path.is_file():
+            # Open segment may lack a manifest until first write; create one.
+            if path.name == _OPEN_SEGMENT_NAME and (
+                not path.is_file() or path.stat().st_size == 0
+            ):
+                continue
+            raise InvalidInputError(
+                f"missing segment manifest for {path.name}",
+                details={"segment": str(path), "expected_manifest": str(manifest_path)},
+            )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        actual = hashlib.sha256(path.read_bytes() if path.is_file() else b"").hexdigest()
+        expected = str(manifest.get("sha256") or "")
+        if actual != expected:
+            raise InvalidInputError(
+                f"segment checksum mismatch for {path.name}",
+                details={
+                    "segment": str(path),
+                    "manifest_sha256": expected,
+                    "actual_sha256": actual,
+                },
+            )
+
+
+def _physically_purge_event_from_segments(root: Path, event_id: str) -> None:
+    """Rewrite segments atomically, replacing payloads with deleted stubs (C6).
+
+    After each rewritten ``*.events.jsonl``, recomputes and rewrites its sibling
+    manifest. Emits ``after_purge_sealed`` once the first sealed segment for
+    this event has been rewritten (crash-injection seam).
+    """
+    segments = root / _SEGMENTS_DIRNAME
+    sealed_purged = False
+    for path in sorted(segments.glob("*.events.jsonl")):
+        if not path.is_file():
+            continue
         lines_out: list[str] = []
         changed = False
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -1331,6 +1445,120 @@ def _physically_purge_event_from_segments(root: Path, event_id: str) -> None:
         if changed:
             data = ("\n".join(lines_out) + ("\n" if lines_out else "")).encode("utf-8")
             _atomic_write_bytes(path, data)
+            sealed = path.name != _OPEN_SEGMENT_NAME
+            _rewrite_segment_manifest(path, sealed=sealed)
+            if sealed and not sealed_purged:
+                sealed_purged = True
+                _maybe_fault("after_purge_sealed")
+
+
+def _event_has_live_payload(root: Path, event_id: str) -> bool:
+    for row in _iter_segment_records(root):
+        if _record_event_id(row) == event_id and not row.get("deleted") and row.get("event"):
+            return True
+    return False
+
+
+def _repurge_tombstoned_payloads(root: Path) -> None:
+    """Resume physical purge for any tombstoned event that still has a payload."""
+    for row in _load_tombstone_rows(root):
+        eid = str(row.get("target_event_id") or "")
+        if eid and _event_has_live_payload(root, eid):
+            _physically_purge_event_from_segments(root, eid)
+
+
+def _load_tombstone_rows(root: Path) -> list[dict[str, Any]]:
+    path = root / _TOMBSTONES_FILENAME
+    if not path.is_file():
+        return []
+    out: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
+def _purge_managed_and_registered_exports(root: Path) -> None:
+    """AC-S09-05: wipe managed exports/ plus registered export-manifest paths."""
+    exports = root / "exports"
+    if exports.is_dir():
+        for child in list(exports.iterdir()):
+            if child.is_file():
+                child.unlink(missing_ok=True)
+            elif child.is_dir():
+                for p in sorted(child.rglob("*"), reverse=True):
+                    if p.is_file():
+                        p.unlink(missing_ok=True)
+                    elif p.is_dir():
+                        try:
+                            p.rmdir()
+                        except OSError:
+                            pass
+                try:
+                    child.rmdir()
+                except OSError:
+                    pass
+
+    registry_path = root / _REGISTERED_EXPORTS_FILENAME
+    if not registry_path.is_file():
+        return
+    try:
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return
+    remaining: list[dict[str, Any]] = []
+    for entry in registry.get("exports") or []:
+        raw = entry.get("path")
+        if not isinstance(raw, str) or not raw:
+            continue
+        target = Path(raw)
+        if target.exists():
+            if target.is_file():
+                target.unlink(missing_ok=True)
+            elif target.is_dir():
+                for p in sorted(target.rglob("*"), reverse=True):
+                    if p.is_file():
+                        p.unlink(missing_ok=True)
+                    elif p.is_dir():
+                        try:
+                            p.rmdir()
+                        except OSError:
+                            pass
+                try:
+                    target.rmdir()
+                except OSError:
+                    remaining.append(entry)
+                    continue
+        # Drop successfully purged registrations.
+    _atomic_write_json(registry_path, {"exports": remaining, "updated_at": _now()})
+
+
+def _register_export_path(root: Path, export_dir: Path) -> None:
+    """Record caller-chosen export destinations outside evidence/exports/."""
+    managed_root = (root / "exports").resolve()
+    try:
+        resolved = export_dir.resolve()
+    except OSError:
+        resolved = export_dir
+    try:
+        if resolved == managed_root or managed_root in resolved.parents:
+            return
+    except Exception:  # noqa: BLE001
+        pass
+    registry_path = root / _REGISTERED_EXPORTS_FILENAME
+    registry = _read_json(registry_path, {"exports": []})
+    entries = list(registry.get("exports") or [])
+    path_str = str(resolved)
+    if any(e.get("path") == path_str for e in entries):
+        return
+    entries.append({"path": path_str, "exported_at": _now()})
+    registry["exports"] = entries
+    registry["updated_at"] = _now()
+    _atomic_write_json(registry_path, registry)
 
 
 def _delete_event_locked(
@@ -1341,13 +1569,22 @@ def _delete_event_locked(
     reason: str | None = None,
     actor: str = "operator",
 ) -> dict[str, Any]:
-    """Physical payload purge + minimal tombstone. Caller holds write guard."""
+    """Tombstone-first then physical purge. Caller holds write guard.
+
+    Ordering is crash-critical: once the tombstone is fsynced, load/export/
+    rebuild hide the event even if segment purge is incomplete. Recovery
+    (rebuild / verify) re-purges any tombstoned event that still has a payload.
+    """
     root = _ensure_ledger_dirs(cfg)
     _repair_torn_open_segment(root / _SEGMENTS_DIRNAME)
     by_id, authority_max = _scan_segment_authority(root)
+
     if _is_tombstoned(root, event_id):
         _physically_purge_event_from_segments(root, event_id)
-        # Idempotent: return a synthetic minimal tombstone.
+        _purge_managed_and_registered_exports(root)
+        for row in _load_tombstone_rows(root):
+            if row.get("target_event_id") == event_id:
+                return row
         return {
             "tombstone_id": f"tomb_idem_{event_id[:12]}",
             "target_event_id": event_id,
@@ -1356,12 +1593,11 @@ def _delete_event_locked(
             "reason": reason or "already_deleted",
             "actor": actor,
         }
+
     if event_id not in by_id:
         index = _load_index(root)
         if event_id not in (index.get("events") or {}):
             raise InvalidInputError(f"unknown event_id {event_id!r}")
-
-    _physically_purge_event_from_segments(root, event_id)
 
     sequence = authority_max + 1
     tombstone = {
@@ -1372,7 +1608,13 @@ def _delete_event_locked(
         "reason": reason,
         "actor": actor,
     }
+    # (a) Durable hide first.
     _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
+    _maybe_fault("after_tombstone")
+
+    # (b) Physical purge (idempotent / resumable).
+    _physically_purge_event_from_segments(root, event_id)
+
     index, meta = _rewrite_derived_caches(root)
     meta["last_sequence"] = max(int(meta.get("last_sequence", 0)), sequence)
     meta["updated_at"] = _now()
@@ -1398,22 +1640,7 @@ def _delete_event_locked(
         ),
     )
     conn.execute("DELETE FROM evidence_event_projection WHERE event_id = ?", (event_id,))
-    exports = root / "exports"
-    if exports.is_dir():
-        for child in list(exports.iterdir()):
-            if child.is_dir():
-                for p in sorted(child.rglob("*"), reverse=True):
-                    if p.is_file():
-                        p.unlink(missing_ok=True)
-                    elif p.is_dir():
-                        try:
-                            p.rmdir()
-                        except OSError:
-                            pass
-                try:
-                    child.rmdir()
-                except OSError:
-                    pass
+    _purge_managed_and_registered_exports(root)
     return tombstone
 
 
@@ -1444,13 +1671,19 @@ def export_evidence(
     """Export with fresh scoped pseudonyms; correlators re-keyed per export (C6).
 
     Writes under the existing CrossProcessLease when a connection is available
-    (or a short-lived DB connection is opened for fencing).
+    (or a short-lived DB connection is opened for fencing). Reconciles derived
+    caches from segments before reading so a wiped index cannot empty the
+    export. Caller-chosen destinations outside ``evidence/exports/`` are
+    registered for privacy deletion (AC-S09-05).
     """
 
     def _write_export(owned_conn: sqlite3.Connection) -> Path:
         with _evidence_write_guard(cfg, owned_conn, "evidence-export"):
-            root = evidence_dir(cfg)
-            by_id, _ = _scan_segment_authority(root) if root.exists() else ({}, 0)
+            root = _ensure_ledger_dirs(cfg)
+            _repurge_tombstoned_payloads(root)
+            # Segment authority + derived cache heal (finding 3).
+            _rewrite_derived_caches(root)
+            by_id, _ = _scan_segment_authority(root)
             selected = event_ids or [
                 eid
                 for eid, row in by_id.items()
@@ -1460,6 +1693,7 @@ def export_evidence(
             pseudonym_scope = scope_key.hex()
             out_dir = export_dir or (root / "exports" / f"export_{pseudonym_scope[:12]}")
             out_dir.mkdir(parents=True, exist_ok=True)
+            _register_export_path(root, out_dir)
 
             id_map: dict[str, str] = {}
             events_out: list[dict[str, Any]] = []
@@ -1473,9 +1707,13 @@ def export_evidence(
             for event_id in selected:
                 if _is_tombstoned(root, event_id):
                     continue
-                event = load_event(cfg, event_id)
-                if event is None:
+                row = by_id.get(event_id)
+                if row is None or row.get("deleted"):
                     continue
+                event_data = row.get("event")
+                if not isinstance(event_data, dict):
+                    continue
+                event = _event_from_dict(event_data)
                 payload = event.to_dict()
                 _assert_no_raw_leak(payload)
                 for field_name in ("event_id", "decision_id"):
@@ -1501,6 +1739,7 @@ def export_evidence(
                 "event_count": len(events_out),
                 "fingerprint_key_exported": False,
                 "correlators_rekeyed": True,
+                "privacy_deletion_notice": EXPORT_COPY_DELETION_NOTICE,
             }
             _assert_no_raw_leak(manifest)
             _atomic_write_json(out_dir / "manifest.json", manifest)
