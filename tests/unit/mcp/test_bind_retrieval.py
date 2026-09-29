@@ -8,6 +8,7 @@ tests/acceptance/test_walking_skeleton.py)."""
 from __future__ import annotations
 
 from magicite.core import registry as registry_mod
+from magicite.core import routing_policy as policy_mod
 from magicite.mcp import bind_retrieval
 from magicite.mcp.registry import ToolContext
 from magicite.mcp.schemas import LoadSkillBodyInput, RouteContext, RouteInput
@@ -17,9 +18,7 @@ def test_route_tool_returns_composition_plan_via_adapter(cfg, db_conn, embedder)
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
-    out = bind_retrieval.route(
-        ctx, RouteInput(query="rollback proton for a steam game", k=5)
-    )
+    out = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=5))
 
     assert out.candidates[0].name == "proton-ge-proton-downgrade"
     assert "steam-prefix-access" in out.composition_plan
@@ -27,6 +26,8 @@ def test_route_tool_returns_composition_plan_via_adapter(cfg, db_conn, embedder)
 
 
 def test_route_tool_hard_excludes_via_context(cfg, db_conn, embedder) -> None:
+    # S00 call-site: user_prefs hard-exclude is experimental adaptive-blend.
+    cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
@@ -65,9 +66,7 @@ def test_load_skill_body_cursor_round_trip(cfg, db_conn, embedder) -> None:
     while True:
         page = bind_retrieval.load_skill_body(
             ctx,
-            LoadSkillBodyInput(
-                name="proton-ge-proton-downgrade", level="L2", max_bytes=23, cursor=cursor
-            ),
+            LoadSkillBodyInput(name="proton-ge-proton-downgrade", level="L2", max_bytes=23, cursor=cursor),
         )
         chunks.append(page.procedure + page.pitfalls)
         if page.next_offset is None:

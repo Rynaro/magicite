@@ -57,7 +57,10 @@ def test_baseline_c_seed_parity(cfg, db_conn, embedder, monkeypatch) -> None:
 
     monkeypatch.setattr(bench_mod.activation_mod, "select_seed_cosines", recording_select)
     from magicite.core import router as router_mod
+    from magicite.core import routing_policy as policy_mod
 
+    # S00 call-site: seed selection is part of experimental adaptive-blend.
+    cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
     router_mod.route(cfg, db_conn, embedder, query="rollback proton", k=3)
     bench_mod._baseline_c_rank(cfg, db_conn, embedder, "rollback proton", k=3)
     assert calls == [3, 3]

@@ -2,18 +2,28 @@
 coverage for the other M2 route() steps that are not separately gated by
 a frozen AC id (hub penalty, context conditioning) -- mirrors
 test_composition.py's direct-SQL synthetic-fixture style so each behavior
-is isolated from register()/embed() plumbing."""
+is isolated from register()/embed() plumbing.
+
+Adaptive-blend assertions below opt into
+``experimental/adaptive-blend-v1``; the stable default is ``dense-v1``
+(see ``test_policy_boundary.py``).
+"""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
 from magicite.core import router as router_mod
+from magicite.core import routing_policy as policy_mod
 from magicite.storage import ephemeral as ephemeral_mod
 
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _use_experimental(cfg) -> None:
+    cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
 
 
 def _insert_engram(conn, engram_id: str, name: str, *, context_names: list[str] | None = None) -> None:
@@ -26,8 +36,24 @@ def _insert_engram(conn, engram_id: str, name: str, *, context_names: list[str] 
           identity_sha256, content_sha256, body_sha256, file_mtime_ns, created_at, updated_at
         ) VALUES (?,?,?,?,?,?,?,?, ?,?, 0.0, ?, 0.05, ?,?,?, 0, ?, ?)
         """,
-        (engram_id, name, f"{name}.egr.md", "engram/0.2", 1, "authored", "verified", "nascent",
-         "does", "use_when", now, engram_id, engram_id, engram_id, now, now),
+        (
+            engram_id,
+            name,
+            f"{name}.egr.md",
+            "engram/0.2",
+            1,
+            "authored",
+            "verified",
+            "nascent",
+            "does",
+            "use_when",
+            now,
+            engram_id,
+            engram_id,
+            engram_id,
+            now,
+            now,
+        ),
     )
     for ctx_name in context_names or []:
         ctx_id = f"ctx_{ctx_name}"
@@ -58,7 +84,11 @@ def _insert_edge(
 def _embed_and_store(conn, embedder, engram_id: str, text: str) -> None:
     vec = embedder.embed(text)
     ephemeral_mod.upsert_embedding(
-        conn, engram_id=engram_id, model_name=embedder.model_name, dim=embedder.dim, vec=vec,
+        conn,
+        engram_id=engram_id,
+        model_name=embedder.model_name,
+        dim=embedder.dim,
+        vec=vec,
         source_sha256=engram_id,
     )
 
@@ -67,6 +97,7 @@ def test_inhibition_lowers_score(cfg, db_conn, embedder) -> None:
     """AC-023: GIVEN an engram whose inhibits edge targets a competitor
     engram WHEN both are activated by a query THEN the inhibited engram's
     score SHALL be strictly lower than without the inhibition edge."""
+    _use_experimental(cfg)
     _insert_engram(db_conn, "egr_inhibitor", "inhibitor")
     _insert_engram(db_conn, "egr_target", "target")
     _embed_and_store(db_conn, embedder, "egr_inhibitor", "shared query text")
@@ -86,6 +117,7 @@ def test_inhibition_lowers_score(cfg, db_conn, embedder) -> None:
 
 
 def test_negative_cue_penalty_is_diagnosable(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     _insert_engram(db_conn, "egr_a", "a")
     _insert_engram(db_conn, "egr_b", "b")
     _embed_and_store(db_conn, embedder, "egr_a", "shared positive route")
@@ -95,15 +127,14 @@ def test_negative_cue_penalty_is_diagnosable(cfg, db_conn, embedder) -> None:
         ("egr_a", "negative", 0, "do not use for database outage"),
     )
 
-    result = router_mod.route(
-        cfg, db_conn, embedder, query="database outage", k=5
-    )
+    result = router_mod.route(cfg, db_conn, embedder, query="database outage", k=5)
     candidate = next(c for c in result.candidates if c.name == "a")
     assert candidate.diagnostics["contraindication"] <= 0.0
     assert candidate.diagnostics["contraindication"] < 0.0
 
 
 def test_route_index_reused_for_same_generation(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     router_mod._cached_route_index.cache_clear()
     _insert_engram(db_conn, "egr_a", "a")
     _embed_and_store(db_conn, embedder, "egr_a", "shared text")
@@ -115,6 +146,7 @@ def test_route_index_reused_for_same_generation(cfg, db_conn, embedder) -> None:
 
 
 def test_route_index_invalidated_on_mutation(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     router_mod._cached_route_index.cache_clear()
     _insert_engram(db_conn, "egr_a", "a")
     _insert_engram(db_conn, "egr_b", "b")
@@ -129,6 +161,7 @@ def test_route_index_invalidated_on_mutation(cfg, db_conn, embedder) -> None:
 
 
 def test_cached_and_uncached_routes_match(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     _insert_engram(db_conn, "egr_a", "a")
     _insert_engram(db_conn, "egr_b", "b")
     _embed_and_store(db_conn, embedder, "egr_a", "shared text")
@@ -157,6 +190,7 @@ def test_hub_penalty_dampens_a_structural_hub(cfg, db_conn, embedder) -> None:
     candidate -- an effect of the *unrelated* restart-value change, not
     of this test's own hub-penalty comparison (which is unaffected by
     ``k`` as long as ``hub`` is present in both candidate lists)."""
+    _use_experimental(cfg)
     _insert_engram(db_conn, "egr_hub", "hub")
     _embed_and_store(db_conn, embedder, "egr_hub", "shared text")
     n_spokes = 40
@@ -180,6 +214,7 @@ def test_hub_penalty_dampens_a_structural_hub(cfg, db_conn, embedder) -> None:
 
 
 def test_context_conditioning_project_tag_boosts_linked_engram(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     _insert_engram(db_conn, "egr_a", "a", context_names=["steam-gaming"])
     _insert_engram(db_conn, "egr_b", "b")
     _embed_and_store(db_conn, embedder, "egr_a", "shared text")
@@ -200,6 +235,7 @@ def test_context_conditioning_project_tag_boosts_linked_engram(cfg, db_conn, emb
 
 
 def test_context_conditioning_unresolvable_strings_are_echoed(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     _insert_engram(db_conn, "egr_a", "a")
     _embed_and_store(db_conn, embedder, "egr_a", "shared text")
 
@@ -213,6 +249,7 @@ def test_context_conditioning_unresolvable_strings_are_echoed(cfg, db_conn, embe
 
 
 def test_context_conditioning_user_pref_hard_excludes(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     _insert_engram(db_conn, "egr_a", "a")
     _insert_engram(db_conn, "egr_b", "b")
     _embed_and_store(db_conn, embedder, "egr_a", "shared text")
@@ -227,6 +264,7 @@ def test_context_conditioning_user_pref_hard_excludes(cfg, db_conn, embedder) ->
 
 
 def test_recent_failures_boosts_matching_fault_class(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     _insert_engram(db_conn, "egr_a", "a")
     _insert_engram(db_conn, "egr_b", "b")
     _embed_and_store(db_conn, embedder, "egr_a", "shared text")
@@ -252,6 +290,7 @@ def test_retrieval_strength_is_decayed_at_read_time(cfg, db_conn, embedder) -> N
     contributing full weight to routing indefinitely, which is exactly the
     "R accumulates undamped" gap FORGE's review flagged as load-bearing for
     ranking manipulation."""
+    _use_experimental(cfg)
     _insert_engram(db_conn, "egr_a", "a")
     _insert_engram(db_conn, "egr_b", "b")
     _embed_and_store(db_conn, embedder, "egr_a", "shared text")
