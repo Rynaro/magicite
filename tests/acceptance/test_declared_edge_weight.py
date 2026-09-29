@@ -14,6 +14,7 @@ import pytest
 
 from magicite.core import registry as registry_mod
 from magicite.core import router as router_mod
+from magicite.core import routing_policy as policy_mod
 
 pytestmark = pytest.mark.acceptance
 
@@ -27,6 +28,8 @@ def test_inhibition_is_reachable_from_register(cfg, db_conn, embedder) -> None:
     strictly lower than its score in an otherwise identical run with
     declared_edge_strength = 0.0.
     """
+    # S00 call-site: inhibition is experimental adaptive-blend behavior.
+    cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     query = "rollback proton for a steam game"
 

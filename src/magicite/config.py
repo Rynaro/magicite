@@ -96,6 +96,10 @@ class Config:
     theta_prune: float = 0.10
 
     # ── routing tunables (spec §3.3) ────────────────────────────────────
+    #: V1 S00 / contracts C0+C4: explicit policy identity. Default is the
+    #: nonadaptive dense incumbent. Legacy adaptive blend is opt-in only via
+    #: ``experimental/adaptive-blend-v1`` (see ``core/routing_policy.py``).
+    routing_policy: str = "dense-v1"
     session_ttl_hours: float = 3.0
     temperature: float = 0.07
     #: [DECLARED-EDGES-AMENDED 2026-08-15] was 0.15. MEASURED (70 engrams
@@ -318,9 +322,7 @@ class Config:
         ``magicite.toml`` lives inside it — a file cannot say where it is.
         """
         resolved_env: Mapping[str, str] = os.environ if env is None else env
-        root = Path(
-            project_root or resolved_env.get("MAGICITE_PROJECT_ROOT") or Path.cwd()
-        ).resolve()
+        root = Path(project_root or resolved_env.get("MAGICITE_PROJECT_ROOT") or Path.cwd()).resolve()
         cfg = cls(project_root=root, data_dir_name=resolve_data_dir_name(root, resolved_env))
 
         toml_values = _read_toml(cfg.toml_path)
@@ -389,6 +391,7 @@ _ENV_FIELD_MAP: dict[str, str] = {
     "MAGICITE_AUTONOMOUS": "autonomous",
     "MAGICITE_COMMIT_DB": "commit_db",
     "MAGICITE_LOG_LEVEL": "log_level",
+    "MAGICITE_ROUTING_POLICY": "routing_policy",
 }
 
 _BOOL_FIELDS = {"embedding_offline", "autonomous", "commit_db", "dream_on_session_end"}

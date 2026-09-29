@@ -1,6 +1,13 @@
-"""``route()`` -- the full v1 algorithm (spec §3.3): cosine seeds -> sparse
-PPR activation -> inhibition -> weighted score -> hub penalty -> context
-conditioning -> community rerank -> composition-plan expansion.
+"""``route()`` -- policy-dispatched ranking (V1 S00 + legacy adaptive path).
+
+**Stable default (``dense-v1``):** eligible cosine similarity with stable-ID
+tie-breaks. Ignores retrieval strength, excitability, graph activation,
+community rerank and Dream-written edge/node strengths (contracts C0, C4).
+
+**Experimental (``experimental/adaptive-blend-v1``):** the pre-V1 algorithm
+(cosine seeds -> sparse PPR activation -> inhibition -> weighted score ->
+hub penalty -> context conditioning -> community rerank -> composition-plan
+expansion). Opt-in only; never the implicit default.
 
 AC-024 (statically enforced by ``tests/unit/test_p0_enforcement.py``):
 this module MUST NOT import ``magicite.storage.durable`` or
@@ -10,10 +17,10 @@ this module MUST NOT import ``magicite.storage.durable`` or
 framework-free (no DB handle, no forbidden import) so this module may
 import it freely -- it is the one place an edge's routing weight
 (``S_eff``, spec §3.3.1) is derived from ``edge.storage_strength``
-(AC-040).
+(AC-040) on the experimental path.
 
 **Two judgment calls worth flagging explicitly** (the spec text is not
-fully self-contained on either):
+fully self-contained on either; both apply to the experimental path):
 
 1. *Hub-penalty "usage PageRank"* (step 7) -- **DELIBERATELY NOT REWIRED
    by DECLARED-EDGES-AMENDED (2026-08-15).** This module computes a
@@ -58,6 +65,8 @@ from magicite.config import Config
 from magicite.core import activation as activation_mod
 from magicite.core import composition as composition_mod
 from magicite.core import edge_weight as edge_weight_mod
+from magicite.core import fingerprint_key as fingerprint_key_mod
+from magicite.core import routing_policy as policy_mod
 from magicite.core import session as session_mod
 from magicite.core.decay_math import effective_value
 from magicite.embeddings.base import Embedder, contraindication_model_name
@@ -97,6 +106,9 @@ class RouteOutcome:
     session_id: str
     registry_size: int
     unresolved_context: list[str] = field(default_factory=list)
+    policy_id: str = policy_mod.POLICY_DENSE_V1
+    policy_digest: str = ""
+    policy_family: str = "stable"
 
 
 #: docs/05 verbatim self-report instruction text (Tier-1 signal path).
@@ -188,8 +200,7 @@ def _contraindication_contributions(
         return np.zeros(len(node_ids), dtype=np.float64)
     out = np.zeros(len(node_ids), dtype=np.float64)
     trigger_rows = conn.execute(
-        "SELECT engram_id, ord, text FROM engram_trigger "
-        "WHERE polarity = 'negative' ORDER BY engram_id, ord"
+        "SELECT engram_id, ord, text FROM engram_trigger WHERE polarity = 'negative' ORDER BY engram_id, ord"
     ).fetchall()
     triggers: dict[str, list[str]] = {}
     for row in trigger_rows:
@@ -352,7 +363,9 @@ def route(
     # session-participating tool follows (spec §3.3) -- mint/reuse/expire,
     # in one place, instead of route() rolling its own uuid4() + upsert.
     sid = session_mod.resolve_id(cfg, conn, session_id)
-    now = datetime.now(UTC).isoformat()
+    policy_id = policy_mod.resolve_policy_id(cfg)
+    digest = policy_mod.compute_policy_digest(policy_id, cfg)
+    family = policy_mod.policy_family(policy_id)
 
     qvec = embedder.embed(query)
     rows = _fetch_candidates(conn, embedder.model_name)
@@ -367,7 +380,213 @@ def route(
             session_id=sid,
             registry_size=registry_size,
             unresolved_context=_echo_all_context(context),
+            policy_id=policy_id,
+            policy_digest=digest,
+            policy_family=family,
         )
+
+    if policy_id == policy_mod.POLICY_DENSE_V1:
+        outcome = _route_dense_v1(
+            cfg,
+            conn,
+            embedder,
+            query=query,
+            qvec=qvec,
+            rows=rows,
+            k=k,
+            session_id=sid,
+            registry_size=registry_size,
+            policy_id=policy_id,
+            policy_digest=digest,
+            policy_family=family,
+        )
+    else:
+        outcome = _route_adaptive_blend_v1(
+            cfg,
+            conn,
+            embedder,
+            query=query,
+            context=context,
+            qvec=qvec,
+            rows=rows,
+            k=k,
+            session_id=sid,
+            registry_size=registry_size,
+            policy_id=policy_id,
+            policy_digest=digest,
+            policy_family=family,
+        )
+    return outcome
+
+
+def _route_event_payload(
+    cfg: Config,
+    *,
+    query: str,
+    k: int,
+    candidates: list[Candidate],
+    policy_id: str,
+    policy_digest: str,
+) -> dict:
+    """Tier-C route receipt without raw query text (AC-S00-04 / C6).
+
+    Persists a local keyed HMAC fingerprint (``hmac-sha256/local-v1``), never
+    an unsalted hash of the query and never the raw query string.
+    """
+    key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
+    return {
+        "k": k,
+        "candidate_ids": [c.id for c in candidates],
+        "policy_id": policy_id,
+        "policy_digest": policy_digest,
+        "query_fingerprint": fingerprint_key_mod.query_fingerprint(query, key=key),
+        "fingerprint_scheme": fingerprint_key_mod.FINGERPRINT_SCHEME,
+    }
+
+
+def _finalize_route(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    query: str,
+    k: int,
+    candidates: list[Candidate],
+    unresolved_context: list[str],
+    session_id: str,
+    registry_size: int,
+    policy_id: str,
+    policy_digest: str,
+    policy_family: str,
+) -> RouteOutcome:
+    composition_plan: list[str] = []
+    plan_confidence = 0.0
+    if candidates:
+        winner = candidates[0]
+        plan = composition_mod.expand(
+            conn,
+            winner.id,
+            winner.name,
+            max_depth=cfg.plan_max_depth,
+            max_size=cfg.plan_max_size,
+            declared_edge_strength=cfg.declared_edge_strength,
+        )
+        composition_plan = plan.order
+        plan_confidence = composition_mod.plan_confidence(plan)
+
+    # step 11: Tier-C bookkeeping ONLY -- R and S are never touched here (Principle 1).
+    for c in candidates:
+        ephemeral_mod.bump_route_bookkeeping(conn, c.id)
+    ephemeral_mod.append_event(
+        conn,
+        session_id=session_id,
+        tool="route",
+        signal_tier=0,
+        engram_id=candidates[0].id if candidates else None,
+        payload=_route_event_payload(
+            cfg,
+            query=query,
+            k=k,
+            candidates=candidates,
+            policy_id=policy_id,
+            policy_digest=policy_digest,
+        ),
+    )
+
+    return RouteOutcome(
+        candidates=candidates,
+        composition_plan=composition_plan,
+        plan_confidence=plan_confidence,
+        instructions=ROUTE_INSTRUCTIONS,
+        session_id=session_id,
+        registry_size=registry_size,
+        unresolved_context=unresolved_context,
+        policy_id=policy_id,
+        policy_digest=policy_digest,
+        policy_family=policy_family,
+    )
+
+
+def _route_dense_v1(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    embedder: Embedder,
+    *,
+    query: str,
+    qvec: np.ndarray,
+    rows: list[sqlite3.Row],
+    k: int,
+    session_id: str,
+    registry_size: int,
+    policy_id: str,
+    policy_digest: str,
+    policy_family: str,
+) -> RouteOutcome:
+    """Nonadaptive incumbent: cosine similarity, stable-ID ties."""
+    _ = embedder  # eligibility/embedder identity wiring lands in S05/S07
+    node_ids: list[str] = []
+    row_by_id: dict[str, sqlite3.Row] = {}
+    cosine_list: list[float] = []
+    for row in rows:
+        vec = np.frombuffer(row["vec"], dtype=np.float32)
+        node_ids.append(row["id"])
+        row_by_id[row["id"]] = row
+        cosine_list.append(float(np.dot(qvec, vec)))
+    cosine = np.array(cosine_list, dtype=np.float64)
+    scores_by_id = {nid: float(cosine[i]) for i, nid in enumerate(node_ids)}
+    ranked = sorted(node_ids, key=lambda nid: (-scores_by_id[nid], nid))
+    top_ids = ranked[:k]
+
+    candidates = [
+        Candidate(
+            rank=i + 1,
+            id=nid,
+            name=row_by_id[nid]["name"],
+            intent_does=row_by_id[nid]["intent_does"][:INTENT_TRUNCATE],
+            intent_use_when=row_by_id[nid]["intent_use_when"][:INTENT_TRUNCATE],
+            score=round(scores_by_id[nid], 6),
+            status=row_by_id[nid]["status"],
+            exposure_count=row_by_id[nid]["exposure_count"],
+            body_ref=row_by_id[nid]["path"],
+            diagnostics={
+                "similarity": round(float(scores_by_id[nid]), 6),
+                "final": round(float(scores_by_id[nid]), 6),
+            },
+        )
+        for i, nid in enumerate(top_ids)
+    ]
+    return _finalize_route(
+        cfg,
+        conn,
+        query=query,
+        k=k,
+        candidates=candidates,
+        unresolved_context=[],
+        session_id=session_id,
+        registry_size=registry_size,
+        policy_id=policy_id,
+        policy_digest=policy_digest,
+        policy_family=policy_family,
+    )
+
+
+def _route_adaptive_blend_v1(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    embedder: Embedder,
+    *,
+    query: str,
+    context: dict | None,
+    qvec: np.ndarray,
+    rows: list[sqlite3.Row],
+    k: int,
+    session_id: str,
+    registry_size: int,
+    policy_id: str,
+    policy_digest: str,
+    policy_family: str,
+) -> RouteOutcome:
+    """Legacy adaptive blend — explicit experimental policy only."""
+    now = datetime.now(UTC).isoformat()
 
     # step 1-2: cosine seeds, over every routable+verified+embedded engram.
     node_ids: list[str] = []
@@ -414,9 +633,7 @@ def route(
         )
         for r in edge_rows
     ]
-    inhibition_edges = _fetch_inhibition_edges(
-        conn, declared_edge_strength=cfg.declared_edge_strength
-    )
+    inhibition_edges = _fetch_inhibition_edges(conn, declared_edge_strength=cfg.declared_edge_strength)
 
     structural_edges = [
         (r["src_id"], r["dst_id"], cfg.type_gain.get(r["type"], 0.0))
@@ -516,47 +733,24 @@ def route(
                 "context": round(float(context_contribution[row_index]), 6),
                 "contraindication": round(float(contraindication_contribution[row_index]), 6),
                 "final": round(float(score[row_index]), 6),
+                "policy_experimental": 1.0,
             },
         )
         for i, nid in enumerate(top_ids)
         for row_index in [node_ids.index(nid)]
     ]
-
-    composition_plan: list[str] = []
-    plan_confidence = 0.0
-    if candidates:
-        winner = candidates[0]
-        plan = composition_mod.expand(
-            conn,
-            winner.id,
-            winner.name,
-            max_depth=cfg.plan_max_depth,
-            max_size=cfg.plan_max_size,
-            declared_edge_strength=cfg.declared_edge_strength,
-        )
-        composition_plan = plan.order
-        plan_confidence = composition_mod.plan_confidence(plan)
-
-    # step 11: Tier-C bookkeeping ONLY -- R and S are never touched here (Principle 1).
-    for c in candidates:
-        ephemeral_mod.bump_route_bookkeeping(conn, c.id)
-    ephemeral_mod.append_event(
+    return _finalize_route(
+        cfg,
         conn,
-        session_id=sid,
-        tool="route",
-        signal_tier=0,
-        engram_id=candidates[0].id if candidates else None,
-        payload={"query": query, "k": k, "candidate_ids": [c.id for c in candidates]},
-    )
-
-    return RouteOutcome(
+        query=query,
+        k=k,
         candidates=candidates,
-        composition_plan=composition_plan,
-        plan_confidence=plan_confidence,
-        instructions=ROUTE_INSTRUCTIONS,
-        session_id=sid,
-        registry_size=registry_size,
         unresolved_context=unresolved_context,
+        session_id=session_id,
+        registry_size=registry_size,
+        policy_id=policy_id,
+        policy_digest=policy_digest,
+        policy_family=policy_family,
     )
 
 
