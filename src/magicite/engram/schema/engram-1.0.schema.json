@@ -1,0 +1,324 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://magicite.dev/schema/engram-1.0.schema.json",
+  "title": "Engram v1.0 frontmatter",
+  "description": "Machine-readable Engram 1.0 frontmatter (contracts.md C1). Distinct from artifact revision (`version`).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec", "name", "id", "version", "intent", "routing", "origin"],
+  "properties": {
+    "spec": { "const": "engram/1.0" },
+    "name": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "id": { "type": "string", "pattern": "^egr_[0-9a-f]{8}$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "parents": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^egr_[0-9a-f]{8}$" },
+      "default": []
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["does", "use_when"],
+      "properties": {
+        "does": { "type": "string", "minLength": 1 },
+        "use_when": { "type": "string", "minLength": 1 },
+        "not_when": { "type": ["string", "null"] }
+      }
+    },
+    "compatibility": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "os": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["linux", "macos", "windows"] },
+          "uniqueItems": true
+        },
+        "languages": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/versionConstraint" },
+          "propertyNames": { "pattern": "^[a-z0-9][a-z0-9+._-]*$" }
+        },
+        "frameworks": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/versionConstraint" },
+          "propertyNames": { "pattern": "^[a-z0-9][a-z0-9+._-]*$" }
+        },
+        "package_managers": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/versionConstraint" },
+          "propertyNames": { "pattern": "^[a-z0-9][a-z0-9+._-]*$" }
+        },
+        "hosts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hostRequirement" }
+        }
+      }
+    },
+    "capabilities": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "requires": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/requiredCapability" },
+          "default": []
+        },
+        "produces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/producedCapability" },
+          "default": []
+        },
+        "alternatives": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^egr_[0-9a-f]{8}$" },
+          "default": []
+        },
+        "conflicts_with": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^egr_[0-9a-f]{8}$" },
+          "default": []
+        }
+      }
+    },
+    "relations": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "requires": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/engramRevisionRef" },
+          "default": []
+        },
+        "before": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/engramRevisionRef" },
+          "default": []
+        },
+        "supersedes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/engramRevisionRef" },
+          "default": []
+        }
+      }
+    },
+    "risk": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "filesystem": {
+          "type": "string",
+          "enum": ["none", "read-project", "write-project"]
+        },
+        "subprocess": { "$ref": "#/$defs/subprocessRisk" },
+        "network": { "$ref": "#/$defs/networkRisk" },
+        "secrets": {
+          "type": "string",
+          "enum": ["none", "redacted", "raw"]
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["positive", "negative", "body_digest"],
+      "properties": {
+        "positive": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "negative": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        },
+        "body_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of UTF-8 body bytes (LF-normalized path separators only; no destructive prose rewrite)."
+        }
+      }
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel"],
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": ["authored", "imported", "distilled", "sharpened"]
+        },
+        "verification_status": {
+          "type": "string",
+          "enum": ["pending", "verified", "quarantined"],
+          "default": "pending"
+        },
+        "signer": { "type": ["string", "null"] },
+        "import_source": { "type": ["string", "null"] },
+        "content_hashes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "journal": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/provenanceJournalEntry" },
+          "default": []
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "default": {},
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^/].*$"
+      },
+      "additionalProperties": { "$ref": "#/$defs/assetDescriptor" }
+    },
+    "extensions": {
+      "type": "object",
+      "default": {},
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]*(\\.[a-z0-9][a-z0-9._-]*)+$"
+      },
+      "additionalProperties": { "$ref": "#/$defs/extensionValue" },
+      "description": "Namespaced extension objects. required:true on an unknown namespace fails closed at activation."
+    },
+    "skill_md_source": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["body_raw", "projection_sha256", "extra_frontmatter"],
+      "properties": {
+        "body_raw": { "type": "string" },
+        "projection_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "extra_frontmatter": { "type": "object" }
+      }
+    },
+    "legacy": {
+      "type": ["object", "null"],
+      "description": "Non-authoritative 0.2 residual state. Never applied to stable ranking or trusted from imports.",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "versionConstraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "range"],
+      "properties": {
+        "scheme": { "type": "string", "enum": ["semver", "pep440"] },
+        "range": { "type": "string", "minLength": 1 }
+      }
+    },
+    "hostRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "$ref": "#/$defs/versionConstraint" }
+      }
+    },
+    "requiredCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["host", "artifact"] },
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "$ref": "#/$defs/versionConstraint" }
+      }
+    },
+    "producedCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "const": "artifact" },
+        "id": { "type": "string", "minLength": 1 },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact version string when version-constrained consumption is expected."
+        }
+      }
+    },
+    "engramRevisionRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^egr_[0-9a-f]{8}$" },
+        "version": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "subprocessRisk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["none", "declared-tools"] },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        }
+      }
+    },
+    "networkRisk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["none", "optional", "required"] },
+        "destinations": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        }
+      }
+    },
+    "assetDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "size"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "size": { "type": "integer", "minimum": 0 },
+        "media_type": { "type": ["string", "null"] }
+      }
+    },
+    "extensionValue": {
+      "type": "object",
+      "required": ["required"],
+      "properties": {
+        "required": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "provenanceJournalEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "timestamp", "author", "event"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "timestamp": { "type": "string" },
+        "author": { "type": "string" },
+        "event": { "type": "string" },
+        "note": { "type": ["string", "null"] },
+        "summary_of_change": { "type": ["string", "null"] },
+        "signal_tier": { "type": ["string", "null"] },
+        "base_version": { "type": ["integer", "null"] }
+      }
+    }
+  }
+}
