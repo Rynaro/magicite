@@ -1,10 +1,9 @@
-"""Index generation, full-content projection, and atomic pointers (C3 / C11 / S05).
+"""Index generation, full-content projection, and durable catalog (C3 / C11 / S05).
 
-Pure generation builder: S03 owns durable migration adoption; S07 wires route
-pinning. This module is independently testable against Engram 1.0 fixtures.
-
-Provisional FTS DDL lives in :data:`PROVISIONAL_INDEX_DDL` for S03 to serialize
-into the migration authority — do not claim a production migration number here.
+Lifecycle / active-pointer authority lives in S03
+(``index_generation`` / ``index_active_pointer`` + ``storage.migration_ops``).
+S05 owns generation-scoped ``index_entry`` / ``index_fts`` (migration 005) and
+the pure projection / candidate-facing loaders.
 """
 
 from __future__ import annotations
@@ -21,12 +20,14 @@ from typing import Any, Literal
 
 import numpy as np
 
-from magicite.engram.digests import canonical_json_bytes, sha256_hex
+from magicite.engram.digests import canonical_json_bytes, routing_body_digest, sha256_hex
 from magicite.engram.model import Engram
 from magicite.engram.model_v1 import EngramV1
+from magicite.storage import migration_ops as ops
+from magicite.storage.migrations.registry import MAX_KNOWN_SCHEMA_VERSION
 
 PROJECTION_VERSION = "full-content/1"
-INDEX_SCHEMA_VERSION = "s05-provisional/1"
+INDEX_SCHEMA_VERSION = "s05-fulltext/1"
 DEFAULT_CHUNK_TOKENS = 256
 DEFAULT_CHUNK_OVERLAP = 32
 DEFAULT_MAX_CHUNKS = 64
@@ -40,59 +41,14 @@ _SYMBOL_RE = re.compile(
     r"|(?:\begr_[0-9a-f]{8}\b)"
     r"|(?:\b[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+\b)"
     r"|(?:\b[A-Z]{2,}[A-Z0-9_]+\b)"
-    r"|(?:\bE_[A-Z0-9_]+\b)"
+    r"|(?:\bE_[A-Z0-9_*]+\b)"
 )
 
-#: Isolated DDL artifact for S03 migration authority (C8 / C9). Not applied by S05.
-PROVISIONAL_INDEX_DDL = """\
--- S05 provisional retrieval-index DDL (C3/C11). S03 assigns the migration
--- sequence number at integration time. Do not invent 003_*.sql in S05.
-
-CREATE TABLE IF NOT EXISTS idx_generation (
-  generation_id   TEXT PRIMARY KEY,
-  snapshot_id     TEXT NOT NULL,
-  fingerprint_json TEXT NOT NULL,
-  fingerprint_sha256 TEXT NOT NULL,
-  status          TEXT NOT NULL CHECK (status IN ('building','complete','rejected')),
-  created_at      TEXT NOT NULL,
-  completed_at    TEXT
-);
-
-CREATE TABLE IF NOT EXISTS idx_active_pointer (
-  singleton       INTEGER PRIMARY KEY CHECK (singleton = 1),
-  generation_id   TEXT NOT NULL REFERENCES idx_generation(generation_id),
-  previous_generation_id TEXT,
-  updated_at      TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS idx_model_registry (
-  model_name              TEXT PRIMARY KEY,
-  model_artifact_digest   TEXT NOT NULL,
-  fingerprint_sha256      TEXT NOT NULL,
-  registered_at           TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS idx_entry (
-  generation_id       TEXT NOT NULL REFERENCES idx_generation(generation_id) ON DELETE CASCADE,
-  engram_id           TEXT NOT NULL,
-  revision            INTEGER NOT NULL,
-  projection_sha256   TEXT NOT NULL,
-  body_digest         TEXT NOT NULL,
-  asset_digest        TEXT,
-  dense_dim           INTEGER,
-  dense_vec           BLOB,
-  PRIMARY KEY (generation_id, engram_id)
-);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS idx_fts USING fts5(
-  engram_id UNINDEXED,
-  title,
-  intent,
-  triggers,
-  body,
-  tokenize = 'unicode61'
-);
-"""
+#: Shipped DDL reference (003 + 005). Kept for docs/adapters — not applied here.
+SHIPPED_INDEX_DDL_NOTE = (
+    "Lifecycle/pointer: storage/migrations/003_migration_authority.sql (S03). "
+    "Entries/FTS: storage/migrations/005_fulltext_index.sql (S05)."
+)
 
 
 class IndexGenerationError(Exception):
@@ -173,7 +129,13 @@ class ProjectedChunk:
 
 @dataclass(frozen=True)
 class FullContentProjection:
-    """Full-content routing projection including preserved prose and symbols."""
+    """Full-content routing projection including preserved prose and symbols.
+
+    ``body_digest`` is the normative engram/1.0 ``routing.body_digest``
+    (:func:`magicite.engram.digests.routing_body_digest`).
+    ``projection_sha256`` hashes the full-content retrieval projection and is
+    intentionally distinct.
+    """
 
     engram_id: str
     revision: int
@@ -184,6 +146,7 @@ class FullContentProjection:
     body_text: str
     full_text: str
     projection_sha256: str
+    body_digest: str
     chunks: tuple[ProjectedChunk, ...]
     truncated_chunks: int
     symbols: tuple[str, ...]
@@ -304,10 +267,29 @@ def _body_prose(body: Any) -> str:
     return "\n\n".join(sections)
 
 
+def _resolve_body_digest(
+    *,
+    artifact: EngramV1 | Engram | Mapping[str, Any],
+    fm: Mapping[str, Any],
+    raw_body_text: str | None,
+    projected_body_text: str,
+) -> str:
+    """Bind ``body_digest`` to normative ``routing.body_digest`` (S02)."""
+    if isinstance(artifact, EngramV1):
+        return artifact.frontmatter.routing.body_digest
+    routing = fm.get("routing") or {}
+    declared = routing.get("body_digest")
+    if isinstance(declared, str) and len(declared) == 64:
+        return declared
+    source = raw_body_text if raw_body_text is not None else projected_body_text
+    return routing_body_digest(source)
+
+
 def project_artifact(
     artifact: EngramV1 | Engram | Mapping[str, Any],
     *,
     chunker: ChunkerConfig | None = None,
+    raw_body_text: str | None = None,
 ) -> FullContentProjection:
     """Build the full-content projection for an Engram artifact or dict fixture."""
     cfg = chunker or ChunkerConfig()
@@ -323,13 +305,19 @@ def project_artifact(
         revision = int(fm.get("version") or 1)
         name = str(fm["name"])
         body_text = str(artifact.get("body_text") or "")
+        if raw_body_text is None and "raw_body_text" in artifact:
+            raw_body_text = str(artifact.get("raw_body_text") or "")
 
+    body_digest = _resolve_body_digest(
+        artifact=artifact,
+        fm=fm,
+        raw_body_text=raw_body_text,
+        projected_body_text=body_text,
+    )
     title = name
     intent_text = _intent_text_from_mapping(fm)
     triggers_text = _triggers_text_from_mapping(fm)
     symbols = extract_symbols("\n".join([intent_text, triggers_text, body_text]))
-    # Exact symbols appended so sparse retrieval can match identifiers that
-    # tokenization might otherwise split awkwardly.
     symbol_block = "\n".join(symbols)
     full_payload = {
         "projection_version": PROJECTION_VERSION,
@@ -341,9 +329,7 @@ def project_artifact(
         "body": body_text,
         "symbols": list(symbols),
     }
-    full_text = "\n\n".join(
-        p for p in (title, intent_text, triggers_text, body_text, symbol_block) if p
-    )
+    full_text = "\n\n".join(p for p in (title, intent_text, triggers_text, body_text, symbol_block) if p)
     projection_sha256 = sha256_hex(canonical_json_bytes(full_payload))
     chunks, truncated = chunk_text(full_text, cfg)
     return FullContentProjection(
@@ -356,6 +342,7 @@ def project_artifact(
         body_text=body_text,
         full_text=full_text,
         projection_sha256=projection_sha256,
+        body_digest=body_digest,
         chunks=chunks,
         truncated_chunks=truncated,
         symbols=symbols,
@@ -377,63 +364,101 @@ class IndexedEntry:
     body_digest: str = ""
     asset_digest: str | None = None
 
+    def resolved_body_digest(self) -> str:
+        return self.body_digest or self.projection.body_digest
+
 
 @dataclass
 class GenerationMeta:
     generation_id: str
     snapshot_id: str
     fingerprint: IndexFingerprint
-    status: Literal["building", "complete", "rejected"]
+    status: Literal["building", "complete", "published", "superseded", "failed", "rejected"]
     entries: dict[str, IndexedEntry] = field(default_factory=dict)
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
+def _fsync_dir(path: Path) -> None:
+    dir_fd = os.open(str(path), os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
+
+
+def write_bytes_atomic(path: Path, data: bytes) -> None:
+    """Atomic replace with fsync of file contents and parent directory."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "wb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(tmp, path)
+    _fsync_dir(path.parent)
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    write_bytes_atomic(path, text.encode("utf-8"))
+
+
+def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
+    write_text_atomic(path, json.dumps(payload, sort_keys=True, indent=2) + "\n")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-class GenerationStore:
-    """Filesystem-backed generation store with atomic active pointer (C11).
+def _fingerprint_from_dict(fp_raw: Mapping[str, Any]) -> IndexFingerprint:
+    chunker_raw = fp_raw.get("chunker") or {}
+    return IndexFingerprint(
+        provider=str(fp_raw["provider"]),
+        model_artifact_digest=str(fp_raw["model_artifact_digest"]),
+        dimension=int(fp_raw["dimension"]),
+        model_revision=fp_raw.get("model_revision"),
+        normalization=str(fp_raw.get("normalization") or "l2"),
+        projection_version=str(fp_raw.get("projection_version") or PROJECTION_VERSION),
+        tokenizer_id=str(fp_raw.get("tokenizer_id") or TOKENIZER_ID),
+        chunker=ChunkerConfig(
+            max_tokens=int(chunker_raw.get("max_tokens") or DEFAULT_CHUNK_TOKENS),
+            overlap_tokens=int(chunker_raw.get("overlap_tokens") or DEFAULT_CHUNK_OVERLAP),
+            max_chunks=int(chunker_raw.get("max_chunks") or DEFAULT_MAX_CHUNKS),
+        ),
+        index_schema_version=str(fp_raw.get("index_schema_version") or INDEX_SCHEMA_VERSION),
+    )
 
-    Layout::
 
-        {root}/
-          pointer.json
-          models.json
-          generations/{generation_id}/
-            meta.json
-            entries.json
-            dense.npz          (optional)
-            sparse.sqlite      (FTS5)
-            COMPLETE
-    """
+def _entry_from_projection(
+    projection: FullContentProjection,
+    *,
+    dense_vec: np.ndarray | None = None,
+    body_digest: str = "",
+    asset_digest: str | None = None,
+) -> IndexedEntry:
+    return IndexedEntry(
+        projection=projection,
+        dense_vec=dense_vec,
+        body_digest=body_digest or projection.body_digest,
+        asset_digest=asset_digest,
+    )
 
-    def __init__(self, root: Path) -> None:
-        self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
-        (self.root / "generations").mkdir(exist_ok=True)
-        if not (self.root / "models.json").exists():
-            _write_json_atomic(self.root / "models.json", {})
-        if not (self.root / "pointer.json").exists():
-            _write_json_atomic(
-                self.root / "pointer.json",
-                {"active": None, "previous": None},
-            )
 
-    def _gen_dir(self, generation_id: str) -> Path:
-        return self.root / "generations" / generation_id
+class IndexCatalog:
+    """Durable generation catalog: S03 pointer authority + S05 entry/FTS tables."""
+
+    def __init__(self, conn: sqlite3.Connection, *, model_registry_path: Path | None = None) -> None:
+        self.conn = conn
+        self.model_registry_path = Path(model_registry_path) if model_registry_path else None
+        if self.model_registry_path is not None:
+            self.model_registry_path.parent.mkdir(parents=True, exist_ok=True)
+            if not self.model_registry_path.exists():
+                _write_json_atomic(self.model_registry_path, {})
 
     def register_model_fingerprint(self, model_name: str, fingerprint: IndexFingerprint) -> None:
-        """Reject model-name reuse when the artifact digest changed (C11 / AC-S05-03)."""
-        models = _read_json(self.root / "models.json")
+        if self.model_registry_path is None:
+            return
+        models = _read_json(self.model_registry_path)
         digest = fingerprint.model_artifact_digest
-        fp_sha = fingerprint.digest()
         existing = models.get(model_name)
         if existing is not None and existing.get("model_artifact_digest") != digest:
             raise FingerprintConflictError(
@@ -441,9 +466,9 @@ class GenerationStore:
             )
         models[model_name] = {
             "model_artifact_digest": digest,
-            "fingerprint_sha256": fp_sha,
+            "fingerprint_sha256": fingerprint.digest(),
         }
-        _write_json_atomic(self.root / "models.json", models)
+        _write_json_atomic(self.model_registry_path, models)
 
     def begin(
         self,
@@ -452,166 +477,119 @@ class GenerationStore:
         fingerprint: IndexFingerprint,
         generation_id: str | None = None,
         model_name: str | None = None,
-    ) -> GenerationBuilder:
+    ) -> str:
         if model_name is not None:
             self.register_model_fingerprint(model_name, fingerprint)
         gid = generation_id or f"gen_{uuid.uuid4().hex[:12]}"
-        gdir = self._gen_dir(gid)
-        if gdir.exists():
-            raise IndexGenerationError(f"generation {gid!r} already exists")
-        gdir.mkdir(parents=True)
-        meta = {
-            "generation_id": gid,
-            "snapshot_id": snapshot_id,
-            "fingerprint": fingerprint.to_dict(),
-            "fingerprint_sha256": fingerprint.digest(),
-            "status": "building",
-        }
-        _write_json_atomic(gdir / "meta.json", meta)
-        _write_json_atomic(gdir / "entries.json", {})
-        return GenerationBuilder(self, gid, snapshot_id, fingerprint)
-
-    def active_generation_id(self) -> str | None:
-        ptr = _read_json(self.root / "pointer.json")
-        active = ptr.get("active")
-        return str(active) if active else None
-
-    def previous_generation_id(self) -> str | None:
-        ptr = _read_json(self.root / "pointer.json")
-        prev = ptr.get("previous")
-        return str(prev) if prev else None
-
-    def is_complete(self, generation_id: str) -> bool:
-        return (self._gen_dir(generation_id) / "COMPLETE").is_file()
-
-    def load_meta(self, generation_id: str) -> dict[str, Any]:
-        path = self._gen_dir(generation_id) / "meta.json"
-        if not path.is_file():
-            raise IndexGenerationError(f"unknown generation {generation_id!r}")
-        return _read_json(path)
-
-    def pin(self, generation_id: str | None = None) -> GenerationMeta:
-        """Pin a complete generation for routing reads. Incomplete builds fail closed."""
-        gid = generation_id if generation_id is not None else self.active_generation_id()
-        if gid is None:
-            raise IncompleteGenerationError("no active index generation")
-        if not self.is_complete(gid):
-            raise IncompleteGenerationError(
-                f"generation {gid!r} is not complete; partial builds are not routable",
-            )
-        return self._load_generation(gid)
-
-    def publish(self, generation_id: str) -> None:
-        """Atomically swap the active pointer to a complete generation."""
-        if not self.is_complete(generation_id):
-            raise IncompleteGenerationError(
-                f"cannot publish incomplete generation {generation_id!r}",
-            )
-        ptr = _read_json(self.root / "pointer.json")
-        previous = ptr.get("active")
-        _write_json_atomic(
-            self.root / "pointer.json",
-            {"active": generation_id, "previous": previous},
+        fp_payload = fingerprint.to_dict()
+        fp_payload["snapshot_id"] = snapshot_id
+        ops.begin_index_generation(
+            self.conn,
+            generation_id=gid,
+            fingerprint=fp_payload,
+            fingerprint_digest=fingerprint.digest(),
+            schema_version=MAX_KNOWN_SCHEMA_VERSION,
         )
+        self.conn.commit()
+        return gid
 
-    def rollback(self, *, expected_current: str, prior_generation_id: str) -> None:
-        """Atomically select the previous complete generation (C11)."""
-        ptr = _read_json(self.root / "pointer.json")
-        if ptr.get("active") != expected_current:
-            raise IndexGenerationError(
-                f"active pointer is {ptr.get('active')!r}, expected {expected_current!r}",
-            )
-        if not self.is_complete(prior_generation_id):
-            raise IncompleteGenerationError(
-                f"rollback target {prior_generation_id!r} is not a complete generation",
-            )
-        _write_json_atomic(
-            self.root / "pointer.json",
-            {"active": prior_generation_id, "previous": expected_current},
-        )
-
-    def validate_against_snapshot(
+    def add_entry(
         self,
         generation_id: str,
-        expected_projections: Sequence[FullContentProjection],
+        projection: FullContentProjection,
         *,
-        expected_fingerprint: IndexFingerprint | None = None,
+        dense_vec: np.ndarray | None = None,
+        body_digest: str = "",
+        asset_digest: str | None = None,
     ) -> None:
-        """Reject stale generations when projection or fingerprint digests drift."""
-        meta = self.load_meta(generation_id)
-        if expected_fingerprint is not None:
-            stored_fp = meta.get("fingerprint_sha256")
-            if stored_fp != expected_fingerprint.digest():
-                raise StaleGenerationError(
-                    "fingerprint digest mismatch: model/projection config changed",
-                )
-            # Same-name model artifact change is also enforced via models.json.
-            models = _read_json(self.root / "models.json")
-            provider = expected_fingerprint.provider
-            # Look up by common model_name keys registered at begin().
-            for _name, row in models.items():
-                if row.get("fingerprint_sha256") == stored_fp:
-                    if row.get("model_artifact_digest") != expected_fingerprint.model_artifact_digest:
-                        raise StaleGenerationError(
-                            "model artifact digest changed under registered model name",
-                        )
-                    break
-            else:
-                # Fingerprint object itself carries the digest; compare fields.
-                stored = meta.get("fingerprint") or {}
-                if stored.get("model_artifact_digest") != expected_fingerprint.model_artifact_digest:
-                    raise StaleGenerationError(
-                        "model artifact digest mismatch for generation fingerprint",
-                    )
-                if stored.get("provider") == provider and stored.get("model_artifact_digest") != (
-                    expected_fingerprint.model_artifact_digest
-                ):
-                    raise StaleGenerationError("provider fingerprint conflict")
-
-        entries = _read_json(self._gen_dir(generation_id) / "entries.json")
-        expected = {p.engram_id: p for p in expected_projections}
-        if set(entries) != set(expected):
-            raise StaleGenerationError(
-                f"generation entry set mismatch: stored={sorted(entries)} expected={sorted(expected)}",
-            )
-        for engram_id, proj in expected.items():
-            stored_sha = entries[engram_id].get("projection_sha256")
-            if stored_sha != proj.projection_sha256:
-                raise StaleGenerationError(
-                    f"projection digest mismatch for {engram_id}: "
-                    f"frontmatter/body projection changed since generation",
-                )
-
-    def _load_generation(self, generation_id: str) -> GenerationMeta:
-        meta_raw = self.load_meta(generation_id)
-        fp_raw = meta_raw["fingerprint"]
-        chunker_raw = fp_raw.get("chunker") or {}
-        fingerprint = IndexFingerprint(
-            provider=str(fp_raw["provider"]),
-            model_artifact_digest=str(fp_raw["model_artifact_digest"]),
-            dimension=int(fp_raw["dimension"]),
-            model_revision=fp_raw.get("model_revision"),
-            normalization=str(fp_raw.get("normalization") or "l2"),
-            projection_version=str(fp_raw.get("projection_version") or PROJECTION_VERSION),
-            tokenizer_id=str(fp_raw.get("tokenizer_id") or TOKENIZER_ID),
-            chunker=ChunkerConfig(
-                max_tokens=int(chunker_raw.get("max_tokens") or DEFAULT_CHUNK_TOKENS),
-                overlap_tokens=int(chunker_raw.get("overlap_tokens") or DEFAULT_CHUNK_OVERLAP),
-                max_chunks=int(chunker_raw.get("max_chunks") or DEFAULT_MAX_CHUNKS),
-            ),
-            index_schema_version=str(fp_raw.get("index_schema_version") or INDEX_SCHEMA_VERSION),
+        entry = _entry_from_projection(
+            projection,
+            dense_vec=dense_vec,
+            body_digest=body_digest,
+            asset_digest=asset_digest,
         )
-        entries_raw = _read_json(self._gen_dir(generation_id) / "entries.json")
-        dense_path = self._gen_dir(generation_id) / "dense.npz"
-        dense_map: dict[str, np.ndarray] = {}
-        if dense_path.is_file():
-            loaded = np.load(dense_path)
-            dense_map = {k: loaded[k] for k in loaded.files}
+        if dense_vec is not None:
+            if dense_vec.dtype != np.float32:
+                dense_vec = np.asarray(dense_vec, dtype=np.float32)
+            if int(dense_vec.shape[0]) != self._fingerprint_dim(generation_id):
+                raise IndexGenerationError(
+                    f"dense vector dim {dense_vec.shape} != fingerprint dim",
+                )
+        p = entry.projection
+        self.conn.execute(
+            """
+            INSERT INTO index_entry (
+              generation_id, engram_id, revision, projection_sha256, body_digest,
+              asset_digest, name, title, intent_text, triggers_text, body_text,
+              full_text, symbols_json, chunks_json, truncated_chunks, dense_dim, dense_vec
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(generation_id, engram_id) DO UPDATE SET
+              revision=excluded.revision,
+              projection_sha256=excluded.projection_sha256,
+              body_digest=excluded.body_digest,
+              asset_digest=excluded.asset_digest,
+              name=excluded.name,
+              title=excluded.title,
+              intent_text=excluded.intent_text,
+              triggers_text=excluded.triggers_text,
+              body_text=excluded.body_text,
+              full_text=excluded.full_text,
+              symbols_json=excluded.symbols_json,
+              chunks_json=excluded.chunks_json,
+              truncated_chunks=excluded.truncated_chunks,
+              dense_dim=excluded.dense_dim,
+              dense_vec=excluded.dense_vec
+            """,
+            (
+                generation_id,
+                p.engram_id,
+                p.revision,
+                p.projection_sha256,
+                entry.resolved_body_digest(),
+                entry.asset_digest,
+                p.name,
+                p.title,
+                p.intent_text,
+                p.triggers_text,
+                p.body_text,
+                p.full_text,
+                json.dumps(list(p.symbols), separators=(",", ":")),
+                json.dumps([asdict(c) for c in p.chunks], separators=(",", ":")),
+                p.truncated_chunks,
+                None if dense_vec is None else int(dense_vec.shape[0]),
+                None if dense_vec is None else dense_vec.tobytes(),
+            ),
+        )
+        self.conn.execute(
+            "DELETE FROM index_fts WHERE generation_id = ? AND engram_id = ?",
+            (generation_id, p.engram_id),
+        )
+        self.conn.execute(
+            "INSERT INTO index_fts(generation_id, engram_id, title, intent, triggers, body) "
+            "VALUES (?,?,?,?,?,?)",
+            (generation_id, p.engram_id, p.title, p.intent_text, p.triggers_text, p.body_text),
+        )
+        self.conn.commit()
 
+    def _fingerprint_dim(self, generation_id: str) -> int:
+        row = self.conn.execute(
+            "SELECT fingerprint_json FROM index_generation WHERE generation_id = ?",
+            (generation_id,),
+        ).fetchone()
+        if row is None:
+            raise IndexGenerationError(f"unknown generation {generation_id!r}")
+        return int(json.loads(row["fingerprint_json"])["dimension"])
+
+    def _load_entries(self, generation_id: str) -> dict[str, IndexedEntry]:
+        rows = self.conn.execute(
+            "SELECT * FROM index_entry WHERE generation_id = ?",
+            (generation_id,),
+        ).fetchall()
         entries: dict[str, IndexedEntry] = {}
-        for engram_id, row in entries_raw.items():
+        for row in rows:
+            chunks_raw = json.loads(row["chunks_json"] or "[]")
             proj = FullContentProjection(
-                engram_id=engram_id,
+                engram_id=str(row["engram_id"]),
                 revision=int(row["revision"]),
                 name=str(row["name"]),
                 title=str(row["title"]),
@@ -620,76 +598,199 @@ class GenerationStore:
                 body_text=str(row["body_text"]),
                 full_text=str(row["full_text"]),
                 projection_sha256=str(row["projection_sha256"]),
-                chunks=tuple(
-                    ProjectedChunk(**chunk) for chunk in row.get("chunks") or ()
-                ),
-                truncated_chunks=int(row.get("truncated_chunks") or 0),
-                symbols=tuple(row.get("symbols") or ()),
+                body_digest=str(row["body_digest"]),
+                chunks=tuple(ProjectedChunk(**chunk) for chunk in chunks_raw),
+                truncated_chunks=int(row["truncated_chunks"] or 0),
+                symbols=tuple(json.loads(row["symbols_json"] or "[]")),
             )
-            entries[engram_id] = IndexedEntry(
+            dense = None
+            if row["dense_vec"] is not None and row["dense_dim"] is not None:
+                dense = np.frombuffer(row["dense_vec"], dtype=np.float32).copy()
+            entries[proj.engram_id] = IndexedEntry(
                 projection=proj,
-                dense_vec=dense_map.get(engram_id),
-                body_digest=str(row.get("body_digest") or ""),
-                asset_digest=row.get("asset_digest"),
+                dense_vec=dense,
+                body_digest=str(row["body_digest"]),
+                asset_digest=row["asset_digest"],
             )
-        status = meta_raw.get("status") or ("complete" if self.is_complete(generation_id) else "building")
+        return entries
+
+    def validate_against_snapshot(
+        self,
+        generation_id: str,
+        expected_projections: Sequence[FullContentProjection],
+        *,
+        expected_fingerprint: IndexFingerprint | None = None,
+    ) -> None:
+        row = self.conn.execute(
+            "SELECT fingerprint_json, fingerprint_digest, state FROM index_generation "
+            "WHERE generation_id = ?",
+            (generation_id,),
+        ).fetchone()
+        if row is None:
+            raise IndexGenerationError(f"unknown generation {generation_id!r}")
+        if expected_fingerprint is not None:
+            if row["fingerprint_digest"] != expected_fingerprint.digest():
+                raise StaleGenerationError(
+                    "fingerprint digest mismatch: model/projection config changed",
+                )
+            stored = json.loads(row["fingerprint_json"])
+            if stored.get("model_artifact_digest") != expected_fingerprint.model_artifact_digest:
+                raise StaleGenerationError(
+                    "model artifact digest mismatch for generation fingerprint",
+                )
+            if self.model_registry_path is not None and self.model_registry_path.exists():
+                models = _read_json(self.model_registry_path)
+                for _name, meta in models.items():
+                    if meta.get("fingerprint_sha256") == row["fingerprint_digest"]:
+                        if meta.get("model_artifact_digest") != expected_fingerprint.model_artifact_digest:
+                            raise StaleGenerationError(
+                                "model artifact digest changed under registered model name",
+                            )
+                        break
+
+        entries = self._load_entries(generation_id)
+        expected = {p.engram_id: p for p in expected_projections}
+        if set(entries) != set(expected):
+            raise StaleGenerationError(
+                f"generation entry set mismatch: stored={sorted(entries)} expected={sorted(expected)}",
+            )
+        for engram_id, proj in expected.items():
+            stored = entries[engram_id].projection
+            if stored.projection_sha256 != proj.projection_sha256:
+                raise StaleGenerationError(
+                    f"projection digest mismatch for {engram_id}: "
+                    f"frontmatter/body projection changed since generation",
+                )
+            if entries[engram_id].resolved_body_digest() != proj.body_digest:
+                raise StaleGenerationError(
+                    f"body_digest mismatch for {engram_id}: routing.body_digest drifted",
+                )
+
+    def complete(
+        self,
+        generation_id: str,
+        expected_projections: Sequence[FullContentProjection] | None = None,
+        *,
+        expected_fingerprint: IndexFingerprint | None = None,
+    ) -> None:
+        if expected_projections is not None:
+            self.validate_against_snapshot(
+                generation_id,
+                expected_projections,
+                expected_fingerprint=expected_fingerprint,
+            )
+        else:
+            entries = self._load_entries(generation_id)
+            for engram_id, entry in entries.items():
+                if not entry.projection.projection_sha256:
+                    raise StaleGenerationError(f"missing projection digest for {engram_id}")
+                if not entry.resolved_body_digest():
+                    raise StaleGenerationError(f"missing body_digest for {engram_id}")
+        ops.complete_index_generation(self.conn, generation_id)
+        self.conn.commit()
+
+    def publish(self, generation_id: str) -> dict[str, Any]:
+        result = ops.publish_index_generation(self.conn, generation_id)
+        self.conn.commit()
+        return result
+
+    def rollback(self) -> dict[str, Any]:
+        result = ops.rollback_index_generation(self.conn)
+        self.conn.commit()
+        return result
+
+    def active_generation_id(self) -> str | None:
+        active = ops.active_index_generation(self.conn)
+        if active is None:
+            return None
+        return str(active["generation_id"])
+
+    def previous_generation_id(self) -> str | None:
+        active = ops.active_index_generation(self.conn)
+        if active is None:
+            return None
+        prev = active.get("previous_generation_id")
+        return str(prev) if prev else None
+
+    def generation_state(self, generation_id: str) -> str:
+        row = self.conn.execute(
+            "SELECT state FROM index_generation WHERE generation_id = ?",
+            (generation_id,),
+        ).fetchone()
+        if row is None:
+            raise IndexGenerationError(f"unknown generation {generation_id!r}")
+        return str(row["state"])
+
+    def pin(self, generation_id: str | None = None) -> GenerationMeta:
+        gid = generation_id if generation_id is not None else self.active_generation_id()
+        if gid is None:
+            raise IncompleteGenerationError("no active index generation")
+        row = self.conn.execute(
+            "SELECT fingerprint_json, state FROM index_generation WHERE generation_id = ?",
+            (gid,),
+        ).fetchone()
+        if row is None:
+            raise IndexGenerationError(f"unknown generation {gid!r}")
+        state = str(row["state"])
+        if state not in {"complete", "published"}:
+            raise IncompleteGenerationError(
+                f"generation {gid!r} is not complete; partial builds are not routable",
+            )
+        if generation_id is None and state != "published":
+            raise IncompleteGenerationError(
+                f"generation {gid!r} is not the published active pointer",
+            )
+        fp_raw = json.loads(row["fingerprint_json"])
+        snapshot_id = str(fp_raw.get("snapshot_id") or "")
         return GenerationMeta(
-            generation_id=generation_id,
-            snapshot_id=str(meta_raw["snapshot_id"]),
-            fingerprint=fingerprint,
-            status=status,  # type: ignore[arg-type]
-            entries=entries,
+            generation_id=gid,
+            snapshot_id=snapshot_id,
+            fingerprint=_fingerprint_from_dict(fp_raw),
+            status=state,  # type: ignore[arg-type]
+            entries=self._load_entries(gid),
         )
 
 
-class GenerationBuilder:
-    """Staged builder: entries accumulate under ``building`` until finalize()."""
+# ── filesystem sidecar (optional dense blob cache; not pointer authority) ──
 
-    def __init__(
+
+class GenerationStore:
+    """Optional filesystem sidecar for generation artifacts.
+
+    Pointer / publish / rollback authority is :class:`IndexCatalog` (S03 tables).
+    This store only persists an audit copy of entries + COMPLETE marker with
+    fsync, keyed by generation id already recorded in SQLite.
+    """
+
+    def __init__(self, root: Path) -> None:
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+        (self.root / "generations").mkdir(exist_ok=True)
+
+    def _gen_dir(self, generation_id: str) -> Path:
+        return self.root / "generations" / generation_id
+
+    def write_sidecar(
         self,
-        store: GenerationStore,
         generation_id: str,
+        *,
         snapshot_id: str,
         fingerprint: IndexFingerprint,
+        entries: Mapping[str, IndexedEntry],
     ) -> None:
-        self.store = store
-        self.generation_id = generation_id
-        self.snapshot_id = snapshot_id
-        self.fingerprint = fingerprint
-        self._entries: dict[str, IndexedEntry] = {}
-        self._finalized = False
-
-    def add_entry(
-        self,
-        projection: FullContentProjection,
-        *,
-        dense_vec: np.ndarray | None = None,
-        body_digest: str = "",
-        asset_digest: str | None = None,
-    ) -> None:
-        if self._finalized:
-            raise IndexGenerationError("cannot add entries after finalize()")
-        if dense_vec is not None:
-            if dense_vec.dtype != np.float32:
-                dense_vec = np.asarray(dense_vec, dtype=np.float32)
-            if dense_vec.shape != (self.fingerprint.dimension,):
-                raise IndexGenerationError(
-                    f"dense vector dim {dense_vec.shape} != fingerprint dim "
-                    f"{self.fingerprint.dimension}",
-                )
-        self._entries[projection.engram_id] = IndexedEntry(
-            projection=projection,
-            dense_vec=dense_vec,
-            body_digest=body_digest or projection.projection_sha256,
-            asset_digest=asset_digest,
-        )
-        self._flush_entries()
-
-    def _flush_entries(self) -> None:
-        gdir = self.store._gen_dir(self.generation_id)
+        gdir = self._gen_dir(generation_id)
+        gdir.mkdir(parents=True, exist_ok=True)
+        meta = {
+            "generation_id": generation_id,
+            "snapshot_id": snapshot_id,
+            "fingerprint": fingerprint.to_dict(),
+            "fingerprint_sha256": fingerprint.digest(),
+            "status": "building",
+        }
+        _write_json_atomic(gdir / "meta.json", meta)
         serializable: dict[str, Any] = {}
         dense: dict[str, np.ndarray] = {}
-        for engram_id, entry in self._entries.items():
+        for engram_id, entry in entries.items():
             p = entry.projection
             serializable[engram_id] = {
                 "revision": p.revision,
@@ -700,76 +801,31 @@ class GenerationBuilder:
                 "body_text": p.body_text,
                 "full_text": p.full_text,
                 "projection_sha256": p.projection_sha256,
+                "body_digest": entry.resolved_body_digest(),
                 "chunks": [asdict(c) for c in p.chunks],
                 "truncated_chunks": p.truncated_chunks,
                 "symbols": list(p.symbols),
-                "body_digest": entry.body_digest,
                 "asset_digest": entry.asset_digest,
             }
             if entry.dense_vec is not None:
                 dense[engram_id] = entry.dense_vec
         _write_json_atomic(gdir / "entries.json", serializable)
         if dense:
-            # np.savez kwarg typing rejects Mapping[str, ndarray] under numpy stubs.
             np.savez(gdir / "dense.npz", **dense)  # type: ignore[arg-type]
 
-    def _build_sparse_fts(self) -> None:
-        if not fts5_available():
-            raise FTS5UnavailableError(
-                "SQLite FTS5 is unavailable; configure an explicit dense-only fallback",
-            )
-        gdir = self.store._gen_dir(self.generation_id)
-        db_path = gdir / "sparse.sqlite"
-        if db_path.exists():
-            db_path.unlink()
-        conn = sqlite3.connect(db_path)
-        try:
-            conn.execute(
-                "CREATE VIRTUAL TABLE idx_fts USING fts5("
-                "engram_id UNINDEXED, title, intent, triggers, body, "
-                "tokenize='unicode61')"
-            )
-            for engram_id, entry in self._entries.items():
-                p = entry.projection
-                conn.execute(
-                    "INSERT INTO idx_fts(engram_id, title, intent, triggers, body) "
-                    "VALUES (?,?,?,?,?)",
-                    (engram_id, p.title, p.intent_text, p.triggers_text, p.body_text),
-                )
-            conn.commit()
-        finally:
-            conn.close()
+    def mark_complete(self, generation_id: str) -> None:
+        gdir = self._gen_dir(generation_id)
+        meta_path = gdir / "meta.json"
+        if meta_path.is_file():
+            meta = _read_json(meta_path)
+            meta["status"] = "complete"
+            _write_json_atomic(meta_path, meta)
+        write_text_atomic(gdir / "COMPLETE", "ok\n")
 
-    def validate(self, expected_projections: Sequence[FullContentProjection] | None = None) -> None:
-        if expected_projections is not None:
-            expected = {p.engram_id: p for p in expected_projections}
-            if set(self._entries) != set(expected):
-                raise StaleGenerationError("builder entry set does not match snapshot")
-            for engram_id, proj in expected.items():
-                if self._entries[engram_id].projection.projection_sha256 != proj.projection_sha256:
-                    raise StaleGenerationError(
-                        f"projection digest mismatch for {engram_id} (frontmatter/body changed)",
-                    )
-        for engram_id, entry in self._entries.items():
-            if not entry.projection.projection_sha256:
-                raise StaleGenerationError(f"missing projection digest for {engram_id}")
-
-    def finalize(self) -> str:
-        """Mark generation complete (visible only after :meth:`GenerationStore.publish`)."""
-        self.validate()
-        self._build_sparse_fts()
-        gdir = self.store._gen_dir(self.generation_id)
-        meta = _read_json(gdir / "meta.json")
-        meta["status"] = "complete"
-        _write_json_atomic(gdir / "meta.json", meta)
-        (gdir / "COMPLETE").write_text("ok\n", encoding="utf-8")
-        self._finalized = True
-        return self.generation_id
+    def is_complete(self, generation_id: str) -> bool:
+        return (self._gen_dir(generation_id) / "COMPLETE").is_file()
 
 
-def open_sparse_connection(store: GenerationStore, generation_id: str) -> sqlite3.Connection:
-    """Open a read-only-ish connection to a generation's FTS database."""
-    path = store._gen_dir(generation_id) / "sparse.sqlite"
-    if not path.is_file():
-        raise IncompleteGenerationError(f"sparse index missing for {generation_id!r}")
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+def open_sparse_connection(conn: sqlite3.Connection) -> sqlite3.Connection:
+    """Return the durable DB connection used for generation-scoped FTS queries."""
+    return conn
