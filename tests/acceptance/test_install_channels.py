@@ -180,10 +180,8 @@ def test_probe_fails_for_broken_wheel_despite_repo_pythonpath(
 def test_missing_model(built_wheel: Path, tmp_path: Path) -> None:
     """AC-S13-02: offline production provider without cache remediates acquisition.
 
-    Scaffold asserts the typed offline failure from a clean wheel install.
-    Explicit ``magicite fetch-model`` remediation wording is owned by
-    ``src/magicite/embeddings/*`` (S05); until that patch lands the
-    remediation clause is an explicit xfail rather than a silent weaken.
+    Asserts the typed offline failure from a clean wheel install and the
+    ``magicite fetch-model`` remediation owned by ``src/magicite/embeddings/*``.
     """
     child_env = _child_env()
     venv_dir = tmp_path / "missing-model-venv"
@@ -238,11 +236,7 @@ else:
     )
     assert "ERROR_TYPE FastEmbedModelUnavailableError" in completed.stdout
     assert "offline=True" in completed.stdout
-    if "fetch-model" not in completed.stdout:
-        pytest.xfail(
-            "AC-S13-02 remediation text requires S05 embeddings patch "
-            "(proposed in S13 completion report); typed offline failure already enforced"
-        )
+    assert "magicite fetch-model" in completed.stdout
 
 
 @pytest.mark.parametrize(
