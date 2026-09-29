@@ -281,7 +281,6 @@ jobs:
     needs: release-image
     permissions:
       contents: write
-      id-token: write
 
     steps:
       - name: Checkout
@@ -341,13 +340,26 @@ jobs:
             dist/release-manifest.json
           fail_on_unmatched_files: true
 
+      # Exact bytes for release-pypi — never rebuild; publish must match the
+      # digest-attested release-manifest attached above.
+      - name: Upload dist for release-pypi handoff
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: magicite-release-dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/release-manifest.json
+          if-no-files-found: error
+          retention-days: 5
+
       # Published-channels milestone hook (UNEVALUATED until after S11/S15):
       # verify fetched image/wheel digests + signatures against the attached
       # release-manifest.json (cosign / gh attestation / pip download --no-deps
       # hash check). Do not enable here without release authority.
 
   release-pypi:
-    name: Build and publish the wheel to PyPI
+    name: Publish the attested wheel to PyPI
     runs-on: ubuntu-latest
     needs: [release-image, release-wheel]
     # Opt-in. OIDC trusted publishing requires a *pending publisher* registered
@@ -364,31 +376,34 @@ jobs:
       name: pypi
       url: https://pypi.org/project/magicite/
     permissions:
+      contents: read
       id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Download attested release dist
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          version: "0.11.23"
-          python-version: "3.12"
+          name: magicite-release-dist
+          path: dist
 
-      - name: Build wheel + sdist
-        run: uv build
+      - name: Verify downloaded artifacts match release manifest
+        run: |
+          python3 scripts/check_supply_chain.py \
+            --skip-immutable-inputs \
+            --verify-manifest dist/release-manifest.json
 
-      # Re-assert AC-031 at the exact artifact being published, with a real
-      # clean install (not dry-run/no-deps). release-wheel already probed the
-      # offline fixture; this gate is the publish-path twin.
+      # Re-assert AC-031 against the *same* bytes release-wheel attested —
+      # no second `uv build`.
       - name: AC-031 — assert the published wheel does not depend on torch
         run: |
           python -m venv /tmp/magicite-pypi-meta
           /tmp/magicite-pypi-meta/bin/pip install --upgrade pip
           /tmp/magicite-pypi-meta/bin/pip install dist/magicite-*.whl
           if /tmp/magicite-pypi-meta/bin/pip list --format=json | jq -e 'map(.name | ascii_downcase) | index("torch") != null' >/dev/null; then
-            echo "ERROR: torch appeared in the clean install of the built wheel" >&2
+            echo "ERROR: torch appeared in the clean install of the attested wheel" >&2
             exit 1
           fi
 
