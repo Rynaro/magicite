@@ -249,6 +249,11 @@ def paired_bootstrap_ci(
     Resamples the original grouping unit (never correlated individual
     variants). Default ``n_resamples=10000`` matches evaluation.md E3;
     tests may use a smaller count for speed.
+
+    Percentile CI uses ``numpy.quantile(..., method="linear")`` (NumPy's
+    default, Hyndman & Fan type 7): the ``alpha/2`` and ``1 - alpha/2``
+    sample quantiles of the resampled group-mean deltas. This is the
+    ordinary percentile bootstrap interval, not BCa.
     """
     import numpy as np
 
@@ -272,8 +277,8 @@ def paired_bootstrap_ci(
     for i in range(n_resamples):
         draw = rng.integers(0, n_groups, size=n_groups)
         samples[i] = float(means_arr[draw].mean())
-    low = float(np.quantile(samples, alpha / 2))
-    high = float(np.quantile(samples, 1 - alpha / 2))
+    low = float(np.quantile(samples, alpha / 2, method="linear"))
+    high = float(np.quantile(samples, 1 - alpha / 2, method="linear"))
     return BootstrapInterval(
         point_estimate=point,
         low=low,

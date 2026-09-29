@@ -19,7 +19,11 @@ from magicite.core import composition as composition_mod
 from magicite.eval import metrics as metrics_mod
 from magicite.eval.__main__ import validate_corpus_data
 from magicite.eval.digests import SCHEMA_CLAIM, SCHEMA_RESULT, sha256_json
-from magicite.eval.validate import validate_claim_integrity, validate_result_data
+from magicite.eval.validate import (
+    claim_eligible_for_new_run_gate,
+    validate_claim_integrity,
+    validate_result_data,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -71,11 +75,7 @@ def _production_predictions(corpus: dict[str, Any]) -> tuple[list[dict[str, Any]
 def check_historical_v03(path: Path, result: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if result.get("evidence_class") not in {None, "historical"}:
-        # Allow missing (pre-S01) or explicit historical label.
-        if result.get("status") == "superseding":
-            pass
-        else:
-            errors.append("v0.3 results must be labeled historical or superseding")
+        errors.append("v0.3 results must set evidence_class to historical (or omit for pre-S01 artifacts)")
     if result.get("status") != "superseding" or len(result.get("supersedes", [])) < 2:
         errors.append("results must explicitly supersede prior composition evidence")
     for item in result.get("supersedes", []):
@@ -139,22 +139,34 @@ def check_v1_claim_bundle(path: Path, payload: dict[str, Any]) -> list[str]:
     result = payload.get("result")
     predictions = payload.get("predictions")
     experiment = payload.get("experiment")
+    corpus = payload.get("corpus")
     labels_sha256 = payload.get("current_labels_sha256")
     if not isinstance(claim, dict):
         return ["v1 claim bundle requires a claim object"]
     if claim.get("schema") != SCHEMA_CLAIM:
         errors.append(f"claim.schema must be {SCHEMA_CLAIM}")
+    errors.extend(claim_eligible_for_new_run_gate(claim))
     if isinstance(result, dict):
         errors.extend(validate_result_data(result))
         if result.get("schema") != SCHEMA_RESULT:
             errors.append(f"result.schema must be {SCHEMA_RESULT}")
+    # Bundles must include prediction bytes when a result is present.
+    pred_arg: list[Any] | None
+    if "predictions" not in payload:
+        pred_arg = None
+    elif isinstance(predictions, list):
+        pred_arg = predictions
+    else:
+        pred_arg = None
+        errors.append("predictions must be an array when present")
     errors.extend(
         validate_claim_integrity(
             claim,
             result=result if isinstance(result, dict) else {"prediction_digests": [], "aggregates": {}},
-            predictions=predictions if isinstance(predictions, list) else None,
+            predictions=pred_arg,
             experiment=experiment if isinstance(experiment, dict) else None,
             current_labels_sha256=str(labels_sha256) if labels_sha256 is not None else None,
+            corpus=corpus if isinstance(corpus, dict) else None,
         )
     )
     # Recompute claim↔result digest when both present and well-formed.
