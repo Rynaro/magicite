@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -40,13 +41,23 @@ from magicite.core import approvals as approvals_mod
 from magicite.core import communities as communities_mod
 from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import lifecycle as lifecycle_mod
+from magicite.core import trust as trust_mod
 from magicite.embeddings.base import Embedder, contraindication_model_name
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
 from magicite.engram import parser as parser_mod
 from magicite.engram import skillmd as skillmd_mod
 from magicite.engram import writer as writer_mod
-from magicite.engram.model import Engram, Trust
+from magicite.engram.model import (
+    Engram,
+    EngramFrontmatter,
+    Intent,
+    Plasticity,
+    ProvenanceJournalEntry,
+    Triggers,
+    Trust,
+)
+from magicite.engram.model_v1 import EngramV1
 from magicite.errors import InvalidInputError, PathOutsideProjectError
 from magicite.storage import durable as durable_mod
 from magicite.storage import ephemeral as ephemeral_mod
@@ -125,6 +136,105 @@ def canonical_contraindication_view(engram: Engram) -> str | None:
 def embeddable_text(engram: Engram) -> str:
     """Compatibility alias for the canonical v1 positive routing view."""
     return canonical_routing_view(engram)
+
+
+def project_v1_to_durable_engram(artifact: EngramV1, *, server_origin: str) -> Engram:
+    """Project an admitted EngramV1 onto the 0.2 durable mirror shape.
+
+    The on-disk file remains engram/1.0; only the rebuildable SQLite row set
+    uses this projection. Local trust/admission is never taken from the file.
+    """
+    fm1 = artifact.frontmatter
+    legacy = fm1.legacy or {}
+    plasticity_raw = legacy.get("plasticity") if isinstance(legacy, dict) else None
+    if isinstance(plasticity_raw, dict):
+        plasticity = Plasticity.model_validate(plasticity_raw)
+    else:
+        plasticity = Plasticity(status="nascent")
+
+    journal: list[ProvenanceJournalEntry] = []
+    for entry in fm1.origin.journal:
+        journal.append(
+            ProvenanceJournalEntry(
+                version=entry.version,
+                timestamp=entry.timestamp,
+                author=entry.author,
+                event=entry.event,
+                note=entry.note,
+                summary_of_change=entry.summary_of_change,
+                signal_tier=entry.signal_tier,
+                base_version=entry.base_version,
+            )
+        )
+
+    needs: list[str] = []
+    if isinstance(legacy, dict):
+        for key in ("needs", "composes", "inhibits", "yields", "affinity"):
+            vals = legacy.get(key)
+            if isinstance(vals, list):
+                if key == "needs":
+                    needs = [str(v) for v in vals]
+
+    frontmatter = EngramFrontmatter(
+        spec="engram/0.2",
+        name=fm1.name,
+        id=fm1.id,
+        version=fm1.version,
+        provenance=server_origin,  # type: ignore[arg-type]
+        parents=list(fm1.parents),
+        intent=Intent(
+            does=fm1.intent.does,
+            use_when=fm1.intent.use_when,
+            not_when=fm1.intent.not_when,
+        ),
+        triggers=Triggers(
+            positive=list(fm1.routing.positive),
+            negative=list(fm1.routing.negative),
+        ),
+        plasticity=plasticity,
+        peak_storage_strength=float(legacy.get("peak_storage_strength") or 0.0)
+        if isinstance(legacy, dict)
+        else 0.0,
+        needs=needs,
+        composes=[str(v) for v in legacy.get("composes", [])]
+        if isinstance(legacy, dict) and isinstance(legacy.get("composes"), list)
+        else [],
+        inhibits=[str(v) for v in legacy.get("inhibits", [])]
+        if isinstance(legacy, dict) and isinstance(legacy.get("inhibits"), list)
+        else [],
+        yields=[str(v) for v in legacy.get("yields", [])]
+        if isinstance(legacy, dict) and isinstance(legacy.get("yields"), list)
+        else [],
+        affinity=[str(v) for v in legacy.get("affinity", [])]
+        if isinstance(legacy, dict) and isinstance(legacy.get("affinity"), list)
+        else [],
+        provenance_journal=journal,
+        trust=Trust(
+            origin="imported"
+            if server_origin in ("imported", "distilled")
+            else "authored",
+            verification_status="pending",
+            signer=fm1.origin.signer,
+            import_source=fm1.origin.import_source,
+        ),
+        skill_md_source=fm1.skill_md_source,
+    )
+    return Engram(
+        frontmatter=frontmatter,
+        body=artifact.body,
+        path=artifact.path,
+        content_sha256=artifact.content_sha256,
+        body_sha256=artifact.body_sha256,
+        file_mtime_ns=artifact.file_mtime_ns,
+    )
+
+
+def _path_inside_registry(cfg: Config, file_path: Path) -> bool:
+    try:
+        file_path.resolve().relative_to(cfg.registry_dir.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 @dataclass
@@ -246,23 +356,22 @@ def embed_and_store(conn: sqlite3.Connection, embedder: Embedder, engram: Engram
     )
 
 
-def _lint_profile_for(engram: Engram) -> str:
+def _lint_profile_for(
+    engram: Engram,
+    *,
+    intake_channel: trust_mod.SourceChannel | None = None,
+) -> str:
     """CR-4: an imported engram's *file* keeps the lenient ``import`` lint
     profile on every subsequent parse -- register()'s native-``.egr.md``
     path re-scanning it, and sync()'s full-registry rebuild scan -- not
     just at the moment of conversion.
 
-    Without this, a freshly-imported draft's own file would hard-fail
-    ``strict`` re-lint (e.g. ``negative_triggers`` is always unmet, by
-    design, for an import) on the very next ``sync()``, and since a
-    ``strict``-failed ``_ingest_one`` never upserts, the engram would
-    simply never re-appear after a DB rebuild -- silently contradicting
-    both CR-4 ("nothing is silently accepted... or rejected") and the
-    rebuild invariant (AC-009) for every imported engram. ``provenance``
-    is itself durable, file-level, spec-defined content (§2.2's
-    ``origin`` column), so keying the profile off it is a read of the
-    file, not an invented side channel.
+    S04: intake channel also forces the import profile for external /
+    bundle / skillmd channels so a forged ``provenance: authored`` claim
+    cannot opt into the strict native path (C10).
     """
+    if intake_channel in ("external_file", "bundle_import", "skillmd_import"):
+        return "import"
     return "import" if engram.frontmatter.provenance == "imported" else "strict"
 
 
@@ -273,6 +382,10 @@ def _ingest_one(
     *,
     profile: str,
     registry_dir: Path,
+    cfg: Config | None = None,
+    intake_channel: trust_mod.SourceChannel = "local_register",
+    signature_valid: bool | None = None,
+    signer_fingerprint: str | None = None,
 ) -> tuple[RegisteredEntry | None, ValidationError | None, bool, list[str]]:
     """Returns (registered_entry, validation_error, skipped_unchanged, dangling)."""
     result = lint_mod.lint(engram, profile=profile)  # type: ignore[arg-type]
@@ -283,6 +396,14 @@ def _ingest_one(
     existing = conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (engram.id,)).fetchone()
     if existing is not None and existing["content_sha256"] == engram.content_sha256:
         return None, None, True, []
+
+    # C10: server-owned origin from intake channel — file-declared authored
+    # / verified cannot impersonate locally authored content.
+    file_declared = engram.frontmatter.provenance
+    server_origin = lifecycle_mod.server_owned_origin(
+        intake_channel=intake_channel, file_declared_origin=file_declared
+    )
+    engram.frontmatter.provenance = server_origin  # type: ignore[assignment]
 
     # M5 security fix #1 + AC-028 (docs/06 §Injection-Surface Analysis):
     # verification_status is SERVER-ASSIGNED here, never read from the
@@ -295,18 +416,28 @@ def _ingest_one(
     # pass, not only at first ingestion.
     scan = lint_mod.injection_scan(engram)
     verification_status = lifecycle_mod.initial_verification_status(
-        origin=engram.frontmatter.provenance, lint_ok=result.ok, scan=scan
+        origin=server_origin, lint_ok=result.ok, scan=scan
     )
+    # S04: a still-valid digest-bound admission restores verified on rebuild.
+    if (
+        cfg is not None
+        and not scan.quarantine_recommended
+        and trust_mod.admission_still_valid(
+            cfg, engram_id=engram.id, content_digest=engram.content_sha256
+        )
+    ):
+        verification_status = "verified"
+
     fm = engram.frontmatter
+    trust_origin = (
+        server_origin if server_origin in ("authored", "imported", "distilled") else "authored"
+    )
     if fm.trust is None:
-        # Trust.origin has no "sharpened" literal (spec's Trust.origin is a
-        # 3-way subset of the 4-way Engram.provenance enum); fall back to
-        # "authored" for that one case rather than widen the trust schema
-        # for a cosmetic field this fix does not touch.
-        trust_origin = fm.provenance if fm.provenance in ("authored", "imported", "distilled") else "authored"
-        fm.trust = Trust(origin=trust_origin, verification_status=verification_status)
+        fm.trust = Trust(origin=trust_origin, verification_status=verification_status)  # type: ignore[arg-type]
     else:
-        fm.trust = fm.trust.model_copy(update={"verification_status": verification_status})
+        fm.trust = fm.trust.model_copy(
+            update={"origin": trust_origin, "verification_status": verification_status}
+        )
 
     durable_mod.upsert_engram(conn, engram, identity_sha256=identity_hash(engram))
     durable_mod.wire_context_affinity(conn, engram)
@@ -320,6 +451,28 @@ def _ingest_one(
     # must win over wire_declared_edges's S=0.0 baseline, not the reverse).
     dangling = list(dict.fromkeys([*dangling, *durable_mod.wire_synapse_edges(conn, engram)]))
     embed_and_store(conn, embedder, engram)
+
+    # S04: external / imported intake is staged pending local admission.
+    # Do not emit a newer pending record that would shadow a still-valid admit.
+    if (
+        cfg is not None
+        and server_origin in ("imported", "distilled")
+        and verification_status != "verified"
+        and not trust_mod.admission_still_valid(
+            cfg, engram_id=fm.id, content_digest=engram.content_sha256
+        )
+    ):
+        trust_mod.record_pending_intake(
+            cfg,
+            conn,
+            engram_id=fm.id,
+            content_digest=engram.content_sha256,
+            source_channel=intake_channel,
+            actor="register",
+            signature_valid=signature_valid,
+            signer_fingerprint=signer_fingerprint,
+            reasons=("awaiting local admission",),
+        )
 
     warnings = [w.message for w in result.warnings]
     if scan.quarantine_recommended:
@@ -335,7 +488,7 @@ def _ingest_one(
     entry = RegisteredEntry(
         id=fm.id,
         name=fm.name,
-        origin=fm.provenance,
+        origin=server_origin,
         status=fm.plasticity.status if fm.plasticity else "nascent",
         verification_status=verification_status,
         warnings=warnings,
@@ -351,6 +504,7 @@ def _ingest_skillmd_one(
     project_root: Path,
     registry_dir: Path,
     actor: str = "register",
+    cfg: Config | None = None,
 ) -> tuple[RegisteredEntry | None, ValidationError | None, bool, list[str]]:
     """SKILL.md ingestion (spec §5.3 steps 3-9): convert -> lint(import) ->
     write -> index. Returns the same shape as :func:`_ingest_one`."""
@@ -395,9 +549,29 @@ def _ingest_skillmd_one(
     writer_mod.write_engram(target_path, engram)
 
     entry, verr, _skipped, dangling = _ingest_one(
-        conn, embedder, engram, profile="import", registry_dir=registry_dir
+        conn,
+        embedder,
+        engram,
+        profile="import",
+        registry_dir=registry_dir,
+        cfg=cfg,
+        intake_channel="skillmd_import",
     )
     return entry, verr, False, dangling
+
+
+def _artifact_to_engram(
+    artifact: Engram | EngramV1,
+    *,
+    intake_channel: trust_mod.SourceChannel,
+) -> Engram:
+    if isinstance(artifact, EngramV1):
+        server_origin = lifecycle_mod.server_owned_origin(
+            intake_channel=intake_channel,
+            file_declared_origin=artifact.frontmatter.origin.channel,
+        )
+        return project_v1_to_durable_engram(artifact, server_origin=server_origin)
+    return artifact
 
 
 def _cross_process_lease(
@@ -446,6 +620,7 @@ def register(
     fmt: str = "auto",
 ) -> RegisterOutcome:
     cfg.ensure_dirs()
+    trust_mod.ensure_trust_dirs(cfg)
     project_root = cfg.project_root.resolve()
     _ensure_registry_gitignore(cfg)
     scan_root = _resolve_scan_root(project_root, path)
@@ -455,18 +630,43 @@ def register(
     cross_lease = _cross_process_lease(cfg, conn, "register")
     with cross_lease.acquire(), lease_mod.writer_lease():
         for file_path in egr_files:
+            inside = _path_inside_registry(cfg, file_path)
+            channel = trust_mod.classify_intake_channel(
+                fmt="egr",
+                from_bundle=False,
+                path_inside_registry=inside,
+            )
             try:
-                parsed = parser_mod.parse_file(file_path, registry_root=project_root)
+                artifact, _doc = parser_mod.load_artifact_file(
+                    file_path,
+                    registry_root=project_root,
+                    require_asset_files=inside,
+                )
+                engram = _artifact_to_engram(artifact, intake_channel=channel)
             except parser_mod.EngramParseError as exc:
                 outcome.validation_errors.append(ValidationError(path=str(file_path), message=str(exc)))
                 continue
 
+            # C10 staging: external intake is copied into the registry root so
+            # rebuild/sync cannot drop the quarantined/pending bytes.
+            if not inside:
+                staged = cfg.registry_dir / f"{engram.frontmatter.name}.egr.md"
+                staged.parent.mkdir(parents=True, exist_ok=True)
+                staged.write_bytes(file_path.read_bytes())
+                engram.path = str(staged.resolve().relative_to(project_root))
+                try:
+                    engram.file_mtime_ns = staged.stat().st_mtime_ns
+                except OSError:
+                    pass
+
             entry, verr, skipped, dangling = _ingest_one(
                 conn,
                 embedder,
-                parsed.engram,
-                profile=_lint_profile_for(parsed.engram),
+                engram,
+                profile=_lint_profile_for(engram, intake_channel=channel),
                 registry_dir=cfg.registry_dir,
+                cfg=cfg,
+                intake_channel=channel,
             )
             if verr:
                 outcome.validation_errors.append(verr)
@@ -484,6 +684,7 @@ def register(
                 project_root=project_root,
                 registry_dir=cfg.registry_dir,
                 actor="register",
+                cfg=cfg,
             )
             if verr:
                 outcome.validation_errors.append(verr)
@@ -596,7 +797,10 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
             relpath = str(file_path.resolve().relative_to(project_root))
             on_disk_paths.add(relpath)
             try:
-                parsed = parser_mod.parse_file(file_path, registry_root=project_root)
+                artifact, _doc = parser_mod.load_artifact_file(
+                    file_path, registry_root=project_root, require_asset_files=True
+                )
+                engram = _artifact_to_engram(artifact, intake_channel="local_register")
             except parser_mod.EngramParseError as exc:
                 outcome.validation_errors.append(ValidationError(path=relpath, message=str(exc)))
                 durable_mod.disable_projection_by_path(conn, relpath)
@@ -605,9 +809,11 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
             _entry, verr, _skipped, _dangling = _ingest_one(
                 conn,
                 embedder,
-                parsed.engram,
-                profile=_lint_profile_for(parsed.engram),
+                engram,
+                profile=_lint_profile_for(engram, intake_channel="local_register"),
                 registry_dir=registry_dir,
+                cfg=cfg,
+                intake_channel="local_register",
             )
             if verr:
                 outcome.validation_errors.append(verr)
@@ -651,6 +857,7 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
         # `approval` table; this repopulates it from the JSON mirror so a
         # rebuild never silently drops pending/decided governance state.
         approvals_mod.reload_from_mirror(cfg, conn)
+        trust_mod.reload_from_mirror(cfg, conn)
 
     synced = conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"]
 
@@ -690,9 +897,12 @@ def export(
         rendered: list[tuple[Path, str]] = []
         for row in eligible:
             file_path = project_root / row["path"]
-            parsed = parser_mod.parse_file(file_path, registry_root=project_root)
+            artifact, _doc = parser_mod.load_artifact_file(
+                file_path, registry_root=project_root, require_asset_files=False
+            )
+            engram = _artifact_to_engram(artifact, intake_channel="local_register")
             target = target_root / row["name"] / "SKILL.md"
-            rendered.append((target, skillmd_mod.render_skillmd(parsed.engram)))
+            rendered.append((target, skillmd_mod.render_skillmd(engram)))
 
         for target, skillmd_text in rendered:
             writer_mod.atomic_write(target, skillmd_text)
@@ -703,4 +913,254 @@ def export(
         target_dir=str(target_root),
         format="skill",
         note=f"rendered {exported} SKILL.md shim(s) at status >= {min_status!r}",
+    )
+
+
+@dataclass
+class BundleImportOutcome:
+    ingested: int
+    registered: list[RegisteredEntry]
+    validation_errors: list[ValidationError]
+    manifest_digest: str
+    signer_fingerprint: str | None
+
+
+def import_bundle(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    embedder: Embedder,
+    *,
+    archive_path: str | Path,
+    actor: str = "bundle-import",
+) -> BundleImportOutcome:
+    """Verify a signed portable bundle offline, then stage members as pending.
+
+    Fail closed on zip-slip, digest mismatch, unknown/revoked keys, or
+    non-canonical manifests. Successful members remain pending until
+    :func:`review_approve`.
+    """
+    from magicite.core import bundles as bundles_mod
+
+    cfg.ensure_dirs()
+    trust_mod.ensure_trust_dirs(cfg)
+    policy = trust_mod.load_policy(cfg)
+    archive = Path(archive_path)
+    verified = bundles_mod.verify_bundle(
+        archive,
+        roots=list(policy.active_roots()),
+        staging_parent=cfg.runtime_dir / "bundle-staging",
+    )
+    assert verified.staging_dir is not None
+    assert verified.manifest is not None
+
+    project_root = cfg.project_root.resolve()
+    outcome = IngestOutcome()
+    cross_lease = _cross_process_lease(cfg, conn, "bundle-import")
+    with cross_lease.acquire(), lease_mod.writer_lease():
+        for entry in verified.manifest.entries:
+            if not entry.path.endswith(".egr.md"):
+                continue
+            src = verified.staging_dir / entry.path
+            dest = cfg.registry_dir / Path(entry.path).name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(src.read_bytes())
+            try:
+                artifact, _doc = parser_mod.load_artifact_file(
+                    dest, registry_root=project_root, require_asset_files=False
+                )
+                engram = _artifact_to_engram(artifact, intake_channel="bundle_import")
+            except parser_mod.EngramParseError as exc:
+                outcome.validation_errors.append(ValidationError(path=entry.path, message=str(exc)))
+                dest.unlink(missing_ok=True)
+                continue
+            registered, verr, _skipped, dangling = _ingest_one(
+                conn,
+                embedder,
+                engram,
+                profile="import",
+                registry_dir=cfg.registry_dir,
+                cfg=cfg,
+                intake_channel="bundle_import",
+                signature_valid=True,
+                signer_fingerprint=verified.signer_fingerprint,
+            )
+            if verr:
+                outcome.validation_errors.append(verr)
+            if registered:
+                outcome.registered.append(registered)
+            outcome.dangling.extend(dangling)
+
+    return BundleImportOutcome(
+        ingested=len(outcome.registered),
+        registered=outcome.registered,
+        validation_errors=outcome.validation_errors,
+        manifest_digest=verified.manifest_digest or "",
+        signer_fingerprint=verified.signer_fingerprint,
+    )
+
+
+def review_approve(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    engram_id: str,
+    expected_digest: str,
+    actor: str,
+    reason: str | None = None,
+    event_id: str | None = None,
+) -> trust_mod.TrustDecision:
+    """Digest-bound local admission + verification_status flip + approval audit."""
+    from magicite.errors import BusyError
+
+    if event_id:
+        for existing in trust_mod.list_decisions(cfg):
+            if existing.event_id == event_id and existing.decision == "admit":
+                return existing
+
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            cross_lease = _cross_process_lease(cfg, conn, "trust-approve")
+            with cross_lease.acquire(), lease_mod.writer_lease():
+                # Re-check under the writer lease for concurrent callers.
+                if event_id:
+                    for existing in trust_mod.list_decisions(cfg):
+                        if existing.event_id == event_id and existing.decision == "admit":
+                            return existing
+                decision = trust_mod.approve(
+                    cfg,
+                    conn,
+                    engram_id=engram_id,
+                    expected_digest=expected_digest,
+                    actor=actor,
+                    reason=reason,
+                    event_id=event_id,
+                )
+                lifecycle_mod.apply_local_admission(conn, engram_id=engram_id, admit=True)
+                approvals_mod.propose(
+                    conn,
+                    cfg,
+                    op="trust_approve",
+                    target_name=engram_id,
+                    payload={
+                        "decision_id": decision.decision_id,
+                        "content_digest": expected_digest,
+                        "event_id": event_id,
+                    },
+                    proposed_by=actor,
+                )
+            return decision
+        except BusyError:
+            if event_id is None or attempts >= 32:
+                raise
+            # Concurrent retry of the same event: wait for the winner, then
+            # return the single applied admit.
+            for existing in trust_mod.list_decisions(cfg):
+                if existing.event_id == event_id and existing.decision == "admit":
+                    return existing
+            time.sleep(0.01)
+            continue
+
+
+def review_reject(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    engram_id: str,
+    expected_digest: str,
+    actor: str,
+    reason: str | None = None,
+    event_id: str | None = None,
+) -> trust_mod.TrustDecision:
+    cross_lease = _cross_process_lease(cfg, conn, "trust-reject")
+    with cross_lease.acquire(), lease_mod.writer_lease():
+        decision = trust_mod.reject(
+            cfg,
+            conn,
+            engram_id=engram_id,
+            expected_digest=expected_digest,
+            actor=actor,
+            reason=reason,
+            event_id=event_id,
+        )
+        lifecycle_mod.apply_local_admission(conn, engram_id=engram_id, admit=False)
+        approvals_mod.propose(
+            conn,
+            cfg,
+            op="trust_reject",
+            target_name=engram_id,
+            payload={"decision_id": decision.decision_id, "content_digest": expected_digest},
+            proposed_by=actor,
+        )
+    return decision
+
+
+def review_revoke(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    engram_id: str,
+    actor: str,
+    expected_digest: str | None = None,
+    reason: str | None = None,
+    event_id: str | None = None,
+) -> trust_mod.TrustDecision:
+    cross_lease = _cross_process_lease(cfg, conn, "trust-revoke")
+    with cross_lease.acquire(), lease_mod.writer_lease():
+        decision = trust_mod.revoke(
+            cfg,
+            conn,
+            engram_id=engram_id,
+            expected_digest=expected_digest,
+            actor=actor,
+            reason=reason,
+            event_id=event_id,
+        )
+        lifecycle_mod.apply_local_admission(conn, engram_id=engram_id, admit=False)
+        approvals_mod.propose(
+            conn,
+            cfg,
+            op="trust_revoke",
+            target_name=engram_id,
+            payload={"decision_id": decision.decision_id, "content_digest": decision.content_digest},
+            proposed_by=actor,
+        )
+    return decision
+
+
+def trust_list(cfg: Config) -> list[trust_mod.TrustDecision]:
+    """Domain API for S11 ``trust list`` binding."""
+    return trust_mod.list_decisions(cfg)
+
+
+def trust_view_for(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    engram_id: str,
+) -> trust_mod.TrustDecisionView:
+    """Project current trust state as a TrustDecisionView for S06."""
+    row = conn.execute(
+        "SELECT content_sha256, status, verification_status, origin FROM engram WHERE id = ?",
+        (engram_id,),
+    ).fetchone()
+    if row is None:
+        raise InvalidInputError(f"no engram {engram_id!r}")
+    channel: trust_mod.SourceChannel
+    origin = str(row["origin"])
+    if origin == "authored":
+        channel = "local_register"
+    elif origin == "imported":
+        prior = trust_mod.latest_decision_for(cfg, engram_id)
+        channel = prior.source_channel if prior else "external_file"
+    else:
+        channel = "unknown"
+    return trust_mod.project_trust_view(
+        cfg,
+        engram_id=engram_id,
+        content_digest=str(row["content_sha256"]),
+        lifecycle_status=str(row["status"]),
+        verification_status=str(row["verification_status"]),
+        intake_channel=channel,
     )

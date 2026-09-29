@@ -63,7 +63,9 @@ from magicite.config import Config
 
 AUTONOMOUS_ACTOR = "autonomous-mode"
 
-_VALID_OPS: frozenset[str] = frozenset({"sharpen", "promote", "archive", "nucleate"})
+_VALID_OPS: frozenset[str] = frozenset(
+    {"sharpen", "promote", "archive", "nucleate", "trust_approve", "trust_reject", "trust_revoke"}
+)
 _VALID_STATES: frozenset[str] = frozenset(
     {"proposed", "approved", "rejected", "executed", "succeeded", "failed"}
 )

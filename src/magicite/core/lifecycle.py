@@ -122,9 +122,8 @@ def initial_verification_status(
     2. ``origin`` is ``imported``/``distilled`` (docs/06 tiers 3-4: "Weak"/
        "Medium" trust, "must pass quarantine-on-import gate; promotion
        deferred") -> ``pending``, always -- reaching ``verified`` requires
-       the explicit, manual ``pending -> verified`` review path (spec
-       §5.1's own FSM row), which v1's tool surface does not yet expose
-       (documented gap, ``docs/operations.md``).
+       the explicit, manual ``pending -> verified`` review path via
+       :func:`apply_local_admission` (S04 digest-bound trust).
     3. strict lint did not cleanly pass -> ``pending`` (defensive; in
        practice ``register()`` never reaches this branch for a ``strict``-
        profile failure, since that already aborts before any DB write).
@@ -140,6 +139,46 @@ def initial_verification_status(
     if not lint_ok:
         return "pending"
     return "verified"
+
+
+def server_owned_origin(
+    *,
+    intake_channel: str,
+    file_declared_origin: str | None = None,
+) -> str:
+    """C10: intake channel establishes origin; file declarations cannot
+    impersonate locally authored content.
+
+    External / bundle / skillmd channels always yield ``imported``. Only
+    ``local_authored`` / ``local_register`` may retain an authored origin.
+    """
+    if intake_channel in ("external_file", "bundle_import", "skillmd_import", "unknown"):
+        return "imported"
+    if file_declared_origin in ("authored", "imported", "distilled", "sharpened"):
+        return "authored" if file_declared_origin == "sharpened" else file_declared_origin
+    return "authored"
+
+
+def apply_local_admission(
+    conn: sqlite3.Connection,
+    *,
+    engram_id: str,
+    admit: bool,
+) -> str:
+    """Apply S04 local-review outcome onto ``verification_status``.
+
+    Must run under ``writer_lease`` (``durable.set_verification_status``
+    asserts G2). ``admit=True`` → ``verified``; ``admit=False`` → ``pending``.
+    Returns the new verification_status.
+    """
+    row = conn.execute(
+        "SELECT verification_status FROM engram WHERE id = ?", (engram_id,)
+    ).fetchone()
+    if row is None:
+        raise NotFoundError(f"no engram {engram_id!r}")
+    new_status: VerificationStatus = "verified" if admit else "pending"
+    durable_mod.set_verification_status(conn, engram_id=engram_id, to_status=new_status)
+    return new_status
 
 
 # ── DB-backed evidence gathering (core/fitness.py stays pure; this doesn't) ──
