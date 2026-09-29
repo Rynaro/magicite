@@ -334,6 +334,27 @@ def test_version_constraint_rejects_wildcard_and_or() -> None:
     validate_version_constraint(VersionConstraint(scheme="pep440", range=">=3.11,<4"))
 
 
+def test_render_frontmatter_v1_is_pure_for_body_digest() -> None:
+    """Render must not mutate the input model; emitted YAML carries the digest."""
+    positive = FIXTURES / "positive" / "sample-host-tooling.egr.md"
+    artifact, _ = parser_mod.parse_artifact(
+        positive.read_text(encoding="utf-8"),
+        relpath="positive/sample-host-tooling.egr.md",
+        admit=False,
+    )
+    stale = "0" * 64
+    artifact.frontmatter.routing.body_digest = stale
+
+    rendered = writer_mod.render_document_v1(artifact)
+    assert artifact.frontmatter.routing.body_digest == stale
+
+    _yaml, body_text = parser_mod.split_frontmatter(rendered)
+    expected = digests_mod.routing_body_digest(body_text)
+    again, _ = parser_mod.parse_artifact(rendered, relpath="positive/sample-host-tooling.egr.md")
+    assert again.frontmatter.routing.body_digest == expected
+    assert again.frontmatter.routing.body_digest != stale
+
+
 def test_validate_frontmatter_rejects_traversal_asset_key() -> None:
     """BLOCKER: ../escape.sh must fail validate_frontmatter_v1 / dict."""
     fm = {

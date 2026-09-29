@@ -176,7 +176,7 @@
       "propertyNames": {
         "type": "string",
         "minLength": 1,
-        "description": "Relative POSIX path under the registry root. Rejects absolute paths, drive letters, backslashes, empty segments, and '..' traversal.",
+        "description": "Relative POSIX path under the registry root. V1 deliberately restricts segments to ASCII [A-Za-z0-9._-]+ (Unicode asset paths are rejected fail-closed). Also rejects absolute paths, drive letters, backslashes, empty segments, and '..' traversal.",
         "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*/\\.\\.(?:/|$))(?!\\.\\.(?:/|$))[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
       },
       "additionalProperties": { "$ref": "#/$defs/assetDescriptor" }

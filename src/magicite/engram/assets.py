@@ -4,6 +4,11 @@ Resolve beneath registry root; reject absolute paths, ``..``, backslashes,
 symlink escape, case-insensitive duplicate keys, duplicate resolve targets,
 and digest mismatch. No remote fetch. Host FS case-sensitivity does not
 affect duplicate detection (casefold is always applied).
+
+V1 path alphabet (deliberate bound): authored asset keys must be relative
+POSIX paths whose segments match ``[A-Za-z0-9._-]+`` (see
+``engram-1.0.schema.json`` ``assets.propertyNames``). Unicode / non-ASCII
+asset paths are rejected fail-closed in V1.
 """
 
 from __future__ import annotations
