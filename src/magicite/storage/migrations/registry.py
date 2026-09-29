@@ -59,8 +59,8 @@ ALLOCATIONS: tuple[MigrationAllocation, ...] = (
         number=5,
         stem="fulltext_index",
         owner_slice="S05",
-        status="provisional",
-        purpose="FTS5 / projection tables beyond index_generation (provisional)",
+        status="shipped",
+        purpose="Generation-scoped FTS5 / projection entry tables (S05)",
     ),
     MigrationAllocation(
         number=6,
