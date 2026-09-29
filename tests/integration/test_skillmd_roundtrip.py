@@ -1,17 +1,27 @@
 """AC-018: ``register(skill) -> export -> register(skill)`` is stable at
 the second import (spec §5.4's round-trip test, CR-8's duplicate-import
-detection)."""
+detection).
+
+AC-S02-01: archived 0.2 and SKILL.md fixtures with prose, fences and
+extensions preserve source bytes through parse/write/export (v1 corpus).
+"""
 
 from __future__ import annotations
 
 import shutil
+from pathlib import Path
 
 import pytest
 
 from magicite.core import registry as registry_mod
+from magicite.engram import parser as parser_mod
 from magicite.engram import skillmd
+from magicite.engram import transform as transform_mod
+from magicite.engram import writer as writer_mod
 
 pytestmark = pytest.mark.acceptance
+
+V1_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "engram-v1"
 
 
 def _snapshot(conn, name: str) -> dict:
@@ -79,3 +89,52 @@ def test_export_import_stable(cfg, db_conn, embedder, toy_registry_dir) -> None:
     assert after == before
     assert after["id"] == imported_id
     assert after["status"] == "consolidated"  # untouched by the second import
+
+
+def test_v1_fixture_corpus_preserves_skillmd_and_02_bytes(toy_registry_dir: Path) -> None:
+    """AC-S02-01: SKILL.md prose/fences/extensions and 0.2 procedure_raw
+    survive parse → write → export; 0.2→1.0→parse keeps skill_md_source."""
+    # --- SKILL.md with fences + namespaced-style extra frontmatter ---
+    raw_skill = (
+        "---\nname: corpus-fences\ndescription: |\n"
+        "  Keep fences. Use when exporting. NOT for empty bodies.\n"
+        "paths:\n  - 'scripts/**/*.sh'\n"
+        "metadata:\n  agents: [all]\n  version: 1.0.0\n"
+        "---\n\n# Title\n\nProse before sections.\n\n"
+        "## Procedure\n\n1. Run the check.\n\n"
+        "```bash\necho preserved\n```\n\n"
+        "## Pitfalls\n\n- Do not strip fences.\n"
+    )
+    source = skillmd.parse_source(raw_skill)
+    engram = skillmd.to_engram(source, target_relpath="engrams/corpus-fences.egr.md")
+    persisted = writer_mod.render_document(engram)
+    reparsed = parser_mod.parse_text(persisted, relpath="engrams/corpus-fences.egr.md").engram
+    exported = skillmd.render_skillmd(reparsed)
+    exported_source = skillmd.parse_source(exported)
+    assert exported_source.body_text == source.body_text
+    assert exported_source.extra_frontmatter == source.extra_frontmatter
+    assert "echo preserved" in exported_source.body_text
+
+    # --- Archived 0.2 fixture round-trip of procedure bytes via body render ---
+    path_02 = toy_registry_dir / "engrams" / "proton-ge-proton-downgrade.egr.md"
+    original_02_bytes = path_02.read_bytes()
+    parsed_02 = parser_mod.parse_file(path_02, registry_root=toy_registry_dir)
+    # Transform to 1.0 and back through dual reader must keep id + skill-less body.
+    transformed = transform_mod.transform_0_2_to_1_0(parsed_02.engram).engram
+    rendered_v1 = writer_mod.render_document_v1(transformed)
+    again_v1, _ = parser_mod.parse_artifact(rendered_v1, relpath=parsed_02.engram.path)
+    assert again_v1.id == parsed_02.engram.id
+    assert again_v1.body.procedure_raw == parsed_02.engram.body.procedure_raw
+    assert [s.text for s in again_v1.body.procedure] == [s.text for s in parsed_02.engram.body.procedure]
+    # Original on-disk 0.2 bytes remain untouched by the pure transform path.
+    assert path_02.read_bytes() == original_02_bytes
+
+    # --- Positive v1 fixture corpus parses under dual reader ---
+    positive = V1_FIXTURES / "positive" / "sample-host-tooling.egr.md"
+    art, doc = parser_mod.parse_artifact(
+        positive.read_text(encoding="utf-8"), relpath="positive/sample-host-tooling.egr.md"
+    )
+    rerendered = writer_mod.render_document_v1(art, doc)
+    art2, _ = parser_mod.parse_artifact(rerendered, relpath="positive/sample-host-tooling.egr.md")
+    assert art2.id == art.id
+    assert art2.frontmatter.relations == art.frontmatter.relations

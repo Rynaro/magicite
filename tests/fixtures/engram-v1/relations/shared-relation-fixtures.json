@@ -1,0 +1,33 @@
+{
+  "schema": "magicite/engram-v1-relation-fixtures/1",
+  "description": "Shared host/artifact capability and exact-revision relation fixtures (C1). Consumed by S02 validation and S08 composition tests.",
+  "capabilities": {
+    "requires_host": {
+      "kind": "host",
+      "id": "host.fs.read-project",
+      "version": { "scheme": "semver", "range": ">=1.0.0" }
+    },
+    "requires_artifact": {
+      "kind": "artifact",
+      "id": "artifact.wine-prefix",
+      "version": { "scheme": "semver", "range": ">=1.0.0" }
+    },
+    "produces_artifact": {
+      "kind": "artifact",
+      "id": "artifact.wine-prefix-report",
+      "version": "1.0.0"
+    }
+  },
+  "relations": {
+    "requires": [{ "id": "egr_b5320dfd", "version": 1 }],
+    "before": [
+      { "id": "egr_aaaa0001", "version": 2 },
+      { "id": "egr_aaaa0002", "version": 1 }
+    ],
+    "supersedes": [{ "id": "egr_bbbb0001", "version": 4 }]
+  },
+  "non_normative": {
+    "note": "Learned synapses and 0.2 composes/needs/yields must not appear as relations.before/supersedes/requires without an explicit declared pin.",
+    "forbidden_inferences": ["learned.co_activation", "legacy.composes", "legacy.needs"]
+  }
+}
