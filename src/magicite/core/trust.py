@@ -15,6 +15,8 @@ import json
 import os
 import sqlite3
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -67,6 +69,47 @@ def trust_roots_path(cfg: Config) -> Path:
 
 def ensure_trust_dirs(cfg: Config) -> None:
     trust_decisions_dir(cfg).mkdir(parents=True, exist_ok=True)
+
+
+@contextmanager
+def _trust_write_leases(
+    cfg: Config,
+    conn: sqlite3.Connection | None,
+    *,
+    holder: str,
+) -> Iterator[None]:
+    """Acquire CrossProcessLease + writer_lease (re-entrant with review_*).
+
+    Nested callers under an outer ``CrossProcessLease`` (e.g. ``review_approve``
+    → ``approve``) rely on :meth:`CrossProcessLease.acquire` reentrancy so the
+    inner release cannot drop outer fencing. ``save_policy`` may pass
+    ``conn=None``; a short-lived DB connection is opened only when fencing is
+    not already held.
+    """
+    if conn is None and lease_mod.cross_process_lease_held():
+        with lease_mod.writer_lease(holder=holder):
+            yield
+        return
+
+    owns_conn = False
+    active = conn
+    if active is None:
+        from magicite.storage import db as db_mod
+
+        cfg.ensure_dirs()
+        active = db_mod.connect(cfg.db_path)
+        owns_conn = True
+    try:
+        cross = lease_mod.CrossProcessLease(
+            lock_path=cfg.dream_lock_path,
+            conn=active,
+            holder=f"{holder}:{os.getpid()}:{uuid.uuid4().hex[:6]}",
+        )
+        with cross.acquire(), lease_mod.writer_lease(holder=holder):
+            yield
+    finally:
+        if owns_conn and active is not None:
+            active.close()
 
 
 def _fsync_dir(path: Path) -> None:
@@ -170,7 +213,7 @@ def save_policy(cfg: Config, policy: TrustPolicy) -> TrustPolicy:
     path = trust_policy_path(cfg)
     tmp = path.with_name(path.name + ".tmp")
     content = json.dumps(policy.to_dict(), indent=2, sort_keys=True) + "\n"
-    with lease_mod.writer_lease(holder="trust-policy"):
+    with _trust_write_leases(cfg, None, holder="trust-policy"):
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
         try:
             with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
@@ -437,10 +480,10 @@ def persist_decision(
 ) -> TrustDecision:
     """File wins first (durable outside DB), then optional DB cache row.
 
-    Acquires ``writer_lease`` (re-entrant) so off-path callers are safe and
-    nested ``review_*`` callers do not deadlock (C0 / finding 5).
+    Acquires CrossProcessLease + ``writer_lease`` (both re-entrant) so off-path
+    callers are fenced and nested ``review_*`` callers do not deadlock (C0).
     """
-    with lease_mod.writer_lease(holder="trust-persist"):
+    with _trust_write_leases(cfg, conn, holder="trust-persist"):
         _write_decision_mirror(cfg, decision)
         if conn is not None:
             _upsert_decision_row(conn, decision)
@@ -608,7 +651,7 @@ def approve(
     missing subject or mismatch fails closed as ``stale_decision``. Concurrent
     retries with the same ``event_id`` are idempotent.
     """
-    with lease_mod.writer_lease(holder="trust-approve"):
+    with _trust_write_leases(cfg, conn, holder="trust-approve"):
         if event_id:
             for existing in list_decisions(cfg):
                 if existing.event_id == event_id and existing.decision == "admit":
