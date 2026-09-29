@@ -1,0 +1,18 @@
+contract_version: "1.0"
+from: kupo
+to: forge
+edge_origin: roster
+performatives_allowed:
+  - PROPOSE
+  - INFORM
+  - ESCALATE
+  - REFUSE
+  - ACKNOWLEDGE
+  - RESUME
+artifacts:
+  - kind: edit-proposal
+    schema_ref: schemas/kupo-edit-proposal.v1.json
+notes: >
+  Kupo returns a verified edit-proposal (PROPOSE) or a REFUSE/ESCALATE to FORGE
+  after completing the KUPO cycle on a delegated mechanical consequence task.
+  FORGE applies the patch and records the decision outcome.

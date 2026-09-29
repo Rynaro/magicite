@@ -1,0 +1,17 @@
+contract_version: "1.0"
+from: orchestrator
+to: gilgamesh
+edge_origin: roster
+performatives_allowed:
+  - DELEGATE
+artifacts:
+  - kind: mission-contract
+    schema_ref: schemas/mission-contract.v1.json
+notes: >
+  The orchestrator delegates a typed mission-contract to Gilgamesh only via Dispatch
+  Protocol Step-2(a): no specialist scored >= tau and the mechanical presence-based
+  predicate resolved actionable. The contract carries objective, scope(paths,mode),
+  deliverables, evidence_required, stop_conditions, and the six-row authority grant.
+  Gilgamesh runs the GILGAMESH cycle and returns a verified result PROPOSE (plus any
+  upward handoff-request), or REFUSE/ESCALATE. The orchestrator owns the real commit
+  and all routing.

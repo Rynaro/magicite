@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0",
+  "eiis_version": "3.0.0",
+  "package": {
+    "name": "ramza",
+    "version": "1.1.0",
+    "manifest_sha256": "22bd11329d41a7d6152f9c9394b4713615de6185ad976dab14d0240b10e913ac"
+  },
+  "installed_at": "2026-09-29T20:59:41Z",
+  "target": "./.eidolons/ramza",
+  "tree_sha256": "7e109a0d4377a9c7907b7f2bdd31026a665c638850db23276c0eba9d9602af13",
+  "adapters": [
+    {
+      "host": "claude-code",
+      "path": ".claude/agents/ramza.md",
+      "type": "pointer",
+      "canonical": ".eidolons/ramza/PERSONA.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/ramza-critic/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/critic/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/ramza-discover/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/discover/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/ramza-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/ramza-methodology/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/methodology/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/ramza-parallel-spec/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/parallel-spec/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/ramza-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/verify-incoming/SKILL.md"
+    },
+    {
+      "host": "codex",
+      "path": ".codex/agents/ramza.toml",
+      "type": "pointer",
+      "canonical": ".eidolons/ramza/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/rules/ramza.mdc",
+      "type": "pointer",
+      "canonical": ".eidolons/ramza/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/agents/ramza.md",
+      "type": "pointer",
+      "canonical": ".eidolons/ramza/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/ramza-critic/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/critic/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/ramza-discover/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/discover/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/ramza-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/ramza-methodology/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/methodology/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/ramza-parallel-spec/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/parallel-spec/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/ramza-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/ramza/skills/verify-incoming/SKILL.md"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Rynaro/eidolons-eiis/blob/v3.0.0/schemas/install-receipt.v1.json",
+  "title": "EIIS installation receipt v1",
+  "description": "Generated consumer-side receipt for an installed EIIS v3 package and its disposable adapters.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "eiis_version", "package", "installed_at", "target", "tree_sha256", "adapters"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "eiis_version": { "type": "string", "pattern": "^3\\.[0-9]+(\\.[0-9]+)?$" },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "manifest_sha256"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "installed_at": { "type": "string", "format": "date-time" },
+    "target": { "type": "string" },
+    "tree_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "adapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["host", "path", "type", "canonical"],
+        "properties": {
+          "host": { "enum": ["claude-code", "codex", "copilot", "cursor", "opencode", "raw"] },
+          "path": { "type": "string" },
+          "type": { "enum": ["symlink", "pointer"] },
+          "canonical": { "type": "string" }
+        }
+      }
+    }
+  }
+}

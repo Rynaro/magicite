@@ -1,0 +1,15 @@
+contract_version: "1.0"
+from: forge
+to: gilgamesh
+edge_origin: roster
+performatives_allowed:
+  - INFORM
+artifacts:
+  - kind: decision-record
+    schema_ref: null
+notes: >
+  The sole lateral edge. FORGE may INFORM Gilgamesh with a decision-record that
+  constrains an in-flight mission (e.g. a trade-off already adjudicated upstream).
+  This is a lateral consult, not a delegation: a forge DELEGATE is
+  PERFORMATIVE_NOT_ALLOWED. When a forge consult informs a Gilgamesh artefact, it is
+  recorded in the outbound envelope's ise.provenance.lateral_consults.

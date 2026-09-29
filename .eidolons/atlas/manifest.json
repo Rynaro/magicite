@@ -1,0 +1,61 @@
+{
+  "$schema": "https://github.com/Rynaro/eidolons-eiis/blob/v3.0.0/schemas/package-manifest.v3.json",
+  "schema_version": "3.0",
+  "eiis_version": "3.0.0",
+  "name": "atlas",
+  "version": "1.14.0",
+  "methodology": "ATLAS",
+  "entrypoints": {
+    "persona": "PERSONA.md",
+    "spec": "SPEC.md"
+  },
+  "skills": {
+    "abstract": {
+      "entrypoint": "skills/abstract/SKILL.md",
+      "resources": []
+    },
+    "esl-hop": {
+      "entrypoint": "skills/esl-hop/SKILL.md",
+      "resources": []
+    },
+    "locate": {
+      "entrypoint": "skills/locate/SKILL.md",
+      "resources": []
+    },
+    "rescout": {
+      "entrypoint": "skills/rescout/SKILL.md",
+      "resources": []
+    },
+    "scatter": {
+      "entrypoint": "skills/scatter/SKILL.md",
+      "resources": []
+    },
+    "synthesize": {
+      "entrypoint": "skills/synthesize/SKILL.md",
+      "resources": []
+    },
+    "traverse": {
+      "entrypoint": "skills/traverse/SKILL.md",
+      "resources": []
+    },
+    "verify-incoming": {
+      "entrypoint": "skills/verify-incoming/SKILL.md",
+      "resources": []
+    }
+  },
+  "resources": [
+    "ECL_VERSION",
+    "commands",
+    "schemas",
+    "templates",
+    "tools"
+  ],
+  "security": {
+    "reads_repo": true,
+    "reads_network": false,
+    "writes_repo": false,
+    "persists": [
+      ".atlas/memex/"
+    ]
+  }
+}

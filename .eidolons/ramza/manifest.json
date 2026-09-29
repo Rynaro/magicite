@@ -1,0 +1,54 @@
+{
+  "$schema": "https://github.com/Rynaro/eidolons-eiis/blob/v3.0.0/schemas/package-manifest.v3.json",
+  "schema_version": "3.0",
+  "eiis_version": "3.0.0",
+  "name": "ramza",
+  "version": "1.1.0",
+  "methodology": "RAMZA",
+  "entrypoints": {
+    "persona": "PERSONA.md",
+    "spec": "SPEC.md"
+  },
+  "skills": {
+    "critic": {
+      "entrypoint": "skills/critic/SKILL.md",
+      "resources": []
+    },
+    "discover": {
+      "entrypoint": "skills/discover/SKILL.md",
+      "resources": []
+    },
+    "esl-hop": {
+      "entrypoint": "skills/esl-hop/SKILL.md",
+      "resources": []
+    },
+    "methodology": {
+      "entrypoint": "skills/methodology/SKILL.md",
+      "resources": []
+    },
+    "parallel-spec": {
+      "entrypoint": "skills/parallel-spec/SKILL.md",
+      "resources": []
+    },
+    "verify-incoming": {
+      "entrypoint": "skills/verify-incoming/SKILL.md",
+      "resources": []
+    }
+  },
+  "resources": [
+    "ECL_VERSION",
+    "schemas",
+    "templates",
+    "anchors",
+    "bin",
+    "docs"
+  ],
+  "security": {
+    "reads_repo": true,
+    "reads_network": false,
+    "writes_repo": false,
+    "persists": [
+      ".spectra/"
+    ]
+  }
+}

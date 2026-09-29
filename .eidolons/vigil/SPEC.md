@@ -190,7 +190,7 @@ If no envelope sidecar is present (non-ECL APIVR-Δ), skip verification and proc
 1. Compute `sha256` of the payload bytes.
 2. Generate a UUIDv7 `message_id`. Reuse `thread_id` from the inbound envelope on escalation entry; generate a new one on consultant/post-hoc first emit.
 3. For fan-out (e.g. SPEC_DEFECT → SPECTRA + IDG): write the payload once, then write **one envelope per recipient** with distinct `message_id` values and shared `thread_id` and `parent_id`. File suffix: `<basename>.envelope.<recipient>.json` (e.g. `…envelope.spectra.json`, `…envelope.idg.json`). The `vigil-to-idg` envelope MUST set `constraints.trust_level: "standard"`; `vigil-to-apivr` and `vigil-to-spectra` envelopes MUST set `constraints.trust_level: "high"`.
-4. Set `ise.assertion_grade` per `skills/intervene.md` § ISE Grade on the Root-Cause Report (conditional on authority) and `ise.receiver_authorization: {auto_route: true, auto_merge: false, auto_deploy: false}` on every envelope (ECL v2.0 §6.5).
+4. Set `ise.assertion_grade` per `skills/intervene/SKILL.md` § ISE Grade on the Root-Cause Report (conditional on authority) and `ise.receiver_authorization: {auto_route: true, auto_merge: false, auto_deploy: false}` on every envelope (ECL v2.0 §6.5).
 5. Append one `emit` trace event per envelope to `.eidolons/.trace/<thread_id>.jsonl` (relative to consumer project root per ECL §5.1.1; create the directory if absent).
 
 **Method.**
@@ -343,13 +343,13 @@ call `mcp__crystalium__recall` with the failure signature as query,
 `layers=["semantic","episodic","procedural"]`, `k=5`, and
 `agent_class_visibility:"vigil"`. Prior procedural patterns (how a similar
 failure class was isolated) and semantic root-cause knowledge (what causes this
-signature) surface here and fold into hypothesis generation. See `agent.md`
-§"Memory pre-flight" and `skills/verify.md` for the precise call shape.
+signature) surface here and fold into hypothesis generation. See `PERSONA.md`
+§"Memory pre-flight" and `skills/verify/SKILL.md` for the precise call shape.
 
 **Ingest spine (Phase L):** after the ECL envelope is emitted, call
 `mcp__crystalium__ingest(envelope, payload=<root-cause-report>)` to persist
 the handoff at T1. `from.eidolon=vigil` drives tier derivation. See
-`skills/learn.md §"CRYSTALIUM Memory"`.
+`skills/learn/SKILL.md §"CRYSTALIUM Memory"`.
 
 **Learned-pattern commit (VIGIL extension):** also in Phase L, for each
 corroborated debugging pattern surfaced during the mission, call
@@ -370,7 +370,7 @@ preserved.
 
 ## 10. Versioning Policy
 
-`SPEC.md` is the authoritative spec. Breaking changes to phase contracts or JSON schemas require a minor-version bump (v1.1, v1.2…). Major bumps reserved for invariant changes. Implementations declare `methodology: VIGIL` and `methodology_version: 1.0` in their `agent.md` frontmatter.
+`SPEC.md` is the authoritative spec. Breaking changes to phase contracts or JSON schemas require a minor-version bump (v1.1, v1.2…). Major bumps reserved for invariant changes. Implementations declare `methodology: VIGIL` and `methodology_version: 1.0` in their `PERSONA.md` frontmatter.
 
 ## 11. ECL Compatibility
 
@@ -378,9 +378,9 @@ VIGIL v1.8.0 emits ECL v2.0 envelopes by default on all inter-Eidolon hand-offs.
 
 Integrity method: `sha256` for all v1.8.0 edges. `hmac-sha256` (RECOMMENDED for `trust_level: high` edges per ECL §6.3) is deferred to a future release pending `ECL_HMAC_KEY` distribution support in the nexus (D1). The choice is forwards-compatible: VIGIL can promote to `hmac-sha256` without a SemVer break in any peer.
 
-VIGIL's own source repo vendors `schemas/ecl/envelope.v2.json` (current) alongside the retained `schemas/ecl/envelope.v1.json` (§7.3 compatibility window, through 2027-05-13) for self-contained `jq`-validation; neither is copied into the consumer install target (EIIS v1.4 §1.7 whitelist). ECL schemas and contracts remain maintained upstream at [Rynaro/eidolons-ecl](https://github.com/Rynaro/eidolons-ecl) as the source of truth — implementors requiring offline validation without cloning VIGIL should fetch `envelope.v2.json` and `contracts/apivr-to-vigil.yaml` directly from that repository.
+VIGIL's own source repo vendors `schemas/ecl/envelope.v2.json` (current) alongside the retained `schemas/ecl/envelope.v1.json` (§7.3 compatibility window, through 2027-05-13) for self-contained `jq`-validation; neither is copied into the consumer install target (EIIS 3.0 §1.7 whitelist). ECL schemas and contracts remain maintained upstream at [Rynaro/eidolons-ecl](https://github.com/Rynaro/eidolons-ecl) as the source of truth — implementors requiring offline validation without cloning VIGIL should fetch `envelope.v2.json` and `contracts/apivr-to-vigil.yaml` directly from that repository.
 
-**ISE trust hierarchy (ECL v2.0 §6.5).** VIGIL's emitted envelopes MAY carry the optional `ise` block. `root-cause-report`'s `ise.assertion_grade` is conditional on authority — see `skills/intervene.md` § ISE Grade on the Root-Cause Report for the full rule. `escalation-brief` is always `self-attested`. All emitted envelopes set `ise.receiver_authorization = {auto_route: true, auto_merge: false, auto_deploy: false}` — VIGIL never authorizes a receiver to merge or deploy on its behalf.
+**ISE trust hierarchy (ECL v2.0 §6.5).** VIGIL's emitted envelopes MAY carry the optional `ise` block. `root-cause-report`'s `ise.assertion_grade` is conditional on authority — see `skills/intervene/SKILL.md` § ISE Grade on the Root-Cause Report for the full rule. `escalation-brief` is always `self-attested`. All emitted envelopes set `ise.receiver_authorization = {auto_route: true, auto_merge: false, auto_deploy: false}` — VIGIL never authorizes a receiver to merge or deploy on its behalf.
 
 ## 12. ESL Lifecycle Hop (Failure Path)
 
@@ -403,7 +403,7 @@ the implementation and the Semantic spec is a `verify_fail` → transition back 
 **Graceful skip:** if `mcp__tonberry__*` tools are unavailable, run the normal
 V→I→G→I→L cycle and emit findings/escalations the standard way — never
 hard-fail. ESL is opt-in; EIIS standalone conformance is preserved. Precise
-call shapes: `skills/esl-hop.md`.
+call shapes: `skills/esl-hop/SKILL.md`.
 
 ---
 

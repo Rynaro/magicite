@@ -74,7 +74,7 @@
         "requires_checker": {
           "type": "boolean",
           "default": false,
-          "description": "Set true when the verdict authorizes an irreversible action (deploy/release, destructive migration or data deletion, security-boundary change, external spend/commitment, or public communication) per skills/checker-handoff.md. The orchestrator MUST route a true-flagged report to a distinct checker (VIGIL for evidence-based claims, human for judgment calls) before any action is taken. false (default) — verdict flows unchanged."
+          "description": "Set true when the verdict authorizes an irreversible action (deploy/release, destructive migration or data deletion, security-boundary change, external spend/commitment, or public communication) per skills/checker-handoff/SKILL.md. The orchestrator MUST route a true-flagged report to a distinct checker (VIGIL for evidence-based claims, human for judgment calls) before any action is taken. false (default) — verdict flows unchanged."
         }
       }
     }

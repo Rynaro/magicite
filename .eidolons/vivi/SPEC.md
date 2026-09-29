@@ -12,7 +12,7 @@ Vivi implements brownfield features through a **closed, autonomous, bounded edit
 | **A** Analyze | CRYSTALIUM recall → repo map → requirements decomposition → asset discovery (Internal-First) |
 | **P** Plan | test-anchors from acceptance criteria (anti-overfit) → scored strategies (Tree-of-Thoughts) → selection |
 | **I** Implement | USE → EXTEND → WRAP → CREATE; minimal targeted diffs |
-| **V** Verify | **drive `eidolons sandbox loop` as `--fix-hook`** (run → localized feedback → repair → re-run, fresh-context, `--protect`, pass^k) — `skills/loop-native.md` |
+| **V** Verify | **drive `eidolons sandbox loop` as `--fix-hook`** (run → localized feedback → repair → re-run, fresh-context, `--protect`, pass^k) — `skills/loop-native/SKILL.md` |
 | **Δ** Delta | normalization suggestions — output only (success) |
 | **R** Reflect | evidence-gated; ≤3 same-category failures → VIGIL (`repair-failed-report`) |
 
@@ -25,7 +25,7 @@ Vivi implements brownfield features through a **closed, autonomous, bounded edit
 - **I-5 Bounded recovery** — ≤3 same-category failures → escalate to VIGIL.
 - **I-6 Anti-reward-hacking** — never edit the anchoring tests; regression-first then reproduction; pass^k before accepting; no always-pass/peeking.
 - **I-7 diff-not-apply** — emit a candidate diff; the human applies (governed-autonomy aligned).
-- **I-8 Worktree-isolated parallel WRITE** — TRANCE G4 multi-track only in git-worktree isolation; single-threaded merge (`skills/parallel-tracks.md`).
+- **I-8 Worktree-isolated parallel WRITE** — TRANCE G4 multi-track only in git-worktree isolation; single-threaded merge (`skills/parallel-tracks/SKILL.md`).
 - **I-9 Refuse greenfield** — design-from-scratch / novel architecture is refused (highest-hallucination surface).
 - **I-10 Host-contingency** — the loop's gain belongs to an RL-trained host; Vivi exploits it. Degrade gracefully on loop-incompetent hosts (APIVR-Δ is the conservative fallback).
 - **I-11 Lint-gated edits (ACI edit gate)** — the coder class declares `requires_edit_gate: true` (roster ACI; SWE-agent edit-with-linter): each loop iteration runs the per-edit lint/compile gate (`eidolons sandbox loop --lint-hook <cmd>`, after the fix-hook, before tests); a failing lint short-circuits the iteration with lint feedback instead of burning a test run.
@@ -34,21 +34,21 @@ Vivi implements brownfield features through a **closed, autonomous, bounded edit
 
 | Skill | Purpose |
 |---|---|
-| `skills/loop-native.md` | **the V-phase closed loop — Vivi's core** |
-| `skills/methodology.md` | full cycle definition, planning, strategy scoring |
-| `skills/context-engineering.md` | repo map, progressive disclosure, hierarchical localization |
-| `skills/failure-recovery.md` | failure taxonomy, bounded debugging, escalation |
-| `skills/memory-management.md` | CRYSTALIUM-primary memory protocol (local fallback) |
-| `skills/parallel-tracks.md` | TRANCE G4 parallel multi-track (gated) |
-| `skills/verify-incoming.md` | blocking ECL envelope verification (ECL §6.2.2) |
-| `skills/esl-hop.md` | ESL implement hop — MAKER at `in_progress` (tonberry; opt-in) |
+| `skills/loop-native/SKILL.md` | **the V-phase closed loop — Vivi's core** |
+| `skills/methodology/SKILL.md` | full cycle definition, planning, strategy scoring |
+| `skills/context-engineering/SKILL.md` | repo map, progressive disclosure, hierarchical localization |
+| `skills/failure-recovery/SKILL.md` | failure taxonomy, bounded debugging, escalation |
+| `skills/memory-management/SKILL.md` | CRYSTALIUM-primary memory protocol (local fallback) |
+| `skills/parallel-tracks/SKILL.md` | TRANCE G4 parallel multi-track (gated) |
+| `skills/verify-incoming/SKILL.md` | blocking ECL envelope verification (ECL §6.2.2) |
+| `skills/esl-hop/SKILL.md` | ESL implement hop — MAKER at `in_progress` (tonberry; opt-in) |
 
 ## ECL Envelope Kinds (v2.0)
 
 - `vivi-completion-report` → IDG (Implement/Verify exit; profile `schemas/vivi-completion-report-profile.v1.json`).
 - `repair-failed-report` → VIGIL (Reflect, 3-failure threshold).
 - `reasoning-request` → FORGE (Plan-phase consultation).
-- Inbound: verify a sibling `.envelope.json` (blocking) before processing — `skills/verify-incoming.md`.
+- Inbound: verify a sibling `.envelope.json` (blocking) before processing — `skills/verify-incoming/SKILL.md`.
 
 ## Templates Index
 

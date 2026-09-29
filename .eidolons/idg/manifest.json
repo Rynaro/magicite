@@ -1,0 +1,47 @@
+{
+  "$schema": "https://github.com/Rynaro/eidolons-eiis/blob/v3.0.0/schemas/package-manifest.v3.json",
+  "schema_version": "3.0",
+  "eiis_version": "3.0.0",
+  "name": "idg",
+  "version": "1.11.0",
+  "methodology": "IDG",
+  "entrypoints": {
+    "persona": "PERSONA.md",
+    "spec": "SPEC.md"
+  },
+  "skills": {
+    "composition": {
+      "entrypoint": "skills/composition/SKILL.md",
+      "resources": []
+    },
+    "esl-hop": {
+      "entrypoint": "skills/esl-hop/SKILL.md",
+      "resources": []
+    },
+    "section-parallel": {
+      "entrypoint": "skills/section-parallel/SKILL.md",
+      "resources": []
+    },
+    "verification": {
+      "entrypoint": "skills/verification/SKILL.md",
+      "resources": []
+    },
+    "verify-incoming": {
+      "entrypoint": "skills/verify-incoming/SKILL.md",
+      "resources": []
+    }
+  },
+  "resources": [
+    "ECL_VERSION",
+    "schemas",
+    "templates"
+  ],
+  "security": {
+    "reads_repo": false,
+    "reads_network": false,
+    "writes_repo": false,
+    "persists": [
+      "docs/"
+    ]
+  }
+}

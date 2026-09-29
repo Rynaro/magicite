@@ -1,0 +1,134 @@
+{
+  "schema_version": "1.0",
+  "eiis_version": "3.0.0",
+  "package": {
+    "name": "atlas",
+    "version": "1.14.0",
+    "manifest_sha256": "0ef26d98476ea43ad15dda8bc382e1db5feb77d4d8a8a95352251c210778503e"
+  },
+  "installed_at": "2026-09-29T20:59:39Z",
+  "target": "./.eidolons/atlas",
+  "tree_sha256": "f3cdbfafb9cb9e3effa2f1d8ba180458a974249c5cb8a89facf1a1a13ecbfe6b",
+  "adapters": [
+    {
+      "host": "claude-code",
+      "path": ".claude/agents/atlas.md",
+      "type": "pointer",
+      "canonical": ".eidolons/atlas/PERSONA.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/atlas-abstract/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/abstract/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/atlas-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/atlas-locate/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/locate/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/atlas-rescout/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/rescout/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/atlas-scatter/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/scatter/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/atlas-synthesize/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/synthesize/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/atlas-traverse/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/traverse/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/atlas-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/verify-incoming/SKILL.md"
+    },
+    {
+      "host": "codex",
+      "path": ".codex/agents/atlas.toml",
+      "type": "pointer",
+      "canonical": ".eidolons/atlas/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/rules/atlas.mdc",
+      "type": "pointer",
+      "canonical": ".eidolons/atlas/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/agents/atlas.md",
+      "type": "pointer",
+      "canonical": ".eidolons/atlas/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/atlas-abstract/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/abstract/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/atlas-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/atlas-locate/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/locate/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/atlas-rescout/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/rescout/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/atlas-scatter/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/scatter/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/atlas-synthesize/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/synthesize/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/atlas-traverse/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/traverse/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/atlas-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/atlas/skills/verify-incoming/SKILL.md"
+    }
+  ]
+}

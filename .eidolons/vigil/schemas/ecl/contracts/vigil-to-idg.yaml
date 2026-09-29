@@ -1,0 +1,26 @@
+contract_version: "1.0"
+from: vigil
+to: idg
+edge_origin: roster
+performatives_allowed:
+  - PROPOSE
+  - INFORM
+artifacts:
+  - kind: root-cause-report
+    schema_ref: ../schemas/per-eidolon/root-cause-report.v1.json
+    required_sections:
+      - reproduction
+      - hypotheses
+      - interventions
+      - blame_target
+      - chronicle_hooks
+    evidence_anchor_required: true
+context_delta:
+  token_budget_max: 4000
+  required_handles: []
+trust_level: standard
+notes: >
+  VIGIL routes a finalised attribution to IDG when the incident merits
+  chronicling (post-mortem, ADR, runbook update). Listed in roster:
+  vigil.handoffs.lateral contains idg. chronicle_hooks names the
+  documentation surfaces IDG should target.

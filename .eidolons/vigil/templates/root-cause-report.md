@@ -1,6 +1,6 @@
 # Root-Cause Report Template
 
-> **ECL v2.0 note:** When emitted via VIGIL, this payload is accompanied by `<basename>.envelope.json` (or `<basename>.envelope.<recipient>.json` for fan-out) per ECL v2.0. Body shape unchanged — the envelope wraps but does not redefine. The envelope's optional `ise.assertion_grade` is conditional on authority; see `skills/intervene.md` § ISE Grade on the Root-Cause Report. See `skills/learn.md` § Envelope Emission for the sidecar construction procedure.
+> **ECL v2.0 note:** When emitted via VIGIL, this payload is accompanied by `<basename>.envelope.json` (or `<basename>.envelope.<recipient>.json` for fan-out) per ECL v2.0. Body shape unchanged — the envelope wraps but does not redefine. The envelope's optional `ise.assertion_grade` is conditional on authority; see `skills/intervene/SKILL.md` § ISE Grade on the Root-Cause Report. See `skills/learn/SKILL.md` § Envelope Emission for the sidecar construction procedure.
 
 The primary deliverable of a VIGIL mission. Fill each section with evidence-anchored content. Schema-validated at emission.
 

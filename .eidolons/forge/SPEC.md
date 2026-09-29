@@ -42,7 +42,7 @@ F ──▶ O ──▶ R ──▶ G ──┬──▶ E (gates pass)
 
 1. **Generate ≥3 hypotheses** — genuinely distinct positions, not strawmen. Each must be defensible.
 2. **Stress-test each** — for every hypothesis, ask: "What would have to be true for this to be the best choice?" and "What evidence would disprove this?"
-3. **Score across dimensions** — load `skills/deliberation.md` for the scoring rubric.
+3. **Score across dimensions** — load `skills/deliberation/SKILL.md` for the scoring rubric.
 4. **Identify second-order effects** — consequences the requester might not have considered.
 5. **Surface [ASSUMPTION] markers** — every inference that depends on unstated premises.
 
@@ -85,9 +85,9 @@ Schema: `schemas/ecl-envelope.v2.json` (the retained
 to `PROPOSE`; use `CRITIQUE` only on REFORGE-reframe paths, and
 `INFORM` for no-action verdicts. Set `ise.assertion_grade: "self-attested"`
 on the envelope (ECL v2.0 §6.5) — FORGE's Gate is self-review, not an
-externally spec-mandated check; see `skills/verification.md` "Envelope
+externally spec-mandated check; see `skills/verification/SKILL.md` "Envelope
 Construction Checklist". Before finalizing, load
-`skills/checker-handoff.md` and check the recommended action against its
+`skills/checker-handoff/SKILL.md` and check the recommended action against its
 irreversibility trigger table; a match sets the body's `requires_checker`
 flag true.
 
@@ -108,13 +108,13 @@ Load on-demand. Do NOT pre-load.
 
 | Trigger | Skill File |
 |---------|-----------|
-| Entering Frame phase or scoping a problem | `skills/framing.md` |
-| Entering Reason phase or scoring hypotheses | `skills/deliberation.md` |
-| Entering Gate phase or verifying reasoning | `skills/verification.md` |
-| Entering a G2 / self-consistency escalation (Deep + high-stakes, or opt-in) | `skills/self-consistency.md` |
-| Entering Emit with a recommended action matching an irreversibility trigger marker | `skills/checker-handoff.md` |
+| Entering Frame phase or scoping a problem | `skills/framing/SKILL.md` |
+| Entering Reason phase or scoring hypotheses | `skills/deliberation/SKILL.md` |
+| Entering Gate phase or verifying reasoning | `skills/verification/SKILL.md` |
+| Entering a G2 / self-consistency escalation (Deep + high-stakes, or opt-in) | `skills/self-consistency/SKILL.md` |
+| Entering Emit with a recommended action matching an irreversibility trigger marker | `skills/checker-handoff/SKILL.md` |
 
-`skills/self-consistency.md` loads **in place of** `skills/deliberation.md` for the
+`skills/self-consistency/SKILL.md` loads **in place of** `skills/deliberation/SKILL.md` for the
 Reason phase of a G2 run (see §10). It is gated, never default.
 
 ## Template Loading
@@ -203,7 +203,7 @@ the time); FORGE now targets **ECL v2.0**. The conformance contract is
 recorded in `ECL_VERSION` at the repo root (currently `2.0`). Outbound:
 `reasoning-report` (validated by `schemas/reasoning-report-profile.v1.json`,
 which now also carries the optional `requires_checker` flag — see
-`skills/checker-handoff.md`). Inbound: `reasoning-request` (envelope
+`skills/checker-handoff/SKILL.md`). Inbound: `reasoning-request` (envelope
 validated by `schemas/ecl-envelope.v2.json`, which accepts v1.0–v1.2
 envelopes through the §7.3 compatibility window in addition to v2.0; body
 shape is methodology-owned — FORGE's Frame phase extracts
@@ -222,7 +222,7 @@ per ECL §5.3.
 FORGE's TRANCE form is **self-consistency on reasoning chains** — N
 perspective-diverse, mutually-blind deliberation traces over a frozen
 Frame+Observe inventory, merged on **structural agreement**. Full protocol:
-`skills/self-consistency.md` (loads in place of `skills/deliberation.md` for the
+`skills/self-consistency/SKILL.md` (loads in place of `skills/deliberation/SKILL.md` for the
 Reason phase of a G2 run).
 
 **Gate — when it fires (never default).** Self-consistency activates ONLY when

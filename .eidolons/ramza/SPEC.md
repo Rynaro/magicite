@@ -25,7 +25,7 @@ model drives the cycle but does not adjudicate its own compliance.
 **DISCOVER** — only when the *goal itself* is latent (`IDEA`/`STRATEGIC` intent).
 Five-axis elicitation checklist (stakeholders, latent goal, success metrics, hard
 constraints, non-goals), `[GAP]` per unknown; ≥2 unresolved axes ⇒ escalate. Single
-pass, never an interview loop. See `skills/discover.md`.
+pass, never an interview loop. See `skills/discover/SKILL.md`.
 
 **CLARIFY** — disambiguate a *known* goal: ≤3 numbered questions, each justified by
 "this changes the plan's shape." Load `.spectra/setup/spectra-conventions.md` when
@@ -90,7 +90,7 @@ Opus-class executor gets goals and constraints.
 
 Full tier requires a **critic that is not the author**:
 `ramza-gate critic --author <id> --checker <id>` (self-approval is DENIED; entering
-A without a critic record is DENIED). Critique protocol and debiasing in `skills/critic.md`.
+A without a critic record is DENIED). Critique protocol and debiasing in `skills/critic/SKILL.md`.
 
 ## R — Refine
 
@@ -129,7 +129,7 @@ not assumed.
 Unchanged from SPECTRA DR-11 in shape (2–4 clean-context candidate specs → debiased
 evaluation → judge-merge → terminate ≤3 iterations), with the evaluation now anchored
 on `ramza-score` outputs and the merge recorded through the normal gates. Never the
-default. See `skills/parallel-spec.md`.
+default. See `skills/parallel-spec/SKILL.md`.
 
 ## Memory & persistence
 

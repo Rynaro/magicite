@@ -1,0 +1,14 @@
+contract_version: "1.0"
+from: apivr
+to: kupo
+edge_origin: roster
+performatives_allowed:
+  - DELEGATE
+artifacts:
+  - kind: change-summary
+    schema_ref: null
+notes: >
+  APIVR-Delta delegates a small, well-scoped sub-task to Kupo to keep its own
+  session efficient. The change-summary artefact scopes the edit to ≤2 files with
+  a named verifier. Kupo patches the sandbox and returns a verified PROPOSE.
+  Loop-native campaigns are NOT delegated to Kupo — APIVR-Delta handles those itself.

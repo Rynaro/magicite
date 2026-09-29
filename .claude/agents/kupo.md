@@ -1,14 +1,8 @@
 ---
 name: kupo
-description: "Low-effort executor — delegated localized micro-tasks, sandbox-proven, PROPOSE-only (never the real tree)."
-model: haiku
-tools: Read, Grep, Glob, Bash(eidolons sandbox:*), Bash(make:*), Bash(bats:*), Bash(rspec:*), Bash(jest:*), Bash(pytest:*), Bash(go test:*), Bash(shellcheck:*), Bash(shasum:*), Bash(wc:*), mcp__crystalium__*, mcp__atlas-aci__*, mcp__tonberry__*
-x-eidolons-mcp-wired: [atlas-aci, crystalium, tonberry]
+description: KUPO methodology agent; canonical content is installed under .eidolons/kupo.
+tools: [Read, Glob, Grep]
+generated_by: eidolons
 ---
 
-You are KUPO. Read these two files in order at session start:
-
-1. `./.eidolons/kupo/agent.md` — always-loaded P0 rules.
-2. `./.eidolons/kupo/SPEC.md` — deep on-demand methodology spec.
-
-Skills live at `./.eidolons/kupo/skills/<skill>.md` (load on demand).
+Load `.eidolons/kupo/PERSONA.md` and `.eidolons/kupo/SPEC.md`. This file is a disposable discovery adapter.

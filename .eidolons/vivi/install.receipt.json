@@ -1,0 +1,134 @@
+{
+  "schema_version": "1.0",
+  "eiis_version": "3.0.0",
+  "package": {
+    "name": "vivi",
+    "version": "1.4.0",
+    "manifest_sha256": "b67397f626c7084853c89dda1444d64ad07194e39600ec2496ccc508554419e6"
+  },
+  "installed_at": "2026-09-29T20:59:42Z",
+  "target": "./.eidolons/vivi",
+  "tree_sha256": "8929f88eba9b12ee678a9c530f835a8b2fbe7aedc9ce16ce0f62164d2af066ed",
+  "adapters": [
+    {
+      "host": "claude-code",
+      "path": ".claude/agents/vivi.md",
+      "type": "pointer",
+      "canonical": ".eidolons/vivi/PERSONA.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vivi-context-engineering/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/context-engineering/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vivi-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vivi-failure-recovery/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/failure-recovery/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vivi-loop-native/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/loop-native/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vivi-memory-management/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/memory-management/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vivi-methodology/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/methodology/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vivi-parallel-tracks/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/parallel-tracks/SKILL.md"
+    },
+    {
+      "host": "claude-code",
+      "path": ".claude/skills/vivi-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/verify-incoming/SKILL.md"
+    },
+    {
+      "host": "codex",
+      "path": ".codex/agents/vivi.toml",
+      "type": "pointer",
+      "canonical": ".eidolons/vivi/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/rules/vivi.mdc",
+      "type": "pointer",
+      "canonical": ".eidolons/vivi/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/agents/vivi.md",
+      "type": "pointer",
+      "canonical": ".eidolons/vivi/PERSONA.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vivi-context-engineering/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/context-engineering/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vivi-esl-hop/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/esl-hop/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vivi-failure-recovery/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/failure-recovery/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vivi-loop-native/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/loop-native/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vivi-memory-management/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/memory-management/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vivi-methodology/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/methodology/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vivi-parallel-tracks/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/parallel-tracks/SKILL.md"
+    },
+    {
+      "host": "cursor",
+      "path": ".cursor/skills/vivi-verify-incoming/SKILL.md",
+      "type": "symlink",
+      "canonical": ".eidolons/vivi/skills/verify-incoming/SKILL.md"
+    }
+  ]
+}

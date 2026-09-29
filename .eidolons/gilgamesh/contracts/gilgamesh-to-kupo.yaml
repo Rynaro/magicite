@@ -1,0 +1,21 @@
+contract_version: "1.0"
+from: gilgamesh
+to: kupo
+edge_origin: emitted-request
+performatives_allowed:
+  - PROPOSE
+  - INFORM
+  - ESCALATE
+  - REFUSE
+  - ACKNOWLEDGE
+artifacts:
+  - kind: handoff-request
+    schema_ref: schemas/handoff-request.v1.json
+notes: >
+  Gilgamesh emits a typed handoff-request when a mission needs a localized, verifier-backed micro-edit sub-mission. This is a
+  PROPOSE-UPWARD proposal to route, NOT a dispatch: edge_origin is emitted-request,
+  which reconciles Gilgamesh's handoffs.downstream: [] (worker-never-router, HC8/R-007)
+  with the five outbound handoff-request edges. The orchestrator receives the
+  handoff-request and decides whether to route it to kupo; Gilgamesh never spawns and
+  never dispatches. The handoff-request carries a REQUIRED evidence_of_boundary naming
+  the information/authority/modality boundary crossed — never "it looks complex".

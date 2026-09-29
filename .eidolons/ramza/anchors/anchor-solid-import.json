@@ -1,0 +1,17 @@
+{
+  "id": "solid-import",
+  "rubric": "explore",
+  "plan": "anchors/solid-import.md",
+  "reference": {
+    "alignment": 9,
+    "correctness": 8,
+    "maintainability": 8,
+    "performance": 8,
+    "simplicity": 9,
+    "risk": 8,
+    "innovation": 3
+  },
+  "tolerance": 1,
+  "max_disagreements": 1,
+  "notes": "Reference total 81.0 (solid). v2 references: consensus (rounded mean) of two independent clean scorers (sonnet-5, haiku-4.5, 2026-07-05) that never saw prior references; the original designer-authored v1 references were retired as a maker!=checker violation in reference authoring (calibration run showed innovation over-credited and both scorers in band agreement)."
+}
