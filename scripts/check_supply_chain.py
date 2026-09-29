@@ -41,17 +41,24 @@ def check_immutable_inputs() -> list[str]:
             if SHA.fullmatch(revision) is None:
                 failures.append(f"{workflow.relative_to(ROOT)} has non-SHA action input {reference}")
 
-    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
-    for line in dockerfile.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("FROM ") or stripped.startswith("COPY --from="):
-            image = (
-                stripped.split()[1] if stripped.startswith("FROM ") else stripped.split("=", 1)[1].split()[0]
-            )
-            if image in {"builder", "runtime"}:
-                continue
-            if "@sha256:" not in image:
-                failures.append(f"mutable container input: {stripped}")
+    for dockerfile_name in ("Dockerfile", "Dockerfile.dev"):
+        dockerfile_path = ROOT / dockerfile_name
+        if not dockerfile_path.is_file():
+            failures.append(f"missing {dockerfile_name}")
+            continue
+        dockerfile = dockerfile_path.read_text(encoding="utf-8")
+        for line in dockerfile.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("FROM ") or stripped.startswith("COPY --from="):
+                image = (
+                    stripped.split()[1]
+                    if stripped.startswith("FROM ")
+                    else stripped.split("=", 1)[1].split()[0]
+                )
+                if image in {"builder", "runtime"}:
+                    continue
+                if "@sha256:" not in image:
+                    failures.append(f"mutable container input ({dockerfile_name}): {stripped}")
     return failures
 
 
