@@ -27,6 +27,10 @@ dependencies = [
   "click>=8.1",
   "structlog>=24.1",
   "fastembed>=0.4",
+  # Direct floor for PEP 440 helpers used by Engram 1.0 schema validation
+  # (S02). Previously only transitive; promote so the contract cannot drift
+  # if an upstream drops the transitive edge.
+  "packaging>=23",
 ]
 
 [project.urls]
