@@ -10,6 +10,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 from magicite.core.composition import (
     REASON_AMBIGUOUS_PROVIDER,
     CompositionLimits,
@@ -198,7 +200,11 @@ def test_host_verifier_report() -> None:
     report = hv.run_deterministic_host_verifier(plan, task)
     assert report.structural_validity == "valid"
     assert report.verified_task_outcome == "pass"
-    assert report.structural_validity != report.verified_task_outcome or True  # distinct fields
+    # Distinct fields: structural validity is independent of task outcome.
+    assert hasattr(report, "structural_validity")
+    assert hasattr(report, "verified_task_outcome")
+    assert report.structural_validity == "valid"
+    assert report.verified_task_outcome in {"pass", "fail", "unevaluated"}
     assert report.verifier_type == "deterministic_test"
     assert report.verifier_artifact_digest == task.artifact_digest
 
@@ -221,6 +227,7 @@ def test_host_verifier_report() -> None:
     bad_report = hv.run_deterministic_host_verifier(bad, task)
     assert bad_report.structural_validity == "invalid"
     assert bad_report.verified_task_outcome == "unevaluated"
+    assert bad_report.structural_validity != bad_report.verified_task_outcome
 
     # Empirical/external claims stay unevaluated when verifier is not run.
     from magicite.core.composition import host_verification_report
@@ -264,7 +271,7 @@ def test_producer_satisfies_consumer() -> None:
     ctx = hv.base_context(artifact_inventory=())
     trusts = {
         "egr_a0000001": hv.trust("egr_a0000001"),
-        "egr_b0000001": hv.trust("egr_b0000001", content_digest=hv.DIGEST_B),
+        "egr_b0000001": hv.trust("egr_b0000001"),
     }
 
     plan = compose(
@@ -376,9 +383,156 @@ def test_shared_relation_semantics() -> None:
     assert bad_ref.executable is False
     assert "invalid_reference" in {d.code for d in bad_ref.diagnostics}
 
-    # Corpus fixture agrees with shared relation schema ids.
-    corpus = json.loads((COMPOSITION_V1 / "structural-corpus.json").read_text(encoding="utf-8"))
-    assert corpus["schema"] == "magicite/composition-v1-corpus/1"
-    before_case = next(c for c in corpus["cases"] if c["id"] == "before-ordering")
-    assert "egr_33333333" in before_case["selected"]
     assert (ENGRAM_V1 / "relations" / "before-supersedes.egr.md").is_file()
+
+
+def test_edge_budget_never_exceeds_max() -> None:
+    """ATLAS nit: relation-edge appends must check budget *before* each append.
+
+    With max_edges=10, an invalid budget plan must never retain more than 10 edges.
+    """
+    hv = _hv()
+    # 20 independent peers all selected; subject declares before→each peer.
+    peers = [hv.node(f"egr_{i:08x}") for i in range(1, 21)]
+    subject = hv.node(
+        "egr_33333333",
+        before=[EngramRevisionRef(id=p.id, version=1) for p in peers],
+    )
+    nodes = [subject, *peers]
+    trusts = {n.id: hv.trust(n.id, content_digest=n.content_digest) for n in nodes}
+    plan = compose(
+        [n.id for n in nodes],
+        hv.base_context(),
+        hv.snapshot(nodes),
+        CompositionLimits(max_nodes=64, max_edges=10, max_depth=8),
+        server_policy=hv.DEFAULT_POLICY,
+        trust_view=lambda eid: trusts[eid],
+    )
+    assert plan.status == "invalid"
+    assert plan.executable is False
+    assert plan.topological_order == ()
+    assert REASON_BUDGET_EXCEEDED in {d.code for d in plan.diagnostics}
+    assert len(plan.edges) <= 10
+
+
+def _corpus_world(hv, case_id: str):
+    """Materialize snapshot/context/trusts for a structural-corpus case id."""
+    from magicite.engram import ProducedCapability, RequiredCapability, VersionConstraint
+
+    if case_id == "producer-before-consumer":
+        producer = hv.node(
+            "egr_a0000001",
+            produces=[
+                ProducedCapability(kind="artifact", id="artifact.wine-prefix", version="1.0.0")
+            ],
+        )
+        consumer = hv.node(
+            "egr_b0000001",
+            requires=[
+                RequiredCapability(
+                    kind="artifact",
+                    id="artifact.wine-prefix",
+                    version=VersionConstraint(scheme="semver", range=">=1.0.0"),
+                )
+            ],
+        )
+        nodes = [producer, consumer]
+        return hv.snapshot(nodes), hv.base_context(artifact_inventory=()), {
+            n.id: hv.trust(n.id, content_digest=n.content_digest) for n in nodes
+        }
+
+    if case_id == "ambiguous-two-producers":
+        consumer = hv.node(
+            "egr_b0000002",
+            requires=[
+                RequiredCapability(
+                    kind="artifact",
+                    id="artifact.shared-x",
+                    version=VersionConstraint(scheme="semver", range=">=1.0.0"),
+                )
+            ],
+        )
+        prod_a = hv.node(
+            "egr_a000000a",
+            produces=[ProducedCapability(kind="artifact", id="artifact.shared-x", version="1.0.0")],
+        )
+        prod_b = hv.node(
+            "egr_a000000b",
+            produces=[ProducedCapability(kind="artifact", id="artifact.shared-x", version="1.1.0")],
+        )
+        nodes = [consumer, prod_a, prod_b]
+        return hv.snapshot(nodes), hv.base_context(artifact_inventory=()), {
+            n.id: hv.trust(n.id, content_digest=n.content_digest) for n in nodes
+        }
+
+    if case_id == "cycle-no-executable-prefix":
+        a = hv.node(
+            "egr_c0000001",
+            relation_requires=[EngramRevisionRef(id="egr_c0000002", version=1)],
+        )
+        b = hv.node(
+            "egr_c0000002",
+            relation_requires=[EngramRevisionRef(id="egr_c0000001", version=1)],
+        )
+        nodes = [a, b]
+        return hv.snapshot(nodes), hv.base_context(), {
+            n.id: hv.trust(n.id, content_digest=n.content_digest) for n in nodes
+        }
+
+    if case_id == "before-ordering":
+        shared = hv.load_shared_relation_fixtures()
+        before_refs = [EngramRevisionRef(**r) for r in shared["relations"]["before"]]
+        subject = hv.node("egr_33333333", before=before_refs)
+        before_target = hv.node("egr_aaaa0001", version=2, content_digest=hv.DIGEST_B)
+        nodes = [subject, before_target]
+        return hv.snapshot(nodes), hv.base_context(), {
+            "egr_33333333": hv.trust("egr_33333333"),
+            "egr_aaaa0001": hv.trust("egr_aaaa0001", content_digest=hv.DIGEST_B),
+        }
+
+    if case_id == "supersedes-conflict":
+        shared = hv.load_shared_relation_fixtures()
+        supersedes_refs = [EngramRevisionRef(**r) for r in shared["relations"]["supersedes"]]
+        subject = hv.node("egr_33333333", supersedes=supersedes_refs)
+        superseded = hv.node("egr_bbbb0001", version=4, content_digest=hv.DIGEST_C)
+        nodes = [subject, superseded]
+        return hv.snapshot(nodes), hv.base_context(), {
+            "egr_33333333": hv.trust("egr_33333333"),
+            "egr_bbbb0001": hv.trust("egr_bbbb0001", content_digest=hv.DIGEST_C),
+        }
+
+    raise KeyError(f"unknown corpus case: {case_id}")
+
+
+def _load_structural_corpus() -> list[dict]:
+    data = json.loads((COMPOSITION_V1 / "structural-corpus.json").read_text(encoding="utf-8"))
+    assert data["schema"] == "magicite/composition-v1-corpus/1"
+    return list(data["cases"])
+
+
+@pytest.mark.parametrize("case", _load_structural_corpus(), ids=lambda c: c["id"])
+def test_structural_corpus_cases(case: dict) -> None:
+    """ATLAS nit: every structural-corpus case runs through compose()."""
+    hv = _hv()
+    snap, ctx, trusts = _corpus_world(hv, case["id"])
+    plan = compose(
+        case["selected"],
+        ctx,
+        snap,
+        server_policy=hv.DEFAULT_POLICY,
+        trust_view=lambda eid: trusts[eid],
+    )
+
+    expect_status = case.get("expect_status", "valid")
+    assert plan.status == expect_status
+    if expect_status == "invalid":
+        assert plan.executable is False
+        if case.get("expect_empty_order"):
+            assert plan.topological_order == ()
+        for code in case.get("expect_codes", []):
+            assert code in {d.code for d in plan.diagnostics}
+    else:
+        assert plan.executable is True
+        accepted = [tuple(order) for order in case.get("accepted_orders", [])]
+        assert accepted, f"corpus case {case['id']} missing accepted_orders"
+        assert tuple(plan.topological_order) in accepted

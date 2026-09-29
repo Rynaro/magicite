@@ -210,7 +210,7 @@ def test_denied_dependency_invalid() -> None:
         ],
         required_permissions=frozenset({"perm.read"}),
     )
-    denied_dep = hv.node("egr_d0000001", version=1)
+    denied_dep = hv.node("egr_d0000001", version=1, content_digest=hv.DIGEST_B)
     snap = hv.snapshot([winner, denied_dep])
     ctx = hv.base_context()
 
@@ -251,3 +251,54 @@ def test_denied_dependency_invalid() -> None:
     assert plan_missing.topological_order == ()
     missing_codes = {d.code for d in plan_missing.diagnostics}
     assert REASON_DANGLING_DEPENDENCY in missing_codes or REASON_UNSATISFIED in missing_codes
+
+
+def test_stale_content_digest_invalid() -> None:
+    """ATLAS nit: node content_digest must be rechecked against trust on every node.
+
+    Probe: snapshot digest aaa… + trust digest bbb… ⇒ invalid with stale_digest,
+    empty topological_order, not executable. Fails against path='dependency'
+    without expected_content_digest.
+    """
+    hv = _load_composition_fixtures()
+    from magicite.core.composition import compose
+    from magicite.core.eligibility import REASON_STALE_DIGEST
+    from magicite.engram import EngramRevisionRef
+
+    node_digest = "a" * 64
+    trust_digest = "b" * 64
+    alone = hv.node("egr_a0000001", content_digest=node_digest)
+    plan = compose(
+        ["egr_a0000001"],
+        hv.base_context(),
+        hv.snapshot([alone]),
+        server_policy=hv.DEFAULT_POLICY,
+        trust_view=lambda eid: hv.trust(eid, content_digest=trust_digest),
+    )
+    assert plan.status == "invalid"
+    assert plan.executable is False
+    assert plan.topological_order == ()
+    assert REASON_STALE_DIGEST in {d.code for d in plan.diagnostics}
+
+    # Dependency path: selected matches, required dep is stale.
+    winner = hv.node(
+        "egr_a0000002",
+        content_digest=node_digest,
+        relation_requires=[EngramRevisionRef(id="egr_d0000002", version=1)],
+    )
+    dep = hv.node("egr_d0000002", content_digest=node_digest)
+    trusts = {
+        "egr_a0000002": hv.trust("egr_a0000002", content_digest=node_digest),
+        "egr_d0000002": hv.trust("egr_d0000002", content_digest=trust_digest),
+    }
+    dep_plan = compose(
+        ["egr_a0000002"],
+        hv.base_context(),
+        hv.snapshot([winner, dep]),
+        server_policy=hv.DEFAULT_POLICY,
+        trust_view=lambda eid: trusts[eid],
+    )
+    assert dep_plan.status == "invalid"
+    assert dep_plan.executable is False
+    assert dep_plan.topological_order == ()
+    assert REASON_STALE_DIGEST in {d.code for d in dep_plan.diagnostics}
