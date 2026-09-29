@@ -180,6 +180,8 @@ def test_rebuild_fails_closed_on_conflicting_duplicate_digest(cfg, db_conn) -> N
     }
     with seg.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(bad, sort_keys=True) + "\n")
+    # Keep sibling manifest aligned so verify_segments does not mask the conflict.
+    evidence_mod._rewrite_segment_manifest(seg, sealed=False)
 
     with pytest.raises(IdempotencyKeyConflictError):
         evidence_mod.rebuild_projections(cfg, db_conn)
