@@ -9,6 +9,10 @@ All subprocesses use the isolated work directory as cwd so dependency side
 effects (notably onnxruntime writing ``:memory:.ses`` when telemetry cannot
 persist a device id) never land in the repository root.
 
+Subprocess environments are scrubbed (``PYTHONPATH=""``, ``PYTHONNOUSERSITE=1``,
+no ``PYTHONHOME`` / ``VIRTUAL_ENV``) so ambient checkout paths cannot leak onto
+``sys.path`` and make a broken wheel look installed.
+
 Environment:
   MAGICITE_TEST_WHEEL   optional path to an already-built wheel
   MAGICITE_REPO_ROOT    optional override for the checkout root (default: parents[1])
@@ -17,6 +21,7 @@ Environment:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -26,6 +31,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TOY_ENGRAMS = ROOT / "tests" / "fixtures" / "toy-registry" / "engrams"
+
+# Keys that must not leak from the ambient shell into probe/install children.
+_DROP_ENV_KEYS = frozenset(
+    {
+        "PYTHONHOME",
+        "VIRTUAL_ENV",
+        "PYTHONPATH",
+        "__PYVENV_LAUNCHER__",  # macOS framework launcher can reintroduce the parent venv
+    }
+)
 
 PROBE = r"""
 from __future__ import annotations
@@ -50,6 +65,12 @@ assert migration.is_file(), f"missing packaged migration: {migration}"
 
 fixture_engrams = Path(sys.argv[1])
 project_root = Path(sys.argv[2])
+expected_prefix = Path(sys.argv[3]).resolve()
+pkg_file = Path(magicite.__file__).resolve()
+assert str(pkg_file).startswith(str(expected_prefix)), (
+    f"magicite resolved outside probe venv: {pkg_file} (expected under {expected_prefix})"
+)
+
 registry_dir = project_root / ".magicite" / "engrams"
 registry_dir.mkdir(parents=True)
 for path in fixture_engrams.glob("*.egr.md"):
@@ -67,8 +88,27 @@ route_outcome = router_mod.route(
 assert route_outcome.candidates, "expected at least one routable candidate"
 top = route_outcome.candidates[0].name
 assert top == "proton-ge-proton-downgrade", top
-print(json.dumps({"ok": True, "top": top, "ingested": register_outcome.ingested}))
+print(
+    json.dumps(
+        {
+            "ok": True,
+            "top": top,
+            "ingested": register_outcome.ingested,
+            "pkg_file": str(pkg_file),
+        }
+    )
+)
 """
+
+
+def isolated_subprocess_env(base: dict[str, str] | None = None) -> dict[str, str]:
+    """Return an env mapping safe for clean-install probe/install children."""
+    env = dict(os.environ if base is None else base)
+    for key in _DROP_ENV_KEYS:
+        env.pop(key, None)
+    env["PYTHONPATH"] = ""
+    env["PYTHONNOUSERSITE"] = "1"
+    return env
 
 
 def _resolve_wheel(explicit: Path | None) -> Path:
@@ -102,25 +142,31 @@ def run_probe(*, wheel: Path, keep_env: Path | None = None) -> dict:
         shutil.rmtree(venv_dir)
     venv.create(venv_dir, with_pip=True, clear=True)
     python = venv_dir / ("Scripts" if os.name == "nt" else "bin") / "python"
+    child_env = isolated_subprocess_env()
     subprocess.run(
         [str(python), "-m", "pip", "install", "--upgrade", "pip"],
         check=True,
         cwd=work,
+        env=child_env,
     )
-    subprocess.run([str(python), "-m", "pip", "install", str(wheel)], check=True, cwd=work)
+    subprocess.run(
+        [str(python), "-m", "pip", "install", str(wheel)],
+        check=True,
+        cwd=work,
+        env=child_env,
+    )
     completed = subprocess.run(
-        [str(python), "-c", PROBE, str(TOY_ENGRAMS), str(project_root)],
+        [str(python), "-c", PROBE, str(TOY_ENGRAMS), str(project_root), str(venv_dir.resolve())],
         check=True,
         cwd=work,
         capture_output=True,
         text=True,
+        env=child_env,
     )
     # Last non-empty stdout line is the probe JSON.
     lines = [line for line in completed.stdout.splitlines() if line.strip()]
     if not lines:
         raise RuntimeError("wheel probe produced no stdout")
-    import json
-
     return json.loads(lines[-1])
 
 
