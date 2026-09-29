@@ -19,6 +19,7 @@ from magicite.engram.digests import (
     canonical_json_bytes,
     metadata_digest,
     projection_digest,
+    routing_body_digest,
 )
 from magicite.engram.model_v1 import (
     KNOWN_EXTENSIONS,
@@ -37,10 +38,16 @@ from magicite.engram.model_v1 import (
     RoutingV1,
     VersionConstraint,
 )
-from magicite.engram.parser import parse_artifact, parse_artifact_file
+from magicite.engram.parser import (
+    load_artifact,
+    load_artifact_file,
+    parse_artifact,
+    parse_artifact_file,
+)
 from magicite.engram.schema_validate import (
     EngramSchemaError,
     assert_valid_frontmatter,
+    clear_schema_cache,
     load_schema,
     schema_path,
     validate_frontmatter_dict,
@@ -77,6 +84,9 @@ __all__ = [
     "asset_bytes_digest",
     "assets_manifest_digest",
     "canonical_json_bytes",
+    "clear_schema_cache",
+    "load_artifact",
+    "load_artifact_file",
     "load_schema",
     "metadata_digest",
     "parse_artifact",
@@ -85,6 +95,7 @@ __all__ = [
     "render_as",
     "render_document_v1",
     "resolve_asset_path",
+    "routing_body_digest",
     "schema_path",
     "transform_0_2_to_1_0",
     "validate_assets",

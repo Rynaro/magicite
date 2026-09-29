@@ -160,11 +160,27 @@ def _split_sections(body_text: str) -> dict[str, list[str]]:
     return sections
 
 
-def parse_artifact(raw_text: str, *, relpath: str, file_mtime_ns: int = 0) -> tuple[Engram | EngramV1, Any]:
+def parse_artifact(
+    raw_text: str,
+    *,
+    relpath: str,
+    file_mtime_ns: int = 0,
+    admit: bool = False,
+    registry_root: Path | None = None,
+    require_asset_files: bool = False,
+) -> tuple[Engram | EngramV1, Any]:
     """Pure dual reader for ``engram/0.2`` and ``engram/1.0`` (C8).
 
     Returns ``(artifact, frontmatter_doc)`` where ``frontmatter_doc`` is the
     ruamel round-trip carrier for writers.
+
+    Parse vs admit
+    --------------
+    Default ``admit=False`` is a structural parse only (typed models). Invalid
+    version ranges (e.g. ``^1.2.3``) and asset-path violations are **not**
+    rejected here — use :func:`load_artifact` (or ``admit=True``) for
+    registry intake. When ``admit=True`` and ``spec`` is ``engram/1.0``, runs
+    full C1 admission (JSON Schema + semantics + assets + body_digest).
     """
     yaml_text, body_text = split_frontmatter(raw_text)
     doc = load_frontmatter_doc(yaml_text)
@@ -176,7 +192,7 @@ def parse_artifact(raw_text: str, *, relpath: str, file_mtime_ns: int = 0) -> tu
 
     if spec == "engram/1.0":
         frontmatter = EngramFrontmatterV1.model_validate(as_dict)
-        artifact: Engram | EngramV1 = EngramV1(
+        v1 = EngramV1(
             frontmatter=frontmatter,
             body=body,
             path=relpath,
@@ -184,7 +200,15 @@ def parse_artifact(raw_text: str, *, relpath: str, file_mtime_ns: int = 0) -> tu
             body_sha256=body_sha,
             file_mtime_ns=file_mtime_ns,
         )
-        return artifact, doc
+        if admit:
+            _admit_v1(
+                v1,
+                as_dict=as_dict,
+                body_text=body_text,
+                registry_root=registry_root,
+                require_asset_files=require_asset_files,
+            )
+        return v1, doc
 
     if spec != "engram/0.2":
         raise EngramParseError(f"unsupported engram spec version: {spec!r}")
@@ -201,10 +225,61 @@ def parse_artifact(raw_text: str, *, relpath: str, file_mtime_ns: int = 0) -> tu
     return artifact, doc
 
 
+def load_artifact(
+    raw_text: str,
+    *,
+    relpath: str,
+    file_mtime_ns: int = 0,
+    registry_root: Path | None = None,
+    require_asset_files: bool = True,
+) -> tuple[Engram | EngramV1, Any]:
+    """Admit an engram for registry intake (AC-S02-04 'loaded').
+
+    For ``engram/1.0`` this is the fail-closed dual-reader path: structural
+    parse plus schema/semantic/asset/body_digest validation. For ``engram/0.2``
+    this is equivalent to :func:`parse_artifact` (legacy lint remains separate).
+
+    ``require_asset_files`` defaults True so intake rejects missing/mismatched
+    assets when ``registry_root`` is provided. Pass ``registry_root`` from the
+    registry root S03 uses for containment.
+    """
+    return parse_artifact(
+        raw_text,
+        relpath=relpath,
+        file_mtime_ns=file_mtime_ns,
+        admit=True,
+        registry_root=registry_root,
+        require_asset_files=require_asset_files,
+    )
+
+
+def _admit_v1(
+    artifact: EngramV1,
+    *,
+    as_dict: dict[str, Any],
+    body_text: str,
+    registry_root: Path | None,
+    require_asset_files: bool,
+) -> None:
+    from magicite.engram.schema_validate import EngramSchemaError, validate_frontmatter_dict
+
+    result = validate_frontmatter_dict(
+        as_dict,
+        spec="engram/1.0",
+        registry_root=registry_root,
+        body_text=body_text,
+        require_asset_files=require_asset_files,
+    )
+    if not result.ok:
+        raise EngramParseError(
+            "engram/1.0 admission failed: " + "; ".join(result.errors)
+        ) from EngramSchemaError("; ".join(result.errors))
+
+
 def parse_text(raw_text: str, *, relpath: str, file_mtime_ns: int = 0) -> ParsedFile:
     """Parse ``.egr.md`` text as engram/0.2 for existing call sites.
 
-    For dual-format intake use :func:`parse_artifact`.
+    For dual-format intake use :func:`load_artifact` / :func:`parse_artifact`.
     """
     artifact, doc = parse_artifact(raw_text, relpath=relpath, file_mtime_ns=file_mtime_ns)
     if not isinstance(artifact, Engram):
@@ -219,9 +294,37 @@ def parse_file(path: Path, *, registry_root: Path) -> ParsedFile:
     return parse_text(raw_text, relpath=relpath, file_mtime_ns=mtime_ns)
 
 
-def parse_artifact_file(path: Path, *, registry_root: Path) -> tuple[Engram | EngramV1, Any]:
-    """Dual-reader file entrypoint (0.2 or 1.0)."""
+def parse_artifact_file(
+    path: Path,
+    *,
+    registry_root: Path,
+    admit: bool = False,
+    require_asset_files: bool = False,
+) -> tuple[Engram | EngramV1, Any]:
+    """Dual-reader file entrypoint (0.2 or 1.0). Use admit=True for intake."""
     raw_text = path.read_text(encoding="utf-8")
     relpath = str(path.resolve().relative_to(registry_root.resolve()))
     mtime_ns = path.stat().st_mtime_ns
-    return parse_artifact(raw_text, relpath=relpath, file_mtime_ns=mtime_ns)
+    return parse_artifact(
+        raw_text,
+        relpath=relpath,
+        file_mtime_ns=mtime_ns,
+        admit=admit,
+        registry_root=registry_root,
+        require_asset_files=require_asset_files,
+    )
+
+
+def load_artifact_file(
+    path: Path,
+    *,
+    registry_root: Path,
+    require_asset_files: bool = True,
+) -> tuple[Engram | EngramV1, Any]:
+    """File admission entrypoint for S03 registry intake (AC-S02-04)."""
+    return parse_artifact_file(
+        path,
+        registry_root=registry_root,
+        admit=True,
+        require_asset_files=require_asset_files,
+    )
