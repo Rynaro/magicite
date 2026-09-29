@@ -25,12 +25,14 @@ from magicite.core.eligibility import (
     REASON_BUDGET_EXCEEDED,
     REASON_CONTEXT_REQUIRED,
     REASON_CYCLE,
+    REASON_INVALID_GRANT,
     REASON_LIFECYCLE_BLOCKED,
     REASON_PERMISSION_DENIED,
     REASON_QUARANTINED,
     REASON_STALE_DIGEST,
     REASON_UNSUPPORTED_CONSTRAINT,
     REASON_UNTRUSTED_ORIGIN,
+    REASON_VERSION_MISMATCH,
     EligibilitySubject,
     FixtureTrustDecision,
     check_dependency_closure,
@@ -340,6 +342,44 @@ def test_dependency_closure_cycle_and_budget() -> None:
     )
     assert budget.eligible is False
     assert REASON_BUDGET_EXCEEDED in budget.reason_codes
+
+
+def test_dependency_closure_version_pin() -> None:
+    """ATLAS nit: resolve must satisfy relations.requires exact revision."""
+    root = EligibilitySubject(
+        id="egr_a1000001",
+        version=1,
+        relations=Relations(requires=[EngramRevisionRef(id="egr_a1000002", version=1)]),
+    )
+    wrong_rev = EligibilitySubject(id="egr_a1000002", version=2)
+    ctx = RouteContext()
+
+    closure = check_dependency_closure(
+        root,
+        lambda eid, _v: wrong_rev if eid == wrong_rev.id else None,
+        ctx,
+        lambda eid: _trust(eid),
+        POLICY,
+    )
+    assert closure.eligible is False
+    assert REASON_VERSION_MISMATCH in closure.reason_codes
+    assert wrong_rev.id in closure.denied_chain
+    assert any(
+        d.engram_id == wrong_rev.id and REASON_VERSION_MISMATCH in d.reason_codes for d in closure.denied
+    )
+
+
+def test_evaluate_eligibility_invalid_grant_denies() -> None:
+    """ATLAS nit: wildcard request grants → deny (invalid_grant), not raise."""
+    subject = EligibilitySubject(id="egr_a2000001")
+    ctx = RouteContext(permission_grants=frozenset({"*"}))
+    result = evaluate_eligibility(subject, ctx, _trust(subject.id), POLICY)
+    assert result.eligible is False
+    assert result.reason_codes == (REASON_INVALID_GRANT,)
+
+    # Low-level helper still raises for direct callers.
+    with pytest.raises(GrantNormalizationError):
+        intersect_grants(request_permissions=["*"], request_tools=None, server=POLICY)
 
 
 def test_intersect_grants_normalization() -> None:

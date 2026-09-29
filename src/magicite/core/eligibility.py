@@ -78,6 +78,7 @@ from packaging.version import InvalidVersion, Version
 from magicite.core.context import (
     ROUTE_CONTEXT_SCHEMA,
     EffectiveGrants,
+    GrantNormalizationError,
     RouteContext,
     ServerPermissionPolicy,
     intersect_grants,
@@ -123,6 +124,7 @@ REASON_STALE_DIGEST = "stale_digest"
 REASON_CYCLE = "cycle"
 REASON_BUDGET_EXCEEDED = "budget_exceeded"
 REASON_DANGLING_DEPENDENCY = "dangling_dependency"
+REASON_INVALID_GRANT = "invalid_grant"
 
 _FILESYSTEM_RANK = {"none": 0, "read-project": 1, "write-project": 2}
 _SUBPROCESS_RANK = {"none": 0, "declared-tools": 1}
@@ -202,6 +204,8 @@ class EligibilitySubject:
     """Minimal Engram 1.0 projection consumed by the evaluator."""
 
     id: str
+    #: Integer engram revision (C1). Used to pin ``relations.requires``.
+    version: int = 1
     compatibility: Compatibility | None = None
     capabilities: Capabilities | None = None
     risk: Risk | None = None
@@ -248,6 +252,7 @@ class DependencyClosureResult:
 def subject_from_frontmatter(fm: EngramFrontmatterV1, *, assets_valid: bool = True) -> EligibilitySubject:
     return EligibilitySubject(
         id=fm.id,
+        version=fm.version,
         compatibility=fm.compatibility,
         capabilities=fm.capabilities,
         risk=fm.risk,
@@ -315,11 +320,25 @@ def evaluate_eligibility(
 
     _check_body_digest(path, expected_content_digest, trust, reason_codes, missing_fields)
 
-    grants = intersect_grants(
-        request_permissions=context.permission_grants,
-        request_tools=context.allowed_tools,
-        server=server_policy,
-    )
+    try:
+        grants = intersect_grants(
+            request_permissions=context.permission_grants,
+            request_tools=context.allowed_tools,
+            server=server_policy,
+        )
+    except GrantNormalizationError:
+        # Route/dependency/body paths must deny, not raise (S07 hot path).
+        # Low-level normalize_grant_id / intersect_grants still raise for
+        # direct callers that want strict validation.
+        return _result(
+            subject.id,
+            False,
+            [REASON_INVALID_GRANT],
+            [],
+            [],
+            server_policy.policy_digest,
+            evaluator_version,
+        )
 
     if subject.id in context.excluded_engram_ids:
         reason_codes.append(REASON_USER_EXCLUDED)
@@ -449,6 +468,21 @@ def check_dependency_closure(
             child_subject = (
                 subject_from_engram(child) if isinstance(child, (EngramV1, EngramFrontmatterV1)) else child
             )
+            # relations.requires pins an exact revision (C1); resolve must match.
+            if child_subject.version != ref.version:
+                mismatch = _result(
+                    child_subject.id,
+                    False,
+                    [REASON_VERSION_MISMATCH],
+                    [f"relations.requires.{ref.id}@{ref.version}"],
+                    [],
+                    server_policy.policy_digest,
+                    ELIGIBILITY_EVALUATOR_VERSION,
+                )
+                denied.append(mismatch)
+                denied_chain[:] = [*stack, node.id, child_subject.id]
+                aggregate_reasons.append(REASON_VERSION_MISMATCH)
+                return False
             if not walk(child_subject, [*stack, node.id], depth + 1):
                 return False
         return True
