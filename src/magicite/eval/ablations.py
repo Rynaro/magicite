@@ -163,9 +163,7 @@ def run_no_tag_capture(
     ranking_pairs: list[tuple[list[str], str]] = []
     for q in test:
         ranked = bench_mod._baseline_b_rank(conn, embedder, q.query)  # cosine-only starting order
-        boosted = sorted(
-            range(len(ranked)), key=lambda i: (-bumps.get(ranked[i], 0.0), i)
-        )
+        boosted = sorted(range(len(ranked)), key=lambda i: (-bumps.get(ranked[i], 0.0), i))
         ranking_pairs.append(([ranked[i] for i in boosted], q.expected_top1))
     ablated = metrics_mod.aggregate_ranking(ranking_pairs)
 
