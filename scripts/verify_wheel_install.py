@@ -5,6 +5,10 @@ Installs a built wheel into a temporary venv *outside* the source checkout,
 asserts packaged schema/migration resources are present, then runs the offline
 hashing-provider toy-registry route fixture.
 
+All subprocesses use the isolated work directory as cwd so dependency side
+effects (notably onnxruntime writing ``:memory:.ses`` when telemetry cannot
+persist a device id) never land in the repository root.
+
 Environment:
   MAGICITE_TEST_WHEEL   optional path to an already-built wheel
   MAGICITE_REPO_ROOT    optional override for the checkout root (default: parents[1])

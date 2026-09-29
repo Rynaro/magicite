@@ -109,8 +109,12 @@ def test_missing_model(built_wheel: Path, tmp_path: Path) -> None:
     venv_dir = tmp_path / "missing-model-venv"
     venv.create(venv_dir, with_pip=True, clear=True)
     python = venv_dir / "bin" / "python"
-    subprocess.run([str(python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-    subprocess.run([str(python), "-m", "pip", "install", str(built_wheel)], check=True)
+    subprocess.run([str(python), "-m", "pip", "install", "--upgrade", "pip"], check=True, cwd=tmp_path)
+    subprocess.run(
+        [str(python), "-m", "pip", "install", str(built_wheel)],
+        check=True,
+        cwd=tmp_path,
+    )
 
     cache_dir = tmp_path / "empty-model-cache"
     cache_dir.mkdir()
@@ -136,6 +140,10 @@ else:
         check=True,
         capture_output=True,
         text=True,
+        # Isolate cwd: importing onnxruntime (via fastembed) writes a stray
+        # `:memory:.ses` into the process cwd when telemetry cannot persist a
+        # device id (onnxruntime telemetry.cc). Keep that out of the repo.
+        cwd=tmp_path,
     )
     assert "ERROR_TYPE FastEmbedModelUnavailableError" in completed.stdout
     assert "offline=True" in completed.stdout
@@ -196,7 +204,7 @@ def test_channel_matrix(
         builder = tmp_path / "sdist-builder"
         venv.create(builder / "venv", with_pip=True, clear=True)
         py = builder / "venv" / "bin" / "python"
-        subprocess.run([str(py), "-m", "pip", "install", "build"], check=True)
+        subprocess.run([str(py), "-m", "pip", "install", "build"], check=True, cwd=tmp_path)
         subprocess.run(
             [str(py), "-m", "build", "--sdist", "--outdir", str(sdist_dir)],
             check=True,
@@ -209,8 +217,12 @@ def test_channel_matrix(
     venv_dir = tmp_path / "sdist-venv"
     venv.create(venv_dir, with_pip=True, clear=True)
     python = venv_dir / "bin" / "python"
-    subprocess.run([str(python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-    subprocess.run([str(python), "-m", "pip", "install", str(sdists[-1])], check=True)
+    subprocess.run([str(python), "-m", "pip", "install", "--upgrade", "pip"], check=True, cwd=tmp_path)
+    subprocess.run(
+        [str(python), "-m", "pip", "install", str(sdists[-1])],
+        check=True,
+        cwd=tmp_path,
+    )
     project_root = tmp_path / "sdist-project"
     project_root.mkdir()
     completed = subprocess.run(
@@ -224,6 +236,7 @@ def test_channel_matrix(
         check=True,
         capture_output=True,
         text=True,
+        cwd=tmp_path,
     )
     import json
 
