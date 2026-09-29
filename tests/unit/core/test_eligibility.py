@@ -1,7 +1,7 @@
-"""S06 eligibility / RouteContext acceptance tests (AC-S06-01..05).
+"""S06 eligibility / RouteContext acceptance tests (AC-S06-01..05 + ATLAS nits).
 
-Test anchors derive from frozen acceptance criteria + C2 contracts — not from
-a candidate implementation. Trust inputs use FixtureTrustDecision until S04.
+Test anchors derive from frozen acceptance criteria + C2/C10 contracts — not
+from a candidate implementation. Trust inputs use FixtureTrustDecision until S04.
 """
 
 from __future__ import annotations
@@ -13,25 +13,35 @@ import pytest
 
 from magicite.core.context import (
     ArtifactInventoryEntry,
+    GrantNormalizationError,
     HostFact,
     RouteContext,
     ServerPermissionPolicy,
     intersect_grants,
+    normalize_grant_id,
 )
 from magicite.core.eligibility import (
+    REASON_ASSET_INVALID,
+    REASON_BUDGET_EXCEEDED,
     REASON_CONTEXT_REQUIRED,
+    REASON_CYCLE,
     REASON_LIFECYCLE_BLOCKED,
     REASON_PERMISSION_DENIED,
     REASON_QUARANTINED,
+    REASON_STALE_DIGEST,
     REASON_UNSUPPORTED_CONSTRAINT,
+    REASON_UNTRUSTED_ORIGIN,
     EligibilitySubject,
     FixtureTrustDecision,
+    check_dependency_closure,
     evaluate_dependency_eligibility,
     evaluate_eligibility,
     version_satisfies,
 )
 from magicite.engram import (
     Compatibility,
+    EngramRevisionRef,
+    Relations,
     RequiredCapability,
     VersionConstraint,
     parse_artifact,
@@ -39,12 +49,16 @@ from magicite.engram import (
 from magicite.engram.model_v1 import (
     Capabilities,
     ExtensionValue,
+    HostRequirement,
     Risk,
 )
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 ENGRAM_V1 = FIXTURES / "engram-v1"
 ELIG_V1 = FIXTURES / "eligibility-v1"
+
+DIGEST_A = "a" * 64
+DIGEST_B = "b" * 64
 
 POLICY = ServerPermissionPolicy(
     allowed_permissions=frozenset({"perm.read", "perm.write-project"}),
@@ -58,8 +72,9 @@ POLICY = ServerPermissionPolicy(
 
 
 def _trust(engram_id: str, **overrides: object) -> FixtureTrustDecision:
-    base = {
+    base: dict[str, object] = {
         "engram_id": engram_id,
+        "content_digest": DIGEST_A,
         "lifecycle_status": "promoted",
         "quarantined": False,
         "origin_trusted": True,
@@ -79,7 +94,6 @@ def test_unknown_required_context() -> None:
             }
         ),
     )
-    # Key present, version explicitly unknown (null).
     ctx = RouteContext(frameworks={"django": None})
     result = evaluate_eligibility(subject, ctx, _trust(subject.id), POLICY)
 
@@ -88,7 +102,6 @@ def test_unknown_required_context() -> None:
     assert "frameworks.django" in result.missing_fields
     assert result.context_required is True
 
-    # Missing key is also unknown (not a wildcard match).
     ctx_missing = RouteContext(frameworks={})
     result_missing = evaluate_eligibility(subject, ctx_missing, _trust(subject.id), POLICY)
     assert result_missing.eligible is False
@@ -120,31 +133,61 @@ def test_request_cannot_elevate() -> None:
 
 
 def test_transitive_denial() -> None:
-    """AC-S06-03: archived or quarantined dependency is excluded."""
-    winner = EligibilitySubject(id="egr_cccc0003")
-    dep = EligibilitySubject(id="egr_dep00001")
+    """AC-S06-03: archived/quarantined deps excluded; closure walks the chain."""
+    winner = EligibilitySubject(
+        id="egr_cccc0003",
+        relations=Relations(requires=[EngramRevisionRef(id="egr_d0000001", version=1)]),
+    )
+    mid = EligibilitySubject(
+        id="egr_d0000001",
+        relations=Relations(requires=[EngramRevisionRef(id="egr_d0000002", version=1)]),
+    )
+    leaf = EligibilitySubject(id="egr_d0000002")
     ctx = RouteContext()
 
     winner_result = evaluate_eligibility(winner, ctx, _trust(winner.id), POLICY)
     assert winner_result.eligible is True
 
     archived = evaluate_dependency_eligibility(
-        dep, ctx, _trust(dep.id, lifecycle_status="archived", admitted=False), POLICY
+        leaf, ctx, _trust(leaf.id, lifecycle_status="archived", admitted=False), POLICY
     )
     assert archived.eligible is False
     assert REASON_LIFECYCLE_BLOCKED in archived.reason_codes
 
     quarantined = evaluate_dependency_eligibility(
-        dep, ctx, _trust(dep.id, quarantined=True, admitted=False), POLICY
+        leaf, ctx, _trust(leaf.id, quarantined=True, admitted=False), POLICY
     )
     assert quarantined.eligible is False
     assert REASON_QUARANTINED in quarantined.reason_codes
 
-    # User exclusions apply to composition dependencies too (C2).
-    excluded_ctx = RouteContext(excluded_engram_ids=frozenset({dep.id}))
-    excluded = evaluate_dependency_eligibility(dep, excluded_ctx, _trust(dep.id), POLICY)
+    excluded_ctx = RouteContext(excluded_engram_ids=frozenset({leaf.id}))
+    excluded = evaluate_dependency_eligibility(leaf, excluded_ctx, _trust(leaf.id), POLICY)
     assert excluded.eligible is False
     assert "user_excluded" in excluded.reason_codes
+
+    catalog = {winner.id: winner, mid.id: mid, leaf.id: leaf}
+    trusts = {
+        winner.id: _trust(winner.id),
+        mid.id: _trust(mid.id),
+        leaf.id: _trust(leaf.id, lifecycle_status="archived", admitted=False),
+    }
+
+    def resolve(eid: str, _version: int) -> EligibilitySubject | None:
+        return catalog.get(eid)
+
+    closure = check_dependency_closure(
+        winner,
+        resolve,
+        ctx,
+        lambda eid: trusts[eid],
+        POLICY,
+    )
+    assert closure.eligible is False
+    assert leaf.id in closure.denied_chain
+    assert winner.id in closure.denied_chain
+    assert mid.id in closure.denied_chain
+    assert any(d.engram_id == leaf.id for d in closure.denied)
+    assert REASON_LIFECYCLE_BLOCKED in closure.reason_codes
 
 
 def test_unsupported_constraints() -> None:
@@ -155,9 +198,6 @@ def test_unsupported_constraints() -> None:
             frameworks={"django": VersionConstraint(scheme="semver", range="^4.2.0")},
         ),
     )
-    # Bypass pydantic-level validation by constructing VersionConstraint then
-    # forcing an invalid range the grammar rejects at evaluate time.
-    # VersionConstraint itself allows any string; validate_version_constraint fails.
     ctx = RouteContext(frameworks={"django": "4.2.1"})
     result = evaluate_eligibility(bad_range, ctx, _trust(bad_range.id), POLICY)
     assert result.eligible is False
@@ -203,7 +243,7 @@ def test_plannable_requirement_is_not_host_denial() -> None:
             ]
         ),
     )
-    ctx = RouteContext(artifact_inventory=())  # known-empty
+    ctx = RouteContext(artifact_inventory=())
     result = evaluate_eligibility(subject, ctx, _trust(subject.id), POLICY)
 
     assert result.eligible is True
@@ -211,11 +251,140 @@ def test_plannable_requirement_is_not_host_denial() -> None:
     assert REASON_CONTEXT_REQUIRED not in result.reason_codes
 
 
+def test_body_path_requires_content_digest() -> None:
+    """ATLAS MAJOR-1: path=body requires expected_content_digest vs trust."""
+    subject = EligibilitySubject(id="egr_body0001")
+    trust = _trust(subject.id, content_digest=DIGEST_A)
+    ctx = RouteContext()
+
+    missing = evaluate_eligibility(subject, ctx, trust, POLICY, path="body")
+    assert missing.eligible is False
+    assert REASON_STALE_DIGEST in missing.reason_codes
+    assert "expected_content_digest" in missing.missing_fields
+
+    mismatch = evaluate_eligibility(
+        subject, ctx, trust, POLICY, path="body", expected_content_digest=DIGEST_B
+    )
+    assert mismatch.eligible is False
+    assert REASON_STALE_DIGEST in mismatch.reason_codes
+
+    ok = evaluate_eligibility(subject, ctx, trust, POLICY, path="body", expected_content_digest=DIGEST_A)
+    assert ok.eligible is True
+
+
+def test_signature_alone_never_routable() -> None:
+    """ATLAS MAJOR-2: signature_valid=True does not admit without local trust."""
+    subject = EligibilitySubject(id="egr_sig00001")
+    ctx = RouteContext()
+
+    not_admitted = evaluate_eligibility(
+        subject,
+        ctx,
+        _trust(subject.id, signature_valid=True, admitted=False, origin_trusted=True),
+        POLICY,
+    )
+    assert not_admitted.eligible is False
+    assert REASON_UNTRUSTED_ORIGIN in not_admitted.reason_codes
+
+    untrusted_origin = evaluate_eligibility(
+        subject,
+        ctx,
+        _trust(subject.id, signature_valid=True, admitted=True, origin_trusted=False),
+        POLICY,
+    )
+    assert untrusted_origin.eligible is False
+    assert REASON_UNTRUSTED_ORIGIN in untrusted_origin.reason_codes
+
+
+def test_dependency_closure_cycle_and_budget() -> None:
+    """ATLAS MAJOR-3: cycles and depth exhaustion fail closed."""
+    a = EligibilitySubject(
+        id="egr_c000000a",
+        relations=Relations(requires=[EngramRevisionRef(id="egr_c000000b", version=1)]),
+    )
+    b = EligibilitySubject(
+        id="egr_c000000b",
+        relations=Relations(requires=[EngramRevisionRef(id="egr_c000000a", version=1)]),
+    )
+    catalog = {a.id: a, b.id: b}
+    ctx = RouteContext()
+
+    cycle = check_dependency_closure(
+        a,
+        lambda eid, _v: catalog.get(eid),
+        ctx,
+        lambda eid: _trust(eid),
+        POLICY,
+    )
+    assert cycle.eligible is False
+    assert REASON_CYCLE in cycle.reason_codes
+    assert a.id in cycle.denied_chain and b.id in cycle.denied_chain
+
+    deep_root = EligibilitySubject(
+        id="egr_d100000a",
+        relations=Relations(requires=[EngramRevisionRef(id="egr_d100000b", version=1)]),
+    )
+    deep_mid = EligibilitySubject(
+        id="egr_d100000b",
+        relations=Relations(requires=[EngramRevisionRef(id="egr_d100000c", version=1)]),
+    )
+    deep_leaf = EligibilitySubject(id="egr_d100000c")
+    deep = {deep_root.id: deep_root, deep_mid.id: deep_mid, deep_leaf.id: deep_leaf}
+    budget = check_dependency_closure(
+        deep_root,
+        lambda eid, _v: deep.get(eid),
+        ctx,
+        lambda eid: _trust(eid),
+        POLICY,
+        max_depth=1,
+    )
+    assert budget.eligible is False
+    assert REASON_BUDGET_EXCEEDED in budget.reason_codes
+
+
+def test_intersect_grants_normalization() -> None:
+    """ATLAS MINOR-4: NFKC+casefold, empty/None, reject wildcards."""
+    none_req = intersect_grants(request_permissions=None, request_tools=None, server=POLICY)
+    assert none_req.permissions == frozenset(
+        {normalize_grant_id("perm.read"), normalize_grant_id("perm.write-project")}
+    )
+
+    empty = intersect_grants(request_permissions=[], request_tools=[], server=POLICY)
+    assert empty.permissions == frozenset()
+    assert empty.tools == frozenset()
+
+    # Casefold + NFKC (ﬁ ligature → fi) must still intersect the server ceiling.
+    assert normalize_grant_id("PERM.READ") == "perm.read"
+    assert normalize_grant_id("perm.\ufb01") == "perm.fi"
+    mixed = intersect_grants(
+        request_permissions=["PERM.READ", "Perm.Write-Project"],
+        request_tools=["ProtonTricks"],
+        server=POLICY,
+    )
+    assert "perm.read" in mixed.permissions
+    assert "perm.write-project" in mixed.permissions
+    assert "protontricks" in mixed.tools
+
+    with pytest.raises(GrantNormalizationError):
+        intersect_grants(request_permissions=["*"], request_tools=None, server=POLICY)
+    with pytest.raises(GrantNormalizationError):
+        intersect_grants(
+            request_permissions=None,
+            request_tools=["shell*"],
+            server=POLICY,
+        )
+
+
 def test_consumer_fixture_paths_agree() -> None:
-    """Same artifact through route path remains eligible with artifact gap listed."""
+    """ATLAS MINOR-5: route + dependency deny + body digest expectations."""
     payload = json.loads((ELIG_V1 / "consumer-paths.json").read_text(encoding="utf-8"))
     art = payload["artifact"]
     route = payload["paths"]["route"]
+    dep = payload["paths"]["dependency"]
+    body = payload["paths"]["body"]
+
+    assert payload["trust_decision_view"]["signature_alone_never_routable"] is True
+    assert "stale_digest" in payload["c10_body_split"]["s06_owns"]
 
     subject = EligibilitySubject(
         id=art["id"],
@@ -236,12 +405,100 @@ def test_consumer_fixture_paths_agree() -> None:
             ArtifactInventoryEntry(**e) if isinstance(e, dict) else e for e in rctx["artifact_inventory"]
         ),
     )
-    trust = _trust(**route["trust"])
+    route_trust = _trust(**route["trust"])
 
-    for path_name in ("route", "dependency", "body"):
-        result = evaluate_eligibility(subject, ctx, trust, POLICY, path=path_name)  # type: ignore[arg-type]
-        assert result.eligible is route["expect"]["eligible"]
-        assert list(result.unsatisfied_artifacts) == route["expect"]["unsatisfied_artifacts"]
+    route_result = evaluate_eligibility(subject, ctx, route_trust, POLICY, path="route")
+    assert route_result.eligible is route["expect"]["eligible"]
+    assert list(route_result.unsatisfied_artifacts) == route["expect"]["unsatisfied_artifacts"]
+
+    dep_subject = EligibilitySubject(id=dep["subject_id"])
+    dep_result = evaluate_dependency_eligibility(dep_subject, ctx, _trust(**dep["trust_denied"]), POLICY)
+    assert dep_result.eligible is dep["expect"]["eligible"]
+    assert any(code in dep_result.reason_codes for code in dep["expect"]["reason_codes_any_of"])
+
+    body_ok = evaluate_eligibility(
+        subject,
+        ctx,
+        route_trust,
+        POLICY,
+        path="body",
+        expected_content_digest=body["expected_content_digest"],
+    )
+    assert body_ok.eligible is body["expect_ok"]["eligible"]
+    assert list(body_ok.unsatisfied_artifacts) == body["expect_ok"]["unsatisfied_artifacts"]
+
+    body_stale = evaluate_eligibility(
+        subject,
+        ctx,
+        route_trust,
+        POLICY,
+        path="body",
+        expected_content_digest=body["expect_stale"]["expected_content_digest"],
+    )
+    assert body_stale.eligible is False
+    assert list(body_stale.reason_codes) == body["expect_stale"]["reason_codes"]
+
+
+def test_asset_invalid_emitted() -> None:
+    """ATLAS NIT: emit asset_invalid when S02 admission flagged assets bad."""
+    subject = EligibilitySubject(id="egr_asset001", assets_valid=False)
+    result = evaluate_eligibility(subject, RouteContext(), _trust(subject.id), POLICY)
+    assert result.eligible is False
+    assert REASON_ASSET_INVALID in result.reason_codes
+
+
+def test_host_id_lowercased() -> None:
+    """ATLAS NIT: host ids compared case-insensitively like frameworks."""
+    subject = EligibilitySubject(
+        id="egr_host0001",
+        compatibility=Compatibility(
+            hosts=[HostRequirement(id="Cursor", version=VersionConstraint(scheme="semver", range=">=0.40.0"))]
+        ),
+    )
+    ctx = RouteContext(host=HostFact(id="CURSOR", version="0.45.0"))
+    result = evaluate_eligibility(subject, ctx, _trust(subject.id), POLICY)
+    assert result.eligible is True
+
+
+def test_trust_view_exceptions_propagate() -> None:
+    """ATLAS NIT: trust-view errors propagate; S07 must treat as deny."""
+
+    class BoomTrust:
+        @property
+        def engram_id(self) -> str:
+            raise RuntimeError("trust backend unavailable")
+
+        @property
+        def content_digest(self) -> str:
+            return DIGEST_A
+
+        @property
+        def quarantined(self) -> bool:
+            return False
+
+        @property
+        def lifecycle_status(self) -> str:
+            return "promoted"
+
+        @property
+        def origin_trusted(self) -> bool:
+            return True
+
+        @property
+        def signature_valid(self) -> bool | None:
+            return None
+
+        @property
+        def admitted(self) -> bool:
+            return True
+
+    with pytest.raises(RuntimeError, match="trust backend unavailable"):
+        evaluate_eligibility(
+            EligibilitySubject(id="egr_boom0001"),
+            RouteContext(),
+            BoomTrust(),  # type: ignore[arg-type]
+            POLICY,
+        )
 
 
 def test_sample_host_tooling_engram_fixture() -> None:

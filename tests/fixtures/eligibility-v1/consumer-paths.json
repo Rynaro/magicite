@@ -1,6 +1,30 @@
 {
   "schema": "magicite/eligibility-v1-consumer-fixtures/1",
-  "description": "Same artifact projected through route, dependency, and body eligibility paths (C2 / S06 action plan). S07/S08/S11 consume these shapes; trust views are fixture-backed until S04.",
+  "description": "Same artifact projected through route, dependency, and body eligibility paths (C2 / S06). Trust views are fixture-backed until S04.",
+  "trust_decision_view": {
+    "projection_of": "TrustDecision/1 (C10)",
+    "required_fields": [
+      "engram_id",
+      "content_digest",
+      "quarantined",
+      "lifecycle_status",
+      "origin_trusted",
+      "signature_valid",
+      "admitted"
+    ],
+    "admitted_owner": "S04 local review / trust policy — never inferred from signature alone",
+    "signature_alone_never_routable": true,
+    "s04_handoff": "S04 maps TrustDecision/1 → TrustDecisionView; eligibility consumes only the projection. Imported signature_valid=true with admitted=false or origin_trusted=false MUST stay ineligible."
+  },
+  "c10_body_split": {
+    "s06_owns": "path=body requires expected_content_digest == trust.content_digest (stale_digest)",
+    "s11_owns": [
+      "offline bundle/manifest signature verify",
+      "revocation overlay at disclosure",
+      "stale_decision on snapshot/policy drift after route",
+      "refusing procedure bytes on deny"
+    ]
+  },
   "server_policy": {
     "allowed_permissions": ["perm.read", "perm.write-project"],
     "allowed_tools": ["protontricks", "shell"],
@@ -56,28 +80,48 @@
       },
       "trust": {
         "engram_id": "egr_a1b2c3d4",
+        "content_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "lifecycle_status": "promoted",
         "quarantined": false,
         "origin_trusted": true,
+        "signature_valid": null,
         "admitted": true
       },
       "expect": {
         "eligible": true,
-        "unsatisfied_artifacts": ["artifact.wine-prefix"]
+        "unsatisfied_artifacts": ["artifact.wine-prefix"],
+        "reason_codes": []
       }
     },
     "dependency": {
-      "note": "Identical predicate; archived/quarantined trust excludes transitive deps (AC-S06-03).",
+      "note": "trust_denied on a required dep → ineligible on dependency path (AC-S06-03).",
+      "subject_id": "egr_d0000001",
       "trust_denied": {
-        "engram_id": "egr_dep00001",
+        "engram_id": "egr_d0000001",
+        "content_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "lifecycle_status": "archived",
         "quarantined": false,
         "origin_trusted": true,
+        "signature_valid": null,
         "admitted": false
+      },
+      "expect": {
+        "eligible": false,
+        "reason_codes_any_of": ["lifecycle_blocked"]
       }
     },
     "body": {
-      "note": "Body-load revalidation uses the same evaluate_eligibility(..., path='body') call; S11 wires digest/stale checks after S04."
+      "note": "path=body requires expected_content_digest matching trust.content_digest.",
+      "expected_content_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expect_ok": {
+        "eligible": true,
+        "unsatisfied_artifacts": ["artifact.wine-prefix"]
+      },
+      "expect_stale": {
+        "expected_content_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "eligible": false,
+        "reason_codes": ["stale_digest"]
+      }
     }
   }
 }
