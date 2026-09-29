@@ -67,8 +67,8 @@ ALLOCATIONS: tuple[MigrationAllocation, ...] = (
         number=6,
         stem="evidence_ledger",
         owner_slice="S09",
-        status="provisional",
-        purpose="Evidence ledger metadata mirrored into SQLite (provisional)",
+        status="shipped",
+        purpose="Evidence ledger file-domain projection tables (authoritative store is <data_dir>/evidence/)",
     ),
     MigrationAllocation(
         number=7,
