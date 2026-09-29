@@ -1441,69 +1441,84 @@ def export_evidence(
     event_ids: list[str] | None = None,
     export_dir: Path | None = None,
 ) -> Path:
-    """Export with fresh scoped pseudonyms; correlators re-keyed per export (C6)."""
-    _ = conn  # reserved for projection-aware export / caller lease context
-    root = evidence_dir(cfg)
-    by_id, _ = _scan_segment_authority(root) if root.exists() else ({}, 0)
-    selected = event_ids or [
-        eid
-        for eid, row in by_id.items()
-        if not row.get("deleted") and not _is_tombstoned(root, eid)
-    ]
-    scope_key = os.urandom(32)
-    pseudonym_scope = scope_key.hex()
-    out_dir = export_dir or (root / "exports" / f"export_{pseudonym_scope[:12]}")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    """Export with fresh scoped pseudonyms; correlators re-keyed per export (C6).
 
-    id_map: dict[str, str] = {}
-    events_out: list[dict[str, Any]] = []
-    correlator_fields = (
-        "query_fingerprint",
-        "context_fingerprint",
-        "registry_fingerprint",
-        "model_fingerprint",
-        "config_fingerprint",
-    )
-    for event_id in selected:
-        if _is_tombstoned(root, event_id):
-            continue
-        event = load_event(cfg, event_id)
-        if event is None:
-            continue
-        payload = event.to_dict()
-        _assert_no_raw_leak(payload)
-        for field_name in ("event_id", "decision_id"):
-            original = str(payload[field_name])
-            if original not in id_map:
-                id_map[original] = "pseudo_" + _export_rekey(original, scope_key=scope_key)[:16]
-            payload[field_name] = id_map[original]
-        for field_name in correlator_fields:
-            val = payload.get(field_name)
-            if isinstance(val, str) and val:
-                payload[field_name] = _export_rekey(val, scope_key=scope_key)
-        payload["fingerprint_scheme"] = "hmac-sha256/export-scoped-v1"
-        events_out.append(payload)
+    Writes under the existing CrossProcessLease when a connection is available
+    (or a short-lived DB connection is opened for fencing).
+    """
 
-    manifest = {
-        "kind": "EvidenceExport/1",
-        "pseudonym_scope": hashlib.sha256(scope_key).hexdigest()[:24],
-        "fingerprint_scheme": "hmac-sha256/export-scoped-v1",
-        "redaction_version": REDACTION_VERSION,
-        "exported_at": _now(),
-        "event_count": len(events_out),
-        "fingerprint_key_exported": False,
-        "correlators_rekeyed": True,
-    }
-    _assert_no_raw_leak(manifest)
-    _atomic_write_json(out_dir / "manifest.json", manifest)
-    export_path = out_dir / "events.jsonl"
-    with export_path.open("w", encoding="utf-8") as fh:
-        for row in events_out:
-            fh.write(_canonical_json(row) + "\n")
-        fh.flush()
-        os.fsync(fh.fileno())
-    _fsync_dir(out_dir)
-    return out_dir
+    def _write_export(owned_conn: sqlite3.Connection) -> Path:
+        with _evidence_write_guard(cfg, owned_conn, "evidence-export"):
+            root = evidence_dir(cfg)
+            by_id, _ = _scan_segment_authority(root) if root.exists() else ({}, 0)
+            selected = event_ids or [
+                eid
+                for eid, row in by_id.items()
+                if not row.get("deleted") and not _is_tombstoned(root, eid)
+            ]
+            scope_key = os.urandom(32)
+            pseudonym_scope = scope_key.hex()
+            out_dir = export_dir or (root / "exports" / f"export_{pseudonym_scope[:12]}")
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            id_map: dict[str, str] = {}
+            events_out: list[dict[str, Any]] = []
+            correlator_fields = (
+                "query_fingerprint",
+                "context_fingerprint",
+                "registry_fingerprint",
+                "model_fingerprint",
+                "config_fingerprint",
+            )
+            for event_id in selected:
+                if _is_tombstoned(root, event_id):
+                    continue
+                event = load_event(cfg, event_id)
+                if event is None:
+                    continue
+                payload = event.to_dict()
+                _assert_no_raw_leak(payload)
+                for field_name in ("event_id", "decision_id"):
+                    original = str(payload[field_name])
+                    if original not in id_map:
+                        id_map[original] = (
+                            "pseudo_" + _export_rekey(original, scope_key=scope_key)[:16]
+                        )
+                    payload[field_name] = id_map[original]
+                for field_name in correlator_fields:
+                    val = payload.get(field_name)
+                    if isinstance(val, str) and val:
+                        payload[field_name] = _export_rekey(val, scope_key=scope_key)
+                payload["fingerprint_scheme"] = "hmac-sha256/export-scoped-v1"
+                events_out.append(payload)
+
+            manifest = {
+                "kind": "EvidenceExport/1",
+                "pseudonym_scope": hashlib.sha256(scope_key).hexdigest()[:24],
+                "fingerprint_scheme": "hmac-sha256/export-scoped-v1",
+                "redaction_version": REDACTION_VERSION,
+                "exported_at": _now(),
+                "event_count": len(events_out),
+                "fingerprint_key_exported": False,
+                "correlators_rekeyed": True,
+            }
+            _assert_no_raw_leak(manifest)
+            _atomic_write_json(out_dir / "manifest.json", manifest)
+            export_path = out_dir / "events.jsonl"
+            raw = "".join(_canonical_json(row) + "\n" for row in events_out).encode("utf-8")
+            _atomic_write_bytes(export_path, raw)
+            return out_dir
+
+    if conn is not None:
+        return _write_export(conn)
+    from magicite.storage import db as db_mod
+
+    cfg.ensure_dirs()
+    owned = db_mod.connect(cfg.db_path)
+    try:
+        return _write_export(owned)
+    finally:
+        owned.close()
 
 
 def apply_retention(
