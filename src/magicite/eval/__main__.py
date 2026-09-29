@@ -1,4 +1,4 @@
-"""Small validation CLI for versioned evaluation corpora."""
+"""Validation CLI for versioned evaluation corpora and V1 manifests."""
 
 from __future__ import annotations
 
@@ -7,6 +7,14 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+
+from magicite.eval.validate import (
+    validate_claim_data,
+    validate_corpus_manifest_data,
+    validate_experiment_data,
+    validate_prediction_data,
+    validate_result_data,
+)
 
 
 def _has_cycle(nodes: set[str], edges: list[dict[str, Any]]) -> bool:
@@ -181,20 +189,62 @@ def validate_corpus(path: Path) -> list[str]:
     return validate_corpus_data(data)
 
 
+def _load_json(path: Path) -> tuple[Any | None, list[str]]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), []
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, [f"cannot read {path}: {exc}"]
+
+
+def _print_errors(errors: list[str]) -> int:
+    for error in errors:
+        print(f"ERROR: {error}", file=sys.stderr)
+    return 1 if errors else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m magicite.eval")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
     validate = subparsers.add_parser("validate-corpus")
     validate.add_argument("path", type=Path)
+
+    for name in (
+        "validate-experiment",
+        "validate-corpus-manifest",
+        "validate-prediction",
+        "validate-result",
+        "validate-claim",
+    ):
+        sp = subparsers.add_parser(name)
+        sp.add_argument("path", type=Path)
+
     args = parser.parse_args(argv)
 
-    errors = validate_corpus(args.path)
+    if args.command == "validate-corpus":
+        errors = validate_corpus(args.path)
+        if errors:
+            return _print_errors(errors)
+        data = json.loads(args.path.read_text(encoding="utf-8"))
+        print(f"validated {len(data['cases'])} independent composition cases")
+        return 0
+
+    data, load_errors = _load_json(args.path)
+    if load_errors:
+        return _print_errors(load_errors)
+    assert data is not None
+
+    validators = {
+        "validate-experiment": validate_experiment_data,
+        "validate-corpus-manifest": validate_corpus_manifest_data,
+        "validate-prediction": validate_prediction_data,
+        "validate-result": validate_result_data,
+        "validate-claim": validate_claim_data,
+    }
+    errors = validators[args.command](data)
     if errors:
-        for error in errors:
-            print(f"ERROR: {error}", file=sys.stderr)
-        return 1
-    data = json.loads(args.path.read_text(encoding="utf-8"))
-    print(f"validated {len(data['cases'])} independent composition cases")
+        return _print_errors(errors)
+    print(f"{args.command} ok")
     return 0
 
 
