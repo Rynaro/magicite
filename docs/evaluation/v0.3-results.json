@@ -3,6 +3,8 @@
   "result_id": "magicite-v0.3-superseding-2026-08-18",
   "published_at": "2026-08-18T00:00:00Z",
   "status": "superseding",
+  "evidence_class": "historical",
+  "reproducibility": "historical_carried_forward",
   "supersedes": [
     {
       "evidence": ".spectra/changes/archive/2026-08-15-magicite-v1-implementation/decisions/R12-FIRED.md",

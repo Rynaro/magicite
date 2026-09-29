@@ -2,10 +2,16 @@
 §Metrics; spec §7.1 unit-test table: "Hit@k, MRR, Plan F1 against
 hand-computed fixtures"). Pure functions, no I/O, no DB handle -- callers
 (``eval/bench.py``) feed in plain ranked-name lists and labels.
+
+V1 (S01 / evaluation.md E3): paired group bootstrap intervals and
+abstention coverage helpers. Plan F1 against production-derived gold is a
+**deprecated diagnostic** — independent structural corpora supply gold
+via ``magicite.eval.gold``.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 
@@ -174,8 +180,6 @@ def ndcg_at_k(ranked_names: list[str], relevant: dict[str, float], k: int) -> fl
     ``expected_top1``, not a relevance grade per candidate) to feed it
     with. ``relevant``: ``{name: graded_relevance}``, absent names score 0.
     """
-    import math
-
     dcg = 0.0
     for i, name in enumerate(ranked_names[:k]):
         rel = relevant.get(name, 0.0)
@@ -184,3 +188,182 @@ def ndcg_at_k(ranked_names: list[str], relevant: dict[str, float], k: int) -> fl
     ideal_order = sorted(relevant.values(), reverse=True)[:k]
     idcg = sum(rel / math.log2(i + 2) for i, rel in enumerate(ideal_order) if rel)
     return (dcg / idcg) if idcg > 0 else 0.0
+
+
+#: Status string for Plan F1 scored against production ``expand()`` gold.
+#: Independent corpus annotations use :data:`PLAN_F1_INDEPENDENT`.
+PLAN_F1_DEPRECATED_DIAGNOSTIC = "deprecated_diagnostic_circular_gold"
+PLAN_F1_INDEPENDENT = "independent_corpus"
+
+
+@dataclass(frozen=True)
+class BootstrapInterval:
+    """Percentile CI over paired group-level deltas (evaluation.md E3)."""
+
+    point_estimate: float
+    low: float
+    high: float
+    n_groups: int
+    n_resamples: int
+    seed: int
+
+    def to_dict(self) -> dict[str, float | int]:
+        return {
+            "point_estimate": round(self.point_estimate, 6),
+            "low": round(self.low, 6),
+            "high": round(self.high, 6),
+            "n_groups": self.n_groups,
+            "n_resamples": self.n_resamples,
+            "seed": self.seed,
+        }
+
+
+def _group_means(
+    group_ids: list[str],
+    candidate_scores: list[float],
+    incumbent_scores: list[float],
+) -> list[float]:
+    if not (len(group_ids) == len(candidate_scores) == len(incumbent_scores)):
+        raise ValueError("group_ids and score vectors must have equal length")
+    buckets: dict[str, list[float]] = {}
+    for group, cand, inc in zip(group_ids, candidate_scores, incumbent_scores, strict=True):
+        buckets.setdefault(group, []).append(cand - inc)
+    means: list[float] = []
+    for group in sorted(buckets):
+        values = buckets[group]
+        means.append(sum(values) / len(values))
+    return means
+
+
+def paired_bootstrap_ci(
+    group_ids: list[str],
+    candidate_scores: list[float],
+    incumbent_scores: list[float],
+    *,
+    n_resamples: int = 10_000,
+    seed: int = 0,
+    alpha: float = 0.05,
+) -> BootstrapInterval:
+    """Paired query-group bootstrap on candidate-minus-incumbent.
+
+    Resamples the original grouping unit (never correlated individual
+    variants). Default ``n_resamples=10000`` matches evaluation.md E3;
+    tests may use a smaller count for speed.
+
+    Percentile CI uses ``numpy.quantile(..., method="linear")`` (NumPy's
+    default, Hyndman & Fan type 7): the ``alpha/2`` and ``1 - alpha/2``
+    sample quantiles of the resampled group-mean deltas. This is the
+    ordinary percentile bootstrap interval, not BCa.
+    """
+    import numpy as np
+
+    if n_resamples < 1:
+        raise ValueError("n_resamples must be >= 1")
+    group_means = _group_means(group_ids, candidate_scores, incumbent_scores)
+    n_groups = len(group_means)
+    if n_groups == 0:
+        return BootstrapInterval(
+            point_estimate=0.0,
+            low=0.0,
+            high=0.0,
+            n_groups=0,
+            n_resamples=n_resamples,
+            seed=seed,
+        )
+    point = float(sum(group_means) / n_groups)
+    rng = np.random.default_rng(seed)
+    samples = np.empty(n_resamples, dtype=np.float64)
+    means_arr = np.asarray(group_means, dtype=np.float64)
+    for i in range(n_resamples):
+        draw = rng.integers(0, n_groups, size=n_groups)
+        samples[i] = float(means_arr[draw].mean())
+    low = float(np.quantile(samples, alpha / 2, method="linear"))
+    high = float(np.quantile(samples, 1 - alpha / 2, method="linear"))
+    return BootstrapInterval(
+        point_estimate=point,
+        low=low,
+        high=high,
+        n_groups=n_groups,
+        n_resamples=n_resamples,
+        seed=seed,
+    )
+
+
+@dataclass(frozen=True)
+class AbstentionReport:
+    """Abstention coverage / false-selection summary (evaluation.md E3)."""
+
+    n_answerable: int
+    n_no_match: int
+    coverage: float | None
+    false_selection_rate: float | None
+    coverage_wilson_low: float | None
+    false_selection_wilson_high: float | None
+
+    def to_dict(self) -> dict[str, float | int | None]:
+        def _round(value: float | None) -> float | None:
+            return None if value is None else round(value, 6)
+
+        return {
+            "n_answerable": self.n_answerable,
+            "n_no_match": self.n_no_match,
+            "coverage": _round(self.coverage),
+            "false_selection_rate": _round(self.false_selection_rate),
+            "coverage_wilson_low": _round(self.coverage_wilson_low),
+            "false_selection_wilson_high": _round(self.false_selection_wilson_high),
+        }
+
+
+def wilson_interval(successes: int, n: int, *, z: float = 1.959963984540054) -> tuple[float, float]:
+    """Two-sided Wilson score interval; also used for one-sided bounds."""
+    if n <= 0:
+        return (0.0, 1.0)
+    phat = successes / n
+    z2 = z * z
+    denom = 1.0 + z2 / n
+    centre = phat + z2 / (2 * n)
+    spread = z * math.sqrt((phat * (1 - phat) + z2 / (4 * n)) / n)
+    low = max(0.0, (centre - spread) / denom)
+    high = min(1.0, (centre + spread) / denom)
+    return (low, high)
+
+
+def abstention_report(
+    *,
+    answerable_selected: list[bool],
+    no_match_selected: list[bool],
+) -> AbstentionReport:
+    """Coverage on answerable queries; false-selection on no-match queries.
+
+    ``answerable_selected[i]`` is True when the system selected (did not
+    abstain) on an answerable query. ``no_match_selected[i]`` is True when
+    the system falsely selected on a no-match / should-abstain query.
+    """
+    n_answerable = len(answerable_selected)
+    n_no_match = len(no_match_selected)
+    coverage: float | None
+    false_rate: float | None
+    coverage_low: float | None
+    false_high: float | None
+    if n_answerable == 0:
+        coverage = None
+        coverage_low = None
+    else:
+        covered = sum(1 for selected in answerable_selected if selected)
+        coverage = covered / n_answerable
+        coverage_low, _ = wilson_interval(covered, n_answerable)
+    if n_no_match == 0:
+        false_rate = None
+        false_high = None
+    else:
+        false_pos = sum(1 for selected in no_match_selected if selected)
+        false_rate = false_pos / n_no_match
+        _, false_high = wilson_interval(false_pos, n_no_match)
+    return AbstentionReport(
+        n_answerable=n_answerable,
+        n_no_match=n_no_match,
+        coverage=coverage,
+        false_selection_rate=false_rate,
+        coverage_wilson_low=coverage_low,
+        false_selection_wilson_high=false_high,
+    )

@@ -90,7 +90,7 @@ def test_baseline_d_is_the_real_route(cfg, db_conn, embedder) -> None:
             query="rollback proton for a steam game", expected_top1="proton-ge-proton-downgrade"
         )
     ]
-    report = bench_mod.run_baseline(cfg, db_conn, embedder, "d", queries)
+    report = bench_mod.run_baseline(cfg, db_conn, embedder, "d", queries, allow_circular_diagnostic_gold=True)
     assert report.ranking.hit_at_1 == 1.0
 
 
@@ -99,7 +99,7 @@ def test_run_baseline_rejects_unknown_name(cfg, db_conn, embedder) -> None:
 
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     with pytest.raises(ValueError):
-        bench_mod.run_baseline(cfg, db_conn, embedder, "z", [])
+        bench_mod.run_baseline(cfg, db_conn, embedder, "z", [], allow_circular_diagnostic_gold=True)
 
 
 def test_plan_f1_reflects_the_declared_needs_edge(cfg, db_conn, embedder) -> None:
@@ -117,7 +117,7 @@ def test_run_bench_defaults_to_all_four_baselines(cfg, db_conn, embedder) -> Non
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     registry_mod.sync(cfg, db_conn, embedder)
     queries = bench_mod.load_queries(TOY_QUERIES_PATH)[:5]
-    report = bench_mod.run_bench(cfg, db_conn, embedder, queries=queries)
+    report = bench_mod.run_bench(cfg, db_conn, embedder, queries=queries, allow_circular_diagnostic_gold=True)
     assert set(report.baselines) == set(bench_mod.BASELINE_NAMES)
 
 
@@ -137,7 +137,7 @@ def test_bench_against_empty_registry_does_not_report_a_vacuous_perfect_plan_f1(
         bench_mod.LabelledQuery(query="rollback proton for a steam game", expected_top1="anything-at-all"),
         bench_mod.LabelledQuery(query="fix wine prefix", expected_top1="also-does-not-exist"),
     ]
-    report = bench_mod.run_baseline(cfg, db_conn, embedder, "d", queries)
+    report = bench_mod.run_baseline(cfg, db_conn, embedder, "d", queries, allow_circular_diagnostic_gold=True)
 
     assert report.ranking.hit_at_1 == 0.0
     assert report.ranking.hit_at_3 == 0.0

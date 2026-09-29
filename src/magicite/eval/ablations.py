@@ -73,9 +73,13 @@ def run_no_decay(
     (a freshly synced toy registry, never Dream'd), this switch has
     nothing yet to *not* decay -- an honest null result, not a bug; the
     switch is real and takes effect the moment R/S are non-zero."""
-    baseline = bench_mod.run_baseline(cfg, conn, embedder, "d", queries, k=k).ranking
+    baseline = bench_mod.run_baseline(
+        cfg, conn, embedder, "d", queries, k=k, allow_circular_diagnostic_gold=True
+    ).ranking
     ablated_cfg = dataclasses.replace(cfg, lambda_r_per_day=0.0, lambda_s_per_day=0.0)
-    ablated = bench_mod.run_baseline(ablated_cfg, conn, embedder, "d", queries, k=k).ranking
+    ablated = bench_mod.run_baseline(
+        ablated_cfg, conn, embedder, "d", queries, k=k, allow_circular_diagnostic_gold=True
+    ).ranking
     return AblationResult(
         name="no_decay",
         hypothesis="docs/07: without forgetting, old signals dominate; accuracy plateaus or degrades.",
@@ -98,9 +102,13 @@ def run_no_communities(
     table row 3, H-SCALE). ``cfg.ablation_no_communities`` is read by
     ``core/router.py::route()`` directly -- a real, additive Config
     switch, not a bench-only reimplementation."""
-    baseline = bench_mod.run_baseline(cfg, conn, embedder, "d", queries, k=k).ranking
+    baseline = bench_mod.run_baseline(
+        cfg, conn, embedder, "d", queries, k=k, allow_circular_diagnostic_gold=True
+    ).ranking
     ablated_cfg = dataclasses.replace(cfg, ablation_no_communities=True)
-    ablated = bench_mod.run_baseline(ablated_cfg, conn, embedder, "d", queries, k=k).ranking
+    ablated = bench_mod.run_baseline(
+        ablated_cfg, conn, embedder, "d", queries, k=k, allow_circular_diagnostic_gold=True
+    ).ranking
     return AblationResult(
         name="no_communities",
         hypothesis=(
@@ -154,7 +162,9 @@ def run_no_tag_capture(
     the *same* test split.
     """
     train, test = _train_test_split(queries)
-    baseline = bench_mod.run_baseline(cfg, conn, embedder, "d", test, k=k).ranking
+    baseline = bench_mod.run_baseline(
+        cfg, conn, embedder, "d", test, k=k, allow_circular_diagnostic_gold=True
+    ).ranking
 
     bumps: dict[str, float] = {}
     for q in train:
@@ -163,9 +173,7 @@ def run_no_tag_capture(
     ranking_pairs: list[tuple[list[str], str]] = []
     for q in test:
         ranked = bench_mod._baseline_b_rank(conn, embedder, q.query)  # cosine-only starting order
-        boosted = sorted(
-            range(len(ranked)), key=lambda i: (-bumps.get(ranked[i], 0.0), i)
-        )
+        boosted = sorted(range(len(ranked)), key=lambda i: (-bumps.get(ranked[i], 0.0), i))
         ranking_pairs.append(([ranked[i] for i in boosted], q.expected_top1))
     ablated = metrics_mod.aggregate_ranking(ranking_pairs)
 
