@@ -10,11 +10,13 @@ Owned by S06. Downstream consumers:
 
 Absent/null facts are **unknown**, never wildcard permission. Empty
 collections mean explicitly none. Request grants may only narrow server
-policy (AC-S06-02).
+policy (AC-S06-02). Grant/tool IDs are NFKC + casefold normalized; bare
+``*`` / embedded wildcards are rejected (fail closed).
 """
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Literal
@@ -22,6 +24,10 @@ from typing import Literal
 ROUTE_CONTEXT_SCHEMA = "RouteContext/1"
 
 PlatformName = Literal["linux", "macos", "windows"]
+
+
+class GrantNormalizationError(ValueError):
+    """Wildcard, empty, or otherwise illegal grant/tool id (fail closed)."""
 
 
 @dataclass(frozen=True)
@@ -101,6 +107,26 @@ class RouteContext:
         return {str(k).lower(): v for k, v in self.package_managers.items()}
 
 
+def normalize_grant_id(value: str) -> str:
+    """NFKC + casefold, matching language/framework key normalization intent."""
+    if not isinstance(value, str):
+        raise GrantNormalizationError(f"grant id must be str, got {type(value)!r}")
+    return unicodedata.normalize("NFKC", value).casefold()
+
+
+def normalize_grant_set(values: Iterable[str]) -> frozenset[str]:
+    """Normalize grant/tool ids; reject empty and wildcard tokens."""
+    out: set[str] = set()
+    for raw in values:
+        normalized = normalize_grant_id(raw)
+        if not normalized:
+            raise GrantNormalizationError(f"empty grant id rejected: {raw!r}")
+        if "*" in normalized:
+            raise GrantNormalizationError(f"wildcard grant id rejected: {raw!r}")
+        out.add(normalized)
+    return frozenset(out)
+
+
 def intersect_grants(
     *,
     request_permissions: Iterable[str] | None,
@@ -111,16 +137,17 @@ def intersect_grants(
 
     ``None`` request side means "no request narrowing" — effective equals the
     server ceiling (still cannot exceed it). An empty request set means
-    explicitly none.
+    explicitly none. IDs are NFKC+casefold normalized; wildcards raise
+    :class:`GrantNormalizationError`.
     """
-    server_perms = frozenset(server.allowed_permissions)
-    server_tools = frozenset(server.allowed_tools)
+    server_perms = normalize_grant_set(server.allowed_permissions)
+    server_tools = normalize_grant_set(server.allowed_tools)
 
     if request_permissions is None:
         eff_perms = server_perms
         denied_perms: frozenset[str] = frozenset()
     else:
-        req_perms = frozenset(request_permissions)
+        req_perms = normalize_grant_set(request_permissions)
         eff_perms = req_perms & server_perms
         denied_perms = req_perms - server_perms
 
@@ -128,7 +155,7 @@ def intersect_grants(
         eff_tools = server_tools
         denied_tools: frozenset[str] = frozenset()
     else:
-        req_tools = frozenset(request_tools)
+        req_tools = normalize_grant_set(request_tools)
         eff_tools = req_tools & server_tools
         denied_tools = req_tools - server_tools
 

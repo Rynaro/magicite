@@ -1,4 +1,4 @@
-"""Shared eligibility / compatibility evaluator (contracts.md C2).
+"""Shared eligibility / compatibility evaluator (contracts.md C2 / C10).
 
 Pure domain module owned by S06. Consumed by routing (S07), composition
 (S08), and body-load revalidation (S11 after S04 trust). Trust inputs are
@@ -15,13 +15,60 @@ Fail-closed rules (non-negotiable):
 * Artifact-kind prerequisites do **not** deny pre-ranking eligibility;
   they surface as ``unsatisfied_artifacts`` for C5 (AC-S06-05).
 * Lifecycle / quarantine / trust denials exclude dependencies the same
-  way as route candidates (AC-S06-03).
+  way as route candidates (AC-S06-03); use :func:`check_dependency_closure`
+  for transitive walks.
+* ``path="body"`` **requires** ``expected_content_digest`` and compares it
+  to ``trust.content_digest`` (``stale_digest`` on mismatch/missing). This
+  is the only C10 digest check owned here — see "C10 split" below.
+* Exceptions raised while reading a trust view **propagate**. S07/S08/S11
+  MUST catch and treat as deny (never interpret a raised trust view as
+  eligible).
+
+---------------------------------------------------------------------------
+TrustDecisionView ↔ C10 TrustDecision/1 (frozen projection contract)
+---------------------------------------------------------------------------
+
+Required projection fields (S04 MUST populate; no silent defaults that
+admit):
+
+| Field | Semantics | Fail-closed when absent/false |
+|---|---|---|
+| ``engram_id`` | Must equal the subject id | ``conflict`` |
+| ``content_digest`` | Bound content/manifest digest | body: ``stale_digest`` |
+| ``quarantined`` | Intake/scanner quarantine | ``quarantined`` |
+| ``lifecycle_status`` | Server lifecycle FSM status | not ROUTABLE → ``lifecycle_blocked`` |
+| ``origin_trusted`` | Authored / reviewed-import trust | ``untrusted_origin`` |
+| ``signature_valid`` | ``True``/``False``/``None`` (N/A) | ``False`` → ``signature_invalid`` |
+| ``admitted`` | Local routing/body admission (S04) | ``False`` → deny |
+
+**Who sets ``admitted``:** S04 local review / trust policy only (operator
+approve under pinned keys + revocation overlay). Eligibility never
+computes admission.
+
+**Imported signature alone NEVER makes an artifact routable (C10):**
+``signature_valid=True`` with ``admitted=False`` or ``origin_trusted=False``
+MUST remain ineligible. Signatures authenticate bytes; local admission is
+a separate control-plane decision.
+
+---------------------------------------------------------------------------
+C10 checks that remain S11's (not performed here)
+---------------------------------------------------------------------------
+
+* Full offline bundle/manifest Ed25519 verify + key fingerprint pin.
+* Revocation / expired-policy key overlay replay at body disclosure time.
+* ``stale_decision`` when registry snapshot / policy digest drifted after
+  the route decision (beyond the content digest equality check above).
+* Refusing to return procedure bytes / sensitive paths in explanations.
+* CLI/MCP schema wrapping around eligibility results.
+
+S06 only: eligibility predicate + body ``expected_content_digest`` vs
+``trust.content_digest``.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, runtime_checkable
 
@@ -34,12 +81,14 @@ from magicite.core.context import (
     RouteContext,
     ServerPermissionPolicy,
     intersect_grants,
+    normalize_grant_id,
 )
 from magicite.engram import (
     KNOWN_EXTENSIONS,
     Compatibility,
     EngramFrontmatterV1,
     EngramV1,
+    Relations,
     RequiredCapability,
     Risk,
     VersionConstraint,
@@ -50,6 +99,7 @@ from magicite.engram.model_v1 import Capabilities, ExtensionValue
 from magicite.engram.version_constraints import VersionConstraintError
 
 ELIGIBILITY_EVALUATOR_VERSION = "EligibilityEvaluator/1"
+DEFAULT_CLOSURE_MAX_DEPTH = 8
 
 #: Stable C2 reason codes (additional codes may appear; never fail open).
 REASON_QUARANTINED = "quarantined"
@@ -69,6 +119,10 @@ REASON_UNSUPPORTED_CONSTRAINT = "unsupported_constraint"
 REASON_CAPABILITY_DENIED = "capability_denied"
 REASON_PERMISSION_DENIED = "permission_denied"
 REASON_EVALUATOR_MISMATCH = "evaluator_mismatch"
+REASON_STALE_DIGEST = "stale_digest"
+REASON_CYCLE = "cycle"
+REASON_BUDGET_EXCEEDED = "budget_exceeded"
+REASON_DANGLING_DEPENDENCY = "dangling_dependency"
 
 _FILESYSTEM_RANK = {"none": 0, "read-project": 1, "write-project": 2}
 _SUBPROCESS_RANK = {"none": 0, "declared-tools": 1}
@@ -88,13 +142,20 @@ _SEMVER_COMPARATOR = re.compile(rf"^(<=|>=|<|>|=)\s*({_SEMVER_CORE})$")
 #: Delegates to Engram ROUTABLE_STATUSES (spec §5.1); all else fails closed.
 _ROUTABLE_LIFECYCLE: frozenset[str] = ROUTABLE_STATUSES
 
+ResolveFn = Callable[
+    [str, int],
+    "EligibilitySubject | EngramV1 | EngramFrontmatterV1 | None",
+]
+TrustViewFn = Callable[[str], "TrustDecisionView"]
+
 
 @runtime_checkable
 class TrustDecisionView(Protocol):
-    """Explicit trust input S04 will satisfy (TrustDecision/1 projection).
+    """Frozen projection of C10 ``TrustDecision/1`` that eligibility reads.
 
-    Eligibility never invents admission. Callers must supply a view —
-    fixture-backed today, registry/bundle-backed after S04 merges.
+    See module docstring for the field table, ``admitted`` ownership, and the
+    rule that an imported signature alone never grants routability. S04 is
+    the sole writer of real views; S06 only consumes them.
     """
 
     @property
@@ -119,7 +180,7 @@ class TrustDecisionView(Protocol):
 
     @property
     def admitted(self) -> bool:
-        """Local admission for routing/body disclosure under current policy."""
+        """Local admission — set by S04 review, never inferred from signature."""
         ...
 
 
@@ -144,9 +205,14 @@ class EligibilitySubject:
     compatibility: Compatibility | None = None
     capabilities: Capabilities | None = None
     risk: Risk | None = None
+    relations: Relations | None = None
     extensions: Mapping[str, ExtensionValue] = field(default_factory=dict)
     #: Optional permission ids the artifact declares it needs (policy intersect).
     required_permissions: frozenset[str] = frozenset()
+    #: Precomputed S02 asset-admission result. ``False`` → ``asset_invalid``.
+    #: Callers that ran ``validate_assets`` / ``load_artifact`` set this;
+    #: eligibility does not re-open the registry filesystem.
+    assets_valid: bool = True
 
 
 @dataclass(frozen=True)
@@ -166,20 +232,37 @@ class EligibilityResult:
         return REASON_CONTEXT_REQUIRED in self.reason_codes
 
 
-def subject_from_frontmatter(fm: EngramFrontmatterV1) -> EligibilitySubject:
+@dataclass(frozen=True)
+class DependencyClosureResult:
+    """Outcome of a transitive ``relations.requires`` walk (S08 / AC-S06-03)."""
+
+    root_id: str
+    eligible: bool
+    visited: tuple[str, ...]
+    denied: tuple[EligibilityResult, ...]
+    reason_codes: tuple[str, ...]
+    denied_chain: tuple[str, ...]
+    policy_digest: str
+
+
+def subject_from_frontmatter(fm: EngramFrontmatterV1, *, assets_valid: bool = True) -> EligibilitySubject:
     return EligibilitySubject(
         id=fm.id,
         compatibility=fm.compatibility,
         capabilities=fm.capabilities,
         risk=fm.risk,
+        relations=fm.relations,
         extensions=dict(fm.extensions),
+        assets_valid=assets_valid,
     )
 
 
-def subject_from_engram(engram: EngramV1 | EngramFrontmatterV1) -> EligibilitySubject:
+def subject_from_engram(
+    engram: EngramV1 | EngramFrontmatterV1, *, assets_valid: bool = True
+) -> EligibilitySubject:
     if isinstance(engram, EngramV1):
-        return subject_from_frontmatter(engram.frontmatter)
-    return subject_from_frontmatter(engram)
+        return subject_from_frontmatter(engram.frontmatter, assets_valid=assets_valid)
+    return subject_from_frontmatter(engram, assets_valid=assets_valid)
 
 
 def evaluate_eligibility(
@@ -190,13 +273,18 @@ def evaluate_eligibility(
     *,
     evaluator_version: str = ELIGIBILITY_EVALUATOR_VERSION,
     path: Literal["route", "dependency", "body"] = "route",
+    expected_content_digest: str | None = None,
 ) -> EligibilityResult:
     """Evaluate one artifact for route, dependency, or body-load paths.
 
-    ``path`` is recorded for consumer fixtures; the predicate is identical
-    across paths (C2: filter again before returning a composed plan / body).
+    For ``path="body"``, ``expected_content_digest`` is **required** and must
+    equal ``trust.content_digest`` or the result is ``stale_digest`` (fail
+    closed). Broader C10 body gates (revocation overlay, snapshot/policy
+    drift → ``stale_decision``, refusing procedure disclosure) remain S11's.
+
+    Trust-view attribute access is not caught here — exceptions propagate;
+    S07 must treat them as deny.
     """
-    del path  # identical predicate; retained for call-site clarity / fixtures
     if isinstance(subject, (EngramV1, EngramFrontmatterV1)):
         subject = subject_from_engram(subject)
 
@@ -225,6 +313,8 @@ def evaluate_eligibility(
             evaluator_version,
         )
 
+    _check_body_digest(path, expected_content_digest, trust, reason_codes, missing_fields)
+
     grants = intersect_grants(
         request_permissions=context.permission_grants,
         request_tools=context.allowed_tools,
@@ -233,6 +323,9 @@ def evaluate_eligibility(
 
     if subject.id in context.excluded_engram_ids:
         reason_codes.append(REASON_USER_EXCLUDED)
+
+    if not subject.assets_valid:
+        reason_codes.append(REASON_ASSET_INVALID)
 
     _apply_trust(trust, subject.id, reason_codes)
 
@@ -257,14 +350,10 @@ def evaluate_eligibility(
     if subject.required_permissions:
         _check_permissions(subject.required_permissions, grants, reason_codes)
 
-    # Dedup while preserving order.
     reason_codes = list(dict.fromkeys(reason_codes))
     missing_fields = list(dict.fromkeys(missing_fields))
     unsatisfied_artifacts = list(dict.fromkeys(unsatisfied_artifacts))
 
-    # Artifact gaps alone never produce reason codes (AC-S06-05): they only
-    # populate ``unsatisfied_artifacts``. Any reason code is blocking,
-    # including ``context_required``.
     eligible = len(reason_codes) == 0
 
     return _result(
@@ -283,9 +372,125 @@ def evaluate_dependency_eligibility(
     context: RouteContext,
     trust: TrustDecisionView,
     server_policy: ServerPermissionPolicy,
+    *,
+    expected_content_digest: str | None = None,
 ) -> EligibilityResult:
-    """Same predicate as route eligibility; named for S08 transitive checks."""
-    return evaluate_eligibility(subject, context, trust, server_policy, path="dependency")
+    """Single-node dependency check (same predicate, ``path="dependency"``)."""
+    return evaluate_eligibility(
+        subject,
+        context,
+        trust,
+        server_policy,
+        path="dependency",
+        expected_content_digest=expected_content_digest,
+    )
+
+
+def check_dependency_closure(
+    root: EligibilitySubject | EngramV1 | EngramFrontmatterV1,
+    resolve: ResolveFn,
+    context: RouteContext,
+    trust_view: TrustViewFn,
+    server_policy: ServerPermissionPolicy,
+    *,
+    max_depth: int = DEFAULT_CLOSURE_MAX_DEPTH,
+) -> DependencyClosureResult:
+    """Walk ``relations.requires`` transitively and re-evaluate each node.
+
+    Fails closed on cycles, depth/budget exhaustion, dangling resolves, and
+    any ineligible node. ``denied_chain`` is the path from the root to the
+    first blocking condition (cycle edge, missing dep, or denied node).
+    """
+    root_subject = subject_from_engram(root) if isinstance(root, (EngramV1, EngramFrontmatterV1)) else root
+    visited: list[str] = []
+    denied: list[EligibilityResult] = []
+    aggregate_reasons: list[str] = []
+    denied_chain: list[str] = []
+
+    def walk(node: EligibilitySubject, stack: list[str], depth: int) -> bool:
+        """Return True if this subtree is fully eligible."""
+        if node.id in stack:
+            cycle_path = [*stack, node.id]
+            denied_chain[:] = cycle_path
+            aggregate_reasons.append(REASON_CYCLE)
+            return False
+        if depth > max_depth:
+            denied_chain[:] = [*stack, node.id]
+            aggregate_reasons.append(REASON_BUDGET_EXCEEDED)
+            return False
+
+        trust = trust_view(node.id)
+        result = evaluate_dependency_eligibility(node, context, trust, server_policy)
+        if node.id not in visited:
+            visited.append(node.id)
+        if not result.eligible:
+            denied.append(result)
+            denied_chain[:] = [*stack, node.id]
+            aggregate_reasons.extend(result.reason_codes)
+            return False
+
+        requires = list(node.relations.requires) if node.relations is not None else []
+        for ref in requires:
+            child = resolve(ref.id, ref.version)
+            if child is None:
+                dangling = _result(
+                    ref.id,
+                    False,
+                    [REASON_DANGLING_DEPENDENCY],
+                    [f"relations.requires.{ref.id}@{ref.version}"],
+                    [],
+                    server_policy.policy_digest,
+                    ELIGIBILITY_EVALUATOR_VERSION,
+                )
+                denied.append(dangling)
+                denied_chain[:] = [*stack, node.id, ref.id]
+                aggregate_reasons.append(REASON_DANGLING_DEPENDENCY)
+                return False
+            child_subject = (
+                subject_from_engram(child) if isinstance(child, (EngramV1, EngramFrontmatterV1)) else child
+            )
+            if not walk(child_subject, [*stack, node.id], depth + 1):
+                return False
+        return True
+
+    ok = walk(root_subject, [], 0)
+    reason_codes = tuple(dict.fromkeys(aggregate_reasons))
+    return DependencyClosureResult(
+        root_id=root_subject.id,
+        eligible=ok and len(denied) == 0 and REASON_CYCLE not in reason_codes,
+        visited=tuple(visited),
+        denied=tuple(denied),
+        reason_codes=reason_codes,
+        denied_chain=tuple(denied_chain),
+        policy_digest=server_policy.policy_digest,
+    )
+
+
+def _check_body_digest(
+    path: Literal["route", "dependency", "body"],
+    expected_content_digest: str | None,
+    trust: TrustDecisionView,
+    reason_codes: list[str],
+    missing_fields: list[str],
+) -> None:
+    if path == "body":
+        if expected_content_digest is None or expected_content_digest == "":
+            reason_codes.append(REASON_STALE_DIGEST)
+            missing_fields.append("expected_content_digest")
+            return
+        trust_digest = trust.content_digest
+        if not trust_digest or trust_digest != expected_content_digest:
+            reason_codes.append(REASON_STALE_DIGEST)
+            if not trust_digest:
+                missing_fields.append("trust.content_digest")
+            return
+        return
+
+    # Optional check on non-body paths when the caller supplies a digest.
+    if expected_content_digest is not None and expected_content_digest != "":
+        trust_digest = trust.content_digest
+        if not trust_digest or trust_digest != expected_content_digest:
+            reason_codes.append(REASON_STALE_DIGEST)
 
 
 def _result(
@@ -315,7 +520,6 @@ def _apply_trust(trust: TrustDecisionView, subject_id: str, reason_codes: list[s
     if trust.quarantined:
         reason_codes.append(REASON_QUARANTINED)
     status = trust.lifecycle_status.lower().strip()
-    # Unknown or non-routable lifecycle vocabulary fails closed (C2).
     if status not in _ROUTABLE_LIFECYCLE:
         reason_codes.append(REASON_LIFECYCLE_BLOCKED)
     if not trust.origin_trusted:
@@ -323,7 +527,8 @@ def _apply_trust(trust: TrustDecisionView, subject_id: str, reason_codes: list[s
     if trust.signature_valid is False:
         reason_codes.append(REASON_SIGNATURE_INVALID)
     if not trust.admitted:
-        # Admitted=False without a more specific code still blocks.
+        # Signature alone never admits (C10). admitted=False always blocks;
+        # keep a specific code when one already applies, else untrusted_origin.
         if not any(
             c in reason_codes
             for c in (
@@ -429,11 +634,12 @@ def _check_compatibility(
             reason_codes.append(REASON_CONTEXT_REQUIRED)
             missing_fields.append("host")
         else:
-            allowed_ids = {h.id for h in compat.hosts}
-            if context.host.id not in allowed_ids:
+            host_id = context.host.id.lower()
+            allowed = {h.id.lower(): h for h in compat.hosts}
+            if host_id not in allowed:
                 reason_codes.append(REASON_HOST_MISMATCH)
             else:
-                host_req = next(h for h in compat.hosts if h.id == context.host.id)
+                host_req = allowed[host_id]
                 if host_req.version is not None:
                     if context.host.version is None:
                         reason_codes.append(REASON_CONTEXT_REQUIRED)
@@ -475,7 +681,6 @@ def _check_capabilities(
         if req.kind == "artifact":
             _check_artifact_requirement(req, context, unsatisfied_artifacts)
             continue
-        # host-kind
         if context.capabilities is None:
             reason_codes.append(REASON_CONTEXT_REQUIRED)
             missing_fields.append(f"capabilities.{req.id}")
@@ -497,12 +702,7 @@ def _check_artifact_requirement(
     context: RouteContext,
     unsatisfied_artifacts: list[str],
 ) -> None:
-    """Artifact prerequisites never deny pre-ranking eligibility (AC-S06-05).
-
-    Known-empty or missing entry → list in ``unsatisfied_artifacts``.
-    Omitted inventory is unknown: still list as unsatisfied so C5 may
-    resolve via producers; do **not** invent presence (C2).
-    """
+    """Artifact prerequisites never deny pre-ranking eligibility (AC-S06-05)."""
     inventory = context.artifact_inventory
     if inventory is None:
         unsatisfied_artifacts.append(req.id)
@@ -513,8 +713,6 @@ def _check_artifact_requirement(
         if req.version is None:
             return
         if entry.version is None:
-            # Present but version unknown — composition must resolve; not a
-            # host denial. Treat as unsatisfied for safer planning.
             unsatisfied_artifacts.append(req.id)
             return
         if _version_satisfies(entry.version, req.version):
@@ -541,14 +739,14 @@ def _check_risk(
 
     if risk.subprocess.mode == "declared-tools":
         for tool in risk.subprocess.tools:
-            if tool not in grants.tools:
+            if normalize_grant_id(tool) not in grants.tools:
                 reason_codes.append(REASON_TOOL_DENIED)
                 break
 
 
 def _check_permissions(required: frozenset[str], grants: EffectiveGrants, reason_codes: list[str]) -> None:
     for perm in required:
-        if perm not in grants.permissions:
+        if normalize_grant_id(perm) not in grants.permissions:
             reason_codes.append(REASON_PERMISSION_DENIED)
 
 
@@ -598,10 +796,8 @@ def _semver_satisfies(version: str, range_text: str) -> bool:
 
     parts = [p.strip() for p in text.split(",")]
     for part in parts:
-        # Allow optional '=' omitted exact already handled; comparators required for multi.
         m = _SEMVER_COMPARATOR.match(part)
         if not m:
-            # Bare version already handled; treat as equality if exact.
             if _SEMVER_EXACT.match(part):
                 try:
                     if ver != Version(part.split("+", 1)[0]):
