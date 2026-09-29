@@ -1,0 +1,89 @@
+{
+  "schema": "magicite-corpus-manifest/1",
+  "corpus_id": "skillret-tiny-offline/1",
+  "artifacts": [
+    {
+      "path": "queries.json",
+      "sha256": "3626953c742d09b9e66fde51a9912c0ff1767be7d12e024c8b4c49af785567ed",
+      "role": "queries",
+      "byte_length": 1329
+    }
+  ],
+  "queries": [
+    {
+      "query_id": "skillret-tiny-001",
+      "query_text": "how do I configure offline skill retrieval fixtures",
+      "split": "development",
+      "relevance": {
+        "fixture-skill-a": 1.0
+      },
+      "group_id": "task-group-alpha",
+      "provenance": {
+        "origin": "offline_fixture",
+        "production_expansion_used": false,
+        "label_origin": "imported_official"
+      },
+      "accepted_plans": [
+        [
+          "fixture-skill-a"
+        ]
+      ],
+      "partial_order": [],
+      "negative_ids": [],
+      "ambiguous": false,
+      "compatibility_context": {}
+    },
+    {
+      "query_id": "skillret-tiny-002",
+      "query_text": "rank skills for documentation generation",
+      "split": "final",
+      "relevance": {
+        "fixture-skill-b": 1.0
+      },
+      "group_id": "task-group-beta",
+      "provenance": {
+        "origin": "offline_fixture",
+        "production_expansion_used": false,
+        "label_origin": "imported_official"
+      },
+      "accepted_plans": [
+        [
+          "fixture-skill-b"
+        ]
+      ],
+      "partial_order": [],
+      "negative_ids": [
+        "fixture-skill-a"
+      ],
+      "ambiguous": false,
+      "compatibility_context": {}
+    },
+    {
+      "query_id": "skillret-tiny-003",
+      "query_text": "no matching skill should abstain",
+      "split": "final",
+      "relevance": {},
+      "group_id": "task-group-gamma",
+      "provenance": {
+        "origin": "offline_fixture",
+        "production_expansion_used": false,
+        "label_origin": "imported_official"
+      },
+      "accepted_plans": [],
+      "partial_order": [],
+      "negative_ids": [
+        "fixture-skill-a",
+        "fixture-skill-b"
+      ],
+      "ambiguous": false,
+      "compatibility_context": {
+        "no_match": true
+      }
+    }
+  ],
+  "label_origin": "imported_official",
+  "dataset_revision": "offline-fixture-2026-09-29",
+  "license": "fixture-only-not-redistributable-as-skillret",
+  "content_identity_sha256": "08a5acbddd3a0459b0664decb881b21ed20da05e5cdc26eaabf7a2b933cf2971",
+  "n_queries": 3
+}

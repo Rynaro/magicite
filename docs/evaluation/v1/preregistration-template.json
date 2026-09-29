@@ -1,0 +1,50 @@
+{
+  "schema": "magicite-experiment-manifest/1",
+  "experiment_id": "magicite-v1-preregister-template/1",
+  "hypothesis": "Replace with the concrete retrieval/composition hypothesis before opening final labels.",
+  "reversal_condition": "Any trust/compatibility violation or failed/inconclusive paired quality gate keeps the frozen incumbent.",
+  "source_commit": "REPLACE_WITH_CLEAN_TREE_COMMIT",
+  "dirty_tree_digest": null,
+  "runner_lock_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "dependency_lock_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "corpus_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "labels_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "split_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "primary_metric": "hit_at_1",
+  "secondary_metrics": ["recall_at_5", "recall_at_10", "mrr", "ndcg_at_10"],
+  "statistical_method": "paired_group_bootstrap_percentile_95",
+  "thresholds": {
+    "noninferiority_margin_hit_at_1": 0.02,
+    "improvement_point_min": 0.01,
+    "abstention_false_selection_upper": 0.05,
+    "abstention_coverage_lower": 0.80
+  },
+  "seeds": {
+    "prediction": 0,
+    "bootstrap": 0
+  },
+  "embedder_artifact_sha256": null,
+  "policy_config_sha256": null,
+  "label_provenance": {
+    "origin": "independent",
+    "production_expansion_used": false,
+    "final_labels_opened": false
+  },
+  "dataset_license": "REPLACE",
+  "timestamp": "1970-01-01T00:00:00Z",
+  "supersedes": [],
+  "sample_power_plan": {
+    "power": 0.8,
+    "alpha_one_sided": 0.025,
+    "margin": 0.02,
+    "archived_before_final": true
+  },
+  "subgroup_definitions": {},
+  "environment": {
+    "reference_runner": "linux-amd64-4c-16g-ssd"
+  },
+  "warmup_cache": {
+    "warmup_queries": 50,
+    "measured_queries_min": 1000
+  }
+}

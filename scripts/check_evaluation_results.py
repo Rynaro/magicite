@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Validate superseding v0.3 evaluation evidence and reproduce composition metrics."""
+"""Validate evaluation evidence: historical v0.3 results and V1 claims.
+
+Legacy ``magicite-evaluation-results/1`` artifacts remain addressable and
+are labeled historical; V1 ``Claim/1`` + ``ResultManifest/1`` pairs get
+digest integrity checks. New results supersede, never overwrite.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +18,8 @@ from typing import Any
 from magicite.core import composition as composition_mod
 from magicite.eval import metrics as metrics_mod
 from magicite.eval.__main__ import validate_corpus_data
+from magicite.eval.digests import SCHEMA_CLAIM, SCHEMA_RESULT, sha256_json
+from magicite.eval.validate import validate_claim_integrity, validate_result_data
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -61,14 +68,14 @@ def _production_predictions(corpus: dict[str, Any]) -> tuple[list[dict[str, Any]
     return predictions, mismatches, metrics_mod.aggregate_plan_f1(metric_pairs)
 
 
-def check(path: Path) -> list[str]:
+def check_historical_v03(path: Path, result: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    try:
-        result = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        return [f"cannot read results: {exc}"]
-    if result.get("schema") != "magicite-evaluation-results/1":
-        errors.append("unexpected results schema")
+    if result.get("evidence_class") not in {None, "historical"}:
+        # Allow missing (pre-S01) or explicit historical label.
+        if result.get("status") == "superseding":
+            pass
+        else:
+            errors.append("v0.3 results must be labeled historical or superseding")
     if result.get("status") != "superseding" or len(result.get("supersedes", [])) < 2:
         errors.append("results must explicitly supersede prior composition evidence")
     for item in result.get("supersedes", []):
@@ -122,6 +129,59 @@ def check(path: Path) -> list[str]:
         errors.append("H-COMPOSE must remain explicitly scoped to structural expansion")
     if "remain untested" not in hypotheses.get("H-COMPOSE", {}).get("remaining", ""):
         errors.append("H-COMPOSE must retain its end-to-end limitation")
+    return errors
+
+
+def check_v1_claim_bundle(path: Path, payload: dict[str, Any]) -> list[str]:
+    """Validate a V1 claim document that embeds/references result + predictions."""
+    errors: list[str] = []
+    claim = payload.get("claim")
+    result = payload.get("result")
+    predictions = payload.get("predictions")
+    experiment = payload.get("experiment")
+    labels_sha256 = payload.get("current_labels_sha256")
+    if not isinstance(claim, dict):
+        return ["v1 claim bundle requires a claim object"]
+    if claim.get("schema") != SCHEMA_CLAIM:
+        errors.append(f"claim.schema must be {SCHEMA_CLAIM}")
+    if isinstance(result, dict):
+        errors.extend(validate_result_data(result))
+        if result.get("schema") != SCHEMA_RESULT:
+            errors.append(f"result.schema must be {SCHEMA_RESULT}")
+    errors.extend(
+        validate_claim_integrity(
+            claim,
+            result=result if isinstance(result, dict) else {"prediction_digests": [], "aggregates": {}},
+            predictions=predictions if isinstance(predictions, list) else None,
+            experiment=experiment if isinstance(experiment, dict) else None,
+            current_labels_sha256=str(labels_sha256) if labels_sha256 is not None else None,
+        )
+    )
+    # Recompute claim↔result digest when both present and well-formed.
+    if isinstance(result, dict) and not validate_result_data(result):
+        if claim.get("result_digest") and claim["result_digest"] != sha256_json(result):
+            if "result_digest does not match provided result bytes" not in errors:
+                errors.append("result_digest does not match provided result bytes")
+    return errors
+
+
+def check(path: Path) -> list[str]:
+    errors: list[str] = []
+    try:
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"cannot read results: {exc}"]
+
+    schema = result.get("schema")
+    if schema == "magicite-evaluation-results/1":
+        return check_historical_v03(path, result)
+    if schema == "magicite-claim-bundle/1" or (
+        isinstance(result.get("claim"), dict) and result["claim"].get("schema") == SCHEMA_CLAIM
+    ):
+        return check_v1_claim_bundle(path, result)
+    if schema == SCHEMA_CLAIM:
+        return check_v1_claim_bundle(path, {"claim": result, "result": result.get("result")})
+    errors.append("unexpected results schema; expected magicite-evaluation-results/1 or a V1 claim bundle")
     return errors
 
 

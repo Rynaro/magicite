@@ -54,10 +54,14 @@ def test_baseline_metrics_emitted_via_cli(cfg, embedder) -> None:
     result = runner.invoke(
         bench_mod.cli,
         [
-            "--project-root", str(cfg.project_root),
-            "--queries", TOY_QUERIES_PATH,
-            "--baseline", "b",
-            "--baseline", "d",
+            "--project-root",
+            str(cfg.project_root),
+            "--queries",
+            TOY_QUERIES_PATH,
+            "--baseline",
+            "b",
+            "--baseline",
+            "d",
         ],
         env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"},
     )
@@ -87,3 +91,30 @@ def test_all_four_baselines_run_and_report_real_numbers(cfg, db_conn, embedder) 
     assert report.registry_size == 7
     for baseline in report.baselines.values():
         assert baseline.ranking.n_queries == len(queries)
+        # Legacy expand()-as-gold Plan F1 remains available but labeled.
+        assert baseline.plan_f1_status == "deprecated_diagnostic_circular_gold"
+        assert baseline.to_dict()["plan_f1_status"] == "deprecated_diagnostic_circular_gold"
+
+
+def test_structural_gold_loading_rejects_production_planner(monkeypatch) -> None:
+    """AC-S01-04: expected plans originate only from corpus annotations.
+
+    A production-planner sentinel must not be invoked while gold labels
+    are loaded from an independent structural corpus.
+    """
+    from magicite.core import composition as composition_mod
+    from magicite.eval import gold as gold_mod
+
+    def _boom(*_args, **_kwargs):
+        raise AssertionError("production planner must not run during gold loading")
+
+    monkeypatch.setattr(composition_mod, "expand", _boom)
+    # Even if something imports expand into gold (it must not), fail loudly.
+    monkeypatch.setattr(gold_mod, "expand", _boom, raising=False)
+
+    gold = gold_mod.load_structural_gold("docs/evaluation/composition-v0.3.json")
+    plans = gold.expected_plans_by_case_id()
+    assert plans["compose-001"][0] == "build-package"
+    assert gold.label_policy["production_expansion_used"] is False
+    for case in gold.cases:
+        assert case.label_provenance.get("production_expansion_used") is False

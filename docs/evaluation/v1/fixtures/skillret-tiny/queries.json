@@ -1,0 +1,72 @@
+[
+  {
+    "query_id": "skillret-tiny-001",
+    "query_text": "how do I configure offline skill retrieval fixtures",
+    "split": "development",
+    "relevance": {
+      "fixture-skill-a": 1.0
+    },
+    "group_id": "task-group-alpha",
+    "provenance": {
+      "origin": "offline_fixture",
+      "production_expansion_used": false,
+      "label_origin": "imported_official"
+    },
+    "accepted_plans": [
+      [
+        "fixture-skill-a"
+      ]
+    ],
+    "partial_order": [],
+    "negative_ids": [],
+    "ambiguous": false,
+    "compatibility_context": {}
+  },
+  {
+    "query_id": "skillret-tiny-002",
+    "query_text": "rank skills for documentation generation",
+    "split": "final",
+    "relevance": {
+      "fixture-skill-b": 1.0
+    },
+    "group_id": "task-group-beta",
+    "provenance": {
+      "origin": "offline_fixture",
+      "production_expansion_used": false,
+      "label_origin": "imported_official"
+    },
+    "accepted_plans": [
+      [
+        "fixture-skill-b"
+      ]
+    ],
+    "partial_order": [],
+    "negative_ids": [
+      "fixture-skill-a"
+    ],
+    "ambiguous": false,
+    "compatibility_context": {}
+  },
+  {
+    "query_id": "skillret-tiny-003",
+    "query_text": "no matching skill should abstain",
+    "split": "final",
+    "relevance": {},
+    "group_id": "task-group-gamma",
+    "provenance": {
+      "origin": "offline_fixture",
+      "production_expansion_used": false,
+      "label_origin": "imported_official"
+    },
+    "accepted_plans": [],
+    "partial_order": [],
+    "negative_ids": [
+      "fixture-skill-a",
+      "fixture-skill-b"
+    ],
+    "ambiguous": false,
+    "compatibility_context": {
+      "no_match": true
+    }
+  }
+]
