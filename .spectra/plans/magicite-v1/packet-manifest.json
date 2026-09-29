@@ -9,8 +9,8 @@
     },
     {
       "path": ".spectra/plans/magicite-v1/acceptance.md",
-      "sha256": "20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673",
-      "size_bytes": 18903
+      "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c",
+      "size_bytes": 19695
     },
     {
       "path": ".spectra/plans/magicite-v1/amendments/A01-ac-s02-01-preserved-bytes.md",
@@ -18,9 +18,14 @@
       "size_bytes": 4725
     },
     {
+      "path": ".spectra/plans/magicite-v1/amendments/A02-c6-export-deletion-scope.md",
+      "sha256": "daee4e0b984038275615f9d309439bc2281804f709e2223a3619734bf5ba6a47",
+      "size_bytes": 6432
+    },
+    {
       "path": ".spectra/plans/magicite-v1/contracts.md",
-      "sha256": "04f31869df9bc5fd2ab4dc2bf713f77f6b66c287870b40688994deb0fddc3d1a",
-      "size_bytes": 27731
+      "sha256": "a92b16bcb724899568260b32842285b6a10464b66c5838f7c071eb108d320766",
+      "size_bytes": 28301
     },
     {
       "path": ".spectra/plans/magicite-v1/evaluation.md",
@@ -39,8 +44,8 @@
     },
     {
       "path": ".spectra/plans/magicite-v1/plan.json",
-      "sha256": "db31caa57e1203b9609c8e96117e1fe9966f0dfd749cd4af438b51da8f41d9ba",
-      "size_bytes": 13924
+      "sha256": "073d6322dbdcf9a0b959838f7232f093ac8f0e5dd632e90cde753bbd6318be06",
+      "size_bytes": 14289
     },
     {
       "path": ".spectra/plans/magicite-v1/release-gates.md",
@@ -104,8 +109,8 @@
     },
     {
       "path": ".spectra/plans/magicite-v1/slices/s09-evidence-receipts-durable-ledger-and-privacy.md",
-      "sha256": "b845798a1782250f32480b560fa5fef4dbaaf6fb8ba084b9384626bf65015f09",
-      "size_bytes": 4637
+      "sha256": "19959c060e365a043da15a20619508f221cddf602c243ca599e385b8157e22f2",
+      "size_bytes": 5653
     },
     {
       "path": ".spectra/plans/magicite-v1/slices/s10-experimental-shadow-policy-and-reviewed-promotion.md",
@@ -144,8 +149,8 @@
     },
     {
       "path": ".spectra/plans/magicite-v1.md",
-      "sha256": "c9aed40d822f118a336d2b900bb8a89f83cc71795c2ca4f2323ea27692b3df99",
-      "size_bytes": 8493
+      "sha256": "5f7471ab7e4272603ccf76a7736c8d05ad911d2f43823ca9c5bd6c0ea2fa4bb7",
+      "size_bytes": 8586
     }
   ]
 }
