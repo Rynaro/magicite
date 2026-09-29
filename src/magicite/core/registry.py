@@ -386,6 +386,7 @@ def _ingest_one(
     intake_channel: trust_mod.SourceChannel = "local_register",
     signature_valid: bool | None = None,
     signer_fingerprint: str | None = None,
+    resource_digest: str | None = None,
 ) -> tuple[RegisteredEntry | None, ValidationError | None, bool, list[str]]:
     """Returns (registered_entry, validation_error, skipped_unchanged, dangling)."""
     result = lint_mod.lint(engram, profile=profile)  # type: ignore[arg-type]
@@ -423,7 +424,14 @@ def _ingest_one(
         cfg is not None
         and not scan.quarantine_recommended
         and trust_mod.admission_still_valid(
-            cfg, engram_id=engram.id, content_digest=engram.content_sha256
+            cfg,
+            engram_id=engram.id,
+            content_digest=engram.content_sha256,
+            resource_digest=(
+                resource_digest
+                if resource_digest is not None
+                else trust_mod.compute_resource_digest_at(cfg, relpath=engram.path)
+            ),
         )
     ):
         verification_status = "verified"
@@ -459,7 +467,14 @@ def _ingest_one(
         and server_origin in ("imported", "distilled")
         and verification_status != "verified"
         and not trust_mod.admission_still_valid(
-            cfg, engram_id=fm.id, content_digest=engram.content_sha256
+            cfg,
+            engram_id=fm.id,
+            content_digest=engram.content_sha256,
+            resource_digest=(
+                resource_digest
+                if resource_digest is not None
+                else trust_mod.compute_resource_digest_at(cfg, relpath=engram.path)
+            ),
         )
     ):
         trust_mod.record_pending_intake(
@@ -471,6 +486,11 @@ def _ingest_one(
             actor="register",
             signature_valid=signature_valid,
             signer_fingerprint=signer_fingerprint,
+            resource_digest=(
+                resource_digest
+                if resource_digest is not None
+                else trust_mod.compute_resource_digest_at(cfg, relpath=engram.path)
+            ),
             reasons=("awaiting local admission",),
         )
 
@@ -935,6 +955,8 @@ def import_bundle(
 ) -> BundleImportOutcome:
     """Verify a signed portable bundle offline, then stage members as pending.
 
+    Preserves archive-relative hierarchy under the registry root (including
+    non-``.egr.md`` assets) so admitted resource digests match on-disk bytes.
     Fail closed on zip-slip, digest mismatch, unknown/revoked keys, or
     non-canonical manifests. Successful members remain pending until
     :func:`review_approve`.
@@ -954,25 +976,42 @@ def import_bundle(
     assert verified.manifest is not None
 
     project_root = cfg.project_root.resolve()
+    registry_root = cfg.registry_dir.resolve()
     outcome = IngestOutcome()
     cross_lease = _cross_process_lease(cfg, conn, "bundle-import")
     with cross_lease.acquire(), lease_mod.writer_lease():
+        # Stage every verified member (engrams + assets) preserving hierarchy.
+        staged_egr: list[Path] = []
         for entry in verified.manifest.entries:
-            if not entry.path.endswith(".egr.md"):
-                continue
             src = verified.staging_dir / entry.path
-            dest = cfg.registry_dir / Path(entry.path).name
+            dest = (registry_root / entry.path).resolve()
+            try:
+                dest.relative_to(registry_root)
+            except ValueError as exc:
+                raise InvalidInputError(
+                    f"bundle member escapes registry root: {entry.path!r}"
+                ) from exc
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(src.read_bytes())
+            if entry.path.endswith(".egr.md"):
+                staged_egr.append(dest)
+
+        for dest in staged_egr:
+            rel_in_registry = str(dest.relative_to(registry_root).as_posix())
             try:
                 artifact, _doc = parser_mod.load_artifact_file(
-                    dest, registry_root=project_root, require_asset_files=False
+                    dest,
+                    registry_root=registry_root,
+                    require_asset_files=True,
                 )
                 engram = _artifact_to_engram(artifact, intake_channel="bundle_import")
+                engram.path = str(dest.resolve().relative_to(project_root))
             except parser_mod.EngramParseError as exc:
-                outcome.validation_errors.append(ValidationError(path=entry.path, message=str(exc)))
-                dest.unlink(missing_ok=True)
+                outcome.validation_errors.append(
+                    ValidationError(path=rel_in_registry, message=str(exc))
+                )
                 continue
+            resource = trust_mod.compute_resource_digest_at(cfg, relpath=engram.path)
             registered, verr, _skipped, dangling = _ingest_one(
                 conn,
                 embedder,
@@ -983,6 +1022,7 @@ def import_bundle(
                 intake_channel="bundle_import",
                 signature_valid=True,
                 signer_fingerprint=verified.signer_fingerprint,
+                resource_digest=resource,
             )
             if verr:
                 outcome.validation_errors.append(verr)
@@ -1037,6 +1077,17 @@ def review_approve(
                     reason=reason,
                     event_id=event_id,
                 )
+                live_resource = trust_mod.live_resource_digest(cfg, conn, engram_id)
+                if not trust_mod.admission_still_valid(
+                    cfg,
+                    engram_id=engram_id,
+                    content_digest=decision.content_digest,
+                    resource_digest=live_resource,
+                ):
+                    raise InvalidInputError(
+                        "admission is not valid after approve (stale_decision)",
+                        details={"engram_id": engram_id, "reason": "stale_decision"},
+                    )
                 lifecycle_mod.apply_local_admission(conn, engram_id=engram_id, admit=True)
                 approvals_mod.propose(
                     conn,
@@ -1142,7 +1193,7 @@ def trust_view_for(
 ) -> trust_mod.TrustDecisionView:
     """Project current trust state as a TrustDecisionView for S06."""
     row = conn.execute(
-        "SELECT content_sha256, status, verification_status, origin FROM engram WHERE id = ?",
+        "SELECT content_sha256, status, verification_status, origin, path FROM engram WHERE id = ?",
         (engram_id,),
     ).fetchone()
     if row is None:
@@ -1152,10 +1203,17 @@ def trust_view_for(
     if origin == "authored":
         channel = "local_register"
     elif origin == "imported":
-        prior = trust_mod.latest_decision_for(cfg, engram_id)
+        try:
+            prior = trust_mod.latest_decision_for(cfg, engram_id)
+        except trust_mod.TrustLedgerCorruptError:
+            prior = None
         channel = prior.source_channel if prior else "external_file"
     else:
         channel = "unknown"
+    try:
+        resource = trust_mod.live_resource_digest(cfg, conn, engram_id)
+    except InvalidInputError:
+        resource = None
     return trust_mod.project_trust_view(
         cfg,
         engram_id=engram_id,
@@ -1163,4 +1221,5 @@ def trust_view_for(
         lifecycle_status=str(row["status"]),
         verification_status=str(row["verification_status"]),
         intake_channel=channel,
+        resource_digest=resource,
     )
