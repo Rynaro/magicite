@@ -1,0 +1,146 @@
+{
+  "schema": "magicite/spec-packet/1",
+  "base_commit": "496e4eded09f7c0b8e0b776c3c709bccadc0321a",
+  "files": [
+    {
+      "path": ".spectra/plans/magicite-v1/README.md",
+      "sha256": "7903a3d3d93eb5dc84d6f83f075e4d1f929a17dee752dacaf41fd825a34f3eef",
+      "size_bytes": 8079
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/acceptance.md",
+      "sha256": "77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458",
+      "size_bytes": 18491
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/contracts.md",
+      "sha256": "04f31869df9bc5fd2ab4dc2bf713f77f6b66c287870b40688994deb0fddc3d1a",
+      "size_bytes": 27731
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/evaluation.md",
+      "sha256": "44e829211fcd4a844f8daea32f5cec1186e27067ac434bc972df6918f3b44de8",
+      "size_bytes": 11525
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/handoff.yaml",
+      "sha256": "124ae125a9f89386df203b11b6fd0170324efca97ff8abe37fc93ec187c79701",
+      "size_bytes": 378
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/mission.md",
+      "sha256": "6697647222c298dd5037e0a9b089256fc1af914bb5d792c202fe810b4fc6a5d5",
+      "size_bytes": 2094
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/plan.json",
+      "sha256": "451cb23c955dd3e0c36d1439fbd569593a4d16d2404b60f594294b0807608ce8",
+      "size_bytes": 13574
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/release-gates.md",
+      "sha256": "a71ae83746c3490985ed7ed3a70735d673e838dc8051c1a59e5f0ff1052ba19b",
+      "size_bytes": 7498
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/research/corrections.md",
+      "sha256": "e6d411748ddf1862838b8a833be1011f88cfd293fab58dc1c3fd87df58222233",
+      "size_bytes": 4133
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/scout-report.md",
+      "sha256": "bc2cbe5870c0f49dcbb5c5615ec15e19c7258ec07f9507ef96e7d8fd43f06910",
+      "size_bytes": 7647
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s00-stable-policy-boundary-and-dense-incumbent.md",
+      "sha256": "7cb458ef5a9986972d776c07f71216d1f23c2c28c0aeaf592482ac930ba8c26a",
+      "size_bytes": 4384
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s01-evidence-integrity-and-reproducible-evaluation.md",
+      "sha256": "3b5ec27b6dc60c344cc375e02b8562a7313d0dd5201c4f32996f6e7065dda4e6",
+      "size_bytes": 4640
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s02-engram-1.0-schema-and-lossless-artifacts.md",
+      "sha256": "e542b04cbbb92bc3044fba5d2cf6c47a98058f7b5e403d093c76b711770b68a8",
+      "size_bytes": 4683
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s03-migration-authority-and-index-safe-storage-transitions.md",
+      "sha256": "ee04adc08624bde749ff079ed968329ce83fee703339cc2b502d9b6154469cd8",
+      "size_bytes": 4565
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s04-bundle-verification-and-digest-bound-local-trust.md",
+      "sha256": "3852f829c1ddb2b7703aa869ed106732690b102e7b0755b7c198c02898bd9674",
+      "size_bytes": 4545
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s05-full-text-indexes-and-hybrid-candidates.md",
+      "sha256": "a52230332c5bd78a68397759312af3b9df141ea1feb27cf16f1ae99deb977d8b",
+      "size_bytes": 4356
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s06-shared-eligibility-and-context-evaluation.md",
+      "sha256": "a814af7eda9498f7f206dd58bff46d1ef19dd204ad9f51efa6f1b54ddc65575b",
+      "size_bytes": 4647
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s07-route-orchestration-explanations-and-abstention.md",
+      "sha256": "cbd8a598f63b7da8dc7125ac3c979ae7755bf6dbc784b41071475665e5898313",
+      "size_bytes": 5062
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s08-typed-bounded-composition-and-host-verification-harness.md",
+      "sha256": "d22844a907e4273207fc45b09ce1ac1b18ef2be1a85ad6e43f4af65dc1d914c3",
+      "size_bytes": 5152
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s09-evidence-receipts-durable-ledger-and-privacy.md",
+      "sha256": "b845798a1782250f32480b560fa5fef4dbaaf6fb8ba084b9384626bf65015f09",
+      "size_bytes": 4637
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s10-experimental-shadow-policy-and-reviewed-promotion.md",
+      "sha256": "75f81e1b4d858e907dd5ea29703be2f88583b25ac42c64afd9634a3f2dc030fe",
+      "size_bytes": 4521
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s11-mcp-and-cli-contract-integration-and-conformance.md",
+      "sha256": "371f4a190b29359f94527e3965cd9897f7d87093b8075c3ff1a8ae2d2caff7cf",
+      "size_bytes": 4831
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s12-read-only-diagnosis-backup-and-crash-recovery.md",
+      "sha256": "e172d777086b40a47e1004d3552ce44b76b70728f4c90ab0641fdb83aa4672c1",
+      "size_bytes": 5114
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s13-clean-installation-and-verifiable-distribution.md",
+      "sha256": "854b73ed3c452f38c563f703ea32697f7e2c259b4b097d2540abfcb6b6b2e7db",
+      "size_bytes": 4720
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s14-scale-external-corpora-and-task-outcome-evidence.md",
+      "sha256": "b9434541c165b5b9ca04e41a41f6e7b46bbf2ae9543ce23be958ab596e07b7b8",
+      "size_bytes": 4641
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s15-operator-documentation-governance-and-generated-authority.md",
+      "sha256": "d031ba7d4609614d1c26fafbf30c0a2482436d9edd0cd61a383b7b5cc0bc9641",
+      "size_bytes": 4375
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/slices/s16-release-candidates-external-validation-and-ga-decision.md",
+      "sha256": "9819366f81995c8f12c0201f5280e5d1d8445c00b5cddea33a733c1a95351540",
+      "size_bytes": 4479
+    },
+    {
+      "path": ".spectra/plans/magicite-v1.md",
+      "sha256": "e52d0098d7cd1516f9d9b1c3404db5ceeb762c26805e10babfb57debf06a5988",
+      "size_bytes": 8304
+    }
+  ]
+}
