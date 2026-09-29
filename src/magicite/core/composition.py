@@ -14,6 +14,7 @@ Framework-free (INV-1), read-only. No runtime subprocess or network.
 
 from __future__ import annotations
 
+import heapq
 import sqlite3
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -820,7 +821,14 @@ def _revalidate_node(
             (),
         )
 
-    result = evaluate_eligibility(node.subject, context, trust, server_policy, path="dependency")
+    result = evaluate_eligibility(
+        node.subject,
+        context,
+        trust,
+        server_policy,
+        path="dependency",
+        expected_content_digest=node.content_digest,
+    )
     diags: list[PlanDiagnostic] = [
         PlanDiagnostic(code=code, message=f"eligibility denied: {code}", subject_id=node.id)
         for code in result.reason_codes
@@ -943,8 +951,22 @@ def _apply_relation_and_capability_edges(
     diagnostics: list[PlanDiagnostic],
     lim: CompositionLimits,
 ) -> bool:
-    """Add before/supersedes/conflicts/alternatives; return True on hard conflict."""
+    """Add before/supersedes/conflicts/alternatives; return True on hard conflict/budget."""
     ids = set(working)
+
+    def _append(edge: PlanEdge, *, subject_id: str) -> bool:
+        """Append if under budget; otherwise diagnose and signal stop (True)."""
+        if len(edges) >= lim.max_edges:
+            diagnostics.append(
+                PlanDiagnostic(
+                    code=REASON_BUDGET_EXCEEDED,
+                    message=f"normative edge budget exceeded (max_edges={lim.max_edges})",
+                    subject_id=subject_id,
+                )
+            )
+            return True
+        edges.append(edge)
+        return False
 
     for eid, (node, _) in working.items():
         rel = node.subject.relations
@@ -970,7 +992,8 @@ def _apply_relation_and_capability_edges(
                     )
                     return True
                 # before: ref must precede eid (ref → before → eid)
-                edges.append(PlanEdge(type="before", src_id=ref.id, dst_id=eid))
+                if _append(PlanEdge(type="before", src_id=ref.id, dst_id=eid), subject_id=eid):
+                    return True
 
             for ref in rel.supersedes:
                 target = working.get(ref.id)
@@ -1002,7 +1025,8 @@ def _apply_relation_and_capability_edges(
                         related_ids=(ref.id,),
                     )
                 )
-                edges.append(PlanEdge(type="supersedes", src_id=eid, dst_id=ref.id))
+                if _append(PlanEdge(type="supersedes", src_id=eid, dst_id=ref.id), subject_id=eid):
+                    return True
                 return True
 
         if caps is not None:
@@ -1016,23 +1040,20 @@ def _apply_relation_and_capability_edges(
                             related_ids=(other,),
                         )
                     )
-                    edges.append(PlanEdge(type="conflicts_with", src_id=eid, dst_id=other))
+                    if _append(
+                        PlanEdge(type="conflicts_with", src_id=eid, dst_id=other),
+                        subject_id=eid,
+                    ):
+                        return True
                     return True
             for other in caps.alternatives:
                 if other in ids:
-                    edges.append(
-                        PlanEdge(type="alternatives", src_id=eid, dst_id=other, optional=True)
-                    )
+                    if _append(
+                        PlanEdge(type="alternatives", src_id=eid, dst_id=other, optional=True),
+                        subject_id=eid,
+                    ):
+                        return True
 
-        if len(edges) > lim.max_edges:
-            diagnostics.append(
-                PlanDiagnostic(
-                    code=REASON_BUDGET_EXCEEDED,
-                    message=f"normative edge budget exceeded (max_edges={lim.max_edges})",
-                    subject_id=eid,
-                )
-            )
-            return True
     return False
 
 
@@ -1040,10 +1061,11 @@ def _stable_topo_sort(
     working: Mapping[str, tuple[CompositionNode, int]],
     edges: Sequence[PlanEdge],
 ) -> tuple[list[str], bool]:
-    """Kahn sort; ordering edges: dst depends on src (src before dst).
+    """Classic Kahn sort: repeatedly emit the single lexicographically-least ready id.
 
-    Ties broken by stable engram id. Returns ``(order, cycle_detected)``.
-    On cycle, ``order`` is empty (no executable prefix).
+    Ordering edges: dst depends on src (src before dst). Ties broken by engram id.
+    Returns ``(order, cycle_detected)``. On cycle, ``order`` is empty (no
+    executable prefix).
     """
     names = set(working)
     in_degree: dict[str, int] = dict.fromkeys(names, 0)
@@ -1058,18 +1080,21 @@ def _stable_topo_sort(
         in_degree[edge.dst_id] += 1
         dependents[edge.src_id].append(edge.dst_id)
 
+    ready = [n for n, deg in in_degree.items() if deg == 0]
+    heapq.heapify(ready)
     order: list[str] = []
     remaining = dict(in_degree)
-    while len(order) < len(names):
-        ready = sorted(n for n, deg in remaining.items() if deg == 0 and n not in order)
-        if not ready:
-            return [], True
-        for name in ready:
-            order.append(name)
-            remaining[name] = -1
-            for dep in dependents.get(name, []):
-                if dep not in order:
-                    remaining[dep] -= 1
+    while ready:
+        name = heapq.heappop(ready)
+        order.append(name)
+        remaining[name] = -1
+        for dep in dependents.get(name, []):
+            remaining[dep] -= 1
+            if remaining[dep] == 0:
+                heapq.heappush(ready, dep)
+
+    if len(order) != len(names):
+        return [], True
     return order, False
 
 
