@@ -121,16 +121,20 @@ def test_provenance_and_support() -> None:
 
 
 def test_enqueue_receipt_never_persists_raw_query(cfg, db_conn) -> None:
+    # Hot path: pass a precomputed fingerprint; raw query must never be stored.
     receipt = evidence_mod.enqueue_decision_receipt(
         cfg,
         query="SECRET_SENTINEL_raw_prompt_xyz",
+        query_fingerprint="a" * 64,
         candidate_ids=["skill_a"],
         policy_id="dense-v1",
         policy_digest="d1",
         source_tier=0,
     )
-    assert "SECRET" not in receipt.query_fingerprint
-    assert receipt.query_fingerprint
+    assert receipt is not None
+    assert receipt.query_fingerprint == "a" * 64
+    assert "SECRET" not in (receipt.query_fingerprint or "")
+    assert "SECRET" not in receipt.receipt_id
     assert (
         db_conn.execute("SELECT COUNT(*) AS n FROM evidence_event_projection").fetchone()["n"] == 0
     )

@@ -18,26 +18,37 @@ Privacy
 Default: no raw prompt, procedure output, secret, or absolute project path
 is persisted or exported. Query/context fingerprints use
 :mod:`magicite.core.fingerprint_key` (S09-owned authority; path + scheme
-``hmac-sha256/local-v1`` kept stable). Export uses fresh scoped pseudonyms.
-Retention defaults: operational 30d, audit 90d. Deletion writes tombstones;
-S12 restores must replay the privacy overlay before exposing evidence.
+``hmac-sha256/local-v1`` kept stable). Export uses fresh scoped
+pseudonyms and re-HMACs every correlator under a per-export random key
+that is never persisted. Retention defaults: operational 30d, audit 90d.
+Deletion physically erases payloads from ledger segments and keeps a
+minimal tombstone (event id, deletion time, reason) so audit reconciles.
+
+Backup handling (C6): backups are documented separately. Backup expiry
+and restore-time tombstone replay belong to S12 — operators must replay
+the privacy overlay before exposing restored evidence; do not reactivate
+deleted personal data from backups without that replay.
 
 Fingerprint key lifecycle is owned here (adopted from S00 provisional
-provider). Never log or export raw key bytes. Concurrent first-create races
-are handled in ``fingerprint_key`` (O_EXCL today; atomic tmp+link publish
-tracked on ``codex/v1-s00-key-race`` — keep that behavior if restructuring).
+provider). Never log or export raw key bytes. Concurrent first-create
+races are handled in ``fingerprint_key`` (fixed upstream; do not
+reintroduce a second key-publish path here).
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
+import logging
 import os
 import re
 import sqlite3
 import threading
 import uuid
 from collections import OrderedDict
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -46,7 +57,10 @@ from typing import Any, Literal
 from magicite.config import Config
 from magicite.core import fingerprint_key as fingerprint_key_mod
 from magicite.errors import IdempotencyKeyConflictError, InvalidInputError
+from magicite.storage import lease as lease_mod
 from magicite.storage.lease import assert_single_writer, writer_lease
+
+logger = logging.getLogger(__name__)
 
 #: Schema / ledger identity.
 LEDGER_KIND = "EvidenceLedger/1"
@@ -71,6 +85,8 @@ DEFAULT_OPERATIONAL_RETENTION_DAYS = 30
 DEFAULT_AUDIT_RETENTION_DAYS = 90
 DEFAULT_RECEIPT_BUFFER_LIMIT = 256
 DEFAULT_BACKUP_EXPIRY_DAYS = 90
+#: Seal the open segment and open a new one once this size is exceeded.
+DEFAULT_SEGMENT_MAX_BYTES = 1_048_576
 
 #: Payload keys that must never appear in durable/export evidence.
 RAW_QUERY_LEAK_KEYS = frozenset(
@@ -100,6 +116,39 @@ _buffer_lock = threading.Lock()
 # a forward-reference cycle at module import time.
 _receipt_buffer: OrderedDict[str, Any] = OrderedDict()
 _receipt_buffer_limit = DEFAULT_RECEIPT_BUFFER_LIMIT
+_enqueue_missing_fingerprint = 0
+_enqueue_drop_count = 0
+_checkpoint_fault_hook: Callable[[str], None] | None = None
+
+
+def set_checkpoint_fault_hook(hook: Callable[[str], None] | None) -> None:
+    """Test-only crash-injection hook; labels: after_segment, after_index, before_meta."""
+    global _checkpoint_fault_hook
+    _checkpoint_fault_hook = hook
+
+
+def _maybe_fault(label: str) -> None:
+    if _checkpoint_fault_hook is not None:
+        _checkpoint_fault_hook(label)
+
+
+def reset_enqueue_counters() -> None:
+    global _enqueue_missing_fingerprint, _enqueue_drop_count
+    _enqueue_missing_fingerprint = 0
+    _enqueue_drop_count = 0
+
+
+def reset_enqueue_drop_count() -> None:
+    """Alias used by atlas unit fixtures."""
+    reset_enqueue_counters()
+
+
+def enqueue_missing_fingerprint_count() -> int:
+    return _enqueue_missing_fingerprint
+
+
+def enqueue_drop_count() -> int:
+    return _enqueue_drop_count
 
 
 def evidence_dir(cfg: Config) -> Path:
@@ -237,13 +286,13 @@ class DecisionReceipt:
 
     receipt_id: str
     decision_id: str
-    query_fingerprint: str
-    fingerprint_scheme: str
     candidate_ids: tuple[str, ...]
     policy_id: str
     policy_digest: str
     source_tier: int
     created_at: str
+    query_fingerprint: str | None = None
+    fingerprint_scheme: str | None = None
     propensity: float | None = None
     context_fingerprint: str | None = None
     registry_fingerprint: str | None = None
@@ -387,7 +436,7 @@ def enqueue_decision_receipt(
     *,
     query: str | None = None,
     query_fingerprint: str | None = None,
-    candidate_ids: list[str] | tuple[str, ...],
+    candidate_ids: list[str] | tuple[str, ...] | None = None,
     policy_id: str,
     policy_digest: str,
     source_tier: int = 0,
@@ -400,43 +449,51 @@ def enqueue_decision_receipt(
     registry_fingerprint: str | None = None,
     model_fingerprint: str | None = None,
     config_fingerprint: str | None = None,
-) -> DecisionReceipt:
+) -> DecisionReceipt | None:
     """Buffer an ephemeral decision receipt (S07 hot-path seam).
 
-    Does **not** acquire the writer lease and does **not** touch the durable
-    ledger. Pass either ``query`` (fingerprinted locally) or a precomputed
-    ``query_fingerprint``. Raw ``query`` is never stored on the receipt.
+    Pure in-memory: no writer lease, no durable I/O, no fingerprint-key disk
+    access. Pass a precomputed ``query_fingerprint``. Missing fingerprints
+    become ``None`` (counter incremented). Raw ``query`` is never stored.
+    On internal failure the receipt is dropped/logged and ``None`` is
+    returned — this function does not raise.
     """
-    if query_fingerprint is None:
-        if query is None:
-            raise InvalidInputError("enqueue_decision_receipt requires query or query_fingerprint")
-        key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
-        query_fingerprint = fingerprint_key_mod.query_fingerprint(query, key=key)
-    scheme = fingerprint_key_mod.FINGERPRINT_SCHEME
-    receipt = DecisionReceipt(
-        receipt_id=f"rcpt_{uuid.uuid4().hex[:12]}",
-        decision_id=decision_id or new_decision_id(),
-        query_fingerprint=query_fingerprint,
-        fingerprint_scheme=scheme,
-        candidate_ids=tuple(candidate_ids),
-        policy_id=policy_id,
-        policy_digest=policy_digest,
-        source_tier=source_tier,
-        created_at=_now(),
-        propensity=propensity,
-        context_fingerprint=context_fingerprint,
-        registry_fingerprint=registry_fingerprint,
-        model_fingerprint=model_fingerprint,
-        config_fingerprint=config_fingerprint,
-        candidate_scores=tuple(candidate_scores or ()),
-        candidate_revisions=tuple(candidate_revisions or ()),
-        chosen_action=chosen_action or (candidate_ids[0] if candidate_ids else None),
-    )
-    with _buffer_lock:
-        _receipt_buffer[receipt.receipt_id] = receipt
-        while len(_receipt_buffer) > _receipt_buffer_limit:
-            _receipt_buffer.popitem(last=False)
-    return receipt
+    global _enqueue_missing_fingerprint, _enqueue_drop_count
+    _ = (cfg, query)
+    try:
+        fp = query_fingerprint
+        scheme: str | None = fingerprint_key_mod.FINGERPRINT_SCHEME if fp else None
+        if fp is None:
+            _enqueue_missing_fingerprint += 1
+        ids = tuple(candidate_ids or ())
+        receipt = DecisionReceipt(
+            receipt_id=f"rcpt_{uuid.uuid4().hex[:12]}",
+            decision_id=decision_id or new_decision_id(),
+            query_fingerprint=fp,
+            fingerprint_scheme=scheme,
+            candidate_ids=ids,
+            policy_id=policy_id,
+            policy_digest=policy_digest,
+            source_tier=source_tier,
+            created_at=_now(),
+            propensity=propensity,
+            context_fingerprint=context_fingerprint,
+            registry_fingerprint=registry_fingerprint,
+            model_fingerprint=model_fingerprint,
+            config_fingerprint=config_fingerprint,
+            candidate_scores=tuple(candidate_scores or ()),
+            candidate_revisions=tuple(candidate_revisions or ()),
+            chosen_action=chosen_action or (ids[0] if ids else None),
+        )
+        with _buffer_lock:
+            _receipt_buffer[receipt.receipt_id] = receipt
+            while len(_receipt_buffer) > _receipt_buffer_limit:
+                _receipt_buffer.popitem(last=False)
+        return receipt
+    except Exception:
+        _enqueue_drop_count += 1
+        logger.exception("enqueue_decision_receipt dropped receipt on internal failure")
+        return None
 
 
 def get_receipt(receipt_id: str) -> DecisionReceipt | None:
@@ -599,6 +656,14 @@ def _ensure_ledger_dirs(cfg: Config) -> Path:
     return root
 
 
+def _fsync_dir(dir_path: Path) -> None:
+    dir_fd = os.open(str(dir_path), os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
+
+
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -613,6 +678,20 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         tmp.unlink(missing_ok=True)
         raise
     os.replace(tmp, path)
+    _fsync_dir(path.parent)
+
+
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    try:
+        os.write(fd, data)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp, path)
+    _fsync_dir(path.parent)
 
 
 def _read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
@@ -621,20 +700,24 @@ def _read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _default_meta() -> dict[str, Any]:
+    return {
+        "kind": LEDGER_KIND,
+        "ledger_version": LEDGER_KIND,
+        "last_sequence": 0,
+        "open_segment_id": "00000001",
+        "redaction_version": REDACTION_VERSION,
+        "retention_operational_days": DEFAULT_OPERATIONAL_RETENTION_DAYS,
+        "retention_audit_days": DEFAULT_AUDIT_RETENTION_DAYS,
+        "backup_expiry_days": DEFAULT_BACKUP_EXPIRY_DAYS,
+        # Backups expire per backup_expiry_days; restore MUST replay
+        # tombstones via apply_privacy_overlay (S12) before evidence access.
+        "backup_restore_requires_privacy_overlay": True,
+    }
+
+
 def _load_meta(root: Path) -> dict[str, Any]:
-    return _read_json(
-        root / _META_FILENAME,
-        {
-            "kind": LEDGER_KIND,
-            "ledger_version": LEDGER_KIND,
-            "last_sequence": 0,
-            "open_segment_id": "00000001",
-            "redaction_version": REDACTION_VERSION,
-            "retention_operational_days": DEFAULT_OPERATIONAL_RETENTION_DAYS,
-            "retention_audit_days": DEFAULT_AUDIT_RETENTION_DAYS,
-            "backup_expiry_days": DEFAULT_BACKUP_EXPIRY_DAYS,
-        },
-    )
+    return _read_json(root / _META_FILENAME, _default_meta())
 
 
 def _load_index(root: Path) -> dict[str, Any]:
@@ -642,7 +725,7 @@ def _load_index(root: Path) -> dict[str, Any]:
 
 
 def _repair_torn_open_segment(segments: Path) -> None:
-    """Truncate a torn final line on the open segment (C6)."""
+    """Truncate only a torn trailing partial line; never drop complete lines."""
     path = segments / _OPEN_SEGMENT_NAME
     if not path.is_file():
         return
@@ -650,9 +733,7 @@ def _repair_torn_open_segment(segments: Path) -> None:
     if not data:
         return
     if data.endswith(b"\n"):
-        # Validate last complete line parses; if not, drop it.
         lines = data.split(b"\n")
-        # trailing empty from final newline
         complete = [ln for ln in lines[:-1] if ln]
         if not complete:
             return
@@ -662,16 +743,11 @@ def _repair_torn_open_segment(segments: Path) -> None:
         except json.JSONDecodeError:
             complete = complete[:-1]
             rebuilt = b"\n".join(complete) + (b"\n" if complete else b"")
-            tmp = path.with_name(path.name + ".repair.tmp")
-            tmp.write_bytes(rebuilt)
-            os.replace(tmp, path)
+            _atomic_write_bytes(path, rebuilt)
             return
-    # No trailing newline → torn write; truncate to last complete line.
     last_nl = data.rfind(b"\n")
     repaired = data[: last_nl + 1] if last_nl >= 0 else b""
-    tmp = path.with_name(path.name + ".repair.tmp")
-    tmp.write_bytes(repaired)
-    os.replace(tmp, path)
+    _atomic_write_bytes(path, repaired)
 
 
 def _append_line_fsync(path: Path, line: str) -> None:
@@ -683,6 +759,212 @@ def _append_line_fsync(path: Path, line: str) -> None:
         os.fsync(fd)
     finally:
         os.close(fd)
+    _fsync_dir(path.parent)
+
+
+def _iter_segment_records(root: Path) -> list[dict[str, Any]]:
+    segments = root / _SEGMENTS_DIRNAME
+    _repair_torn_open_segment(segments)
+    out: list[dict[str, Any]] = []
+    for path in sorted(segments.glob("*.events.jsonl")):
+        if not path.is_file():
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            out.append(row)
+    return out
+
+
+def _record_event_id(row: dict[str, Any]) -> str | None:
+    if row.get("deleted"):
+        return str(row.get("event_id")) if row.get("event_id") else None
+    event = row.get("event")
+    if isinstance(event, dict) and event.get("event_id"):
+        return str(event["event_id"])
+    return None
+
+
+def _scan_segment_authority(root: Path) -> tuple[dict[str, dict[str, Any]], int]:
+    """Segment is source of truth. Returns (event_id -> row, max_seq)."""
+    by_id: dict[str, dict[str, Any]] = {}
+    max_seq = 0
+    for row in _iter_segment_records(root):
+        seq = int(row.get("sequence", 0))
+        max_seq = max(max_seq, seq)
+        eid = _record_event_id(row)
+        if eid is None:
+            continue
+        prev = by_id.get(eid)
+        if prev is None:
+            by_id[eid] = row
+            continue
+        prev_digest = prev.get("payload_digest")
+        cur_digest = row.get("payload_digest")
+        if (
+            not prev.get("deleted")
+            and not row.get("deleted")
+            and prev_digest
+            and cur_digest
+            and prev_digest != cur_digest
+        ):
+            raise IdempotencyKeyConflictError(
+                f"segment contains conflicting payloads for event_id {eid!r}",
+                details={"event_id": eid, "digests": [prev_digest, cur_digest]},
+            )
+        if seq >= int(prev.get("sequence", 0)):
+            by_id[eid] = row
+    return by_id, max_seq
+
+
+def _derive_index_and_meta_from_segment(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    by_id, max_seq = _scan_segment_authority(root)
+    events: dict[str, Any] = {}
+    for eid, row in by_id.items():
+        if row.get("deleted"):
+            continue
+        event = row.get("event") or {}
+        events[eid] = {
+            "sequence": int(row["sequence"]),
+            "segment_id": str(row.get("segment_id", "00000001")),
+            "payload_digest": str(row.get("payload_digest") or ""),
+            "decision_id": event.get("decision_id"),
+            "event_type": event.get("event_type"),
+        }
+    meta = _load_meta(root)
+    meta["last_sequence"] = max_seq
+    meta["open_segment_id"] = str(meta.get("open_segment_id", "00000001"))
+    meta["updated_at"] = _now()
+    meta.setdefault("kind", LEDGER_KIND)
+    meta.setdefault("ledger_version", LEDGER_KIND)
+    meta.setdefault("backup_restore_requires_privacy_overlay", True)
+    return {"events": events}, meta
+
+
+def _rewrite_derived_caches(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    index, meta = _derive_index_and_meta_from_segment(root)
+    _atomic_write_json(root / _INDEX_FILENAME, index)
+    _atomic_write_json(root / _META_FILENAME, meta)
+    return index, meta
+
+
+def _reconcile_authority(root: Path) -> tuple[dict[str, Any], dict[str, Any], int]:
+    """Repair segment; rewrite derived caches when they lag the segment.
+
+    Fresh empty ledgers do not create empty index/meta files here — the first
+    successful append publishes them. That keeps segment-before-index crash
+    recovery well-defined (C6).
+    """
+    _by_id, seg_max = _scan_segment_authority(root)
+    index_exists = (root / _INDEX_FILENAME).is_file()
+    meta_exists = (root / _META_FILENAME).is_file()
+    index = _load_index(root) if index_exists else {"events": {}}
+    meta = _load_meta(root) if meta_exists else _default_meta()
+    index_max = 0
+    for entry in (index.get("events") or {}).values():
+        index_max = max(index_max, int(entry.get("sequence", 0)))
+    meta_max = int(meta.get("last_sequence", 0))
+    authority_max = max(seg_max, index_max, meta_max)
+
+    if seg_max == 0 and not index_exists:
+        # Nothing durable yet — leave caches absent until first append.
+        return {"events": {}}, meta, authority_max
+
+    derived_index, derived_meta = _derive_index_and_meta_from_segment(root)
+    need_rewrite = (
+        not index_exists
+        or not meta_exists
+        or derived_index.get("events") != (index.get("events") or {})
+        or int(meta.get("last_sequence", -1)) != int(derived_meta.get("last_sequence", -2))
+        or meta_max < seg_max
+        or index_max < seg_max
+    )
+    if need_rewrite:
+        for key in (
+            "retention_operational_days",
+            "retention_audit_days",
+            "backup_expiry_days",
+            "backup_restore_requires_privacy_overlay",
+            "redaction_version",
+            "open_segment_id",
+        ):
+            if key in meta:
+                derived_meta[key] = meta[key]
+        derived_meta["last_sequence"] = max(
+            int(derived_meta.get("last_sequence", 0)), authority_max
+        )
+        _atomic_write_json(root / _INDEX_FILENAME, derived_index)
+        _atomic_write_json(root / _META_FILENAME, derived_meta)
+        index, meta = derived_index, derived_meta
+    return index, meta, max(authority_max, int(meta.get("last_sequence", 0)))
+
+
+
+def _maybe_rotate_open_segment(root: Path, *, max_bytes: int | None = None) -> str:
+    """Seal open segment when oversized; return current open segment_id."""
+    limit = DEFAULT_SEGMENT_MAX_BYTES if max_bytes is None else max_bytes
+    segments = root / _SEGMENTS_DIRNAME
+    open_path = segments / _OPEN_SEGMENT_NAME
+    meta = _load_meta(root)
+    segment_id = str(meta.get("open_segment_id", "00000001"))
+    if not open_path.is_file() or open_path.stat().st_size < limit:
+        return segment_id
+    # Seal current open segment under a numeric name.
+    sealed_name = f"{int(segment_id):08d}.events.jsonl"
+    sealed_path = segments / sealed_name
+    data = open_path.read_bytes()
+    _atomic_write_bytes(sealed_path, data)
+    file_digest = hashlib.sha256(data).hexdigest()
+    _atomic_write_json(
+        segments / f"{int(segment_id):08d}.manifest.json",
+        {
+            "segment_id": segment_id,
+            "kind": LEDGER_KIND,
+            "sha256": file_digest,
+            "sealed": True,
+            "updated_at": _now(),
+        },
+    )
+    # Reset open segment.
+    _atomic_write_bytes(open_path, b"")
+    next_id = f"{int(segment_id) + 1:08d}"
+    meta["open_segment_id"] = next_id
+    meta["updated_at"] = _now()
+    _atomic_write_json(root / _META_FILENAME, meta)
+    _atomic_write_json(
+        segments / _OPEN_MANIFEST_NAME,
+        {
+            "segment_id": next_id,
+            "kind": LEDGER_KIND,
+            "record_count": 0,
+            "sha256": hashlib.sha256(b"").hexdigest(),
+            "sealed": False,
+            "updated_at": _now(),
+        },
+    )
+    return next_id
+
+@contextmanager
+def _evidence_write_guard(
+    cfg: Config, conn: sqlite3.Connection, holder: str
+) -> Iterator[None]:
+    """Existing CrossProcessLease + in-process writer_lease (no second lock)."""
+    if lease_mod._CROSS_PROCESS_LEASE.get() is not None:  # noqa: SLF001
+        with writer_lease(holder):
+            yield
+        return
+    cross = lease_mod.CrossProcessLease(
+        lock_path=cfg.dream_lock_path,
+        conn=conn,
+        holder=holder,
+    )
+    with cross.acquire():
+        with writer_lease(holder):
+            yield
 
 
 def _event_record(
@@ -724,7 +1006,8 @@ def _project_upsert(
           retention_class=excluded.retention_class,
           source_tier=excluded.source_tier,
           outcome=excluded.outcome,
-          segment_id=excluded.segment_id
+          segment_id=excluded.segment_id,
+          tombstoned=0
         """,
         (
             event.event_id,
@@ -742,7 +1025,8 @@ def _project_upsert(
     conn.execute(
         """
         UPDATE evidence_meta
-        SET last_sequence = ?, last_segment_id = ?, redaction_version = ?, updated_at = ?
+        SET last_sequence = MAX(last_sequence, ?), last_segment_id = ?,
+            redaction_version = ?, updated_at = ?
         WHERE id = 1
         """,
         (sequence, segment_id, event.redaction_version, _now()),
@@ -756,50 +1040,71 @@ def checkpoint(
     *,
     holder: str = "evidence-checkpoint",
 ) -> CheckpointAck:
-    """Lease-guarded durable checkpoint with event-id idempotence (AC-S09-01).
-
-    Acknowledgement is returned only after the segment line and index are
-    fsynced. Identical payload retries return the prior ack (``replayed``).
-    Conflicting payloads for the same ``event_id`` raise
-    :class:`IdempotencyKeyConflictError`.
-    """
+    """Lease-guarded durable checkpoint; segment is the source of truth (C6)."""
     validate_evidence_event(event)
     digest = payload_digest(event.payload_for_digest())
 
-    with writer_lease(holder):
+    with _evidence_write_guard(cfg, conn, holder):
         root = _ensure_ledger_dirs(cfg)
         segments = root / _SEGMENTS_DIRNAME
         _repair_torn_open_segment(segments)
+        index, meta, authority_max = _reconcile_authority(root)
 
-        index = _load_index(root)
-        existing = index.get("events", {}).get(event.event_id)
-        if existing is not None:
-            if existing.get("payload_digest") != digest:
+        by_id, _ = _scan_segment_authority(root)
+        existing_row = by_id.get(event.event_id)
+        if existing_row is not None and not existing_row.get("deleted"):
+            existing_digest = str(existing_row.get("payload_digest") or "")
+            if existing_digest != digest:
                 raise IdempotencyKeyConflictError(
                     f"event_id {event.event_id!r} already committed with a different payload",
                     hint="retries must reuse the original immutable payload",
                     details={
                         "event_id": event.event_id,
-                        "existing_digest": existing.get("payload_digest"),
+                        "existing_digest": existing_digest,
                         "incoming_digest": digest,
                     },
                 )
+            _rewrite_derived_caches(root)
+            _project_upsert(
+                conn,
+                event=_event_from_dict(existing_row["event"]),
+                sequence=int(existing_row["sequence"]),
+                segment_id=str(existing_row.get("segment_id", "00000001")),
+                digest=existing_digest,
+            )
             return CheckpointAck(
                 event_id=event.event_id,
-                sequence=int(existing["sequence"]),
-                segment_id=str(existing["segment_id"]),
-                payload_digest=str(existing["payload_digest"]),
+                sequence=int(existing_row["sequence"]),
+                segment_id=str(existing_row.get("segment_id", "00000001")),
+                payload_digest=existing_digest,
                 replayed=True,
             )
 
-        meta = _load_meta(root)
-        sequence = int(meta.get("last_sequence", 0)) + 1
+        indexed = (index.get("events") or {}).get(event.event_id)
+        if indexed is not None and indexed.get("payload_digest") == digest:
+            return CheckpointAck(
+                event_id=event.event_id,
+                sequence=int(indexed["sequence"]),
+                segment_id=str(indexed["segment_id"]),
+                payload_digest=str(indexed["payload_digest"]),
+                replayed=True,
+            )
+        if indexed is not None and indexed.get("payload_digest") != digest:
+            raise IdempotencyKeyConflictError(
+                f"event_id {event.event_id!r} already committed with a different payload",
+                details={
+                    "event_id": event.event_id,
+                    "existing_digest": indexed.get("payload_digest"),
+                    "incoming_digest": digest,
+                },
+            )
+
+        sequence = authority_max + 1
         segment_id = str(meta.get("open_segment_id", "00000001"))
         record = _event_record(event, sequence=sequence, segment_id=segment_id, digest=digest)
-        line = _canonical_json(record)
-        _append_line_fsync(segments / _OPEN_SEGMENT_NAME, line)
+        _append_line_fsync(segments / _OPEN_SEGMENT_NAME, _canonical_json(record))
+        _maybe_fault("after_segment")
 
-        # Update open manifest checksums (atomic replace).
         open_path = segments / _OPEN_SEGMENT_NAME
         file_digest = hashlib.sha256(open_path.read_bytes()).hexdigest()
         _atomic_write_json(
@@ -807,7 +1112,7 @@ def checkpoint(
             {
                 "segment_id": segment_id,
                 "kind": LEDGER_KIND,
-                "record_count": sequence,  # approximate within open segment
+                "record_count": sequence,
                 "sha256": file_digest,
                 "sealed": False,
                 "updated_at": _now(),
@@ -823,16 +1128,19 @@ def checkpoint(
             "event_type": event.event_type,
         }
         _atomic_write_json(root / _INDEX_FILENAME, {"events": events})
+        _maybe_fault("after_index")
 
+        _maybe_fault("before_meta")
         meta["last_sequence"] = sequence
         meta["open_segment_id"] = segment_id
         meta["updated_at"] = _now()
+        meta.setdefault("backup_restore_requires_privacy_overlay", True)
         _atomic_write_json(root / _META_FILENAME, meta)
 
         _project_upsert(
             conn, event=event, sequence=sequence, segment_id=segment_id, digest=digest
         )
-
+        _maybe_rotate_open_segment(root)
         return CheckpointAck(
             event_id=event.event_id,
             sequence=sequence,
@@ -849,7 +1157,6 @@ def checkpoint_receipt(
     *,
     event_id: str | None = None,
 ) -> CheckpointAck:
-    """Promote a pending ephemeral receipt to a durable decision event."""
     receipt = get_receipt(receipt_id)
     if receipt is None:
         raise InvalidInputError(f"unknown receipt_id {receipt_id!r}")
@@ -861,18 +1168,27 @@ def checkpoint_receipt(
 
 
 def load_event(cfg: Config, event_id: str) -> EvidenceEvent | None:
-    """Load an acknowledged event from the authoritative file ledger."""
+    """Load via derived index; rebuild restores index after loss (C6)."""
     root = evidence_dir(cfg)
-    index = _load_index(root)
-    entry = index.get("events", {}).get(event_id)
-    if entry is None:
+    if not root.exists():
+        return None
+    index_path = root / _INDEX_FILENAME
+    if not index_path.is_file():
         return None
     if _is_tombstoned(root, event_id):
         return None
-    record = _find_record(root, event_id=event_id, sequence=int(entry["sequence"]))
-    if record is None:
+    index = _load_index(root)
+    entry = (index.get("events") or {}).get(event_id)
+    if entry is None:
         return None
-    return _event_from_dict(record["event"])
+    by_id, _ = _scan_segment_authority(root)
+    row = by_id.get(event_id)
+    if row is None or row.get("deleted"):
+        return None
+    event_data = row.get("event")
+    if not isinstance(event_data, dict):
+        return None
+    return _event_from_dict(event_data)
 
 
 def _is_tombstoned(root: Path, event_id: str) -> bool:
@@ -886,23 +1202,6 @@ def _is_tombstoned(root: Path, event_id: str) -> bool:
         if row.get("target_event_id") == event_id:
             return True
     return False
-
-
-def _find_record(root: Path, *, event_id: str, sequence: int) -> dict[str, Any] | None:
-    segments = root / _SEGMENTS_DIRNAME
-    _repair_torn_open_segment(segments)
-    candidates = sorted(segments.glob("*.events.jsonl"))
-    for path in candidates:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if int(row.get("sequence", -1)) == sequence or row.get("event", {}).get("event_id") == event_id:
-                return row
-    return None
 
 
 def _event_from_dict(data: dict[str, Any]) -> EvidenceEvent:
@@ -937,15 +1236,10 @@ def _event_from_dict(data: dict[str, Any]) -> EvidenceEvent:
 
 
 def rebuild_projections(cfg: Config, conn: sqlite3.Connection) -> int:
-    """Rebuild SQLite projections from the file ledger (AC-S09-02).
-
-    Requires writer lease. Returns the number of projected (non-tombstoned)
-    events. Does not mutate the authoritative file domain.
-    """
-    with writer_lease("evidence-rebuild"):
+    """Rebuild SQLite projections AND derived index/meta from the file ledger."""
+    with _evidence_write_guard(cfg, conn, "evidence-rebuild"):
         root = _ensure_ledger_dirs(cfg)
-        segments = root / _SEGMENTS_DIRNAME
-        _repair_torn_open_segment(segments)
+        index, meta = _rewrite_derived_caches(root)
         tombstone_path = root / _TOMBSTONES_FILENAME
         tombstoned: set[str] = set()
         if tombstone_path.is_file():
@@ -957,29 +1251,21 @@ def rebuild_projections(cfg: Config, conn: sqlite3.Connection) -> int:
         conn.execute("DELETE FROM evidence_event_projection")
         conn.execute("DELETE FROM evidence_tombstone_projection")
         count = 0
-        last_seq = 0
+        by_id, last_seq = _scan_segment_authority(root)
         last_seg: str | None = None
-        for path in sorted(segments.glob("*.events.jsonl")):
-            for line in path.read_text(encoding="utf-8").splitlines():
-                if not line.strip():
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                event = _event_from_dict(row["event"])
-                seq = int(row["sequence"])
-                seg = str(row["segment_id"])
-                digest = str(row["payload_digest"])
-                last_seq = max(last_seq, seq)
-                last_seg = seg
-                if event.event_id in tombstoned:
-                    continue
-                _project_upsert(conn, event=event, sequence=seq, segment_id=seg, digest=digest)
-                count += 1
+        for eid, row in by_id.items():
+            if row.get("deleted") or eid in tombstoned:
+                continue
+            event = _event_from_dict(row["event"])
+            seq = int(row["sequence"])
+            seg = str(row.get("segment_id", "00000001"))
+            digest = str(row.get("payload_digest") or "")
+            last_seg = seg
+            _project_upsert(conn, event=event, sequence=seq, segment_id=seg, digest=digest)
+            count += 1
 
-        if (root / _TOMBSTONES_FILENAME).is_file():
-            for line in (root / _TOMBSTONES_FILENAME).read_text(encoding="utf-8").splitlines():
+        if tombstone_path.is_file():
+            for line in tombstone_path.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
                     continue
                 row = json.loads(line)
@@ -1009,9 +1295,126 @@ def rebuild_projections(cfg: Config, conn: sqlite3.Connection) -> int:
             SET last_sequence = ?, last_segment_id = ?, updated_at = ?
             WHERE id = 1
             """,
-            (last_seq, last_seg, _now()),
+            (max(last_seq, int(meta.get("last_sequence", 0))), last_seg, _now()),
         )
+        _ = index
         return count
+
+
+def _physically_purge_event_from_segments(root: Path, event_id: str) -> None:
+    """Rewrite segments atomically, replacing payloads with deleted stubs (C6)."""
+    segments = root / _SEGMENTS_DIRNAME
+    for path in sorted(segments.glob("*.events.jsonl")):
+        lines_out: list[str] = []
+        changed = False
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                lines_out.append(line)
+                continue
+            eid = _record_event_id(row)
+            if eid == event_id and not row.get("deleted"):
+                stub = {
+                    "sequence": int(row["sequence"]),
+                    "segment_id": str(row.get("segment_id", "00000001")),
+                    "payload_digest": None,
+                    "deleted": True,
+                    "event_id": event_id,
+                }
+                lines_out.append(_canonical_json(stub))
+                changed = True
+            else:
+                lines_out.append(line)
+        if changed:
+            data = ("\n".join(lines_out) + ("\n" if lines_out else "")).encode("utf-8")
+            _atomic_write_bytes(path, data)
+
+
+def _delete_event_locked(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    event_id: str,
+    *,
+    reason: str | None = None,
+    actor: str = "operator",
+) -> dict[str, Any]:
+    """Physical payload purge + minimal tombstone. Caller holds write guard."""
+    root = _ensure_ledger_dirs(cfg)
+    _repair_torn_open_segment(root / _SEGMENTS_DIRNAME)
+    by_id, authority_max = _scan_segment_authority(root)
+    if _is_tombstoned(root, event_id):
+        _physically_purge_event_from_segments(root, event_id)
+        # Idempotent: return a synthetic minimal tombstone.
+        return {
+            "tombstone_id": f"tomb_idem_{event_id[:12]}",
+            "target_event_id": event_id,
+            "sequence": authority_max,
+            "deleted_at": _now(),
+            "reason": reason or "already_deleted",
+            "actor": actor,
+        }
+    if event_id not in by_id:
+        index = _load_index(root)
+        if event_id not in (index.get("events") or {}):
+            raise InvalidInputError(f"unknown event_id {event_id!r}")
+
+    _physically_purge_event_from_segments(root, event_id)
+
+    sequence = authority_max + 1
+    tombstone = {
+        "tombstone_id": f"tomb_{uuid.uuid4().hex[:12]}",
+        "target_event_id": event_id,
+        "sequence": sequence,
+        "deleted_at": _now(),
+        "reason": reason,
+        "actor": actor,
+    }
+    _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
+    index, meta = _rewrite_derived_caches(root)
+    meta["last_sequence"] = max(int(meta.get("last_sequence", 0)), sequence)
+    meta["updated_at"] = _now()
+    _atomic_write_json(root / _META_FILENAME, meta)
+    events = dict(index.get("events") or {})
+    events.pop(event_id, None)
+    _atomic_write_json(root / _INDEX_FILENAME, {"events": events})
+
+    assert_single_writer()
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO evidence_tombstone_projection
+          (tombstone_id, target_event_id, sequence, deleted_at, reason, actor)
+        VALUES (?,?,?,?,?,?)
+        """,
+        (
+            tombstone["tombstone_id"],
+            event_id,
+            sequence,
+            tombstone["deleted_at"],
+            reason,
+            actor,
+        ),
+    )
+    conn.execute("DELETE FROM evidence_event_projection WHERE event_id = ?", (event_id,))
+    exports = root / "exports"
+    if exports.is_dir():
+        for child in list(exports.iterdir()):
+            if child.is_dir():
+                for p in sorted(child.rglob("*"), reverse=True):
+                    if p.is_file():
+                        p.unlink(missing_ok=True)
+                    elif p.is_dir():
+                        try:
+                            p.rmdir()
+                        except OSError:
+                            pass
+                try:
+                    child.rmdir()
+                except OSError:
+                    pass
+    return tombstone
 
 
 def delete_event(
@@ -1022,69 +1425,45 @@ def delete_event(
     reason: str | None = None,
     actor: str = "operator",
 ) -> dict[str, Any]:
-    """Append a privacy deletion tombstone and mark the projection."""
-    with writer_lease("evidence-delete"):
-        root = _ensure_ledger_dirs(cfg)
-        index = _load_index(root)
-        entry = index.get("events", {}).get(event_id)
-        if entry is None:
-            raise InvalidInputError(f"unknown event_id {event_id!r}")
-        meta = _load_meta(root)
-        sequence = int(meta.get("last_sequence", 0)) + 1
-        tombstone = {
-            "tombstone_id": f"tomb_{uuid.uuid4().hex[:12]}",
-            "target_event_id": event_id,
-            "sequence": sequence,
-            "deleted_at": _now(),
-            "reason": reason,
-            "actor": actor,
-        }
-        _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
-        meta["last_sequence"] = sequence
-        meta["updated_at"] = _now()
-        _atomic_write_json(root / _META_FILENAME, meta)
-        assert_single_writer()
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO evidence_tombstone_projection
-              (tombstone_id, target_event_id, sequence, deleted_at, reason, actor)
-            VALUES (?,?,?,?,?,?)
-            """,
-            (
-                tombstone["tombstone_id"],
-                event_id,
-                sequence,
-                tombstone["deleted_at"],
-                reason,
-                actor,
-            ),
-        )
-        conn.execute(
-            "UPDATE evidence_event_projection SET tombstoned = 1 WHERE event_id = ?",
-            (event_id,),
-        )
-        return tombstone
+    """Physically purge payload bytes and append a minimal tombstone (C6)."""
+    with _evidence_write_guard(cfg, conn, "evidence-delete"):
+        return _delete_event_locked(cfg, conn, event_id, reason=reason, actor=actor)
+
+
+def _export_rekey(value: str, *, scope_key: bytes) -> str:
+    return hmac.new(scope_key, value.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def export_evidence(
     cfg: Config,
+    conn: sqlite3.Connection | None = None,
     *,
     event_ids: list[str] | None = None,
     export_dir: Path | None = None,
 ) -> Path:
-    """Export acknowledged events with fresh scoped pseudonyms (C6).
-
-    Never includes raw queries, fingerprint key bytes, or tombstoned rows.
-    """
+    """Export with fresh scoped pseudonyms; correlators re-keyed per export (C6)."""
+    _ = conn  # reserved for projection-aware export / caller lease context
     root = evidence_dir(cfg)
-    index = _load_index(root)
-    selected = event_ids or list(index.get("events", {}).keys())
-    pseudonym_scope = uuid.uuid4().hex
+    by_id, _ = _scan_segment_authority(root) if root.exists() else ({}, 0)
+    selected = event_ids or [
+        eid
+        for eid, row in by_id.items()
+        if not row.get("deleted") and not _is_tombstoned(root, eid)
+    ]
+    scope_key = os.urandom(32)
+    pseudonym_scope = scope_key.hex()
     out_dir = export_dir or (root / "exports" / f"export_{pseudonym_scope[:12]}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     id_map: dict[str, str] = {}
     events_out: list[dict[str, Any]] = []
+    correlator_fields = (
+        "query_fingerprint",
+        "context_fingerprint",
+        "registry_fingerprint",
+        "model_fingerprint",
+        "config_fingerprint",
+    )
     for event_id in selected:
         if _is_tombstoned(root, event_id):
             continue
@@ -1093,24 +1472,27 @@ def export_evidence(
             continue
         payload = event.to_dict()
         _assert_no_raw_leak(payload)
-        # Fresh scoped pseudonyms for correlatable ids.
         for field_name in ("event_id", "decision_id"):
             original = str(payload[field_name])
             if original not in id_map:
-                digest = hashlib.sha256((pseudonym_scope + original).encode()).hexdigest()
-                id_map[original] = f"pseudo_{digest[:16]}"
+                id_map[original] = "pseudo_" + _export_rekey(original, scope_key=scope_key)[:16]
             payload[field_name] = id_map[original]
+        for field_name in correlator_fields:
+            val = payload.get(field_name)
+            if isinstance(val, str) and val:
+                payload[field_name] = _export_rekey(val, scope_key=scope_key)
+        payload["fingerprint_scheme"] = "hmac-sha256/export-scoped-v1"
         events_out.append(payload)
 
     manifest = {
         "kind": "EvidenceExport/1",
-        "pseudonym_scope": pseudonym_scope,
-        "fingerprint_scheme": fingerprint_key_mod.FINGERPRINT_SCHEME,
+        "pseudonym_scope": hashlib.sha256(scope_key).hexdigest()[:24],
+        "fingerprint_scheme": "hmac-sha256/export-scoped-v1",
         "redaction_version": REDACTION_VERSION,
         "exported_at": _now(),
         "event_count": len(events_out),
-        # Explicitly document that key material is never exported.
         "fingerprint_key_exported": False,
+        "correlators_rekeyed": True,
     }
     _assert_no_raw_leak(manifest)
     _atomic_write_json(out_dir / "manifest.json", manifest)
@@ -1118,6 +1500,9 @@ def export_evidence(
     with export_path.open("w", encoding="utf-8") as fh:
         for row in events_out:
             fh.write(_canonical_json(row) + "\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+    _fsync_dir(out_dir)
     return out_dir
 
 
@@ -1127,30 +1512,31 @@ def apply_retention(
     *,
     now: datetime | None = None,
 ) -> list[str]:
-    """Tombstone expired operational/audit records per retention policy."""
-    root = evidence_dir(cfg)
-    meta = _load_meta(root)
-    now_dt = now or datetime.now(UTC)
-    op_days = int(meta.get("retention_operational_days", DEFAULT_OPERATIONAL_RETENTION_DAYS))
-    audit_days = int(meta.get("retention_audit_days", DEFAULT_AUDIT_RETENTION_DAYS))
-    deleted: list[str] = []
-    index = _load_index(root)
-    for event_id, _entry in list(index.get("events", {}).items()):
-        if _is_tombstoned(root, event_id):
-            continue
-        event = load_event(cfg, event_id)
-        if event is None:
-            continue
-        recorded = datetime.fromisoformat(event.recorded_at)
-        limit_days = audit_days if event.retention_class == "audit" else op_days
-        if recorded + timedelta(days=limit_days) <= now_dt:
-            delete_event(cfg, conn, event_id, reason="retention_expiry", actor="retention")
-            deleted.append(event_id)
-    return deleted
+    """Tombstone+purge expired operational/audit records per retention policy."""
+    with _evidence_write_guard(cfg, conn, "evidence-retention"):
+        root = evidence_dir(cfg)
+        meta = _load_meta(root) if root.exists() else _default_meta()
+        now_dt = now or datetime.now(UTC)
+        op_days = int(meta.get("retention_operational_days", DEFAULT_OPERATIONAL_RETENTION_DAYS))
+        audit_days = int(meta.get("retention_audit_days", DEFAULT_AUDIT_RETENTION_DAYS))
+        deleted: list[str] = []
+        by_id, _ = _scan_segment_authority(root) if root.exists() else ({}, 0)
+        for event_id, row in list(by_id.items()):
+            if row.get("deleted") or _is_tombstoned(root, event_id):
+                continue
+            event = _event_from_dict(row["event"])
+            recorded = datetime.fromisoformat(event.recorded_at)
+            limit_days = audit_days if event.retention_class == "audit" else op_days
+            if recorded + timedelta(days=limit_days) <= now_dt:
+                _delete_event_locked(
+                    cfg, conn, event_id, reason="retention_expiry", actor="retention"
+                )
+                deleted.append(event_id)
+        return deleted
 
 
 def backup_expiry_days(cfg: Config) -> int:
-    meta = _load_meta(evidence_dir(cfg)) if evidence_dir(cfg).exists() else {}
+    meta = _load_meta(evidence_dir(cfg)) if evidence_dir(cfg).exists() else _default_meta()
     return int(meta.get("backup_expiry_days", DEFAULT_BACKUP_EXPIRY_DAYS))
 
 
@@ -1171,9 +1557,7 @@ def build_privacy_overlay(
             if line.strip():
                 records.append(json.loads(line))
     content_hashes = tuple(
-        sorted(
-            hashlib.sha256(_canonical_json(r).encode()).hexdigest() for r in records
-        )
+        sorted(hashlib.sha256(_canonical_json(r).encode()).hexdigest() for r in records)
     )
     return PrivacyOverlay(
         kind=RECOVERY_OVERLAY_KIND,
@@ -1194,44 +1578,43 @@ def apply_privacy_overlay(
     expected_registry_id: str | None = None,
     minimum_sequence: int | None = None,
 ) -> dict[str, Any]:
-    """Replay deletion tombstones after restore (S12 hook).
-
-    Rejects registry mismatch or stale sequence. Does not reactivate
-    deleted personal data from backups.
-    """
+    """Replay deletion tombstones after restore (S12 hook)."""
     if overlay.kind != RECOVERY_OVERLAY_KIND:
         raise InvalidInputError(f"unsupported overlay kind {overlay.kind!r}")
     if expected_registry_id is not None and overlay.registry_id != expected_registry_id:
         raise InvalidInputError(
             "privacy overlay registry_id mismatch",
-            details={
-                "expected": expected_registry_id,
-                "got": overlay.registry_id,
-            },
+            details={"expected": expected_registry_id, "got": overlay.registry_id},
         )
     if minimum_sequence is not None and overlay.control_sequence < minimum_sequence:
         raise InvalidInputError(
             "privacy overlay sequence is stale",
-            details={
-                "minimum_sequence": minimum_sequence,
-                "got": overlay.control_sequence,
-            },
+            details={"minimum_sequence": minimum_sequence, "got": overlay.control_sequence},
         )
     applied = 0
-    for record in overlay.deletion_records:
-        event_id = str(record["target_event_id"])
-        if _is_tombstoned(evidence_dir(cfg), event_id):
-            continue
-        # Only tombstone if the event is known in the restored ledger.
-        index = _load_index(evidence_dir(cfg))
-        if event_id not in index.get("events", {}):
-            # Still record tombstone so restore cannot reactivate later injects.
-            with writer_lease("evidence-overlay"):
+    with _evidence_write_guard(cfg, conn, "evidence-overlay"):
+        for record in overlay.deletion_records:
+            event_id = str(record["target_event_id"])
+            root = evidence_dir(cfg)
+            if _is_tombstoned(root, event_id):
+                _physically_purge_event_from_segments(root, event_id)
+                continue
+            by_id, _ = _scan_segment_authority(root)
+            if event_id in by_id and not by_id[event_id].get("deleted"):
+                _delete_event_locked(
+                    cfg,
+                    conn,
+                    event_id,
+                    reason=str(record.get("reason") or "overlay_replay"),
+                    actor=str(record.get("actor") or "privacy_overlay"),
+                )
+            else:
                 root = _ensure_ledger_dirs(cfg)
-                meta = _load_meta(root)
-                sequence = int(meta.get("last_sequence", 0)) + 1
+                _, authority_max = _scan_segment_authority(root)
+                sequence = authority_max + 1
                 tombstone = {
-                    "tombstone_id": record.get("tombstone_id") or f"tomb_{uuid.uuid4().hex[:12]}",
+                    "tombstone_id": record.get("tombstone_id")
+                    or f"tomb_{uuid.uuid4().hex[:12]}",
                     "target_event_id": event_id,
                     "sequence": sequence,
                     "deleted_at": record.get("deleted_at") or _now(),
@@ -1239,24 +1622,14 @@ def apply_privacy_overlay(
                     "actor": record.get("actor") or "privacy_overlay",
                 }
                 _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
-                meta["last_sequence"] = sequence
-                _atomic_write_json(root / _META_FILENAME, meta)
+                _physically_purge_event_from_segments(root, event_id)
+                _rewrite_derived_caches(root)
             applied += 1
-            continue
-        delete_event(
-            cfg,
-            conn,
-            event_id,
-            reason=str(record.get("reason") or "overlay_replay"),
-            actor=str(record.get("actor") or "privacy_overlay"),
-        )
-        applied += 1
     return {
         "applied": applied,
         "control_sequence": overlay.control_sequence,
         "status": "ok",
     }
-
 
 _ABS_PATH_RE = re.compile(r"(^|[\s\"'])(/[\w.-]+(?:/[\w.-]+)+)")
 
