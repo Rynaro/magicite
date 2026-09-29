@@ -271,10 +271,97 @@ jobs:
             ${{ env.IMAGE_NAME }}@${{ steps.inspect.outputs.digest }}
             ```
 
-  release-pypi:
-    name: Build and publish the wheel to PyPI
+  # ── S13 scaffold: always build/verify the wheel on tag, independent of
+  # the PyPI publish gate. Uploads wheel/sdist + release-manifest to the
+  # GitHub Release created by release-image. Does NOT publish to PyPI /
+  # TestPyPI (that remains opt-in below). ─────────────────────────────────
+  release-wheel:
+    name: Build, clean-install, and attach wheel artifacts
     runs-on: ubuntu-latest
     needs: release-image
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.23"
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Supply-chain immutable inputs
+        run: uv run python scripts/check_supply_chain.py
+
+      - name: Build wheel + sdist
+        run: uv build
+
+      # AC-031 against the built wheel metadata (resolved deps, not dry-run/
+      # no-deps alone — scout A20). Also drop a clean-env install probe.
+      - name: AC-031 — assert the built wheel does not depend on torch
+        run: |
+          python -m venv /tmp/magicite-wheel-meta
+          /tmp/magicite-wheel-meta/bin/pip install --upgrade pip
+          /tmp/magicite-wheel-meta/bin/pip install dist/magicite-*.whl
+          if /tmp/magicite-wheel-meta/bin/pip list --format=json | jq -e 'map(.name | ascii_downcase) | index("torch") != null' >/dev/null; then
+            echo "ERROR: torch appeared in the clean install of the built wheel" >&2
+            exit 1
+          fi
+
+      - name: Clean wheel install + offline fixture probe
+        env:
+          MAGICITE_EMBEDDING_PROVIDER: hashing
+        run: |
+          wheel="$(ls -1 dist/magicite-*.whl | tail -1)"
+          uv run python scripts/verify_wheel_install.py --wheel "$wheel"
+
+      - name: Write and verify release manifest
+        run: |
+          uv run python scripts/check_supply_chain.py \
+            --skip-immutable-inputs \
+            --write-manifest dist/release-manifest.json \
+            --artifacts dist
+          uv run python scripts/check_supply_chain.py \
+            --skip-immutable-inputs \
+            --verify-manifest dist/release-manifest.json
+
+      - name: Attach wheel artifacts to GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/release-manifest.json
+          fail_on_unmatched_files: true
+
+      # Exact bytes for release-pypi — never rebuild; publish must match the
+      # digest-attested release-manifest attached above.
+      - name: Upload dist for release-pypi handoff
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: magicite-release-dist
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/release-manifest.json
+          if-no-files-found: error
+          retention-days: 5
+
+      # Published-channels milestone hook (UNEVALUATED until after S11/S15):
+      # verify fetched image/wheel digests + signatures against the attached
+      # release-manifest.json (cosign / gh attestation / pip download --no-deps
+      # hash check). Do not enable here without release authority.
+
+  release-pypi:
+    name: Publish the attested wheel to PyPI
+    runs-on: ubuntu-latest
+    needs: [release-image, release-wheel]
     # Opt-in. OIDC trusted publishing requires a *pending publisher* registered
     # on PyPI for this exact repo/workflow/environment BEFORE the first tag, and
     # there is no token fallback — so without that setup this job fails every
@@ -289,28 +376,34 @@ jobs:
       name: pypi
       url: https://pypi.org/project/magicite/
     permissions:
+      contents: read
       id-token: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+      - name: Download attested release dist
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          version: "0.11.23"
-          python-version: "3.12"
+          name: magicite-release-dist
+          path: dist
 
-      - name: Build wheel + sdist
-        run: uv build
+      - name: Verify downloaded artifacts match release manifest
+        run: |
+          python3 scripts/check_supply_chain.py \
+            --skip-immutable-inputs \
+            --verify-manifest dist/release-manifest.json
 
-      # AC-031, re-asserted at the exact artifact being published: the
-      # built wheel's own metadata must not depend on torch either.
+      # Re-assert AC-031 against the *same* bytes release-wheel attested —
+      # no second `uv build`.
       - name: AC-031 — assert the published wheel does not depend on torch
         run: |
-          python -m pip install --dry-run --no-deps dist/*.whl 2>&1 | tee /tmp/dry-run.log
-          if grep -qi '^torch' /tmp/dry-run.log; then
-            echo "ERROR: torch appeared in the dry-run install of the built wheel" >&2
+          python -m venv /tmp/magicite-pypi-meta
+          /tmp/magicite-pypi-meta/bin/pip install --upgrade pip
+          /tmp/magicite-pypi-meta/bin/pip install dist/magicite-*.whl
+          if /tmp/magicite-pypi-meta/bin/pip list --format=json | jq -e 'map(.name | ascii_downcase) | index("torch") != null' >/dev/null; then
+            echo "ERROR: torch appeared in the clean install of the attested wheel" >&2
             exit 1
           fi
 

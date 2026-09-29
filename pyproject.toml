@@ -5,6 +5,19 @@ description = "Local-first plasticity-inspired skill router speaking MCP over st
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
+# V1 stable support window (release-gates.md): Python 3.11 and 3.12 are CI-
+# verified. requires-python stays ">=3.11" without an arbitrary upper bound;
+# classifiers advertise only the tested matrix rather than implying every
+# future CPython release is supported.
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3 :: Only",
+  "Typing :: Typed",
+]
 dependencies = [
   "mcp>=2.0,<3.0",
   "pydantic>=2.6",
@@ -14,7 +27,17 @@ dependencies = [
   "click>=8.1",
   "structlog>=24.1",
   "fastembed>=0.4",
+  # Direct floor for PEP 440 helpers used by Engram 1.0 schema validation
+  # (S02). Previously only transitive; promote so the contract cannot drift
+  # if an upstream drops the transitive edge.
+  "packaging>=23",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Rynaro/magicite"
+Repository = "https://github.com/Rynaro/magicite"
+Issues = "https://github.com/Rynaro/magicite/issues"
+
 
 [project.optional-dependencies]
 leiden = ["python-igraph>=0.11", "leidenalg>=0.10"]
@@ -38,6 +61,7 @@ constraint-dependencies = [
   "pyjwt>=2.13.0",            # CVE-2026-48526 — auth bypass via forged tokens
   "python-multipart>=0.0.30", # CVE-2026-42561, CVE-2026-53539 — parser DoS
   "starlette>=1.3.1",         # CVE-2026-48818 (SSRF/NTLM), CVE-2026-54283
+  "httpx2>=2.12.0",           # CVE-2026-84382 — DoS via streaming response (mcp transitive)
 ]
 
 [build-system]
@@ -55,6 +79,25 @@ packages = ["src/magicite"]
 # build (M0-M6 only ever exercised `uv sync`/editable installs). Verified
 # below (M7): both files are present in the built wheel without any
 # `force-include`/`artifacts` entry.
+
+# S13: keep the sdist installable. Hatchling's default VCS-aware sdist would
+# otherwise ship IDE/agent trees (`.cursor`, `.claude`, `.eidolons`, …) that
+# break `pip install *.tar.gz` on restricted extractors and bloat the archive.
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/tests",
+  "/scripts",
+  "/docs",
+  "/pyproject.toml",
+  "/README.md",
+  "/LICENSE",
+  "/CHANGELOG.md",
+  "/uv.lock",
+  "/Dockerfile",
+  "/Dockerfile.dev",
+  "/.dockerignore",
+]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
