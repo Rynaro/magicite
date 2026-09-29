@@ -1,8 +1,9 @@
 """Central migration-number authority (C8 / S03).
 
-Parallel slices MUST NOT invent ``003_*.sql`` (or later) numbers on their
-own. They publish a provisional name here; S03 serializes the final
-integer at integration time.
+Parallel slices MUST NOT invent migration numbers on their own. They publish
+a provisional name here; numbers are assigned in **merge order** and must
+stay contiguous among ``shipped`` entries (MAX_KNOWN_SCHEMA_VERSION == N
+with files ``001_…`` … ``00N_…`` and no gaps).
 
 ``MAX_KNOWN_SCHEMA_VERSION`` is the highest ``PRAGMA user_version`` this
 build understands. Opening a DB with a higher version fails closed before
@@ -25,7 +26,7 @@ class MigrationAllocation:
 
 #: Shipped and provisional allocations. Numbers in ``provisional`` /
 #: ``reserved`` status are claimed but must not land as ``NNN_*.sql`` until
-#: S03 promotes them to ``shipped`` at integration.
+#: promoted to ``shipped`` at merge time (contiguous with prior shipped).
 ALLOCATIONS: tuple[MigrationAllocation, ...] = (
     MigrationAllocation(
         number=1,
@@ -50,17 +51,17 @@ ALLOCATIONS: tuple[MigrationAllocation, ...] = (
     ),
     MigrationAllocation(
         number=4,
+        stem="fulltext_index",
+        owner_slice="S05",
+        status="shipped",
+        purpose="Generation-scoped FTS5 / projection entry tables (S05)",
+    ),
+    MigrationAllocation(
+        number=5,
         stem="bundle_trust",
         owner_slice="S04",
         status="provisional",
         purpose="Local trust/admission tables (provisional; finalize at S03 integration)",
-    ),
-    MigrationAllocation(
-        number=5,
-        stem="fulltext_index",
-        owner_slice="S05",
-        status="provisional",
-        purpose="FTS5 / projection tables beyond index_generation (provisional)",
     ),
     MigrationAllocation(
         number=6,
