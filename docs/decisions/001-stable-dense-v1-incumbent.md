@@ -69,13 +69,23 @@ strength; it must not change `active_stable_policy_digest()`.
   they set `routing_policy=experimental/adaptive-blend-v1` — mitigated by
   documenting the config knob and preserving the experimental path.
 
+### S07 digest extension note
+
+The `dense-v1` policy digest is currently a fixed semantic descriptor
+(cosine + stable-ID ties; no adaptive channels). When S07 introduces
+stable knobs that change selection/abstention semantics (thresholds,
+margins, fallback identity, calibration digest), it MUST extend
+`compute_policy_digest`'s dense payload so the digest changes iff stable
+semantics change. Do not fold Dream-learned strengths into the dense
+digest.
+
 ## Follow-Up Actions
 
 | Action | Owner | Priority |
 |--------|-------|----------|
 | Wire `policy_id`/`policy_digest` onto public RouteOutput | S11 | P0 |
-| Reviewed activation via policy_store | S07 | P0 |
-| Durable evidence ledger / historical query cleanup | S09 | P0 |
+| Reviewed activation via policy_store; extend dense digest for stable knobs | S07 | P0 |
+| Adopt `fingerprint_key` HMAC lifecycle for evidence/privacy | S09 | P0 |
 | Index this ADR from docs authority | S15 | P1 |
 
 ## Provenance
