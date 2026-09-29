@@ -281,3 +281,240 @@ def test_composition_corpus_loads_as_structural_gold() -> None:
     assert gold.label_policy["production_expansion_used"] is False
     plans = gold.expected_plans_by_case_id()
     assert plans["compose-001"] == ["build-package", "run-unit-tests", "publish-package"]
+
+
+def test_historical_supported_claim_fails_new_run_gate() -> None:
+    """ATLAS #1: historical evidence cannot satisfy status=supported."""
+    from magicite.eval.validate import claim_eligible_for_new_run_gate
+
+    corpus = _corpus_from_offline()
+    experiment = _experiment(
+        corpus_sha256=corpus.content_identity_sha256,
+        labels_sha256=corpus.content_identity_sha256,
+    )
+    # Seal final labels so corpus binding is not the failure mode under test.
+    object.__setattr__(
+        experiment,
+        "label_provenance",
+        {**experiment.label_provenance, "final_labels_opened": True},
+    )
+    predictions = run_predictions(experiment, corpus)
+    result = build_result_manifest(
+        result_id="hist-result/1",
+        experiment=experiment,
+        predictions=predictions,
+        aggregates={"hit_at_1": 0.5},
+    )
+    claim = Claim(
+        claim_id="historical-supported",
+        text_location="docs/evaluation/v0.3-results.json",
+        metric="hit_at_1",
+        value=0.5,
+        unit="fraction",
+        population_split="final",
+        result_digest=result.digest(),
+        confidence_interval=None,
+        evidence_class="historical",
+        status="supported",
+        limitations="carried-forward",
+        schema=SCHEMA_CLAIM,
+    )
+    gate = claim_eligible_for_new_run_gate(claim)
+    assert any("historical evidence cannot satisfy a new-run gate" in e for e in gate)
+    errors = validate_claim_integrity(
+        claim,
+        result=result,
+        predictions=predictions,
+        experiment=experiment,
+        current_labels_sha256=experiment.labels_sha256,
+        corpus=corpus,
+    )
+    assert any("historical evidence cannot satisfy a new-run gate" in e for e in errors)
+
+
+def test_omitted_predictions_fail_when_result_present() -> None:
+    """ATLAS #2: predictions=None must fail when a result is provided."""
+    corpus = _corpus_from_offline()
+    experiment = _experiment(
+        corpus_sha256=corpus.content_identity_sha256,
+        labels_sha256=corpus.content_identity_sha256,
+    )
+    predictions = run_predictions(experiment, corpus)
+    result = build_result_manifest(
+        result_id="omit-pred/1",
+        experiment=experiment,
+        predictions=predictions,
+        aggregates={"hit_at_1": 0.5},
+    )
+    claim = Claim(
+        claim_id="omit-preds",
+        text_location="docs/evaluation/v1/README.md",
+        metric="hit_at_1",
+        value=0.5,
+        unit="fraction",
+        population_split="final",
+        result_digest=result.digest(),
+        confidence_interval=None,
+        evidence_class="retrieval",
+        status="supported",
+        limitations="fixture",
+        schema=SCHEMA_CLAIM,
+    )
+    errors = validate_claim_integrity(
+        claim,
+        result=result,
+        predictions=None,
+        experiment=experiment,
+        current_labels_sha256=experiment.labels_sha256,
+    )
+    assert any("missing prediction bytes" in e for e in errors)
+
+
+def test_claim_binds_experiment_and_corpus_digests() -> None:
+    """ATLAS #3: result must bind experiment digest; corpus must match pin."""
+    corpus = _corpus_from_offline()
+    experiment = _experiment(
+        corpus_sha256=corpus.content_identity_sha256,
+        labels_sha256=corpus.content_identity_sha256,
+    )
+    object.__setattr__(
+        experiment,
+        "label_provenance",
+        {**experiment.label_provenance, "final_labels_opened": True},
+    )
+    predictions = run_predictions(experiment, corpus)
+    result = build_result_manifest(
+        result_id="bind/1",
+        experiment=experiment,
+        predictions=predictions,
+        aggregates={"hit_at_1": 0.5},
+    )
+    claim = Claim(
+        claim_id="bind-ok",
+        text_location="docs/evaluation/v1/README.md",
+        metric="hit_at_1",
+        value=0.5,
+        unit="fraction",
+        population_split="final",
+        result_digest=result.digest(),
+        confidence_interval=None,
+        evidence_class="retrieval",
+        status="supported",
+        limitations="fixture",
+        schema=SCHEMA_CLAIM,
+    )
+    assert (
+        validate_claim_integrity(
+            claim,
+            result=result,
+            predictions=predictions,
+            experiment=experiment,
+            current_labels_sha256=experiment.labels_sha256,
+            corpus=corpus,
+        )
+        == []
+    )
+
+    # Same labels_sha256, different corpus_sha256 → must fail.
+    drifted = _experiment(
+        corpus_sha256=_hex(77),
+        labels_sha256=experiment.labels_sha256,
+    )
+    object.__setattr__(
+        drifted,
+        "label_provenance",
+        {**drifted.label_provenance, "final_labels_opened": True},
+    )
+    # Rebuild result against drifted experiment so labels match but corpus pin differs
+    # from supplied corpus bytes.
+    bad = validate_claim_integrity(
+        claim,
+        result=result,
+        predictions=predictions,
+        experiment=drifted,
+        current_labels_sha256=drifted.labels_sha256,
+        corpus=corpus,
+    )
+    assert any("experiment_sha256 does not match" in e for e in bad)
+    assert any("corpus digest does not match experiment.corpus_sha256" in e for e in bad)
+
+
+def test_circular_plan_f1_cannot_be_supported() -> None:
+    """ATLAS #4: deprecated circular Plan F1 is ineligible for status=supported."""
+    from magicite.eval.validate import claim_eligible_for_new_run_gate
+
+    claim = {
+        "schema": SCHEMA_CLAIM,
+        "claim_id": "circular-plan",
+        "text_location": "bench",
+        "metric": "plan_f1",
+        "value": 1.0,
+        "unit": "fraction",
+        "population_split": "development",
+        "result_digest": _hex(1),
+        "confidence_interval": None,
+        "evidence_class": "structural",
+        "status": "supported",
+        "limitations": "diagnostic",
+        "plan_f1_status": PLAN_F1_DEPRECATED_DIAGNOSTIC,
+    }
+    errors = claim_eligible_for_new_run_gate(claim)
+    assert any("deprecated_diagnostic_circular_gold" in e for e in errors)
+
+
+def test_expand_gold_requires_explicit_diagnostic_flag(cfg, db_conn, embedder) -> None:
+    """ATLAS #4: default path refuses circular expand()-as-gold."""
+    from magicite.core import registry as registry_mod
+    from magicite.eval import bench as bench_mod
+
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    queries = [
+        bench_mod.LabelledQuery(
+            query="rollback proton for a steam game",
+            expected_top1="proton-ge-proton-downgrade",
+        )
+    ]
+    with pytest.raises(ValueError, match="allow_circular_diagnostic_gold"):
+        bench_mod.run_baseline(cfg, db_conn, embedder, "d", queries)
+
+
+def test_final_holdout_requires_seal() -> None:
+    """ATLAS #5: unsealed final/holdout queries are rejected."""
+    from magicite.eval.validate import validate_experiment_corpus_seal
+
+    corpus = _corpus_from_offline()
+    experiment = _experiment(
+        corpus_sha256=corpus.content_identity_sha256,
+        labels_sha256=corpus.content_identity_sha256,
+    )
+    assert any(q.split in {"final", "holdout"} for q in corpus.queries)
+    errors = validate_experiment_corpus_seal(experiment, corpus)
+    assert any("final_labels_opened=true" in e for e in errors)
+
+    sealed = _experiment(
+        corpus_sha256=corpus.content_identity_sha256,
+        labels_sha256=corpus.content_identity_sha256,
+    )
+    object.__setattr__(
+        sealed,
+        "label_provenance",
+        {**sealed.label_provenance, "final_labels_opened": True},
+    )
+    assert validate_experiment_corpus_seal(sealed, corpus) == []
+
+
+def test_v03_checker_rejects_non_historical_evidence_class(tmp_path) -> None:
+    """ATLAS #6: superseding v0.3 results must not use non-historical classes."""
+    import json
+    from pathlib import Path
+
+    from scripts import check_evaluation_results as checker
+
+    src = Path("docs/evaluation/v0.3-results.json")
+    payload = json.loads(src.read_text(encoding="utf-8"))
+    payload["evidence_class"] = "retrieval"
+    forged = tmp_path / "forged-v03.json"
+    forged.write_text(json.dumps(payload), encoding="utf-8")
+    # Point corpus path still relative to repo root via checker.ROOT
+    errors = checker.check_historical_v03(forged, payload)
+    assert any("evidence_class to historical" in e for e in errors)

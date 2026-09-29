@@ -34,8 +34,30 @@ from magicite.eval.manifests import (
     parse_prediction,
     parse_result,
 )
+from magicite.eval.metrics import PLAN_F1_DEPRECATED_DIAGNOSTIC
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
+
+#: Metrics that require non-structural, non-historical new-run evidence.
+EFFICACY_METRICS = frozenset(
+    {
+        "hit_at_1",
+        "hit_at_3",
+        "hit_at_5",
+        "mrr",
+        "ndcg_at_10",
+        "recall_at_5",
+        "recall_at_10",
+        "task_pass_rate",
+        "end_task_usefulness",
+        "usefulness_delta",
+        "plan_f1",
+        "plan_precision",
+        "plan_recall",
+    }
+)
+
+_SEALED_SPLITS = frozenset({"final", "holdout"})
 
 
 def _require_hex64(value: Any, locus: str, errors: list[str]) -> None:
@@ -82,8 +104,75 @@ def validate_experiment_data(data: Any) -> list[str]:
         errors.append("seeds must be an object")
     if not isinstance(data.get("thresholds"), dict):
         errors.append("thresholds must be an object")
-    if not isinstance(data.get("label_provenance"), dict):
+    provenance = data.get("label_provenance")
+    if not isinstance(provenance, dict):
         errors.append("label_provenance must be an object")
+    elif "final_labels_opened" in provenance and not isinstance(provenance.get("final_labels_opened"), bool):
+        errors.append("label_provenance.final_labels_opened must be a boolean when present")
+    return errors
+
+
+def claim_eligible_for_new_run_gate(claim: Claim | dict[str, Any]) -> list[str]:
+    """Return errors when a claim cannot satisfy a new-run / promotion gate.
+
+    evaluation.md E1: historical artifacts cannot satisfy a new-run gate;
+    structural evidence cannot support efficacy/retrieval metrics; Plan F1
+    scored against circular expand()-as-gold cannot be ``supported``.
+    """
+    data = claim.to_dict() if isinstance(claim, Claim) else claim
+    if not isinstance(data, dict):
+        return ["claim must be an object"]
+    errors: list[str] = []
+    status = data.get("status")
+    evidence = data.get("evidence_class")
+    metric = data.get("metric")
+    if status == "supported":
+        if evidence == "historical":
+            errors.append("historical evidence cannot satisfy a new-run gate (status=supported)")
+        if evidence == "structural" and metric in EFFICACY_METRICS:
+            errors.append(
+                f"structural evidence cannot support retrieval/efficacy metrics (metric={metric!r})"
+            )
+        plan_status = data.get("plan_f1_status")
+        if plan_status == PLAN_F1_DEPRECATED_DIAGNOSTIC:
+            errors.append(
+                "deprecated_diagnostic_circular_gold Plan F1 cannot satisfy "
+                "status=supported / promotion gates"
+            )
+    return errors
+
+
+def validate_experiment_corpus_seal(
+    experiment: ExperimentManifest | dict[str, Any],
+    corpus: CorpusManifest | dict[str, Any],
+) -> list[str]:
+    """Reject unsealed final/holdout use (evaluation.md E2 partitions)."""
+    errors: list[str] = []
+    if isinstance(experiment, ExperimentManifest):
+        provenance = dict(experiment.label_provenance)
+    elif isinstance(experiment, dict):
+        provenance = dict(experiment.get("label_provenance") or {})
+    else:
+        return ["experiment must be an object"]
+
+    if isinstance(corpus, CorpusManifest):
+        splits = {q.split for q in corpus.queries}
+    elif isinstance(corpus, dict):
+        queries = corpus.get("queries") or []
+        splits = {
+            str(item.get("split"))
+            for item in queries
+            if isinstance(item, dict) and item.get("split") is not None
+        }
+    else:
+        return ["corpus must be an object"]
+
+    opened = provenance.get("final_labels_opened")
+    if splits & _SEALED_SPLITS and opened is not True:
+        errors.append(
+            "final/holdout queries require label_provenance.final_labels_opened=true "
+            "(preregistration seal); development/calibration must not open them"
+        )
     return errors
 
 
@@ -250,14 +339,17 @@ def validate_claim_data(
     predictions: list[dict[str, Any]] | list[Prediction] | None = None,
     labels_sha256: str | None = None,
     expected_labels_sha256: str | None = None,
+    experiment: ExperimentManifest | dict[str, Any] | None = None,
+    corpus: CorpusManifest | dict[str, Any] | None = None,
 ) -> list[str]:
     """Validate ``Claim/1`` and optional integrity bindings.
 
     Integrity failures covered:
+    - historical / structural evidence used as a new-run ``supported`` claim
     - mismatched published number vs result aggregates
-    - missing raw prediction bytes / digests
-    - labels digest drift (changed labels after the result was frozen)
-    - structural evidence class used for efficacy claims
+    - missing raw prediction bytes (including omitted ``predictions=None``)
+    - labels / experiment / corpus digest drift
+    - circular Plan F1 marked supported
     """
     errors: list[str] = []
     if not isinstance(data, dict):
@@ -291,16 +383,17 @@ def validate_claim_data(
         ):
             errors.append("confidence_interval must be [low, high] numbers or null")
 
+    errors.extend(claim_eligible_for_new_run_gate(data))
+
     metric = data.get("metric")
     value = data.get("value")
     evidence_class = data.get("evidence_class")
-    if evidence_class == "structural" and metric in {
-        "hit_at_1",
-        "task_pass_rate",
-        "end_task_usefulness",
-        "usefulness_delta",
-    }:
-        errors.append(f"structural evidence cannot support retrieval/efficacy metrics (metric={metric!r})")
+    if evidence_class == "structural" and metric in EFFICACY_METRICS:
+        # Deduplicate with claim_eligible when status=supported; still flag
+        # structural→efficacy even for non-supported statuses as integrity noise.
+        msg = f"structural evidence cannot support retrieval/efficacy metrics (metric={metric!r})"
+        if msg not in errors:
+            errors.append(msg)
 
     result_dict: dict[str, Any] | None
     if isinstance(result, ResultManifest):
@@ -324,21 +417,24 @@ def validate_claim_data(
         pred_digests = result_dict.get("prediction_digests") or []
         if not pred_digests:
             errors.append("result is missing raw prediction digests")
+        plan_status = aggregates.get("plan_f1_status")
+        if data.get("status") == "supported" and plan_status == PLAN_F1_DEPRECATED_DIAGNOSTIC:
+            msg = (
+                "deprecated_diagnostic_circular_gold Plan F1 cannot satisfy "
+                "status=supported / promotion gates"
+            )
+            if msg not in errors:
+                errors.append(msg)
 
-    if predictions is None:
-        # Explicit integrity probe: callers that omit predictions when a
-        # claim requires them trigger a failure.
-        if data.get("require_predictions", True) and result_dict is not None:
-            # predictions argument omitted — only fail when caller asks via
-            # the dedicated missing-bytes path below.
-            pass
-    else:
-        if len(predictions) == 0:
+        # Missing prediction bytes: empty list OR omitted when result present.
+        if predictions is None:
+            errors.append("missing prediction bytes")
+        elif len(predictions) == 0:
             errors.append("missing prediction bytes")
         else:
             pred_dicts = [p.to_dict() if isinstance(p, Prediction) else p for p in predictions]
             recomputed = sha256_json(pred_dicts)
-            if result_dict is not None and result_dict.get("predictions_sha256") != recomputed:
+            if result_dict.get("predictions_sha256") != recomputed:
                 errors.append("predictions_sha256 does not match prediction bytes")
 
     if expected_labels_sha256 is not None and labels_sha256 is not None:
@@ -347,6 +443,27 @@ def validate_claim_data(
 
     if labels_sha256 is None and expected_labels_sha256 is not None:
         errors.append("missing labels digest for claim integrity")
+
+    if experiment is not None and result_dict is not None:
+        provenance_exp: ExperimentManifest | dict[str, Any]
+        if isinstance(experiment, ExperimentManifest):
+            exp_digest = experiment.digest()
+            expected_corpus = experiment.corpus_sha256
+            provenance_exp = experiment
+        else:
+            exp_digest = sha256_json(experiment)
+            expected_corpus = str(experiment.get("corpus_sha256") or "")
+            provenance_exp = experiment
+        if result_dict.get("experiment_sha256") != exp_digest:
+            errors.append("result.experiment_sha256 does not match experiment digest")
+        if corpus is not None:
+            if isinstance(corpus, CorpusManifest):
+                actual_corpus = corpus.content_identity_sha256
+            else:
+                actual_corpus = str(corpus.get("content_identity_sha256") or "")
+            if expected_corpus and actual_corpus != expected_corpus:
+                errors.append("corpus digest does not match experiment.corpus_sha256")
+            errors.extend(validate_experiment_corpus_seal(provenance_exp, corpus))
 
     return errors
 
@@ -358,6 +475,7 @@ def validate_claim_integrity(
     predictions: list[Prediction] | list[dict[str, Any]] | None,
     experiment: ExperimentManifest | dict[str, Any] | None = None,
     current_labels_sha256: str | None = None,
+    corpus: CorpusManifest | dict[str, Any] | None = None,
 ) -> list[str]:
     """High-level integrity gate used by AC-S01-03 and check scripts."""
     claim_data = claim.to_dict() if isinstance(claim, Claim) else claim
@@ -374,6 +492,8 @@ def validate_claim_integrity(
         predictions=predictions,
         labels_sha256=current_labels_sha256,
         expected_labels_sha256=expected_labels,
+        experiment=experiment,
+        corpus=corpus,
     )
 
 

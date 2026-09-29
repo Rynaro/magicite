@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from magicite.eval.validate import (
+    claim_eligible_for_new_run_gate,
     validate_claim_data,
     validate_corpus_manifest_data,
     validate_experiment_data,
@@ -242,6 +243,12 @@ def main(argv: list[str] | None = None) -> int:
         "validate-claim": validate_claim_data,
     }
     errors = validators[args.command](data)
+    if args.command == "validate-claim":
+        # Always enforce new-run eligibility on the claim object itself
+        # (historical/structural/circular Plan F1 cannot be status=supported).
+        for error in claim_eligible_for_new_run_gate(data):
+            if error not in errors:
+                errors.append(error)
     if errors:
         return _print_errors(errors)
     print(f"{args.command} ok")
