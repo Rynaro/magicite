@@ -58,12 +58,65 @@ def set_fingerprint_key_override(key: bytes | None) -> None:
         _key_override = key
 
 
+def _read_complete_key(path: Path) -> bytes:
+    """Read a published key file; fail closed on short/corrupt contents."""
+    key = path.read_bytes()
+    if len(key) != KEY_BYTES:
+        raise ValueError(f"fingerprint key at {path.name} has length {len(key)}, expected {KEY_BYTES}")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+    return key
+
+
+def _fsync_dir(directory: Path) -> None:
+    try:
+        dir_fd = os.open(str(directory), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
+
+
+def _publish_key_atomically(path: Path, key: bytes) -> bool:
+    """Write ``key`` to ``path`` via temp file + ``os.link`` (atomic publish).
+
+    Returns True if this caller published ``path``, False if another winner
+    already linked the destination. Temp files are always unlinked.
+    """
+    tmp_path = path.parent / (f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp")
+    fd = os.open(str(tmp_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        os.write(fd, key)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+    published = False
+    try:
+        os.link(str(tmp_path), str(path))
+        published = True
+        _fsync_dir(path.parent)
+    except FileExistsError:
+        published = False
+    finally:
+        try:
+            os.unlink(str(tmp_path))
+        except OSError:
+            pass
+    return published
+
+
 def load_or_create_fingerprint_key(cfg: Config) -> bytes:
     """Return the local HMAC key, creating it atomically on first use.
 
-    Creation uses ``O_CREAT|O_EXCL`` so concurrent processes cannot race to
-    write different keys. Permissions are ``0o600``. Existing files are
-    re-chmod'd to ``0o600`` if the filesystem permits.
+    The key is written to a unique temp file (mode ``0o600``), fsynced, then
+    published with ``os.link`` into the final path so concurrent first-creators
+    never observe a zero-length destination. A truly corrupt on-disk key still
+    fails closed (length validation), never silently replaced.
     """
     with _override_lock:
         if _key_override is not None:
@@ -72,26 +125,13 @@ def load_or_create_fingerprint_key(cfg: Config) -> bytes:
     path = fingerprint_key_path(cfg)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    try:
-        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        key = path.read_bytes()
-        if len(key) != KEY_BYTES:
-            raise ValueError(
-                f"fingerprint key at {path.name} has length {len(key)}, expected {KEY_BYTES}"
-            ) from None
-        try:
-            os.chmod(path, 0o600)
-        except OSError:
-            pass
-        return key
+    if path.exists():
+        return _read_complete_key(path)
 
-    try:
-        key = secrets.token_bytes(KEY_BYTES)
-        os.write(fd, key)
-    finally:
-        os.close(fd)
-    return key
+    candidate = secrets.token_bytes(KEY_BYTES)
+    if _publish_key_atomically(path, candidate):
+        return candidate
+    return _read_complete_key(path)
 
 
 def query_fingerprint(query: str, *, key: bytes) -> str:
