@@ -1,0 +1,83 @@
+{
+  "schema": "magicite/eligibility-v1-consumer-fixtures/1",
+  "description": "Same artifact projected through route, dependency, and body eligibility paths (C2 / S06 action plan). S07/S08/S11 consume these shapes; trust views are fixture-backed until S04.",
+  "server_policy": {
+    "allowed_permissions": ["perm.read", "perm.write-project"],
+    "allowed_tools": ["protontricks", "shell"],
+    "policy_digest": "policy-fixture-v1",
+    "max_filesystem": "write-project",
+    "max_subprocess": "declared-tools",
+    "max_network": "optional",
+    "max_secrets": "redacted"
+  },
+  "artifact": {
+    "id": "egr_a1b2c3d4",
+    "compatibility": {
+      "os": ["linux"],
+      "frameworks": {
+        "django": { "scheme": "semver", "range": ">=4.2.0,<5.0.0" }
+      },
+      "hosts": [
+        { "id": "cursor", "version": { "scheme": "semver", "range": ">=0.40.0,<1.0.0" } }
+      ]
+    },
+    "capabilities": {
+      "requires": [
+        {
+          "kind": "host",
+          "id": "host.fs.read-project",
+          "version": { "scheme": "semver", "range": ">=1.0.0" }
+        },
+        {
+          "kind": "artifact",
+          "id": "artifact.wine-prefix",
+          "version": { "scheme": "semver", "range": ">=1.0.0" }
+        }
+      ]
+    },
+    "risk": {
+      "filesystem": "read-project",
+      "subprocess": { "mode": "declared-tools", "tools": ["protontricks"] },
+      "network": { "mode": "none", "destinations": [] },
+      "secrets": "none"
+    },
+    "required_permissions": ["perm.read"]
+  },
+  "paths": {
+    "route": {
+      "context": {
+        "platform": "linux",
+        "frameworks": { "django": "4.2.1" },
+        "host": { "id": "cursor", "version": "0.45.0" },
+        "capabilities": { "host.fs.read-project": "1.0.0" },
+        "permission_grants": ["perm.read"],
+        "allowed_tools": ["protontricks"],
+        "artifact_inventory": []
+      },
+      "trust": {
+        "engram_id": "egr_a1b2c3d4",
+        "lifecycle_status": "promoted",
+        "quarantined": false,
+        "origin_trusted": true,
+        "admitted": true
+      },
+      "expect": {
+        "eligible": true,
+        "unsatisfied_artifacts": ["artifact.wine-prefix"]
+      }
+    },
+    "dependency": {
+      "note": "Identical predicate; archived/quarantined trust excludes transitive deps (AC-S06-03).",
+      "trust_denied": {
+        "engram_id": "egr_dep00001",
+        "lifecycle_status": "archived",
+        "quarantined": false,
+        "origin_trusted": true,
+        "admitted": false
+      }
+    },
+    "body": {
+      "note": "Body-load revalidation uses the same evaluate_eligibility(..., path='body') call; S11 wires digest/stale checks after S04."
+    }
+  }
+}
