@@ -26,7 +26,14 @@ def test_baseline_metrics_emitted(cfg, db_conn, embedder) -> None:
     queries = bench_mod.load_queries(Path(TOY_QUERIES_PATH))
     assert len(queries) >= 40  # spec §7.1's "40 labelled queries" fixture
 
-    report = bench_mod.run_bench(cfg, db_conn, embedder, queries=queries, baselines=["b", "d"])
+    report = bench_mod.run_bench(
+        cfg,
+        db_conn,
+        embedder,
+        queries=queries,
+        baselines=["b", "d"],
+        allow_circular_diagnostic_gold=True,
+    )
 
     assert set(report.baselines) == {"b", "d"}
     for name in ("b", "d"):
@@ -62,6 +69,7 @@ def test_baseline_metrics_emitted_via_cli(cfg, embedder) -> None:
             "b",
             "--baseline",
             "d",
+            "--allow-circular-diagnostic-gold",
         ],
         env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"},
     )
@@ -85,7 +93,7 @@ def test_all_four_baselines_run_and_report_real_numbers(cfg, db_conn, embedder) 
 
     queries = bench_mod.load_queries(Path(TOY_QUERIES_PATH))
 
-    report = bench_mod.run_bench(cfg, db_conn, embedder, queries=queries)
+    report = bench_mod.run_bench(cfg, db_conn, embedder, queries=queries, allow_circular_diagnostic_gold=True)
 
     assert set(report.baselines) == {"a", "b", "c", "d"}
     assert report.registry_size == 7

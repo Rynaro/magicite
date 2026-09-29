@@ -310,9 +310,16 @@ def run_baseline(
     *,
     k: int = 5,
     expected_plans: dict[str, list[str]] | None = None,
+    allow_circular_diagnostic_gold: bool = False,
 ) -> BaselineReport:
     if baseline not in BASELINE_NAMES:
         raise ValueError(f"unknown baseline {baseline!r}, expected one of {BASELINE_NAMES}")
+    if expected_plans is None and not allow_circular_diagnostic_gold:
+        raise ValueError(
+            "independent expected_plans are required for Plan F1 gold; pass "
+            "allow_circular_diagnostic_gold=True only for the deprecated "
+            "expand()-as-gold diagnostic (not eligible for status=supported)"
+        )
 
     ranking_pairs: list[tuple[list[str], str]] = []
     plan_pairs: list[tuple[list[str], list[str]]] = []
@@ -339,7 +346,7 @@ def run_baseline(
                     raise KeyError(f"independent gold missing expected_plan for {q.expected_top1!r}")
                 expected_plan_cache[q.expected_top1] = list(expected_plans[q.expected_top1])
             else:
-                # Deprecated circular path: gold from production expand().
+                # Explicit diagnostic only: gold from production expand().
                 expected_plan_cache[q.expected_top1] = _expand_plan(cfg, conn, q.expected_top1)
         expected_plan = expected_plan_cache[q.expected_top1]
 
@@ -397,6 +404,7 @@ def run_bench(
     baselines: list[str] | None = None,
     k: int = 5,
     expected_plans: dict[str, list[str]] | None = None,
+    allow_circular_diagnostic_gold: bool = False,
 ) -> BenchReport:
     """AC-029: emits Hit@1/3/5, MRR and Plan F1 for every requested
     baseline (default: all four, a-d). Read-only over the DB except for
@@ -406,13 +414,23 @@ def run_bench(
     mutates durable (Tier A/B) state.
 
     Pass ``expected_plans`` (from ``magicite.eval.gold``) for independent
-    structural gold. Omitting it keeps the legacy expand()-as-gold path
-    labeled ``deprecated_diagnostic_circular_gold``.
+    structural gold. The expand()-as-gold path requires
+    ``allow_circular_diagnostic_gold=True`` and remains ineligible for
+    ``status=supported`` promotion claims.
     """
     selected = baselines if baselines is not None else list(BASELINE_NAMES)
     registry_size = int(conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"])
     reports = {
-        name: run_baseline(cfg, conn, embedder, name, queries, k=k, expected_plans=expected_plans)
+        name: run_baseline(
+            cfg,
+            conn,
+            embedder,
+            name,
+            queries,
+            k=k,
+            expected_plans=expected_plans,
+            allow_circular_diagnostic_gold=allow_circular_diagnostic_gold,
+        )
         for name in selected
     }
     return BenchReport(registry_size=registry_size, n_queries=len(queries), baselines=reports)
@@ -444,8 +462,23 @@ def run_bench(
     show_default=True,
     help="Run sync() first so embeddings/communities are current.",
 )
+@click.option(
+    "--allow-circular-diagnostic-gold/--no-allow-circular-diagnostic-gold",
+    default=False,
+    show_default=True,
+    help=(
+        "Permit deprecated expand()-as-gold Plan F1 (diagnostic only; "
+        "ineligible for status=supported claims). Prefer -- with independent "
+        "corpus annotations via the Python API expected_plans=."
+    ),
+)
 def cli(
-    project_root: str, queries_path: str | None, selected_baselines: tuple[str, ...], k: int, sync: bool
+    project_root: str,
+    queries_path: str | None,
+    selected_baselines: tuple[str, ...],
+    k: int,
+    sync: bool,
+    allow_circular_diagnostic_gold: bool,
 ) -> None:
     """Run the docs/07 baseline benchmark (a-d) and print Hit@k/MRR/Plan F1 as JSON."""
     from magicite.core import registry as registry_mod
@@ -464,7 +497,15 @@ def cli(
         raise click.ClickException(f"no labelled query file at {qpath} (pass --queries)")
     queries = load_queries(qpath)
 
-    report = run_bench(cfg, conn, embedder, queries=queries, baselines=list(selected_baselines) or None, k=k)
+    report = run_bench(
+        cfg,
+        conn,
+        embedder,
+        queries=queries,
+        baselines=list(selected_baselines) or None,
+        k=k,
+        allow_circular_diagnostic_gold=allow_circular_diagnostic_gold,
+    )
     click.echo(json.dumps(report.to_dict(), indent=2, default=str))
 
 
