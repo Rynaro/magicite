@@ -354,8 +354,12 @@ def test_two_exports_are_unlinkable(cfg, db_conn) -> None:
         context_fingerprint="g" * 64,
     )
     evidence_mod.checkpoint(cfg, db_conn, event)
-    a = evidence_mod.export_evidence(cfg, event_ids=["ev_export_u"], export_dir=cfg.data_dir / "ex_a")
-    b = evidence_mod.export_evidence(cfg, event_ids=["ev_export_u"], export_dir=cfg.data_dir / "ex_b")
+    a = evidence_mod.export_evidence(
+        cfg, event_ids=["ev_export_u"], export_dir=evidence_mod.evidence_dir(cfg) / "exports" / "ex_a"
+    )
+    b = evidence_mod.export_evidence(
+        cfg, event_ids=["ev_export_u"], export_dir=evidence_mod.evidence_dir(cfg) / "exports" / "ex_b"
+    )
     row_a = json.loads((a / "events.jsonl").read_text(encoding="utf-8").splitlines()[0])
     row_b = json.loads((b / "events.jsonl").read_text(encoding="utf-8").splitlines()[0])
     correlators = (

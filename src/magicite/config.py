@@ -28,6 +28,7 @@ has, and it is exactly what a clean break would have produced.
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
@@ -155,6 +156,11 @@ class Config:
     #: EXACT, bit-for-bit revert to pre-amendment behaviour (AC-039) --
     #: one config line, ablation-switchable, [routing] in magicite.toml.
     declared_edge_strength: float = 1.0
+
+    #: S09 / C6: optional extra roots where evidence exports may be written and
+    #: later privacy-deleted. Paths are absolute or project-relative; unset means
+    #: only ``<data_dir>/evidence/exports/`` is allowed (refuse unmanaged dirs).
+    evidence_export_roots: tuple[str, ...] = ()
 
     # ── graph index build (spec §2.6 steps 8-9) ─────────────────────────
     similar_to_top_m: int = 5
@@ -392,12 +398,19 @@ _ENV_FIELD_MAP: dict[str, str] = {
     "MAGICITE_COMMIT_DB": "commit_db",
     "MAGICITE_LOG_LEVEL": "log_level",
     "MAGICITE_ROUTING_POLICY": "routing_policy",
+    "MAGICITE_EVIDENCE_EXPORT_ROOTS": "evidence_export_roots",
 }
 
 _BOOL_FIELDS = {"embedding_offline", "autonomous", "commit_db", "dream_on_session_end"}
 
 
 def _coerce(field_name: str, raw: Any) -> Any:
+    if field_name == "evidence_export_roots":
+        if isinstance(raw, (list, tuple)):
+            return tuple(str(p).strip() for p in raw if str(p).strip())
+        if isinstance(raw, str):
+            return tuple(p.strip() for p in re.split(r"[:;,]", raw) if p.strip())
+        return ()
     if not isinstance(raw, str):
         return raw
     if field_name in _BOOL_FIELDS:

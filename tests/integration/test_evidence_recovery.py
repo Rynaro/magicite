@@ -147,10 +147,13 @@ def test_deletion_covers_managed_exports_only(cfg, db_conn, tmp_path) -> None:
     assert managed_marker.is_file()
 
     registered_outside = tmp_path / "registered_export_out"
+    registered_outside.mkdir()
+    # Caller-chosen destinations require an explicit allowed root (Round-3).
+    object.__setattr__(cfg, "evidence_export_roots", (str(registered_outside.resolve()),))
     evidence_mod.export_evidence(
-        cfg, event_ids=[event.event_id], export_dir=registered_outside
+        cfg, event_ids=[event.event_id], export_dir=registered_outside / "exp"
     )
-    assert (registered_outside / "events.jsonl").is_file()
+    assert (registered_outside / "exp" / "events.jsonl").is_file()
 
     unregistered = tmp_path / "operator_copy"
     unregistered.mkdir()
@@ -159,8 +162,8 @@ def test_deletion_covers_managed_exports_only(cfg, db_conn, tmp_path) -> None:
 
     evidence_mod.delete_event(cfg, db_conn, event.event_id, reason="ac_s09_05")
 
-    assert not managed.exists() or not any(managed.rglob("*"))
-    assert not registered_outside.exists() or not any(registered_outside.rglob("*"))
+    assert not (managed / "events.jsonl").exists()
+    assert not (registered_outside / "exp" / "events.jsonl").exists()
     assert (unregistered / "events.jsonl").is_file()
 
 

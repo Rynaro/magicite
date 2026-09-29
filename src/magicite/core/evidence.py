@@ -27,11 +27,14 @@ Segment stubs and tombstones intentionally retain ``event_id`` /
 ``target_event_id`` as the erasure residual for audit reconciliation —
 they MUST NOT carry raw query, context text, secrets, or absolute paths.
 
-Managed export artifacts live under ``evidence/exports/``. Exports written
-to caller-chosen destinations outside that directory are recorded in
-``registered_exports.json`` so privacy deletion can purge them. Unregistered
-operator copies are out of scope (AC-S09-05); every export manifest carries
-a notice that deletion cannot follow such copies (AC-S09-06).
+Managed export artifacts live under ``evidence/exports/``. Additional write
+roots may be declared via ``Config.evidence_export_roots`` /
+``MAGICITE_EVIDENCE_EXPORT_ROOTS``. Destinations outside allowed roots are
+refused. Registered export files (exact paths + sha256/size/inode) are
+HMAC-authenticated with the local fingerprint key so privacy deletion cannot
+follow a poisoned registry. Unregistered operator copies remain out of scope
+(AC-S09-05); every export manifest carries a notice that deletion cannot
+follow such copies (AC-S09-06).
 
 Backup handling (C6): backups are documented separately. Backup expiry
 and restore-time tombstone replay belong to S12 — operators must replay
@@ -53,6 +56,7 @@ import logging
 import os
 import re
 import sqlite3
+import stat
 import threading
 import uuid
 from collections import OrderedDict
@@ -984,9 +988,19 @@ def _maybe_rotate_open_segment(root: Path, *, max_bytes: int | None = None) -> s
 def _evidence_write_guard(
     cfg: Config, conn: sqlite3.Connection, holder: str
 ) -> Iterator[None]:
-    """Existing CrossProcessLease + in-process writer_lease (no second lock)."""
+    """Existing CrossProcessLease + in-process writer_lease (no second lock).
+
+    On every lease-held mutation, resume physical purge for any tombstoned
+    event that still has residual payload bytes (never on the route hot path).
+    """
+    def _enter() -> None:
+        root = evidence_dir(cfg)
+        if root.exists():
+            _repurge_tombstoned_payloads(root)
+
     if lease_mod._CROSS_PROCESS_LEASE.get() is not None:  # noqa: SLF001
         with writer_lease(holder):
+            _enter()
             yield
         return
     cross = lease_mod.CrossProcessLease(
@@ -996,6 +1010,7 @@ def _evidence_write_guard(
     )
     with cross.acquire():
         with writer_lease(holder):
+            _enter()
             yield
 
 
@@ -1275,7 +1290,8 @@ def rebuild_projections(cfg: Config, conn: sqlite3.Connection) -> int:
         # Detect conflicting digests before checksum verify so integrity
         # conflicts surface as IdempotencyKeyConflictError.
         _scan_segment_authority(root)
-        _repurge_tombstoned_payloads(root)
+        # Fail closed on corrupt / MAC-invalid export registry.
+        _load_export_registry(cfg, root, required=False)
         verify_segments(root)
         index, meta = _rewrite_derived_caches(root)
         tombstone_path = root / _TOMBSTONES_FILENAME
@@ -1482,83 +1498,328 @@ def _load_tombstone_rows(root: Path) -> list[dict[str, Any]]:
     return out
 
 
-def _purge_managed_and_registered_exports(root: Path) -> None:
-    """AC-S09-05: wipe managed exports/ plus registered export-manifest paths."""
-    exports = root / "exports"
-    if exports.is_dir():
-        for child in list(exports.iterdir()):
-            if child.is_file():
-                child.unlink(missing_ok=True)
-            elif child.is_dir():
-                for p in sorted(child.rglob("*"), reverse=True):
-                    if p.is_file():
-                        p.unlink(missing_ok=True)
-                    elif p.is_dir():
-                        try:
-                            p.rmdir()
-                        except OSError:
-                            pass
-                try:
-                    child.rmdir()
-                except OSError:
-                    pass
+def _purge_managed_and_registered_exports(
+    cfg: Config, root: Path
+) -> dict[str, Any]:
+    """AC-S09-05 + Round-3: allowlisted, file-level, MAC-authenticated purge.
 
-    registry_path = root / _REGISTERED_EXPORTS_FILENAME
-    if not registry_path.is_file():
-        return
-    try:
-        registry = json.loads(registry_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return
-    remaining: list[dict[str, Any]] = []
-    for entry in registry.get("exports") or []:
+    Returns a report ``{purged: [...], skipped: [...]}``. Never follows
+    symlinks; never rmtree's directories; never unlinks outside allowed roots.
+    """
+    report: dict[str, Any] = {"purged": [], "skipped": []}
+    registry = _load_export_registry(cfg, root, required=False)
+    if registry is None:
+        return report
+
+    roots = _allowed_export_roots(cfg, root)
+    remaining_files: list[dict[str, Any]] = []
+    for entry in list(registry.get("exports") or []):
+        if not isinstance(entry, dict):
+            report["skipped"].append({"reason": "invalid_entry", "entry": entry})
+            continue
+        raw = entry.get("path")
+        if not isinstance(raw, str) or not raw:
+            report["skipped"].append({"reason": "missing_path", "entry": entry})
+            continue
+        target = Path(raw)
+        # Containment check on the recorded path string/resolve — fail closed
+        # for anything outside allowed roots (poisoned registry).
+        try:
+            resolved_for_check = target.resolve()
+        except OSError as exc:
+            report["skipped"].append(
+                {"path": raw, "reason": f"resolve_failed:{exc}"}
+            )
+            remaining_files.append(entry)
+            continue
+        if not _path_is_under_allowed_roots(resolved_for_check, roots):
+            raise InvalidInputError(
+                "registered export path is outside allowed roots",
+                details={"path": raw, "allowed_roots": [str(r) for r in roots]},
+            )
+        try:
+            st = os.lstat(target)
+        except FileNotFoundError:
+            # Already gone — drop from registry.
+            report["purged"].append({"path": raw, "status": "already_absent"})
+            continue
+        except OSError as exc:
+            report["skipped"].append({"path": raw, "reason": f"lstat_failed:{exc}"})
+            remaining_files.append(entry)
+            continue
+        if stat.S_ISLNK(st.st_mode):
+            report["skipped"].append({"path": raw, "reason": "is_symlink"})
+            remaining_files.append(entry)
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            report["skipped"].append({"path": raw, "reason": "not_regular_file"})
+            remaining_files.append(entry)
+            continue
+        expected_size = int(entry.get("size", -1))
+        expected_sha = str(entry.get("sha256") or "")
+        expected_dev = int(entry.get("st_dev", -1))
+        expected_ino = int(entry.get("st_ino", -1))
+        if st.st_size != expected_size or st.st_dev != expected_dev or st.st_ino != expected_ino:
+            report["skipped"].append(
+                {
+                    "path": raw,
+                    "reason": "metadata_mismatch",
+                    "expected": {
+                        "size": expected_size,
+                        "st_dev": expected_dev,
+                        "st_ino": expected_ino,
+                    },
+                    "actual": {
+                        "size": st.st_size,
+                        "st_dev": st.st_dev,
+                        "st_ino": st.st_ino,
+                    },
+                }
+            )
+            remaining_files.append(entry)
+            continue
+        try:
+            actual_sha = hashlib.sha256(target.read_bytes()).hexdigest()
+        except OSError as exc:
+            report["skipped"].append({"path": raw, "reason": f"read_failed:{exc}"})
+            remaining_files.append(entry)
+            continue
+        if actual_sha != expected_sha:
+            report["skipped"].append(
+                {
+                    "path": raw,
+                    "reason": "sha256_mismatch",
+                    "expected_sha256": expected_sha,
+                    "actual_sha256": actual_sha,
+                }
+            )
+            remaining_files.append(entry)
+            continue
+        try:
+            os.unlink(target)
+        except OSError as exc:
+            report["skipped"].append({"path": raw, "reason": f"unlink_failed:{exc}"})
+            remaining_files.append(entry)
+            continue
+        report["purged"].append({"path": raw, "status": "unlinked"})
+
+    # rmdir only empty dirs magicite recorded as created, inside allowed roots.
+    remaining_dirs: list[dict[str, Any]] = []
+    for entry in list(registry.get("dirs") or []):
+        if not isinstance(entry, dict) or not entry.get("created_by_magicite"):
+            continue
         raw = entry.get("path")
         if not isinstance(raw, str) or not raw:
             continue
-        target = Path(raw)
-        if target.exists():
-            if target.is_file():
-                target.unlink(missing_ok=True)
-            elif target.is_dir():
-                for p in sorted(target.rglob("*"), reverse=True):
-                    if p.is_file():
-                        p.unlink(missing_ok=True)
-                    elif p.is_dir():
-                        try:
-                            p.rmdir()
-                        except OSError:
-                            pass
-                try:
-                    target.rmdir()
-                except OSError:
-                    remaining.append(entry)
-                    continue
-        # Drop successfully purged registrations.
-    _atomic_write_json(registry_path, {"exports": remaining, "updated_at": _now()})
+        dpath = Path(raw)
+        try:
+            resolved = dpath.resolve()
+        except OSError:
+            remaining_dirs.append(entry)
+            continue
+        if not _path_is_under_allowed_roots(resolved, roots):
+            raise InvalidInputError(
+                "registered export dir is outside allowed roots",
+                details={"path": raw},
+            )
+        try:
+            st = os.lstat(dpath)
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+            remaining_dirs.append(entry)
+            continue
+        try:
+            os.rmdir(dpath)  # fails if non-empty — never rmtree
+        except OSError:
+            remaining_dirs.append(entry)
 
-
-def _register_export_path(root: Path, export_dir: Path) -> None:
-    """Record caller-chosen export destinations outside evidence/exports/."""
-    managed_root = (root / "exports").resolve()
-    try:
-        resolved = export_dir.resolve()
-    except OSError:
-        resolved = export_dir
-    try:
-        if resolved == managed_root or managed_root in resolved.parents:
-            return
-    except Exception:  # noqa: BLE001
-        pass
-    registry_path = root / _REGISTERED_EXPORTS_FILENAME
-    registry = _read_json(registry_path, {"exports": []})
-    entries = list(registry.get("exports") or [])
-    path_str = str(resolved)
-    if any(e.get("path") == path_str for e in entries):
-        return
-    entries.append({"path": path_str, "exported_at": _now()})
-    registry["exports"] = entries
+    registry["exports"] = remaining_files
+    registry["dirs"] = remaining_dirs
     registry["updated_at"] = _now()
-    _atomic_write_json(registry_path, registry)
+    _save_export_registry(cfg, root, registry)
+    return report
+
+
+def _allowed_export_roots(cfg: Config, root: Path) -> list[Path]:
+    roots = [(root / "exports").resolve()]
+    for raw in getattr(cfg, "evidence_export_roots", ()) or ():
+        p = Path(str(raw)).expanduser()
+        if not p.is_absolute():
+            p = (cfg.project_root / p).resolve()
+        else:
+            p = p.resolve()
+        roots.append(p)
+    return roots
+
+
+def _path_is_under_allowed_roots(path: Path, roots: list[Path]) -> bool:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    # Reject any path component that still looks like traversal after resolve.
+    if ".." in resolved.parts:
+        return False
+    for root in roots:
+        try:
+            resolved.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _assert_export_destination_allowed(cfg: Config, root: Path, export_dir: Path) -> Path:
+    """Refuse symlinks and destinations outside allowed roots (fail closed)."""
+    # Refuse if the destination itself is a symlink (before mkdir).
+    if export_dir.exists() and export_dir.is_symlink():
+        raise InvalidInputError(
+            "refusing symlinked export directory",
+            details={"export_dir": str(export_dir)},
+        )
+    # Also refuse if any existing ancestor is a symlink to escape roots.
+    cursor = export_dir
+    for _ in range(64):
+        if cursor.exists() and cursor.is_symlink():
+            raise InvalidInputError(
+                "refusing export path with symlink ancestor",
+                details={"export_dir": str(export_dir), "symlink": str(cursor)},
+            )
+        if cursor.parent == cursor:
+            break
+        cursor = cursor.parent
+
+    resolved = export_dir.expanduser()
+    if not resolved.is_absolute():
+        resolved = (cfg.project_root / resolved).resolve()
+    else:
+        resolved = resolved.resolve()
+    roots = _allowed_export_roots(cfg, root)
+    if not _path_is_under_allowed_roots(resolved, roots):
+        raise InvalidInputError(
+            "export destination is outside allowed roots",
+            details={
+                "export_dir": str(resolved),
+                "allowed_roots": [str(r) for r in roots],
+                "hint": "set MAGICITE_EVIDENCE_EXPORT_ROOTS or use evidence/exports/",
+            },
+        )
+    return resolved
+
+
+def _file_fingerprint(path: Path) -> dict[str, Any]:
+    st = os.lstat(path)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+        raise InvalidInputError(
+            "refusing to register non-regular export file",
+            details={"path": str(path)},
+        )
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    return {
+        "path": str(path.resolve()),
+        "sha256": digest,
+        "size": int(st.st_size),
+        "st_dev": int(st.st_dev),
+        "st_ino": int(st.st_ino),
+        "exported_at": _now(),
+    }
+
+
+def _registry_mac(cfg: Config, body: dict[str, Any]) -> str:
+    key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
+    payload = {k: v for k, v in body.items() if k != "mac"}
+    return hmac.new(
+        key, _canonical_json(payload).encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+
+
+def _load_export_registry(
+    cfg: Config, root: Path, *, required: bool = False
+) -> dict[str, Any] | None:
+    path = root / _REGISTERED_EXPORTS_FILENAME
+    if not path.is_file():
+        if required:
+            raise InvalidInputError("registered_exports.json is required but missing")
+        return None
+    try:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise InvalidInputError(
+            "registered_exports.json is corrupt (invalid JSON)",
+            details={"error": str(exc)},
+        ) from exc
+    if not isinstance(registry, dict):
+        raise InvalidInputError("registered_exports.json must be a JSON object")
+    expected = _registry_mac(cfg, registry)
+    actual = str(registry.get("mac") or "")
+    if not actual or not hmac.compare_digest(expected, actual):
+        raise InvalidInputError(
+            "registered_exports.json HMAC verification failed",
+            details={"hint": "registry may be tampered or from another key epoch"},
+        )
+    return registry
+
+
+def _save_export_registry(cfg: Config, root: Path, registry: dict[str, Any]) -> None:
+    body = dict(registry)
+    body.setdefault("kind", "EvidenceExportRegistry/1")
+    body["mac"] = _registry_mac(cfg, body)
+    _atomic_write_json(root / _REGISTERED_EXPORTS_FILENAME, body)
+
+
+def _register_export_files(
+    cfg: Config,
+    root: Path,
+    files: list[Path],
+    *,
+    created_dirs: list[Path] | None = None,
+) -> None:
+    """Register exact files magicite wrote (never directories), under the lease."""
+    registry = _load_export_registry(cfg, root, required=False) or {
+        "kind": "EvidenceExportRegistry/1",
+        "exports": [],
+        "dirs": [],
+    }
+    entries = list(registry.get("exports") or [])
+    by_path = {e.get("path"): i for i, e in enumerate(entries) if isinstance(e, dict)}
+    for fpath in files:
+        fp = _file_fingerprint(fpath)
+        if not _path_is_under_allowed_roots(
+            Path(fp["path"]), _allowed_export_roots(cfg, root)
+        ):
+            raise InvalidInputError(
+                "refusing to register export file outside allowed roots",
+                details={"path": fp["path"]},
+            )
+        idx = by_path.get(fp["path"])
+        if idx is None:
+            entries.append(fp)
+            by_path[fp["path"]] = len(entries) - 1
+        else:
+            entries[idx] = fp
+    registry["exports"] = entries
+    dirs = list(registry.get("dirs") or [])
+    dir_paths = {d.get("path") for d in dirs if isinstance(d, dict)}
+    for d in created_dirs or ():
+        resolved = str(d.resolve())
+        if resolved not in dir_paths:
+            if not _path_is_under_allowed_roots(d.resolve(), _allowed_export_roots(cfg, root)):
+                raise InvalidInputError(
+                    "refusing to register export dir outside allowed roots",
+                    details={"path": resolved},
+                )
+            dirs.append(
+                {
+                    "path": resolved,
+                    "created_by_magicite": True,
+                    "exported_at": _now(),
+                }
+            )
+            dir_paths.add(resolved)
+    registry["dirs"] = dirs
+    registry["updated_at"] = _now()
+    _save_export_registry(cfg, root, registry)
 
 
 def _delete_event_locked(
@@ -1573,7 +1834,7 @@ def _delete_event_locked(
 
     Ordering is crash-critical: once the tombstone is fsynced, load/export/
     rebuild hide the event even if segment purge is incomplete. Recovery
-    (rebuild / verify) re-purges any tombstoned event that still has a payload.
+    (rebuild / verify / next lease-held mutation) re-purges residual payloads.
     """
     root = _ensure_ledger_dirs(cfg)
     _repair_torn_open_segment(root / _SEGMENTS_DIRNAME)
@@ -1581,10 +1842,10 @@ def _delete_event_locked(
 
     if _is_tombstoned(root, event_id):
         _physically_purge_event_from_segments(root, event_id)
-        _purge_managed_and_registered_exports(root)
+        purge_report = _purge_managed_and_registered_exports(cfg, root)
         for row in _load_tombstone_rows(root):
             if row.get("target_event_id") == event_id:
-                return row
+                return {**row, "export_purge_skipped": purge_report.get("skipped", [])}
         return {
             "tombstone_id": f"tomb_idem_{event_id[:12]}",
             "target_event_id": event_id,
@@ -1592,6 +1853,7 @@ def _delete_event_locked(
             "deleted_at": _now(),
             "reason": reason or "already_deleted",
             "actor": actor,
+            "export_purge_skipped": purge_report.get("skipped", []),
         }
 
     if event_id not in by_id:
@@ -1640,8 +1902,12 @@ def _delete_event_locked(
         ),
     )
     conn.execute("DELETE FROM evidence_event_projection WHERE event_id = ?", (event_id,))
-    _purge_managed_and_registered_exports(root)
-    return tombstone
+    purge_report = _purge_managed_and_registered_exports(cfg, root)
+    return {
+        **tombstone,
+        "export_purge_skipped": purge_report.get("skipped", []),
+        "export_purge_purged": purge_report.get("purged", []),
+    }
 
 
 def delete_event(
@@ -1680,8 +1946,7 @@ def export_evidence(
     def _write_export(owned_conn: sqlite3.Connection) -> Path:
         with _evidence_write_guard(cfg, owned_conn, "evidence-export"):
             root = _ensure_ledger_dirs(cfg)
-            _repurge_tombstoned_payloads(root)
-            # Segment authority + derived cache heal (finding 3).
+            # Segment authority + derived cache heal.
             _rewrite_derived_caches(root)
             by_id, _ = _scan_segment_authority(root)
             selected = event_ids or [
@@ -1691,9 +1956,19 @@ def export_evidence(
             ]
             scope_key = os.urandom(32)
             pseudonym_scope = scope_key.hex()
-            out_dir = export_dir or (root / "exports" / f"export_{pseudonym_scope[:12]}")
-            out_dir.mkdir(parents=True, exist_ok=True)
-            _register_export_path(root, out_dir)
+            default_dir = root / "exports" / f"export_{pseudonym_scope[:12]}"
+            out_dir = export_dir or default_dir
+            out_dir = _assert_export_destination_allowed(cfg, root, out_dir)
+            created_dirs: list[Path] = []
+            if not out_dir.exists():
+                out_dir.mkdir(parents=True, exist_ok=True)
+                created_dirs.append(out_dir)
+            # Ensure managed exports/ parent is trackable for rmdir.
+            managed_exports = (root / "exports").resolve()
+            if managed_exports not in {d.resolve() for d in created_dirs}:
+                if out_dir.resolve() != managed_exports and managed_exports in out_dir.resolve().parents:
+                    # Parent export_* was created above; also note exports/ if we created it.
+                    pass
 
             id_map: dict[str, str] = {}
             events_out: list[dict[str, Any]] = []
@@ -1742,10 +2017,18 @@ def export_evidence(
                 "privacy_deletion_notice": EXPORT_COPY_DELETION_NOTICE,
             }
             _assert_no_raw_leak(manifest)
-            _atomic_write_json(out_dir / "manifest.json", manifest)
+            manifest_path = out_dir / "manifest.json"
             export_path = out_dir / "events.jsonl"
+            _atomic_write_json(manifest_path, manifest)
             raw = "".join(_canonical_json(row) + "\n" for row in events_out).encode("utf-8")
             _atomic_write_bytes(export_path, raw)
+            # Register exact files written (never directories as deletable targets).
+            _register_export_files(
+                cfg,
+                root,
+                [manifest_path, export_path],
+                created_dirs=created_dirs,
+            )
             return out_dir
 
     if conn is not None:
