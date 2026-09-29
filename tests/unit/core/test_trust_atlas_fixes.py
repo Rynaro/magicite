@@ -129,7 +129,7 @@ def test_corrupt_mirror_fails_closed(cfg, db_conn, embedder) -> None:
 
 
 def test_approve_under_and_without_outer_lease(cfg, db_conn, embedder) -> None:
-    """Direct approve acquires the lease; nested review_approve must not deadlock."""
+    """Direct approve acquires cross-process + writer lease; nested must not deadlock."""
     assert getattr(trust_mod, "_ledger_lock", None) is None
 
     _external_subject(cfg, name="lease-subj", eid="egr_1ea5e001")
@@ -139,16 +139,29 @@ def test_approve_under_and_without_outer_lease(cfg, db_conn, embedder) -> None:
         "SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)
     ).fetchone()["content_sha256"]
 
-    # Direct mutator (no outer CrossProcessLease) must still be safe.
-    decision = trust_mod.approve(
-        cfg,
-        db_conn,
-        engram_id=entry.id,
-        expected_digest=live,
-        actor="direct",
-        event_id="evt-direct",
-    )
+    held: list[bool] = []
+    _orig_live = trust_mod.live_content_digest
+
+    def _probe_during_approve(*args, **kwargs):
+        held.append(lease_mod.cross_process_lease_held())
+        return _orig_live(*args, **kwargs)
+
+    trust_mod.live_content_digest = _probe_during_approve  # type: ignore[method-assign]
+    try:
+        # Direct mutator must acquire the same cross-process lease as review_*.
+        decision = trust_mod.approve(
+            cfg,
+            db_conn,
+            engram_id=entry.id,
+            expected_digest=live,
+            actor="direct",
+            event_id="evt-direct",
+        )
+    finally:
+        trust_mod.live_content_digest = _orig_live  # type: ignore[method-assign]
+
     assert decision.decision == "admit"
+    assert held and all(held), "cross-process lease must be held during approve mutation"
 
     # Nested via review_* (already holds CrossProcessLease + writer_lease).
     again = registry_mod.review_approve(
