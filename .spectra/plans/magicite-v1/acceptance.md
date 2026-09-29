@@ -272,6 +272,18 @@ WHEN the evidence is evaluated
 THEN unsupported counterfactual efficacy SHALL remain unknown
 VERIFY: new tests/unit/core/test_evidence.py::test_provenance_and_support
 
+### AC-S09-05 (event-driven)
+GIVEN managed export artifacts under the ledger export directory plus an unregistered operator copy outside that directory
+WHEN privacy deletion runs
+THEN deletion SHALL cover the C6 local-management set: purge managed export-directory artifacts plus any registered export-manifest paths; unregistered operator copies remain out of scope
+VERIFY: new tests/integration/test_evidence_recovery.py::test_deletion_covers_managed_exports_only
+
+### AC-S09-06 (event-driven)
+GIVEN a default evidence export that uses fresh per-export pseudonyms
+WHEN the export artifact is written
+THEN the export SHALL include a notice that privacy deletion cannot follow operator copies
+VERIFY: new tests/integration/test_evidence_recovery.py::test_export_carries_copy_deletion_notice
+
 ### AC-S10-01 (event-driven)
 GIVEN a shadow candidate and a pinned incumbent
 WHEN shadow scoring runs

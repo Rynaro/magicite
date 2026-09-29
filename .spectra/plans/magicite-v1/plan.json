@@ -5,13 +5,19 @@
   "calendar_deadlines": false,
   "shared_contract": "contracts.md",
   "criteria": "acceptance.md",
-  "criteria_count": 74,
+  "criteria_count": 76,
   "criteria_amendments": [
     {
       "id": "A01",
       "criterion": "AC-S02-01",
       "log": "amendments/A01-ac-s02-01-preserved-bytes.md",
       "summary": "Scope preserved-bytes identity to skill_md_source.body_raw plus extra_frontmatter, writer-canonical engram/0.2 parse-write bytes, and on-disk archives under the pure transform"
+    },
+    {
+      "id": "A02",
+      "criterion": "C6, AC-S09-05, AC-S09-06",
+      "log": "amendments/A02-c6-export-deletion-scope.md",
+      "summary": "Disambiguate C6 export deletion to Magicite-tracked managed export directory plus registered export manifests; add notice that deletion cannot follow operator copies"
     }
   ],
   "slices": [
@@ -274,7 +280,9 @@
         "AC-S09-01",
         "AC-S09-02",
         "AC-S09-03",
-        "AC-S09-04"
+        "AC-S09-04",
+        "AC-S09-05",
+        "AC-S09-06"
       ],
       "optional": false
     },

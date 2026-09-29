@@ -11,3 +11,8 @@
 {"rubric":"refine","cycle":1,"total":2.8,"min":2,"dims":{"clarity":2,"completeness":2,"actionability":3,"efficiency":4,"testability":3},"verdict":"fail","at":"2026-09-29T14:05:30Z"}
 {"rubric":"refine","cycle":2,"total":4,"min":4,"dims":{"clarity":4,"completeness":4,"actionability":4,"efficiency":4,"testability":4},"verdict":"pass","at":"2026-09-29T15:04:19Z"}
 {"rubric":"confidence","total":92.5,"dims":{"pattern_match":88,"requirement_clarity":94,"decomposition_stability":92,"constraint_compliance":96},"verdict":"AUTO_PROCEED","at":"2026-09-29T15:04:52Z","label":"v1-spec-packet-reviewed"}
+{"rubric":"complexity","total":6,"dims":{"scope":1,"ambiguity":2,"dependencies":1,"risk":2},"verdict":"standard","at":"2026-09-29T23:32:19Z","label":"a02-c6-export-scope"}
+{"rubric":"explore","total":63,"dims":{"alignment":6,"correctness":5,"maintainability":8,"performance":8,"simplicity":9,"risk":4,"innovation":2},"verdict":"weak","at":"2026-09-29T23:32:19Z","label":"hyp-A-leave-c6-unamended"}
+{"rubric":"explore","total":87.5,"dims":{"alignment":10,"correctness":9,"maintainability":9,"performance":8,"simplicity":8,"risk":9,"innovation":4},"verdict":"elite","at":"2026-09-29T23:32:24Z","label":"hyp-B-disambiguate-managed-set"}
+{"rubric":"explore","total":63.5,"dims":{"alignment":7,"correctness":8,"maintainability":5,"performance":6,"simplicity":3,"risk":6,"innovation":9},"verdict":"weak","at":"2026-09-29T23:32:24Z","label":"hyp-C-encrypt-shred-exports"}
+{"rubric":"confidence","total":92.75,"dims":{"pattern_match":92,"requirement_clarity":94,"decomposition_stability":90,"constraint_compliance":95},"verdict":"AUTO_PROCEED","at":"2026-09-29T23:34:02Z","label":"a02-c6-export-scope"}

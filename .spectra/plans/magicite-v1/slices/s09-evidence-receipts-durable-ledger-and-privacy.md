@@ -34,7 +34,7 @@ Out of scope: unrelated refactors, changing another slice's contract or threshol
 
 1. Add ephemeral bounded decision receipts and versioned evidence-event validation with source taxonomy.
 2. Implement lease-guarded durable checkpoint, event-ID idempotence, torn-write recovery and rebuild projections.
-3. Add local retention/deletion/export with pseudonyms and HMAC key lifecycle; migrate historical raw-query rows with explicit sanitization report.
+3. Add local retention/deletion/export with pseudonyms and HMAC key lifecycle; migrate historical raw-query rows with explicit sanitization report. Deletion purges the C6 local-management set (managed export directory plus registered export-manifest paths). Every export carries a notice that deletion cannot follow operator copies; unregistered copies stay out of scope.
 4. Keep verifier assertions separate from server-authenticated source identity; provide unknown-outcome and unsupported-counterfactual states.
 
 ## Acceptance Criteria
@@ -62,6 +62,18 @@ GIVEN deterministic selection or delayed self-reported feedback
 WHEN the evidence is evaluated
 THEN unsupported counterfactual efficacy SHALL remain unknown
 VERIFY: new tests/unit/core/test_evidence.py::test_provenance_and_support
+
+### AC-S09-05 (event-driven)
+GIVEN managed export artifacts under the ledger export directory plus an unregistered operator copy outside that directory
+WHEN privacy deletion runs
+THEN deletion SHALL cover the C6 local-management set: purge managed export-directory artifacts plus any registered export-manifest paths; unregistered operator copies remain out of scope
+VERIFY: new tests/integration/test_evidence_recovery.py::test_deletion_covers_managed_exports_only
+
+### AC-S09-06 (event-driven)
+GIVEN a default evidence export that uses fresh per-export pseudonyms
+WHEN the export artifact is written
+THEN the export SHALL include a notice that privacy deletion cannot follow operator copies
+VERIFY: new tests/integration/test_evidence_recovery.py::test_export_carries_copy_deletion_notice
 
 ## Verification and handoff
 

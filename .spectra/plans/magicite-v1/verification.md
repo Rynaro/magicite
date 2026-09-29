@@ -30,7 +30,8 @@ The planning state's drift scope is this specs-only publication under `.spectra/
 - Independent second review passed: all five refine dimensions 4/5, total 4.0, no remaining blockers. See review.md and state gates.
 - Confidence instrument: 92.5%, AUTO_PROCEED (pattern match 88, requirement clarity 94, decomposition stability 92, constraint compliance 96). This is planning confidence, not runtime evidence.
 - Acceptance criteria frozen SHA-256: `77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458` (original Assemble freeze).
-- Amendment A01 (`ramza-freeze --amend`, 2026-09-29T22:42:58Z) re-froze AC-S02-01 preserved-bytes identity. Current SHA-256: `20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673`. Log: [amendments/A01-ac-s02-01-preserved-bytes.md](amendments/A01-ac-s02-01-preserved-bytes.md). Independent ATLAS review ruled the original THEN over-broad versus C1 payload losslessness; body/payload identity is unchanged.
+- Amendment A01 (`ramza-freeze --amend`, 2026-09-29T22:42:58Z) re-froze AC-S02-01 preserved-bytes identity. Then-current SHA-256: `20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673`. Log: [amendments/A01-ac-s02-01-preserved-bytes.md](amendments/A01-ac-s02-01-preserved-bytes.md). Independent ATLAS review ruled the original THEN over-broad versus C1 payload losslessness; body/payload identity is unchanged.
+- Amendment A02 (`ramza-freeze --amend`, 2026-09-29T23:33:25Z) disambiguated C6 export deletion local-management scope and added AC-S09-05/AC-S09-06. Current SHA-256: `f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c`. Log: [amendments/A02-c6-export-deletion-scope.md](amendments/A02-c6-export-deletion-scope.md).
 - Scope drift check: every changed file is under the declared `.spectra/` planning scope.
 - Remote main checked against `496e4eded09f7c0b8e0b776c3c709bccadc0321a`; dedicated publication branch is `codex/v1-delivery-specs`.
 
@@ -43,3 +44,7 @@ Publication review rejected the initial outgoing commit because it included a co
 ## Amendment A01 (post-publication, 2026-09-29)
 
 Formal amendment of AC-S02-01 only. Criteria count remains 74. `ramza-ears-lint` passed (74). `ramza-lint` passed (full). `ramza-freeze --amend` chained `77a5af3e5e0420aef2ddff0d7691c44cc21d4b820679fef6be0e4e5de3bdc458` → `20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673`. Packet manifest and ECL sidecar fingerprints were regenerated after the amendment. See [amendments/A01-ac-s02-01-preserved-bytes.md](amendments/A01-ac-s02-01-preserved-bytes.md).
+
+## Amendment A02 (post-publication, 2026-09-29)
+
+Formal disambiguation of C6 export deletion local-management scope. Does not weaken C6 or AC-S09-01..04. Adds AC-S09-05 (managed-export purge) and AC-S09-06 (export copy-deletion notice). Criteria count 74 → 76. `ramza-ears-lint` passed (76). `ramza-lint` passed (full). `ramza-freeze --amend` chained `20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673` → `f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c` at 2026-09-29T23:33:25Z. Packet manifest and ECL sidecar fingerprints were regenerated after the amendment. See [amendments/A02-c6-export-deletion-scope.md](amendments/A02-c6-export-deletion-scope.md). S09 must implement the notice and the managed-dir plus operator-copy tests.

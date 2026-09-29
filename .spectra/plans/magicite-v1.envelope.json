@@ -13,17 +13,17 @@
   },
   "performative": "PROPOSE",
   "edge_origin": "roster",
-  "objective": "Propose 17 independently assignable Magicite V1 slices with 74 frozen acceptance criteria.",
+  "objective": "Propose 17 independently assignable Magicite V1 slices with 76 frozen acceptance criteria.",
   "artifact": {
     "kind": "spec",
     "schema_version": "1.0",
     "path": ".spectra/plans/magicite-v1.md",
-    "sha256": "c9aed40d822f118a336d2b900bb8a89f83cc71795c2ca4f2323ea27692b3df99",
-    "size_bytes": 8493
+    "sha256": "5f7471ab7e4272603ccf76a7736c8d05ad911d2f43823ca9c5bd6c0ea2fa4bb7",
+    "size_bytes": 8586
   },
   "integrity": {
     "method": "sha256",
-    "value": "c9aed40d822f118a336d2b900bb8a89f83cc71795c2ca4f2323ea27692b3df99"
+    "value": "5f7471ab7e4272603ccf76a7736c8d05ad911d2f43823ca9c5bd6c0ea2fa4bb7"
   },
   "trace": {
     "ts": "2026-09-29T15:07:20.096097Z",
@@ -51,10 +51,10 @@
   },
   "x_ramza_acceptance_criteria": {
     "path": ".spectra/plans/magicite-v1/acceptance.md",
-    "sha256": "20a5c8c9a8e0d938074e1ee893ba758eaf31bc919466be62ad41897e5f3f6673"
+    "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
   },
   "x_magicite_packet": {
     "path": ".spectra/plans/magicite-v1/packet-manifest.json",
-    "sha256": "20e7031e0283dd4e7ba5b840839b9f5c74d7862efee2b6c0c5bc9e4dc1a89b63"
+    "sha256": "9153e14b14141375c9a9b26376342c1d757260cc522d85ac9d26381121322146"
   }
 }
