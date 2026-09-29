@@ -15,7 +15,7 @@ compatibility:
 routing:
   positive: ["a", "b", "c"]
   negative: ["d"]
-  body_digest: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  body_digest: "d3dbaa4404361cdc165e7edbe67c41814be5bd4ba362a57d64f1c14e21e385f5"
 origin:
   channel: authored
 ---

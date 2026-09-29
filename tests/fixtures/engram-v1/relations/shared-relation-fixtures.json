@@ -1,6 +1,6 @@
 {
   "schema": "magicite/engram-v1-relation-fixtures/1",
-  "description": "Shared host/artifact capability and exact-revision relation fixtures (C1). Consumed by S02 validation and S08 composition tests.",
+  "description": "Shared host/artifact capability and exact-revision relation fixtures (C1). Consumed by S02 validation and S08 composition tests. IDs must match positive/sample-host-tooling.egr.md and relations/before-supersedes.egr.md.",
   "capabilities": {
     "requires_host": {
       "kind": "host",

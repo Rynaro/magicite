@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from magicite.engram.digests import sha256_hex
+from magicite.engram.digests import routing_body_digest
 from magicite.engram.model import Engram, Synapse
 from magicite.engram.model_v1 import (
     Capabilities,
@@ -75,7 +75,10 @@ def transform_0_2_to_1_0(
     diagnostics: list[TransformDiagnostic] = []
     fm = engram.frontmatter
 
-    body_digest = engram.body_sha256 or sha256_hex(_body_projection_bytes(engram))
+    # Normative routing.body_digest from the deterministic body render (LF-normalized).
+    from magicite.engram.writer import render_body
+
+    body_digest = routing_body_digest(render_body(engram.body))
 
     relations = Relations()
     for synapse in fm.synapses:
@@ -252,15 +255,3 @@ def _build_legacy(fm: Any) -> dict[str, Any]:
     if fm.trust is not None and fm.trust.injection_risk is not None:
         legacy["injection_risk"] = fm.trust.injection_risk.model_dump(mode="json")
     return legacy
-
-
-def _body_projection_bytes(engram: Engram) -> bytes:
-    # Prefer existing body_sha256 input; when empty (in-memory), hash procedure_raw
-    # + numbered steps deterministically without going through the writer (avoids
-    # circular import). Downstream writers refresh digests on render.
-    parts: list[str] = []
-    for step in sorted(engram.body.procedure, key=lambda s: s.step_no):
-        parts.append(f"{step.step_no}. {step.text}")
-    if engram.body.procedure_raw:
-        parts.append(engram.body.procedure_raw)
-    return "\n".join(parts).encode("utf-8")

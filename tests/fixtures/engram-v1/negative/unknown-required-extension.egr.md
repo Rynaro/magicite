@@ -10,7 +10,7 @@ intent:
 routing:
   positive: ["a", "b", "c"]
   negative: ["d"]
-  body_digest: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  body_digest: "adf22e60350676f6556b4de86930cd999d237dc4823aa9a10a4837d1c9162fcc"
 origin:
   channel: authored
   verification_status: pending

@@ -24,7 +24,7 @@ routing:
     - "replacement lineage conflict"
   negative:
     - "learned affinity edge"
-  body_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  body_digest: "75cbeffc9ea5a270d9f941b5be00099e8e4c3b6de8948e5e59e15c28d8c373c7"
 origin:
   channel: authored
   verification_status: verified

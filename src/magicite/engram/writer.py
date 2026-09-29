@@ -513,17 +513,29 @@ def _fresh_doc_v1(engram: EngramV1) -> CommentedMap:
 
 
 def render_frontmatter_v1(engram: EngramV1, frontmatter_doc: Any | None = None) -> str:
-    """Render engram/1.0 YAML frontmatter (without ``---`` fences)."""
+    """Render engram/1.0 YAML frontmatter (without ``---`` fences).
+
+    Always refreshes ``routing.body_digest`` from the rendered body via
+    :func:`magicite.engram.digests.routing_body_digest`.
+    """
+    from magicite.engram.digests import routing_body_digest
+
+    body_text = render_body(engram.body)
+    expected_digest = routing_body_digest(body_text)
+    engram.frontmatter.routing.body_digest = expected_digest
+
     doc = frontmatter_doc if frontmatter_doc is not None else _fresh_doc_v1(engram)
     if frontmatter_doc is not None:
-        # Refresh identity/routing digests that must track in-memory state.
         doc["version"] = engram.frontmatter.version
-        if "routing" in doc:
-            doc["routing"]["body_digest"] = engram.frontmatter.routing.body_digest
+        if "routing" not in doc:
+            doc["routing"] = CommentedMap()
+        doc["routing"]["body_digest"] = expected_digest
         if engram.frontmatter.skill_md_source is not None:
             doc["skill_md_source"] = _render_skill_md_source(engram.frontmatter.skill_md_source)
         else:
             doc.pop("skill_md_source", None)
+    else:
+        doc["routing"]["body_digest"] = expected_digest
     return _dump_frontmatter_doc(doc)
 
 

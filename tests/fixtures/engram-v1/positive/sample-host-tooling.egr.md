@@ -41,11 +41,13 @@ relations:
     - id: egr_b5320dfd
       version: 1
   before:
-    - id: egr_11111111
-      version: 3
-  supersedes:
-    - id: egr_22222222
+    - id: egr_aaaa0001
+      version: 2
+    - id: egr_aaaa0002
       version: 1
+  supersedes:
+    - id: egr_bbbb0001
+      version: 4
 risk:
   filesystem: read-project
   subprocess:
@@ -62,12 +64,12 @@ routing:
     - "artifact producer report"
   negative:
     - "windows-only host"
-  body_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  body_digest: "016217582883ef9a02208b342ab53143268111be43d9899dd2ed105128312a99"
 origin:
   channel: authored
   verification_status: verified
   content_hashes:
-    body_sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    body_sha256: "016217582883ef9a02208b342ab53143268111be43d9899dd2ed105128312a99"
 assets: {}
 extensions: {}
 ---
