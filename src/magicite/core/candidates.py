@@ -7,10 +7,11 @@ mask; S05 tests use an all-eligible mask.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 import numpy as np
 
@@ -18,19 +19,25 @@ from magicite.core.index_generation import (
     FTS5UnavailableError,
     FullContentProjection,
     GenerationMeta,
-    GenerationStore,
     IndexedEntry,
     IndexFingerprint,
     fts5_available,
-    open_sparse_connection,
     tokenize_words,
 )
 from magicite.embeddings.base import Embedder
 from magicite.embeddings.reranker import DEFAULT_RERANK_LIMIT
 
+if TYPE_CHECKING:
+    from magicite.core.index_generation import IndexCatalog
+
 DEFAULT_RRF_K = 60
 DEFAULT_PER_SOURCE_LIMIT = 100
 DEFAULT_SCAN_BUDGET = 1000
+
+_FTS_TOKEN_RE = re.compile(
+    r'"([^"\\]|\\.)*"'  # quoted phrase
+    r"|[A-Za-z0-9_][A-Za-z0-9_.\-/:]*(?:\*)?"  # word / prefix token
+)
 
 
 @dataclass(frozen=True)
@@ -56,6 +63,7 @@ class Candidate:
     sparse_score: float | None = None
     trigger_score: float | None = None
     asset_digest: str | None = None
+    projection_sha256: str | None = None
     schema_version: Literal["Candidate/1"] = "Candidate/1"
 
 
@@ -92,6 +100,7 @@ class RetrievalIndex:
     entries: dict[str, IndexedEntry]
     sparse_conn: sqlite3.Connection | None = None
     _owns_sparse: bool = False
+    fts_table: str = "index_fts"
 
     @classmethod
     def from_generation_meta(
@@ -109,16 +118,17 @@ class RetrievalIndex:
         )
 
     @classmethod
-    def from_store(cls, store: GenerationStore, generation_id: str | None = None) -> RetrievalIndex:
-        meta = store.pin(generation_id)
-        conn = open_sparse_connection(store, meta.generation_id)
+    def from_catalog(cls, catalog: IndexCatalog, generation_id: str | None = None) -> RetrievalIndex:
+        """Load a pinned generation from :class:`IndexCatalog` (durable FTS)."""
+        meta = catalog.pin(generation_id)
         return cls(
             generation_id=meta.generation_id,
             snapshot_id=meta.snapshot_id,
             fingerprint=meta.fingerprint,
             entries=dict(meta.entries),
-            sparse_conn=conn,
-            _owns_sparse=True,
+            sparse_conn=catalog.conn,
+            _owns_sparse=False,
+            fts_table="index_fts",
         )
 
     @classmethod
@@ -130,20 +140,22 @@ class RetrievalIndex:
         fingerprint: IndexFingerprint,
         entries: Mapping[str, IndexedEntry],
     ) -> RetrievalIndex:
-        """Construct a retrieval index with an ephemeral FTS5 table (unit tests)."""
+        """Construct a retrieval index with an ephemeral generation-scoped FTS5 table."""
         if not fts5_available():
             raise FTS5UnavailableError("SQLite FTS5 is unavailable")
         conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
         conn.execute(
-            "CREATE VIRTUAL TABLE idx_fts USING fts5("
-            "engram_id UNINDEXED, title, intent, triggers, body, "
+            "CREATE VIRTUAL TABLE index_fts USING fts5("
+            "generation_id UNINDEXED, engram_id UNINDEXED, title, intent, triggers, body, "
             "tokenize='unicode61')"
         )
         for engram_id, entry in entries.items():
             p = entry.projection
             conn.execute(
-                "INSERT INTO idx_fts(engram_id, title, intent, triggers, body) VALUES (?,?,?,?,?)",
-                (engram_id, p.title, p.intent_text, p.triggers_text, p.body_text),
+                "INSERT INTO index_fts(generation_id, engram_id, title, intent, triggers, body) "
+                "VALUES (?,?,?,?,?,?)",
+                (generation_id, engram_id, p.title, p.intent_text, p.triggers_text, p.body_text),
             )
         conn.commit()
         return cls(
@@ -174,22 +186,51 @@ def reciprocal_rank_fuse(
     return sorted(scores.items(), key=lambda item: (-item[1], item[0]))
 
 
-def _escape_fts5_token(token: str) -> str:
-    """Quote a token for FTS5 MATCH so exact symbols survive."""
-    cleaned = token.replace('"', '""')
-    return f'"{cleaned}"'
+def escape_fts5_token(token: str) -> str:
+    """Quote a token for FTS5 MATCH; preserve trailing ``*`` prefix operator."""
+    if "\x00" in token:
+        token = token.replace("\x00", "")
+    if not token:
+        return '""'
+    prefix = token.endswith("*") and not token.endswith("\\*")
+    core = token[:-1] if prefix else token
+    # Strip wrapping quotes from a phrase token.
+    if len(core) >= 2 and core[0] == '"' and core[-1] == '"':
+        core = core[1:-1]
+    cleaned = core.replace('"', '""')
+    quoted = f'"{cleaned}"'
+    return quoted + ("*" if prefix else "")
 
 
-def _fts5_query(query: str) -> str | None:
-    tokens = tokenize_words(query)
+def fts5_query_tokens(query: str) -> list[str]:
+    """Extract FTS tokens, preserving prefix stars and quoted phrases."""
+    if "\x00" in query:
+        query = query.replace("\x00", " ")
+    tokens: list[str] = []
+    for match in _FTS_TOKEN_RE.finditer(query):
+        raw = match.group(0)
+        if raw.startswith('"'):
+            tokens.append(raw)
+        else:
+            tokens.append(raw)
+    return tokens
+
+
+def build_fts5_query(query: str) -> str | None:
+    """Build a safe FTS5 MATCH expression (operators/column filters quoted)."""
+    tokens = fts5_query_tokens(query)
     if not tokens:
-        # Preserve exact non-word tokens (error codes like E_FOO) via symbol scan.
-        raw = query.strip()
+        raw = query.strip().replace("\x00", "")
         if not raw:
             return None
-        return _escape_fts5_token(raw)
-    # AND of quoted tokens keeps exact identifier matches reproducible.
-    return " AND ".join(_escape_fts5_token(t) for t in tokens)
+        return escape_fts5_token(raw)
+    # Always quote so AND/OR/NOT/NEAR and col:term cannot act as syntax.
+    return " AND ".join(escape_fts5_token(t) for t in tokens)
+
+
+# Back-compat aliases used by older call sites / tests.
+_escape_fts5_token = escape_fts5_token
+_fts5_query = build_fts5_query
 
 
 def dense_candidates(
@@ -200,16 +241,17 @@ def dense_candidates(
     eligible_ids: frozenset[str] | None = None,
     scan_budget: int = DEFAULT_SCAN_BUDGET,
 ) -> tuple[list[ComponentHit], int]:
-    """Cosine (dot of L2 vectors) over dense rows; eligibility mask + refill."""
+    """Cosine over dense rows; keep scanning until ``limit`` eligible or budget."""
     scored: list[tuple[str, float]] = []
     scanned = 0
     for engram_id, entry in index.entries.items():
+        if eligible_ids is not None and engram_id not in eligible_ids:
+            # Ineligible IDs never consume the eligible-candidate scan budget.
+            continue
         if scanned >= scan_budget:
             break
         scanned += 1
         if entry.dense_vec is None:
-            continue
-        if eligible_ids is not None and engram_id not in eligible_ids:
             continue
         score = float(np.dot(query_vec, entry.dense_vec))
         scored.append((engram_id, score))
@@ -230,36 +272,49 @@ def sparse_candidates(
     eligible_ids: frozenset[str] | None = None,
     scan_budget: int = DEFAULT_SCAN_BUDGET,
 ) -> tuple[list[ComponentHit], int]:
-    """FTS5 BM25 over title/intent/triggers/body; max-chunk aggregation is per-artifact row."""
+    """FTS5 BM25 with eligibility refill across the scan budget."""
     if index.sparse_conn is None:
         raise FTS5UnavailableError("sparse index connection is not available")
-    match = _fts5_query(query)
+    match = build_fts5_query(query)
     if match is None:
         return [], 0
-    # Fetch a scan-budget window then filter eligibility so we can refill.
-    fetch_n = min(max(limit * 4, limit), scan_budget)
-    sql = (
-        "SELECT engram_id, bm25(idx_fts) AS score "
-        "FROM idx_fts WHERE idx_fts MATCH ? "
-        "ORDER BY bm25(idx_fts), engram_id LIMIT ?"
-    )
-    rows = list(index.sparse_conn.execute(sql, (match, fetch_n)))
-    hits: list[ComponentHit] = []
-    for engram_id, raw_score in rows:
-        if eligible_ids is not None and engram_id not in eligible_ids:
-            continue
-        # bm25() is lower-is-better (more negative ≈ better); invert for display.
-        score = -float(raw_score)
-        hits.append(ComponentHit(engram_id=str(engram_id), rank=0, score=score))
-        if len(hits) >= limit:
+
+    page = max(limit, 32)
+    examined = 0
+    eligible_hits: list[tuple[str, float]] = []
+    table = index.fts_table
+    while examined < scan_budget and len(eligible_hits) < limit:
+        fetch_n = min(page, scan_budget - examined)
+        sql = (
+            f"SELECT engram_id, bm25({table}) AS score "
+            f"FROM {table} WHERE {table} MATCH ? AND generation_id = ? "
+            f"ORDER BY bm25({table}), engram_id LIMIT ? OFFSET ?"
+        )
+        rows = list(
+            index.sparse_conn.execute(
+                sql,
+                (match, index.generation_id, fetch_n, examined),
+            )
+        )
+        if not rows:
             break
-    # Assign ranks after eligibility filtering (stable by score then id).
-    hits.sort(key=lambda h: (-h.score, h.engram_id))
+        examined += len(rows)
+        for engram_id, raw_score in rows:
+            eid = str(engram_id)
+            if eligible_ids is not None and eid not in eligible_ids:
+                continue
+            eligible_hits.append((eid, -float(raw_score)))
+            if len(eligible_hits) >= limit:
+                break
+        if len(rows) < fetch_n:
+            break
+
+    eligible_hits.sort(key=lambda item: (-item[1], item[0]))
+    truncated = 1 if examined >= scan_budget and len(eligible_hits) >= limit else 0
     ranked = [
-        ComponentHit(engram_id=h.engram_id, rank=i, score=h.score)
-        for i, h in enumerate(hits[:limit], start=1)
+        ComponentHit(engram_id=eid, rank=i, score=score)
+        for i, (eid, score) in enumerate(eligible_hits[:limit], start=1)
     ]
-    truncated = max(0, len(hits) - limit)
     return ranked, truncated
 
 
@@ -277,18 +332,18 @@ def trigger_candidates(
     scored: list[tuple[str, float]] = []
     scanned = 0
     for engram_id, entry in index.entries.items():
+        if eligible_ids is not None and engram_id not in eligible_ids:
+            continue
         if scanned >= scan_budget:
             break
         scanned += 1
-        if eligible_ids is not None and engram_id not in eligible_ids:
-            continue
         p = entry.projection
         score = 0.0
         for line in p.triggers_text.splitlines():
             term = line[2:].strip() if line[:2] in ("+ ", "- ") else line.strip()
             if not term:
                 continue
-            polarity = 1.0 if not line.startswith("- ") else 0.0  # negatives never boost
+            polarity = 1.0 if not line.startswith("- ") else 0.0
             if polarity <= 0:
                 continue
             if term.lower() in q_lower or term.lower() in q_tokens:
@@ -298,7 +353,6 @@ def trigger_candidates(
         for sym in p.symbols:
             if sym.lower() in q_lower or sym in query:
                 score += 1.5
-        # Exact error-token / prose needle in body.
         if q_lower and q_lower in p.body_text.lower():
             score += 2.0
         if score > 0:
@@ -310,11 +364,6 @@ def trigger_candidates(
         for rank, (eid, score) in enumerate(scored[:limit], start=1)
     ]
     return hits, truncated
-
-
-def _embed_query_text(query: str, index: RetrievalIndex, embedder: Embedder) -> np.ndarray:
-    # Query embedding uses the same embedder identity as the generation fingerprint.
-    return embedder.embed(query)
 
 
 def generate(
@@ -352,7 +401,7 @@ def generate(
         if query_vec is None:
             if embedder is None:
                 raise ValueError("dense source requires embedder or query_vec")
-            query_vec = _embed_query_text(query, index, embedder)
+            query_vec = embedder.embed(query)
         dense_hits, dense_trunc = dense_candidates(
             query_vec,
             index,
@@ -388,11 +437,17 @@ def generate(
         components["trigger"] = tuple(trigger_hits)
         ranked_lists["trigger"] = [h.engram_id for h in trigger_hits]
 
+    # Hard guarantee: no ineligible IDs leak into component lists.
+    if eligible_ids is not None:
+        for source, hits in list(components.items()):
+            filtered = tuple(h for h in hits if h.engram_id in eligible_ids)
+            components[source] = filtered
+            ranked_lists[source] = [h.engram_id for h in filtered]
+
     fused = reciprocal_rank_fuse(ranked_lists, k=cfg.rrf_k)
     if eligible_ids is not None:
         fused = [(eid, score) for eid, score in fused if eid in eligible_ids]
 
-    # Starvation signal when the mask filtered everything despite scan budget.
     if eligible_ids is not None and not fused and index.entries:
         any_eligible = any(eid in eligible_ids for eid in index.entries)
         if any_eligible:
@@ -400,7 +455,6 @@ def generate(
         else:
             reason_codes.append("no_eligible_candidates")
 
-    # Component lookup helpers
     dense_by_id = {h.engram_id: h for h in components.get("dense", ())}
     sparse_by_id = {h.engram_id: h for h in components.get("sparse", ())}
     trigger_by_id = {h.engram_id: h for h in components.get("trigger", ())}
@@ -410,6 +464,8 @@ def generate(
         entry = index.entries.get(engram_id)
         if entry is None:
             continue
+        if eligible_ids is not None and engram_id not in eligible_ids:
+            continue
         d = dense_by_id.get(engram_id)
         s = sparse_by_id.get(engram_id)
         t = trigger_by_id.get(engram_id)
@@ -418,7 +474,7 @@ def generate(
                 id=engram_id,
                 revision=entry.projection.revision,
                 fused_score=fused_score,
-                body_digest=entry.body_digest,
+                body_digest=entry.resolved_body_digest(),
                 snapshot_id=index.snapshot_id,
                 dense_rank=d.rank if d else None,
                 sparse_rank=s.rank if s else None,
@@ -427,6 +483,7 @@ def generate(
                 sparse_score=s.score if s else None,
                 trigger_score=t.score if t else None,
                 asset_digest=entry.asset_digest,
+                projection_sha256=entry.projection.projection_sha256,
             )
         )
 
@@ -453,8 +510,7 @@ class Reranker(Protocol):
         *,
         token_budget: int,
         timeout_s: float,
-    ) -> Sequence[Candidate]:
-        ...
+    ) -> Sequence[Candidate]: ...
 
 
 def apply_reranker(
@@ -489,6 +545,6 @@ def indexed_entry_from_projection(
     return IndexedEntry(
         projection=projection,
         dense_vec=dense_vec,
-        body_digest=body_digest or projection.projection_sha256,
+        body_digest=body_digest or projection.body_digest,
         asset_digest=asset_digest,
     )
