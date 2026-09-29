@@ -67,7 +67,7 @@ def _migration_already_materialized(conn: sqlite3.Connection, number: int) -> bo
             and _has_table(conn, "index_generation")
             and _has_table(conn, "index_active_pointer")
         )
-    if number == 5:
+    if number == 4:
         return _has_table(conn, "index_entry") and _has_table(conn, "index_fts")
     return False
 

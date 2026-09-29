@@ -2,7 +2,7 @@
 
 Lifecycle / active-pointer authority lives in S03
 (``index_generation`` / ``index_active_pointer`` + ``storage.migration_ops``).
-S05 owns generation-scoped ``index_entry`` / ``index_fts`` (migration 005) and
+S05 owns generation-scoped ``index_entry`` / ``index_fts`` (migration 004) and
 the pure projection / candidate-facing loaders.
 """
 
@@ -44,10 +44,10 @@ _SYMBOL_RE = re.compile(
     r"|(?:\bE_[A-Z0-9_*]+\b)"
 )
 
-#: Shipped DDL reference (003 + 005). Kept for docs/adapters — not applied here.
+#: Shipped DDL reference (003 + 004). Kept for docs/adapters — not applied here.
 SHIPPED_INDEX_DDL_NOTE = (
     "Lifecycle/pointer: storage/migrations/003_migration_authority.sql (S03). "
-    "Entries/FTS: storage/migrations/005_fulltext_index.sql (S05)."
+    "Entries/FTS: storage/migrations/004_fulltext_index.sql (S05)."
 )
 
 
