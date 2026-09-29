@@ -215,3 +215,70 @@ jobs:
           severity: "HIGH,CRITICAL"
           exit-code: "1"
           ignore-unfixed: true
+
+  # ── S13 packaging scaffold: immutable supply-chain pins, clean wheel
+  # install probe, and release-manifest digest round-trip. Published-channel
+  # installs (PyPI/pipx/uvx/OCI digest) stay UNEVALUATED until milestone
+  # S13-published-channels (after S11/S15). ────────────────────────────────
+  packaging-scaffold:
+    name: packaging scaffold (wheel + supply-chain)
+    runs-on: ubuntu-latest
+    env:
+      MAGICITE_EMBEDDING_PROVIDER: hashing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.23"
+          python-version: "3.12"
+
+      - name: Install dependencies (all extras — leiden, dev)
+        run: uv sync --all-extras
+
+      - name: Supply-chain immutable inputs
+        run: uv run python scripts/check_supply_chain.py
+
+      - name: Build wheel + sdist
+        run: uv build
+
+      - name: Write release manifest for dist/
+        run: |
+          uv run python scripts/check_supply_chain.py \
+            --skip-immutable-inputs \
+            --write-manifest dist/release-manifest.json \
+            --artifacts dist
+
+      - name: Verify release manifest digests
+        run: |
+          uv run python scripts/check_supply_chain.py \
+            --skip-immutable-inputs \
+            --verify-manifest dist/release-manifest.json
+
+      - name: Clean wheel install probe (script)
+        run: |
+          wheel="$(ls -1 dist/magicite-*.whl | tail -1)"
+          uv run python scripts/verify_wheel_install.py --wheel "$wheel"
+
+      - name: Acceptance install-channel suite
+        run: |
+          wheel="$(ls -1 dist/magicite-*.whl | tail -1)"
+          export MAGICITE_TEST_WHEEL="$wheel"
+          uv run pytest -q -p no:cacheprovider tests/acceptance/test_install_channels.py
+
+      # Future wiring (merge-after S01/S02/S03/S04) — do not enable until those
+      # slices land their verifier commands. Negative/security findings must
+      # remain visible (no continue-on-error once enabled).
+      #
+      # S01 evidence harness:
+      #   - uv run python scripts/check_evaluation_results.py --completeness-only
+      # S02 schema / golden fixtures:
+      #   - uv run pytest -q tests/unit/engram/ -k schema
+      # S03 storage migrations:
+      #   - uv run pytest -q tests/unit/storage/test_migrations.py
+      # S04 registry lifecycle / approvals:
+      #   - uv run pytest -q tests/acceptance/ -k registry_or_approvals
+      # S11 (consumes this scaffold): MCP/CLI conformance against installed wheel
+      # S15 (consumes this scaffold): generated docs authority against packaged resources
