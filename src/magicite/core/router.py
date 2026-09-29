@@ -65,6 +65,7 @@ from magicite.config import Config
 from magicite.core import activation as activation_mod
 from magicite.core import composition as composition_mod
 from magicite.core import edge_weight as edge_weight_mod
+from magicite.core import fingerprint_key as fingerprint_key_mod
 from magicite.core import routing_policy as policy_mod
 from magicite.core import session as session_mod
 from magicite.core.decay_math import effective_value
@@ -419,6 +420,7 @@ def route(
 
 
 def _route_event_payload(
+    cfg: Config,
     *,
     query: str,
     k: int,
@@ -426,13 +428,19 @@ def _route_event_payload(
     policy_id: str,
     policy_digest: str,
 ) -> dict:
-    """Tier-C route receipt without raw query text (AC-S00-04 / C6)."""
+    """Tier-C route receipt without raw query text (AC-S00-04 / C6).
+
+    Persists a local keyed HMAC fingerprint (``hmac-sha256/local-v1``), never
+    an unsalted hash of the query and never the raw query string.
+    """
+    key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
     return {
         "k": k,
         "candidate_ids": [c.id for c in candidates],
         "policy_id": policy_id,
         "policy_digest": policy_digest,
-        "query_sha256": policy_mod.query_fingerprint(query),
+        "query_fingerprint": fingerprint_key_mod.query_fingerprint(query, key=key),
+        "fingerprint_scheme": fingerprint_key_mod.FINGERPRINT_SCHEME,
     }
 
 
@@ -475,6 +483,7 @@ def _finalize_route(
         signal_tier=0,
         engram_id=candidates[0].id if candidates else None,
         payload=_route_event_payload(
+            cfg,
             query=query,
             k=k,
             candidates=candidates,

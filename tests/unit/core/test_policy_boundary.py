@@ -112,6 +112,8 @@ def test_stable_ignores_adaptation(cfg, db_conn, embedder) -> None:
     assert _semantic_ids(adapted_state) == baseline_ids
     assert [c.score for c in adapted_state.candidates] == baseline_scores
     assert adapted_state.policy_digest == baseline.policy_digest
+    assert adapted_state.composition_plan == baseline.composition_plan
+    assert adapted_state.plan_confidence == baseline.plan_confidence
 
 
 def test_dream_cannot_change_stable_policy(cfg, db_conn, embedder) -> None:
@@ -172,11 +174,19 @@ def test_experimental_is_explicit(cfg, db_conn, embedder) -> None:
 
 def test_no_raw_query_logging(cfg, db_conn, embedder) -> None:
     """AC-S00-04: persistent route events omit the raw query string."""
+    import hashlib
+
+    from magicite.core import fingerprint_key as fingerprint_key_mod
+
     secret = "SENTINEL_SECRET_TOKEN_S00_DO_NOT_PERSIST"
     _insert_engram(db_conn, "egr_a", "a")
     _embed_and_store(db_conn, embedder, "egr_a", "benign text")
 
     router_mod.route(cfg, db_conn, embedder, query=secret, k=3)
+
+    key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
+    expected_fp = fingerprint_key_mod.query_fingerprint(secret, key=key)
+    unsalted = hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
     rows = db_conn.execute(
         "SELECT payload_json FROM eph_event WHERE tool = 'route' ORDER BY id DESC LIMIT 5"
@@ -187,5 +197,8 @@ def test_no_raw_query_logging(cfg, db_conn, embedder) -> None:
         blob = json.dumps(payload)
         assert secret not in blob
         assert "query" not in payload
-        assert payload.get("query_sha256") == policy_mod.query_fingerprint(secret)
+        assert "query_sha256" not in payload
+        assert unsalted not in blob
+        assert payload.get("query_fingerprint") == expected_fp
+        assert payload.get("fingerprint_scheme") == fingerprint_key_mod.FINGERPRINT_SCHEME
         assert payload.get("policy_id") == policy_mod.POLICY_DENSE_V1

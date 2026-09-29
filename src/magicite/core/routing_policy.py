@@ -63,8 +63,18 @@ def active_stable_policy_digest(cfg: Config) -> str:
 
 
 def compute_policy_digest(policy_id: str, cfg: Config) -> str:
-    """SHA-256 over the policy's scoring-semantic fingerprint (no DB state)."""
+    """SHA-256 over the policy's scoring-semantic fingerprint (no DB state).
+
+    ``dense-v1`` currently fingerprints a fixed semantic descriptor (cosine +
+    stable-ID ties, no adaptive channels). S07 MUST extend this payload when
+    stable knobs that change selection semantics are introduced (abstention
+    thresholds, margins, fallback identity, calibration digest, etc.) so the
+    digest changes if and only if stable ranking/abstention semantics change.
+    Do not fold Dream-learned strengths or experimental-only knobs into the
+    dense digest.
+    """
     if policy_id == POLICY_DENSE_V1:
+        # Fixed incumbent descriptor until S07 adds stable knobs — see docstring.
         payload: dict[str, object] = {
             "policy_id": POLICY_DENSE_V1,
             "family": "stable",
@@ -102,8 +112,3 @@ def compute_policy_digest(policy_id: str, cfg: Config) -> str:
         raise InvalidInputError(f"unknown routing_policy {policy_id!r}")
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def query_fingerprint(query: str) -> str:
-    """Non-reversible query handle for route events (AC-S00-04 / C6)."""
-    return hashlib.sha256(query.encode("utf-8")).hexdigest()
