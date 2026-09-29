@@ -88,7 +88,7 @@ def _child_env():
 def _find_existing_wheel() -> Path | None:
     env_wheel = os.environ.get("MAGICITE_TEST_WHEEL")
     if env_wheel:
-        path = Path(env_wheel)
+        path = Path(env_wheel).resolve()
         return path if path.is_file() else None
     dist = ROOT / "dist"
     if not dist.is_dir():
