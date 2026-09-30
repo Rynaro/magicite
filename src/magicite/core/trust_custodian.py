@@ -164,6 +164,8 @@ class CustodianStore:
         record_id: str,
         kind: str,
         payload: dict[str, Any],
+        *,
+        mac_key: bytes | None = None,
     ) -> dict[str, Any]:
         record = {
             "registry_id": registry,
@@ -175,7 +177,7 @@ class CustodianStore:
             "payload_digest": hashlib.sha256(_bytes(payload)).hexdigest(),
             "prev_mac": previous,
         }
-        record["mac"] = hmac.new(self._key, DOMAIN + _bytes(record), hashlib.sha256).hexdigest()
+        record["mac"] = hmac.new(mac_key or self._key, DOMAIN + _bytes(record), hashlib.sha256).hexdigest()
         _bytes(record)  # Reject final envelope overflow before any durable preparation.
         return record
 
@@ -208,11 +210,42 @@ class CustodianStore:
         except sqlite3.IntegrityError as exc:
             raise CustodianError("registry already enrolled") from exc
 
+    @staticmethod
+    def _ordinary(state: dict[str, Any]) -> None:
+        if state.get("rotation") is not None:
+            raise CustodianError("custody rotation requires reconciliation")
+
+    def signer_for(self, registry: str) -> Ed25519PrivateKey:
+        state = self._load(registry)
+        epoch = str(self._head(state)["epoch"])
+        if epoch == "1":
+            return self.signing_key
+        try:
+            return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(state["epoch_keys"][epoch]["signing"]))
+        except (KeyError, ValueError, TypeError) as exc:
+            raise CustodianError("custody epoch key unavailable") from exc
+
     def read_current(self, registry: str) -> dict[str, Any]:
-        return self._head(self._load(registry))
+        state = self._load(registry)
+        self._ordinary(state)
+        return self._head(state)
 
     def register_fence(
         self, registry: str, *, predecessor: dict[str, Any], attempt_id: str, holder: str, local_token: int
+    ) -> dict[str, Any]:
+        return self._register_fence(
+            registry, predecessor=predecessor, attempt_id=attempt_id, holder=holder, local_token=local_token
+        )
+
+    def _register_fence(
+        self,
+        registry: str,
+        *,
+        predecessor: dict[str, Any],
+        attempt_id: str,
+        holder: str,
+        local_token: int,
+        transition_id: str | None = None,
     ) -> dict[str, Any]:
         _identifier(attempt_id)
         _identifier(holder)
@@ -221,6 +254,10 @@ class CustodianStore:
         with self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
             state = self._load(registry)
+            if transition_id is None:
+                self._ordinary(state)
+            elif state.get("rotation", {}).get("transition_id") != transition_id:
+                raise CustodianError("rotation identity mismatch")
             binding = {
                 "attempt_id": attempt_id,
                 "holder": holder,
@@ -334,6 +371,7 @@ class CustodianStore:
         with self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
             state = self._load(registry)
+            self._ordinary(state)
             self._assert_fence(state, fence)
             if kind == "artifact_transform":
                 records_by_id = {record["record_id"]: record for record in state["records"]}
@@ -368,7 +406,18 @@ class CustodianStore:
             if not _match(expected_head, head, HEAD_FIELDS):
                 raise CustodianError("stale preparation head")
             record = self._record(
-                registry, head["epoch"], head["head_sequence"] + 1, head["head_mac"], record_id, kind, payload
+                registry,
+                head["epoch"],
+                head["head_sequence"] + 1,
+                head["head_mac"],
+                record_id,
+                kind,
+                payload,
+                mac_key=(
+                    bytes.fromhex(state["epoch_keys"][str(head["epoch"])]["mac"])
+                    if head["epoch"] != 1
+                    else self._key
+                ),
             )
             state["pending"] = record
             self._save(registry, state)
@@ -380,6 +429,7 @@ class CustodianStore:
         with self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
             state = self._load(registry)
+            self._ordinary(state)
             self._assert_fence(state, fence)
             if _equal(record, state["records"][-1]):
                 return self._head(state)
@@ -399,6 +449,7 @@ class CustodianStore:
 
     def history_page(self, registry: str, *, expected_head: dict[str, Any], offset: int) -> dict[str, Any]:
         state = self._load(registry)
+        self._ordinary(state)
         head = self._head(state)
         if not _match(expected_head, head, HEAD_FIELDS):
             raise CustodianError("history head changed")
@@ -421,5 +472,193 @@ class CustodianStore:
         }
 
     def prepared_record(self, registry: str) -> dict[str, Any] | None:
-        pending: dict[str, Any] | None = self._load(registry)["pending"]
+        state = self._load(registry)
+        self._ordinary(state)
+        pending: dict[str, Any] | None = state["pending"]
         return pending
+
+    def rotation_status(self, registry: str) -> dict[str, Any]:
+        state = self._load(registry)
+        rotation = state.get("rotation")
+        if rotation is None:
+            raise CustodianError("no pending custody rotation")
+        return {
+            "phase": rotation["phase"],
+            "head": self._head(state),
+            "transition": rotation["certificate"],
+            "transition_id": rotation["transition_id"],
+            "record": rotation["record"],
+        }
+
+    def rotate_prepare(
+        self,
+        registry: str,
+        *,
+        fence: dict[str, Any],
+        expected_head: dict[str, Any],
+        transition_id: str,
+        actor: str,
+    ) -> dict[str, Any]:
+        from magicite.core.trust_rotation import TRANSITION_DOMAIN
+
+        _identifier(transition_id)
+        _identifier(actor)
+        with self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            state = self._load(registry)
+            self._assert_fence(state, fence)
+            rotation = state.get("rotation")
+            if rotation is not None:
+                if (
+                    rotation["transition_id"] != transition_id
+                    or rotation["actor"] != actor
+                    or not _match(expected_head, rotation["old_head"], HEAD_FIELDS)
+                ):
+                    raise CustodianError("conflicting custody rotation")
+                return dict(rotation["certificate"])
+            if state["pending"] is not None or not _match(expected_head, self._head(state), HEAD_FIELDS):
+                raise CustodianError("rotation requires reconciled current head")
+            if transition_id in state.get("transitions", {}):
+                raise CustodianError("rotation identity already completed")
+            old_head = self._head(state)
+            old_key = self.signer_for(registry)
+            new_key, new_mac = Ed25519PrivateKey.generate(), secrets.token_bytes(32)
+            old_public = old_key.public_key().public_bytes_raw().hex()
+            new_public = new_key.public_key().public_bytes_raw().hex()
+            intent = {
+                "schema": "EpochTransitionIntent/1",
+                "registry_id": registry,
+                "transition_id": transition_id,
+                "actor": actor,
+                "old_epoch": old_head["epoch"],
+                "new_epoch": old_head["epoch"] + 1,
+                "old_public_key": old_public,
+                "new_public_key": new_public,
+                "old_head": {k: old_head[k] for k in HEAD_FIELDS},
+                "policy_digest": state["policy_digest"],
+            }
+            record_id = "epoch-" + transition_id
+            if any(record["record_id"] == record_id for record in state["records"]):
+                raise CustodianError("conflicting immutable record identity")
+            record = self._record(
+                registry,
+                intent["new_epoch"],
+                old_head["head_sequence"] + 1,
+                old_head["head_mac"],
+                record_id,
+                "epoch_transition",
+                intent,
+                mac_key=new_mac,
+            )
+            new_head = {
+                "registry_id": registry,
+                "epoch": intent["new_epoch"],
+                "head_sequence": record["sequence"],
+                "head_mac": record["mac"],
+            }
+            body = {
+                "schema": "Transition/1",
+                "registry_id": registry,
+                "transition_id": transition_id,
+                "old_epoch": intent["old_epoch"],
+                "new_epoch": intent["new_epoch"],
+                "old_public_key": old_public,
+                "new_public_key": new_public,
+                "old_key_id": hashlib.sha256(bytes.fromhex(old_public)).hexdigest(),
+                "new_key_id": hashlib.sha256(bytes.fromhex(new_public)).hexdigest(),
+                "old_head": intent["old_head"],
+                "new_head": new_head,
+                "policy_digest": state["policy_digest"],
+                "intent_digest": hashlib.sha256(_bytes(intent)).hexdigest(),
+            }
+            certificate = {
+                "body": body,
+                "old_signature": old_key.sign(TRANSITION_DOMAIN + _bytes(body)).hex(),
+                "new_signature": new_key.sign(TRANSITION_DOMAIN + _bytes(body)).hex(),
+            }
+            state.setdefault("epoch_keys", {})[str(intent["new_epoch"])] = {
+                "mac": new_mac.hex(),
+                "signing": new_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption()).hex(),
+            }
+            state["rotation"] = {
+                "phase": "PREPARED",
+                "transition_id": transition_id,
+                "actor": actor,
+                "old_head": old_head,
+                "record": record,
+                "certificate": certificate,
+            }
+            self._save(registry, state)
+            return certificate
+
+    def rotate_register(
+        self,
+        registry: str,
+        *,
+        transition_id: str,
+        predecessor: dict[str, Any],
+        attempt_id: str,
+        holder: str,
+        local_token: int,
+    ) -> dict[str, Any]:
+        return self._register_fence(
+            registry,
+            predecessor=predecessor,
+            attempt_id=attempt_id,
+            holder=holder,
+            local_token=local_token,
+            transition_id=transition_id,
+        )
+
+    def rotate_commit(
+        self,
+        registry: str,
+        *,
+        transition_id: str,
+        fence: dict[str, Any],
+        expected_head: dict[str, Any],
+    ) -> dict[str, Any]:
+        with self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            state = self._load(registry)
+            self._assert_fence(state, fence)
+            rotation = state.get("rotation")
+            if (
+                rotation is None
+                or rotation["transition_id"] != transition_id
+                or not _match(expected_head, rotation["old_head"], HEAD_FIELDS)
+            ):
+                raise CustodianError("rotation identity/head mismatch")
+            if rotation["phase"] == "COMMITTED":
+                return self._head(state)
+            if not _match(self._head(state), rotation["old_head"], HEAD_FIELDS):
+                raise CustodianError("rotation source head changed")
+            state["records"].append(rotation["record"])
+            rotation["phase"] = "COMMITTED"
+            self._save(registry, state)
+            return self._head(state)
+
+    def rotate_finish(
+        self,
+        registry: str,
+        *,
+        transition_id: str,
+        expected_head: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Service calls only after its protected profile has durably advanced."""
+        with self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            state = self._load(registry)
+            rotation = state.get("rotation")
+            if not _match(expected_head, self._head(state), HEAD_FIELDS):
+                raise CustodianError("rotation completion head mismatch")
+            if rotation is None:
+                if transition_id not in state.get("transitions", {}):
+                    raise CustodianError("rotation identity mismatch")
+                return self._head(state)
+            if rotation["transition_id"] != transition_id or rotation["phase"] != "COMMITTED":
+                raise CustodianError("rotation has not committed")
+            state.setdefault("transitions", {})[transition_id] = rotation["certificate"]
+            state["rotation"] = None
+            self._save(registry, state)
+            return self._head(state)
