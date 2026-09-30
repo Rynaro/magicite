@@ -125,6 +125,49 @@ def test_plan_confidence_reports_the_unresolved_share(cfg, db_conn, embedder) ->
     assert outcome.plan_confidence == 0.5
 
 
+def _write_v02_engram(cfg, *, engram_id: str, name: str, relpath: str | None = None) -> tuple[str, str]:
+    """Write a minimal engram/0.2 file; return (relpath, content_digest)."""
+    from magicite.engram import ids as ids_mod
+
+    rel = relpath or f".magicite/engrams/{name}.egr.md"
+    body = f"## Procedure\n{name}\n"
+    raw = f"""---
+spec: engram/0.2
+name: {name}
+id: {engram_id}
+version: 1
+provenance: authored
+intent:
+  does: "does {name}"
+  use_when: "use when {name}"
+  not_when: "never"
+triggers:
+  positive: ["{name}"]
+  negative: []
+context_affinity: []
+plasticity:
+  storage_strength: 0.0
+  exposure_count: 0
+  outcome:
+    success: 0
+    failure: 0
+  excitability: 0.05
+  status: nascent
+needs: []
+inhibits: []
+provenance_journal: []
+trust:
+  origin: authored
+  verification_status: verified
+---
+{body}"""
+    full = cfg.project_root / rel
+    full.parent.mkdir(parents=True, exist_ok=True)
+    data = raw.encode("utf-8")
+    full.write_bytes(data)
+    return rel, ids_mod.content_sha256(data)
+
+
 def _insert_synthetic(
     conn,
     *,
@@ -167,13 +210,21 @@ def _write_v1_engram(
     name: str,
     query_tokens: str,
     risk_tools: list[str] | None = None,
+    risk_mode: str = "declared-tools",
     hosts: list[dict] | None = None,
     assets: dict | None = None,
 ) -> tuple[Path, str]:
     """Write a minimal V1 engram under the registry; return (path, content_digest)."""
+    from magicite.engram import ids as ids_mod
+
     body = f"## Procedure\n{query_tokens}\n"
     body_digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
-    tools = risk_tools if risk_tools is not None else ["protontricks"]
+    if risk_tools is not None:
+        tools = risk_tools
+    elif risk_mode == "declared-tools":
+        tools = ["protontricks"]
+    else:
+        tools = []
     hosts_yaml = ""
     if hosts:
         hosts_yaml = "  hosts:\n"
@@ -185,6 +236,7 @@ def _write_v1_engram(
     assets_block = "{}"
     if assets:
         assets_block = json.dumps(assets, sort_keys=True)
+    tools_yaml = f"    tools: {tools}" if risk_mode == "declared-tools" else "    tools: []"
     raw = f"""---
 spec: engram/1.0
 name: {name}
@@ -208,8 +260,8 @@ relations:
 risk:
   filesystem: none
   subprocess:
-    mode: declared-tools
-    tools: {tools}
+    mode: {risk_mode}
+{tools_yaml}
   network:
     mode: none
     destinations: []
@@ -230,9 +282,24 @@ extensions: {{}}
     rel = f".magicite/engrams/{name}.egr.md"
     full = cfg.project_root / rel
     full.parent.mkdir(parents=True, exist_ok=True)
-    full.write_text(raw, encoding="utf-8")
-    content_digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-    return full, content_digest
+    data = raw.encode("utf-8")
+    full.write_bytes(data)
+    return full, ids_mod.content_sha256(data)
+
+
+def _insert_healthy_competitor(cfg, conn, embedder, *, engram_id: str, name: str) -> None:
+    rel, digest = _write_v02_engram(cfg, engram_id=engram_id, name=name)
+    _insert_synthetic(
+        conn, engram_id=engram_id, name=name, path=rel, content_sha256=digest
+    )
+    ephemeral_mod.upsert_embedding(
+        conn,
+        engram_id=engram_id,
+        model_name=embedder.model_name,
+        dim=embedder.dim,
+        vec=embedder.embed(f"unrelated {name}"),
+        source_sha256=digest,
+    )
 
 
 def _assert_excluded_bodies(outcome, engram_id: str, body_ref: str) -> None:
@@ -253,41 +320,47 @@ def test_eligibility_before_rerank(cfg, db_conn, embedder) -> None:
     THEN the artifact SHALL be absent from returned candidates and bodies.
     """
     router_mod._SUBJECT_CACHE.clear()
+    q_rel, q_digest = _write_v02_engram(
+        cfg, engram_id="egr_aa550001", name="quarantined-top"
+    )
+    h_rel, h_digest = _write_v02_engram(
+        cfg, engram_id="egr_aa550002", name="healthy-skill"
+    )
     _insert_synthetic(
         db_conn,
-        engram_id="egr_quarantined",
+        engram_id="egr_aa550001",
         name="quarantined-top",
-        path="quarantined-top.egr.md",
-        content_sha256="egr_quarantined",
+        path=q_rel,
+        content_sha256=q_digest,
         verification_status="quarantined",
     )
     _insert_synthetic(
         db_conn,
-        engram_id="egr_healthy",
+        engram_id="egr_aa550002",
         name="healthy-skill",
-        path="healthy-skill.egr.md",
-        content_sha256="egr_healthy",
+        path=h_rel,
+        content_sha256=h_digest,
     )
     query = "quarantine eligibility probe unique tokens xyzzy"
     ephemeral_mod.upsert_embedding(
         db_conn,
-        engram_id="egr_quarantined",
+        engram_id="egr_aa550001",
         model_name=embedder.model_name,
         dim=embedder.dim,
         vec=embedder.embed(query),
-        source_sha256="egr_quarantined",
+        source_sha256=q_digest,
     )
     ephemeral_mod.upsert_embedding(
         db_conn,
-        engram_id="egr_healthy",
+        engram_id="egr_aa550002",
         model_name=embedder.model_name,
         dim=embedder.dim,
         vec=embedder.embed("unrelated healthy skill text"),
-        source_sha256="egr_healthy",
+        source_sha256=h_digest,
     )
 
     outcome = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
-    _assert_excluded_bodies(outcome, "egr_quarantined", "quarantined-top.egr.md")
+    _assert_excluded_bodies(outcome, "egr_aa550001", q_rel)
     assert "quarantined-top" not in [c.name for c in outcome.candidates]
 
 
@@ -309,20 +382,12 @@ def test_eligibility_risk_denied_under_restrictive_server_policy(cfg, db_conn, e
         content_sha256=digest,
         spec_version="engram/1.0",
     )
-    _insert_synthetic(
-        db_conn,
-        engram_id="egr_aa1100ff",
-        name="healthy-competitor",
-        path="healthy-competitor.egr.md",
-        content_sha256="egr_aa1100ff",
-    )
     ephemeral_mod.upsert_embedding(
         db_conn, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
         vec=embedder.embed(query), source_sha256=digest,
     )
-    ephemeral_mod.upsert_embedding(
-        db_conn, engram_id="egr_aa1100ff", model_name=embedder.model_name, dim=embedder.dim,
-        vec=embedder.embed("unrelated healthy"), source_sha256="egr_aa1100ff",
+    _insert_healthy_competitor(
+        cfg, db_conn, embedder, engram_id="egr_aa1100ff", name="healthy-competitor"
     )
 
     restrictive = ServerPermissionPolicy(
@@ -359,20 +424,12 @@ def test_eligibility_tool_denied_under_empty_allowed_tools(cfg, db_conn, embedde
     _insert_synthetic(
         db_conn, engram_id=eid, name=name, path=rel, content_sha256=digest, spec_version="engram/1.0",
     )
-    _insert_synthetic(
-        db_conn,
-        engram_id="egr_aa2200ff",
-        name="healthy-tool-comp",
-        path="healthy-tool-comp.egr.md",
-        content_sha256="egr_aa2200ff",
-    )
     ephemeral_mod.upsert_embedding(
         db_conn, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
         vec=embedder.embed(query), source_sha256=digest,
     )
-    ephemeral_mod.upsert_embedding(
-        db_conn, engram_id="egr_aa2200ff", model_name=embedder.model_name, dim=embedder.dim,
-        vec=embedder.embed("unrelated"), source_sha256="egr_aa2200ff",
+    _insert_healthy_competitor(
+        cfg, db_conn, embedder, engram_id="egr_aa2200ff", name="healthy-tool-comp"
     )
 
     policy = ServerPermissionPolicy(
@@ -411,20 +468,12 @@ def test_eligibility_context_required_unknown_host(cfg, db_conn, embedder) -> No
     _insert_synthetic(
         db_conn, engram_id=eid, name=name, path=rel, content_sha256=digest, spec_version="engram/1.0",
     )
-    _insert_synthetic(
-        db_conn,
-        engram_id="egr_aa3300ff",
-        name="healthy-compat-comp",
-        path="healthy-compat-comp.egr.md",
-        content_sha256="egr_aa3300ff",
-    )
     ephemeral_mod.upsert_embedding(
         db_conn, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
         vec=embedder.embed(query), source_sha256=digest,
     )
-    ephemeral_mod.upsert_embedding(
-        db_conn, engram_id="egr_aa3300ff", model_name=embedder.model_name, dim=embedder.dim,
-        vec=embedder.embed("unrelated"), source_sha256="egr_aa3300ff",
+    _insert_healthy_competitor(
+        cfg, db_conn, embedder, engram_id="egr_aa3300ff", name="healthy-compat-comp"
     )
 
     # Allow subprocess so risk/tools don't mask context_required.
@@ -466,20 +515,12 @@ def test_eligibility_asset_invalid(cfg, db_conn, embedder) -> None:
     _insert_synthetic(
         db_conn, engram_id=eid, name=name, path=rel, content_sha256=digest, spec_version="engram/1.0",
     )
-    _insert_synthetic(
-        db_conn,
-        engram_id="egr_aa4400ff",
-        name="healthy-asset-comp",
-        path="healthy-asset-comp.egr.md",
-        content_sha256="egr_aa4400ff",
-    )
     ephemeral_mod.upsert_embedding(
         db_conn, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
         vec=embedder.embed(query), source_sha256=digest,
     )
-    ephemeral_mod.upsert_embedding(
-        db_conn, engram_id="egr_aa4400ff", model_name=embedder.model_name, dim=embedder.dim,
-        vec=embedder.embed("unrelated"), source_sha256="egr_aa4400ff",
+    _insert_healthy_competitor(
+        cfg, db_conn, embedder, engram_id="egr_aa4400ff", name="healthy-asset-comp"
     )
 
     policy = ServerPermissionPolicy(
@@ -544,6 +585,7 @@ def test_route_honours_policy_store_activation(cfg, db_conn, embedder) -> None:
         assert out1.decision is not None
         assert out1.decision.policy_id == policy_mod.POLICY_DENSE_V1
         assert out1.decision.status != "error"
+        assert out1.decision.policy_source == "store"
 
         ps.activate(
             cfg,
@@ -619,3 +661,273 @@ def test_index_generation_identity_differs_across_publish(cfg, db_conn, embedder
     assert third.decision.snapshot_id == "snap-s07-b"
     assert third.decision.index_generation_id != first.decision.index_generation_id
     assert third.decision.snapshot_id != first.decision.snapshot_id
+
+
+def test_subject_cache_detects_registry_drift(cfg, db_conn, embedder) -> None:
+    """ATLAS B1: rewrite on-disk risk without re-register → drift deny on next route."""
+    from magicite.engram import ids as ids_mod
+
+    router_mod._SUBJECT_CACHE.clear()
+    eid = "egr_aa660006"
+    name = "cache-drift-probe"
+    query = "cache drift eligibility probe unique tokens xyzzy"
+    full, digest = _write_v1_engram(
+        cfg, engram_id=eid, name=name, query_tokens=query, risk_mode="none", risk_tools=[]
+    )
+    rel = f".magicite/engrams/{name}.egr.md"
+    _insert_synthetic(
+        db_conn, engram_id=eid, name=name, path=rel, content_sha256=digest, spec_version="engram/1.0"
+    )
+    ephemeral_mod.upsert_embedding(
+        db_conn, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
+        vec=embedder.embed(query), source_sha256=digest,
+    )
+    _insert_healthy_competitor(
+        cfg, db_conn, embedder, engram_id="egr_aa6600ff", name="healthy-drift-comp"
+    )
+
+    permissive = ServerPermissionPolicy(
+        allowed_permissions=frozenset(),
+        allowed_tools=frozenset(),
+        policy_digest="atlas-cache-permissive/1",
+        max_filesystem="none",
+        max_subprocess="none",
+        max_network="none",
+        max_secrets="none",
+    )
+    first = router_mod.route(
+        cfg, db_conn, embedder, query=query, k=5,
+        route_context=RouteContext(), server_policy=permissive,
+    )
+    assert first.decision is not None
+    assert eid in [c.id for c in first.candidates]
+
+    # Rewrite live bytes to declared-tools without updating DB digest.
+    drifted, _ = _write_v1_engram(
+        cfg,
+        engram_id=eid,
+        name=name,
+        query_tokens=query,
+        risk_mode="declared-tools",
+        risk_tools=["shell.exec"],
+    )
+    assert ids_mod.content_sha256(drifted.read_bytes()) != digest
+
+    restrictive = ServerPermissionPolicy(
+        allowed_permissions=frozenset(),
+        allowed_tools=frozenset(),
+        policy_digest="atlas-cache-restrictive/1",
+        max_filesystem="none",
+        max_subprocess="none",
+        max_network="none",
+        max_secrets="none",
+    )
+    second = router_mod.route(
+        cfg, db_conn, embedder, query=query, k=5,
+        route_context=RouteContext(), server_policy=restrictive,
+    )
+    _assert_excluded_bodies(second, eid, rel)
+    reasons = {e.engram_id: e.reason_codes for e in second.decision.exclusions}  # type: ignore[union-attr]
+    assert "registry_drift" in reasons[eid]
+
+
+def test_subject_cache_identical_rewrite_stays_eligible(cfg, db_conn, embedder) -> None:
+    """Same-bytes rewrite keeps file identity miss but matching digest → eligible."""
+    router_mod._SUBJECT_CACHE.clear()
+    eid = "egr_aa770007"
+    name = "cache-same-bytes"
+    query = "cache same bytes eligibility probe unique tokens xyzzy"
+    full, digest = _write_v1_engram(
+        cfg, engram_id=eid, name=name, query_tokens=query, risk_mode="none", risk_tools=[]
+    )
+    rel = f".magicite/engrams/{name}.egr.md"
+    _insert_synthetic(
+        db_conn, engram_id=eid, name=name, path=rel, content_sha256=digest, spec_version="engram/1.0"
+    )
+    ephemeral_mod.upsert_embedding(
+        db_conn, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
+        vec=embedder.embed(query), source_sha256=digest,
+    )
+    first = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
+    assert eid in [c.id for c in first.candidates]
+
+    # Touch mtime by rewriting identical bytes.
+    raw = full.read_bytes()
+    full.write_bytes(raw)
+    second = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
+    assert eid in [c.id for c in second.candidates]
+
+
+def test_subject_cache_scoped_per_registry_root(tmp_path, embedder) -> None:
+    """Two registries in one process must not share subject cache entries."""
+    from magicite.config import Config
+    from magicite.storage import db as db_mod
+
+    router_mod._SUBJECT_CACHE.clear()
+
+    def _boot(root):
+        (root / ".magicite" / "engrams").mkdir(parents=True)
+        cfg = Config.load(root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+        cfg.ensure_dirs()
+        conn = db_mod.connect(cfg.db_path)
+        return cfg, conn
+
+    cfg_a, conn_a = _boot(tmp_path / "proj_a")
+    cfg_b, conn_b = _boot(tmp_path / "proj_b")
+    try:
+        eid = "egr_aa880008"
+        name = "cache-scope"
+        query = "cache scope probe unique tokens xyzzy"
+        full_a, dig_a = _write_v1_engram(
+            cfg_a, engram_id=eid, name=name, query_tokens=query, risk_mode="none", risk_tools=[]
+        )
+        rel = f".magicite/engrams/{name}.egr.md"
+        _insert_synthetic(
+            conn_a, engram_id=eid, name=name, path=rel, content_sha256=dig_a, spec_version="engram/1.0"
+        )
+        ephemeral_mod.upsert_embedding(
+            conn_a, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
+            vec=embedder.embed(query), source_sha256=dig_a,
+        )
+        out_a = router_mod.route(cfg_a, conn_a, embedder, query=query, k=5)
+        assert eid in [c.id for c in out_a.candidates]
+
+        # Same id in B with drifted risk bytes vs empty DB digest mismatch → deny in B.
+        full_b, dig_b = _write_v1_engram(
+            cfg_b,
+            engram_id=eid,
+            name=name,
+            query_tokens=query,
+            risk_mode="declared-tools",
+            risk_tools=["shell.exec"],
+        )
+        _insert_synthetic(
+            conn_b, engram_id=eid, name=name, path=rel, content_sha256=dig_a, spec_version="engram/1.0"
+        )
+        ephemeral_mod.upsert_embedding(
+            conn_b, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
+            vec=embedder.embed(query), source_sha256=dig_a,
+        )
+        assert dig_b != dig_a
+        out_b = router_mod.route(cfg_b, conn_b, embedder, query=query, k=5)
+        assert eid not in [c.id for c in out_b.candidates]
+        reasons = {e.engram_id: e.reason_codes for e in out_b.decision.exclusions}  # type: ignore[union-attr]
+        assert "registry_drift" in reasons[eid]
+        # A remains independently eligible (no cross-root leakage).
+        out_a2 = router_mod.route(cfg_a, conn_a, embedder, query=query, k=5)
+        assert eid in [c.id for c in out_a2.candidates]
+        del full_a, full_b
+    finally:
+        conn_a.close()
+        conn_b.close()
+
+
+def test_missing_artifact_file_excluded(cfg, db_conn, embedder) -> None:
+    """NIT: DB row whose artifact file is missing is fail-closed excluded."""
+    router_mod._SUBJECT_CACHE.clear()
+    eid = "egr_aa990009"
+    _insert_synthetic(
+        db_conn,
+        engram_id=eid,
+        name="missing-file",
+        path=".magicite/engrams/does-not-exist.egr.md",
+        content_sha256="ab" * 32,
+    )
+    ephemeral_mod.upsert_embedding(
+        db_conn, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
+        vec=embedder.embed("missing file probe"), source_sha256="ab" * 32,
+    )
+    outcome = router_mod.route(cfg, db_conn, embedder, query="missing file probe", k=5)
+    assert eid not in [c.id for c in outcome.candidates]
+    reasons = {e.engram_id: e.reason_codes for e in outcome.decision.exclusions}  # type: ignore[union-attr]
+    assert "missing_artifact" in reasons[eid]
+
+
+def test_policy_store_missing_after_activation_fails_closed(cfg, db_conn, embedder) -> None:
+    """ATLAS B2: delete state.json after activate → policy_store_missing (no elevation)."""
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    cfg.ensure_dirs()
+    fk.set_fingerprint_key_override(b"\x55" * fk.KEY_BYTES)
+    try:
+        dense = ps.PolicyManifest(
+            policy_id=policy_mod.POLICY_DENSE_V1,
+            policy_digest=policy_mod.compute_policy_digest(policy_mod.POLICY_DENSE_V1, cfg),
+            policy_family="stable",
+            config_digest=policy_mod.compute_config_digest(cfg),
+            calibration_digest=None,
+            index_generation_id="gen_miss",
+            snapshot_id="snap_miss",
+            selection="cosine_similarity",
+        )
+        ps.register_evaluated(cfg, dense, evaluation_status="pass", evidence="miss")
+        approval = ps.approve(cfg, dense.policy_digest, actor="reviewer")
+        ps.activate(
+            cfg,
+            expected_current=None,
+            candidate_digest=dense.policy_digest,
+            approval_id=approval,
+        )
+        assert ps.prior_policy_governance_evidence(cfg) is True
+
+        cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
+        before = cfg.routing_policy
+        ps.policy_store_path(cfg).unlink()
+        out = router_mod.route(cfg, db_conn, embedder, query="rollback proton", k=5)
+        assert out.decision is not None
+        assert out.decision.status == "error"
+        assert out.decision.operational_error == "policy_store_missing"
+        assert out.decision.policy_id != policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1 or (
+            out.decision.operational_error == "policy_store_missing"
+        )
+        assert cfg.routing_policy == before
+    finally:
+        fk.set_fingerprint_key_override(None)
+
+
+def test_fresh_install_policy_source_and_cfg_immutable(cfg, db_conn, embedder) -> None:
+    """No store / no prior evidence → dense-v1 from cfg; Config not mutated."""
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    assert not ps.policy_store_path(cfg).is_file()
+    assert ps.prior_policy_governance_evidence(cfg) is False
+    before = cfg.routing_policy
+    out = router_mod.route(cfg, db_conn, embedder, query="rollback proton", k=5)
+    assert out.decision is not None
+    assert out.decision.policy_id == policy_mod.POLICY_DENSE_V1
+    assert out.decision.policy_source == "config_fresh_install"
+    assert cfg.routing_policy == before
+
+
+def test_store_active_ignores_cfg_experimental(cfg, db_conn, embedder) -> None:
+    """Store active dense-v1 + cfg experimental → dense with ignored reason; cfg unchanged."""
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    cfg.ensure_dirs()
+    fk.set_fingerprint_key_override(b"\x56" * fk.KEY_BYTES)
+    try:
+        dense = ps.PolicyManifest(
+            policy_id=policy_mod.POLICY_DENSE_V1,
+            policy_digest=policy_mod.compute_policy_digest(policy_mod.POLICY_DENSE_V1, cfg),
+            policy_family="stable",
+            config_digest=policy_mod.compute_config_digest(cfg),
+            calibration_digest=None,
+            index_generation_id="gen_ign",
+            snapshot_id="snap_ign",
+            selection="cosine_similarity",
+        )
+        ps.register_evaluated(cfg, dense, evaluation_status="pass", evidence="ign")
+        approval = ps.approve(cfg, dense.policy_digest, actor="reviewer")
+        ps.activate(
+            cfg,
+            expected_current=None,
+            candidate_digest=dense.policy_digest,
+            approval_id=approval,
+        )
+        cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
+        before = cfg.routing_policy
+        out = router_mod.route(cfg, db_conn, embedder, query="rollback proton", k=5)
+        assert out.decision is not None
+        assert out.decision.policy_id == policy_mod.POLICY_DENSE_V1
+        assert out.decision.policy_source == "store"
+        assert "config_policy_ignored_store_active" in out.decision.reason_codes
+        assert cfg.routing_policy == before
+    finally:
+        fk.set_fingerprint_key_override(None)

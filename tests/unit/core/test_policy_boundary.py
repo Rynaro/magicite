@@ -16,8 +16,47 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _insert_engram(conn, engram_id: str, name: str, *, excitability: float = 0.05) -> None:
+def _insert_engram(cfg, conn, engram_id: str, name: str, *, excitability: float = 0.05) -> str:
+    from magicite.engram import ids as ids_mod
+
     now = _now()
+    body = f"## Procedure\n{name}\n"
+    raw = f"""---
+spec: engram/0.2
+name: {name}
+id: {engram_id}
+version: 1
+provenance: authored
+intent:
+  does: "does {name}"
+  use_when: "use when {name}"
+  not_when: "never"
+triggers:
+  positive: ["{name}"]
+  negative: []
+context_affinity: []
+plasticity:
+  storage_strength: 0.0
+  exposure_count: 0
+  outcome:
+    success: 0
+    failure: 0
+  excitability: {excitability}
+  status: nascent
+needs: []
+inhibits: []
+provenance_journal: []
+trust:
+  origin: authored
+  verification_status: verified
+---
+{body}"""
+    rel = f".magicite/engrams/{name}.egr.md"
+    full = cfg.project_root / rel
+    full.parent.mkdir(parents=True, exist_ok=True)
+    data = raw.encode("utf-8")
+    full.write_bytes(data)
+    digest = ids_mod.content_sha256(data)
     conn.execute(
         """
         INSERT INTO engram (
@@ -29,7 +68,7 @@ def _insert_engram(conn, engram_id: str, name: str, *, excitability: float = 0.0
         (
             engram_id,
             name,
-            f"{name}.egr.md",
+            rel,
             "engram/0.2",
             1,
             "authored",
@@ -39,13 +78,14 @@ def _insert_engram(conn, engram_id: str, name: str, *, excitability: float = 0.0
             "use_when",
             now,
             excitability,
-            engram_id,
-            engram_id,
-            engram_id,
+            digest,
+            digest,
+            digest,
             now,
             now,
         ),
     )
+    return digest
 
 
 def _insert_edge(
@@ -63,6 +103,10 @@ def _insert_edge(
 
 
 def _embed_and_store(conn, embedder, engram_id: str, text: str) -> None:
+    row = conn.execute(
+        "SELECT content_sha256 FROM engram WHERE id = ?", (engram_id,)
+    ).fetchone()
+    digest = row["content_sha256"] if row is not None else engram_id
     vec = embedder.embed(text)
     ephemeral_mod.upsert_embedding(
         conn,
@@ -70,7 +114,7 @@ def _embed_and_store(conn, embedder, engram_id: str, text: str) -> None:
         model_name=embedder.model_name,
         dim=embedder.dim,
         vec=vec,
-        source_sha256=engram_id,
+        source_sha256=digest,
     )
 
 
@@ -82,10 +126,10 @@ def test_stable_ignores_adaptation(cfg, db_conn, embedder) -> None:
     """AC-S00-01: usage / strength / community variance must not change stable results."""
     assert cfg.routing_policy == policy_mod.POLICY_DENSE_V1
     query = "shared query text"
-    _insert_engram(db_conn, "egr_a", "a", excitability=0.01)
-    _insert_engram(db_conn, "egr_b", "b", excitability=0.01)
-    _embed_and_store(db_conn, embedder, "egr_a", query)
-    _embed_and_store(db_conn, embedder, "egr_b", query)
+    _insert_engram(cfg, db_conn, "egr_aa02ee0a", "a", excitability=0.01)
+    _insert_engram(cfg, db_conn, "egr_aa02ee0b", "b", excitability=0.01)
+    _embed_and_store(db_conn, embedder, "egr_aa02ee0a", query)
+    _embed_and_store(db_conn, embedder, "egr_aa02ee0b", query)
 
     baseline = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
     assert baseline.policy_id == policy_mod.POLICY_DENSE_V1
@@ -94,18 +138,21 @@ def test_stable_ignores_adaptation(cfg, db_conn, embedder) -> None:
     baseline_scores = [c.score for c in baseline.candidates]
 
     # Vary usage / retrieval / node+edge strength / community assignment.
-    db_conn.execute("UPDATE engram SET exposure_count = 999, storage_strength = 0.95 WHERE id = 'egr_a'")
-    db_conn.execute("UPDATE engram SET excitability = 0.99 WHERE id = 'egr_b'")
     db_conn.execute(
-        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_a', 1.0, ?)",
+        "UPDATE engram SET exposure_count = 999, storage_strength = 0.95 "
+        "WHERE id = 'egr_aa02ee0a'"
+    )
+    db_conn.execute("UPDATE engram SET excitability = 0.99 WHERE id = 'egr_aa02ee0b'")
+    db_conn.execute(
+        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_aa02ee0a', 1.0, ?)",
         (_now(),),
     )
-    _insert_edge(db_conn, "egr_a", "b", "egr_b", "co_activation", 0.99)
+    _insert_edge(db_conn, "egr_aa02ee0a", "b", "egr_aa02ee0b", "co_activation", 0.99)
     now = _now()
     db_conn.execute(
         "INSERT INTO engram_community (engram_id, community_id, algo, computed_at) VALUES "
         "(?, 1, 'test', ?), (?, 2, 'test', ?)",
-        ("egr_a", now, "egr_b", now),
+        ("egr_aa02ee0a", now, "egr_aa02ee0b", now),
     )
 
     adapted_state = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
@@ -155,10 +202,10 @@ def test_dream_cannot_change_stable_policy(cfg, db_conn, embedder) -> None:
 def test_experimental_is_explicit(cfg, db_conn, embedder) -> None:
     """AC-S00-03: experimental selection is visible on the decision."""
     query = "shared query text"
-    _insert_engram(db_conn, "egr_a", "a")
-    _insert_engram(db_conn, "egr_b", "b")
-    _embed_and_store(db_conn, embedder, "egr_a", query)
-    _embed_and_store(db_conn, embedder, "egr_b", query)
+    _insert_engram(cfg, db_conn, "egr_aa02ee0a", "a")
+    _insert_engram(cfg, db_conn, "egr_aa02ee0b", "b")
+    _embed_and_store(db_conn, embedder, "egr_aa02ee0a", query)
+    _embed_and_store(db_conn, embedder, "egr_aa02ee0b", query)
 
     stable = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
     assert stable.policy_family == "stable"
@@ -179,8 +226,8 @@ def test_no_raw_query_logging(cfg, db_conn, embedder) -> None:
     from magicite.core import fingerprint_key as fingerprint_key_mod
 
     secret = "SENTINEL_SECRET_TOKEN_S00_DO_NOT_PERSIST"
-    _insert_engram(db_conn, "egr_a", "a")
-    _embed_and_store(db_conn, embedder, "egr_a", "benign text")
+    _insert_engram(cfg, db_conn, "egr_aa02ee0a", "a")
+    _embed_and_store(db_conn, embedder, "egr_aa02ee0a", "benign text")
 
     router_mod.route(cfg, db_conn, embedder, query=secret, k=3)
 

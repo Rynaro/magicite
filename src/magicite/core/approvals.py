@@ -64,7 +64,17 @@ from magicite.config import Config
 AUTONOMOUS_ACTOR = "autonomous-mode"
 
 _VALID_OPS: frozenset[str] = frozenset(
-    {"sharpen", "promote", "archive", "nucleate", "trust_approve", "trust_reject", "trust_revoke"}
+    {
+        "sharpen",
+        "promote",
+        "archive",
+        "nucleate",
+        "trust_approve",
+        "trust_reject",
+        "trust_revoke",
+        "policy_activate",
+        "policy_rollback",
+    }
 )
 _VALID_STATES: frozenset[str] = frozenset(
     {"proposed", "approved", "rejected", "executed", "succeeded", "failed"}
@@ -445,6 +455,58 @@ def resume(
         actor=resumed_by,
         executed_run_id=run_id,
     )
+
+
+def record_policy_control_event(
+    cfg: Config,
+    *,
+    op: str,
+    policy_id: str,
+    policy_digest: str,
+    actor: str,
+    payload: dict[str, Any] | None = None,
+) -> ApprovalRecord:
+    """Write a durable governed control-state mirror for policy activate/rollback.
+
+    Lives under ``cfg.approvals_dir`` (distinct authoritative domain from
+    ``policy_store/``) so deleting ``state.json`` alone cannot erase evidence
+    of prior policy governance. Mirror-only (no DB conn required on the
+    policy-store hot path); ``reload_from_mirror`` will rehydrate into the
+    operational ``approval`` table on sync.
+    """
+    if op not in {"policy_activate", "policy_rollback"}:
+        raise ValueError(f"unsupported policy control op {op!r}")
+    at = _now()
+    body = {
+        "policy_id": policy_id,
+        "policy_digest": policy_digest,
+        **(payload or {}),
+    }
+    record = ApprovalRecord(
+        id=new_id(),
+        op=op,
+        target_name=policy_id,
+        payload=body,
+        state="succeeded",
+        proposed_by=actor,
+        proposed_at=at,
+        decided_by=actor,
+        decided_at=at,
+        reason="policy_store_control",
+        audit_log=(
+            ApprovalAuditEvent(
+                sequence=1,
+                operation=op,
+                actor=actor,
+                at=at,
+                from_state=None,
+                to_state="succeeded",
+                reason="policy_store_control",
+            ),
+        ),
+    )
+    _write_mirror(cfg, record)
+    return record
 
 
 def reload_from_mirror(cfg: Config, conn: sqlite3.Connection) -> int:

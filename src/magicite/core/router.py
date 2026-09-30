@@ -57,6 +57,7 @@ import hashlib
 import json
 import sqlite3
 import uuid
+from collections import OrderedDict
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
@@ -84,6 +85,7 @@ from magicite.core.context import RouteContext, ServerPermissionPolicy
 from magicite.core.decay_math import effective_value
 from magicite.embeddings import reranker as reranker_mod
 from magicite.embeddings.base import Embedder, contraindication_model_name
+from magicite.engram import ids as ids_mod
 from magicite.engram import parser as parser_mod
 from magicite.engram.assets import validate_assets
 from magicite.engram.model import ROUTABLE_STATUSES, Engram
@@ -177,6 +179,8 @@ class RouteDecision:
     operational_error: str | None = None
     #: Named C2 default-local-authorship policy (N1); fingerprinted in digests.
     default_local_authorship_policy: bool = True
+    #: Where the selected policy id came from (store vs fresh-install cfg).
+    policy_source: Literal["store", "config_fresh_install"] | None = None
     schema_version: str = ROUTE_DECISION_SCHEMA
 
 
@@ -268,9 +272,62 @@ def expand_composition(
     )
 
 
-#: In-process subject projection cache: (engram_id, content_digest) → subject.
-_SUBJECT_CACHE: dict[tuple[str, str], eligibility_mod.EligibilitySubject] = {}
+#: In-process subject projection cache keyed by registry root + engram + file
+#: identity (and asset file identities). Only digests matching the DB projection
+#: are cached; drifted live bytes are denied and never cached as eligible.
+@dataclass(frozen=True)
+class _SubjectCacheEntry:
+    subject: eligibility_mod.EligibilitySubject
+    db_digest: str
+    asset_idents: tuple[tuple[Any, ...], ...]
+
+
+_SUBJECT_CACHE: OrderedDict[tuple[Any, ...], _SubjectCacheEntry] = OrderedDict()
 _SUBJECT_CACHE_MAX = 4096
+
+
+class _SubjectProjectionDenied(Exception):
+    """Live artifact cannot be projected for route eligibility (fail closed)."""
+
+    def __init__(self, *reason_codes: str) -> None:
+        self.reason_codes = tuple(reason_codes) or (
+            eligibility_mod.REASON_CONFLICT,
+            eligibility_mod.REASON_ASSET_INVALID,
+        )
+        super().__init__(",".join(self.reason_codes))
+
+
+def _file_identity(path: Path) -> tuple[int, int, int, int]:
+    st = path.stat()
+    return (int(st.st_dev), int(st.st_ino), int(st.st_size), int(st.st_mtime_ns))
+
+
+def _asset_identities(
+    assets: dict[str, Any], *, registry_root: Path
+) -> tuple[tuple[Any, ...], ...]:
+    out: list[tuple[Any, ...]] = []
+    for rel in sorted(assets):
+        candidate = registry_root / rel
+        try:
+            out.append((rel, *_file_identity(candidate)))
+        except OSError:
+            out.append((rel, None))
+    return tuple(out)
+
+
+def _cache_get(key: tuple[Any, ...]) -> _SubjectCacheEntry | None:
+    entry = _SUBJECT_CACHE.get(key)
+    if entry is None:
+        return None
+    _SUBJECT_CACHE.move_to_end(key)
+    return entry
+
+
+def _cache_put(key: tuple[Any, ...], entry: _SubjectCacheEntry) -> None:
+    _SUBJECT_CACHE[key] = entry
+    _SUBJECT_CACHE.move_to_end(key)
+    while len(_SUBJECT_CACHE) > _SUBJECT_CACHE_MAX:
+        _SUBJECT_CACHE.popitem(last=False)
 
 
 def _trust_decisions_by_engram(cfg: Config) -> dict[str, trust_mod.TrustDecision]:
@@ -293,75 +350,113 @@ def _build_subject_from_row(
     cfg: Config,
     row: sqlite3.Row,
 ) -> eligibility_mod.EligibilitySubject:
-    """Build a full EligibilitySubject; parse failure → raise (caller denies)."""
+    """Build a full EligibilitySubject from live bytes; drift/missing → deny.
+
+    Cache key: (resolved registry root, engram_id, artifact file identity).
+    Asset file identities are re-checked on hit. Live content digest must match
+    the DB ``content_sha256`` projection (same digest register uses).
+    """
     engram_id = str(row["id"])
     version = int(row["version"]) if "version" in row.keys() else 1
-    content_digest = str(row["content_sha256"]) if "content_sha256" in row.keys() else ""
-    cache_key = (engram_id, content_digest)
-    cached = _SUBJECT_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
-
+    db_digest = str(row["content_sha256"]) if "content_sha256" in row.keys() else ""
     rel = str(row["path"]) if "path" in row.keys() else ""
     full = Path(rel) if Path(rel).is_absolute() else (cfg.project_root / rel)
-    subject: eligibility_mod.EligibilitySubject
+    registry_root = cfg.registry_dir.resolve()
+    root_key = str(registry_root)
 
-    if full.is_file():
-        try:
-            registry_root = cfg.registry_dir.resolve()
-            try:
-                full.resolve().relative_to(registry_root)
-                artifact, _doc = parser_mod.parse_artifact_file(
-                    full,
-                    registry_root=cfg.registry_dir,
-                    admit=False,
-                    require_asset_files=False,
-                )
-            except ValueError:
-                raw = full.read_text(encoding="utf-8")
-                artifact, _doc = parser_mod.parse_artifact(
-                    raw,
-                    relpath=rel,
-                    file_mtime_ns=full.stat().st_mtime_ns,
-                    admit=False,
-                    registry_root=cfg.registry_dir,
-                    require_asset_files=False,
-                )
-        except Exception as exc:
-            raise InvalidInputError(
-                f"eligibility subject parse failed for {engram_id}: {exc}"
-            ) from exc
-
-        if isinstance(artifact, EngramV1):
-            assets = dict(artifact.frontmatter.assets or {})
-            assets_valid = True
-            if assets:
-                issues = validate_assets(
-                    assets, registry_root=cfg.registry_dir, require_files=True
-                )
-                assets_valid = len(issues) == 0
-            subject = eligibility_mod.subject_from_engram(artifact, assets_valid=assets_valid)
-        elif isinstance(artifact, Engram):
-            subject = eligibility_mod.EligibilitySubject(
-                id=str(artifact.id or engram_id),
-                version=int(getattr(artifact, "version", version) or version),
-                assets_valid=True,
-            )
-        else:
-            raise InvalidInputError(f"unsupported artifact type for {engram_id}")
-    else:
-        # Durable row without on-disk body (synthetic / DB-only fixtures): no V1
-        # risk/compat declared — evaluator still runs; checks for undeclared
-        # dimensions are no-ops. Do not invent permissive V1 risk.
-        subject = eligibility_mod.EligibilitySubject(
-            id=engram_id,
-            version=version,
-            assets_valid=True,
+    if not full.is_file():
+        raise _SubjectProjectionDenied(
+            eligibility_mod.REASON_ASSET_INVALID,
+            eligibility_mod.REASON_CONFLICT,
+            "missing_artifact",
         )
 
-    if len(_SUBJECT_CACHE) >= _SUBJECT_CACHE_MAX:
-        _SUBJECT_CACHE.clear()
-    _SUBJECT_CACHE[cache_key] = subject
+    try:
+        file_ident = _file_identity(full)
+    except OSError as exc:
+        raise _SubjectProjectionDenied(
+            eligibility_mod.REASON_ASSET_INVALID,
+            eligibility_mod.REASON_CONFLICT,
+            "missing_artifact",
+        ) from exc
+
+    cache_key: tuple[Any, ...] = (root_key, engram_id, file_ident)
+    cached = _cache_get(cache_key)
+    if cached is not None and cached.db_digest == db_digest:
+        # Re-stat asset files the subject's validity depended on.
+        asset_paths = {
+            str(item[0]): None
+            for item in cached.asset_idents
+            if item and item[0] is not None
+        }
+        if cached.asset_idents == _asset_identities(asset_paths, registry_root=registry_root):
+            return cached.subject
+
+    raw_bytes = full.read_bytes()
+    live_digest = ids_mod.content_sha256(raw_bytes)
+    if live_digest != db_digest:
+        raise _SubjectProjectionDenied(
+            eligibility_mod.REASON_ASSET_INVALID,
+            eligibility_mod.REASON_CONFLICT,
+            "registry_drift",
+        )
+
+    try:
+        try:
+            full.resolve().relative_to(registry_root)
+            artifact, _doc = parser_mod.parse_artifact_file(
+                full,
+                registry_root=cfg.registry_dir,
+                admit=False,
+                require_asset_files=False,
+            )
+        except ValueError:
+            artifact, _doc = parser_mod.parse_artifact(
+                raw_bytes.decode("utf-8"),
+                relpath=rel,
+                file_mtime_ns=file_ident[3],
+                admit=False,
+                registry_root=cfg.registry_dir,
+                require_asset_files=False,
+            )
+    except _SubjectProjectionDenied:
+        raise
+    except Exception as exc:
+        raise _SubjectProjectionDenied(
+            eligibility_mod.REASON_CONFLICT,
+            eligibility_mod.REASON_ASSET_INVALID,
+            "eligibility_parse_error",
+        ) from exc
+
+    asset_idents: tuple[tuple[Any, ...], ...] = ()
+    if isinstance(artifact, EngramV1):
+        assets = dict(artifact.frontmatter.assets or {})
+        assets_valid = True
+        if assets:
+            issues = validate_assets(
+                assets, registry_root=cfg.registry_dir, require_files=True
+            )
+            assets_valid = len(issues) == 0
+            asset_idents = _asset_identities(assets, registry_root=registry_root)
+        subject = eligibility_mod.subject_from_engram(artifact, assets_valid=assets_valid)
+    elif isinstance(artifact, Engram):
+        # Engram/0.2 has no C2 risk/compat/capabilities surface (injection_risk
+        # is a distinct lint signal, not ServerPermissionPolicy risk).
+        subject = eligibility_mod.EligibilitySubject(
+            id=str(artifact.id or engram_id),
+            version=int(getattr(artifact, "version", version) or version),
+            assets_valid=True,
+        )
+    else:
+        raise _SubjectProjectionDenied(
+            eligibility_mod.REASON_CONFLICT,
+            "unsupported_artifact_type",
+        )
+
+    _cache_put(
+        cache_key,
+        _SubjectCacheEntry(subject=subject, db_digest=db_digest, asset_idents=asset_idents),
+    )
     return subject
 
 
@@ -444,9 +539,10 @@ def _evaluate_route_eligibility(
 ) -> tuple[list[sqlite3.Row], list[ExclusionSummary], list[str]]:
     """Run S06 eligibility before scoring/rerank for EVERY candidate (C2).
 
-    Always builds a full subject and always calls ``evaluate_eligibility``.
-    Exceptions / parse failures = deny. Subject projections are cached by
-    (engram_id, content_digest). Trust decisions are batched once per route.
+    Always builds a full subject from live bytes and always calls
+    ``evaluate_eligibility``. Missing/drifted artifacts are denied. Subject
+    projections are cached by (registry root, engram_id, file identity).
+    Trust decisions are batched once per route.
     """
     eligible_rows: list[sqlite3.Row] = []
     exclusions: list[ExclusionSummary] = []
@@ -476,6 +572,11 @@ def _evaluate_route_eligibility(
             result = eligibility_mod.evaluate_eligibility(
                 subject, route_context, trust, server_policy, path="route"
             )
+        except _SubjectProjectionDenied as denied:
+            exclusions.append(
+                ExclusionSummary(engram_id=engram_id, reason_codes=denied.reason_codes)
+            )
+            continue
         except Exception:
             exclusions.append(
                 ExclusionSummary(
@@ -617,6 +718,7 @@ def semantic_decision_fields(decision: RouteDecision) -> dict[str, Any]:
         "fallback_identity": decision.fallback_identity,
         "operational_error": decision.operational_error,
         "default_local_authorship_policy": decision.default_local_authorship_policy,
+        "policy_source": decision.policy_source,
         "schema_version": decision.schema_version,
     }
 
@@ -842,18 +944,42 @@ def _community_rerank(conn: sqlite3.Connection, kept_ids: list[str], scores: dic
 
 def _resolve_active_policy(
     cfg: Config,
-) -> tuple[str, str, str, str | None]:
-    """Resolve policy id/digest/family, honouring policy_store when present (N3).
+) -> tuple[str, str, str, str | None, Literal["store", "config_fresh_install"] | None, tuple[str, ...]]:
+    """Resolve policy id without mutating cfg (orchestrator decision).
 
-    Returns ``(policy_id, policy_digest, policy_family, operational_error)``.
-    No store file → cfg default. Store present but corrupt → typed error.
-    Active manifest naming an unknown policy → typed error.
+    Returns ``(policy_id, policy_digest, policy_family, operational_error,
+    policy_source, extra_reason_codes)``.
+
+    - Store present & valid with active → store governs; cfg.routing_policy
+      ignored for selection (disagreement → ``config_policy_ignored_store_active``).
+    - Store present & corrupt/unknown → typed operational error.
+    - Store ``state.json`` missing but prior governance evidence exists →
+      ``policy_store_missing`` (fail closed).
+    - No store and no prior evidence → S00 cfg resolution
+      (``policy_source=config_fresh_install``).
     """
     store_path = policy_store_mod.policy_store_path(cfg)
+    cfg_policy = policy_mod.resolve_policy_id(cfg)
+
     if not store_path.is_file():
-        policy_id = policy_mod.resolve_policy_id(cfg)
-        digest = policy_mod.compute_policy_digest(policy_id, cfg)
-        return policy_id, digest, policy_mod.policy_family(policy_id), None
+        if policy_store_mod.prior_policy_governance_evidence(cfg):
+            return (
+                policy_mod.POLICY_DENSE_V1,
+                "",
+                "stable",
+                "policy_store_missing",
+                None,
+                ("policy_store_missing",),
+            )
+        digest = policy_mod.compute_policy_digest(cfg_policy, cfg)
+        return (
+            cfg_policy,
+            digest,
+            policy_mod.policy_family(cfg_policy),
+            None,
+            "config_fresh_install",
+            (),
+        )
 
     try:
         manifest = policy_store_mod.get_active_manifest(cfg)
@@ -863,12 +989,21 @@ def _resolve_active_policy(
             "",
             "stable",
             "policy_store_corrupt",
+            None,
+            ("policy_store_corrupt",),
         )
 
     if manifest is None:
-        policy_id = policy_mod.resolve_policy_id(cfg)
-        digest = policy_mod.compute_policy_digest(policy_id, cfg)
-        return policy_id, digest, policy_mod.policy_family(policy_id), None
+        # Valid store file with no active pointer — fresh-install cfg selection.
+        digest = policy_mod.compute_policy_digest(cfg_policy, cfg)
+        return (
+            cfg_policy,
+            digest,
+            policy_mod.policy_family(cfg_policy),
+            None,
+            "config_fresh_install",
+            (),
+        )
 
     if manifest.policy_id not in policy_mod.KNOWN_POLICY_IDS:
         return (
@@ -876,11 +1011,15 @@ def _resolve_active_policy(
             manifest.policy_digest,
             manifest.policy_family,
             "unknown_active_policy",
+            None,
+            ("unknown_active_policy",),
         )
 
-    # Prefer the reviewed manifest digest; recompute if empty.
     digest = manifest.policy_digest or policy_mod.compute_policy_digest(manifest.policy_id, cfg)
-    return manifest.policy_id, digest, manifest.policy_family, None
+    extra: tuple[str, ...] = ()
+    if cfg_policy != manifest.policy_id:
+        extra = ("config_policy_ignored_store_active",)
+    return manifest.policy_id, digest, manifest.policy_family, None, "store", extra
 
 
 def _pin_index_identity(
@@ -952,7 +1091,14 @@ def route(
     # session-participating tool follows (spec §3.3) -- mint/reuse/expire,
     # in one place, instead of route() rolling its own uuid4() + upsert.
     sid = session_mod.resolve_id(cfg, conn, session_id)
-    policy_id, digest, family, policy_ops_error = _resolve_active_policy(cfg)
+    (
+        policy_id,
+        digest,
+        family,
+        policy_ops_error,
+        policy_source,
+        policy_extra_reasons,
+    ) = _resolve_active_policy(cfg)
     config_digest = policy_mod.compute_config_digest(cfg)
 
     if policy_ops_error:
@@ -967,7 +1113,9 @@ def route(
             exclusions=(),
             score_components={},
             confidence=Confidence(value=None, calibration_id=None),
-            reason_codes=(policy_ops_error, "operational_error", *pin_reasons),
+            reason_codes=tuple(
+                dict.fromkeys((policy_ops_error, "operational_error", *policy_extra_reasons, *pin_reasons))
+            ),
             missing_context=(),
             truncations={},
             policy_id=policy_id,
@@ -985,6 +1133,7 @@ def route(
             selection_mechanism=policy_id,
             operational_error=policy_ops_error,
             default_local_authorship_policy=bool(cfg.default_local_authorship_admission),
+            policy_source=policy_source,
         )
         return RouteOutcome(
             candidates=[],
@@ -1000,10 +1149,7 @@ def route(
             decision=decision,
         )
 
-    # Temporarily align cfg.routing_policy with the active store/default so
-    # downstream digest helpers and experimental dispatch stay consistent.
-    cfg.routing_policy = policy_id
-
+    # Local policy id only — never mutate the caller's Config.
     cal = calibration_mod.load_calibration(
         cfg,
         expected_config_digest=config_digest,
@@ -1046,7 +1192,7 @@ def route(
             calibration=cal,
             exclusions=(),
             missing_context=[],
-            reason_codes=("no_candidates", *pin_reasons),
+            reason_codes=("no_candidates", *policy_extra_reasons, *pin_reasons),
             status="abstained",
             selection_mechanism=policy_id,
             score_components={},
@@ -1056,6 +1202,7 @@ def route(
             snapshot_id=snap_id,
             schema_digest=schema_d,
             tokenizer_digest=tok_d,
+            policy_source=policy_source,
         )
 
     if policy_id == policy_mod.POLICY_DENSE_V1:
@@ -1080,7 +1227,8 @@ def route(
             snapshot_id=snap_id,
             schema_digest=schema_d,
             tokenizer_digest=tok_d,
-            pin_reasons=pin_reasons,
+            pin_reasons=(*policy_extra_reasons, *pin_reasons),
+            policy_source=policy_source,
         )
     else:
         outcome = _route_adaptive_blend_v1(
@@ -1105,7 +1253,8 @@ def route(
             snapshot_id=snap_id,
             schema_digest=schema_d,
             tokenizer_digest=tok_d,
-            pin_reasons=pin_reasons,
+            pin_reasons=(*policy_extra_reasons, *pin_reasons),
+            policy_source=policy_source,
         )
     return outcome
 
@@ -1164,6 +1313,7 @@ def _finalize_route(
     snapshot_id: str | None = None,
     schema_digest: str | None = None,
     tokenizer_digest: str | None = None,
+    policy_source: Literal["store", "config_fresh_install"] | None = None,
 ) -> RouteOutcome:
     key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
     query_fp = fingerprint_key_mod.query_fingerprint(query, key=key)
@@ -1279,6 +1429,7 @@ def _finalize_route(
         fallback_identity=fallback_identity,
         operational_error=operational_error,
         default_local_authorship_policy=bool(cfg.default_local_authorship_admission),
+        policy_source=policy_source,
     )
 
     # step 11: Tier-C bookkeeping ONLY -- R and S are never touched here (Principle 1).
@@ -1339,6 +1490,7 @@ def _route_dense_v1(
     schema_digest: str | None = None,
     tokenizer_digest: str | None = None,
     pin_reasons: tuple[str, ...] = (),
+    policy_source: Literal["store", "config_fresh_install"] | None = None,
 ) -> RouteOutcome:
     """Nonadaptive incumbent: eligibility → cosine → optional rerank → abstain."""
     eligible_rows, exclusions, missing_ctx = _evaluate_route_eligibility(
@@ -1375,6 +1527,7 @@ def _route_dense_v1(
             snapshot_id=snapshot_id,
             schema_digest=schema_digest,
             tokenizer_digest=tokenizer_digest,
+            policy_source=policy_source,
         )
 
     node_ids: list[str] = []
@@ -1445,6 +1598,7 @@ def _route_dense_v1(
         calibration=calibration,
         exclusions=bound_exclusions,
         missing_context=missing_ctx,
+        reason_codes=pin_reasons,
         selection_mechanism=policy_id,
         score_components=score_components,
         truncations=truncations,
@@ -1455,6 +1609,7 @@ def _route_dense_v1(
         snapshot_id=snapshot_id,
         schema_digest=schema_digest,
         tokenizer_digest=tokenizer_digest,
+        policy_source=policy_source,
     )
 
 
@@ -1482,6 +1637,7 @@ def _route_adaptive_blend_v1(
     schema_digest: str | None = None,
     tokenizer_digest: str | None = None,
     pin_reasons: tuple[str, ...] = (),
+    policy_source: Literal["store", "config_fresh_install"] | None = None,
 ) -> RouteOutcome:
     """Legacy adaptive blend — explicit experimental policy only."""
     eligible_rows, exclusions, missing_ctx = _evaluate_route_eligibility(
@@ -1517,6 +1673,7 @@ def _route_adaptive_blend_v1(
             snapshot_id=snapshot_id,
             schema_digest=schema_digest,
             tokenizer_digest=tokenizer_digest,
+            policy_source=policy_source,
         )
 
     now = datetime.now(UTC).isoformat()
@@ -1692,12 +1849,14 @@ def _route_adaptive_blend_v1(
         calibration=calibration,
         exclusions=bound_exclusions,
         missing_context=missing_ctx,
+        reason_codes=pin_reasons,
         selection_mechanism=policy_id,
         model_digest=embedder.model_name,
         index_generation_id=index_generation_id,
         snapshot_id=snapshot_id,
         schema_digest=schema_digest,
         tokenizer_digest=tokenizer_digest,
+        policy_source=policy_source,
     )
 
 

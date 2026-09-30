@@ -48,12 +48,44 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _build_synthetic_registry(conn, embedder, *, n: int, seed: int = 1234) -> None:
+def _build_synthetic_registry(cfg, conn, embedder, *, n: int, seed: int = 1234) -> None:
+    from magicite.engram import ids as ids_mod
+
     rng = np.random.default_rng(seed)
     now = _now()
 
-    ids = [f"egr_{i:05d}" for i in range(n)]
+    # 8-hex engram ids (egr_[0-9a-f]{8}) so on-disk 0.2 parses cleanly.
+    ids = [f"egr_{i:08x}" for i in range(n)]
     names = [f"synthetic-skill-{i:05d}" for i in range(n)]
+    engrams_dir = cfg.project_root / ".magicite" / "engrams"
+    engrams_dir.mkdir(parents=True, exist_ok=True)
+
+    rows = []
+    digests = []
+    for eid, name in zip(ids, names, strict=True):
+        body = f"## Procedure\n{name}\n"
+        raw = (
+            f"---\nspec: engram/0.2\nname: {name}\nid: {eid}\nversion: 1\n"
+            f"provenance: authored\nintent:\n  does: \"does {name}\"\n"
+            f"  use_when: \"use when {name}\"\n  not_when: \"never\"\n"
+            f"triggers:\n  positive: [\"{name}\"]\n  negative: []\n"
+            f"context_affinity: []\nplasticity:\n  storage_strength: 0.0\n"
+            f"  exposure_count: 0\n  outcome:\n    success: 0\n    failure: 0\n"
+            f"  excitability: 0.05\n  status: nascent\nneeds: []\ninhibits: []\n"
+            f"provenance_journal: []\ntrust:\n  origin: authored\n"
+            f"  verification_status: verified\n---\n{body}"
+        )
+        data = raw.encode("utf-8")
+        rel = f".magicite/engrams/{name}.egr.md"
+        (cfg.project_root / rel).write_bytes(data)
+        digest = ids_mod.content_sha256(data)
+        digests.append(digest)
+        rows.append(
+            (
+                eid, name, rel, "engram/0.2", 1, "authored", "verified", "nascent",
+                f"does {name}", f"use when {name}", now, digest, digest, digest, now, now,
+            )
+        )
 
     conn.executemany(
         """
@@ -63,13 +95,7 @@ def _build_synthetic_registry(conn, embedder, *, n: int, seed: int = 1234) -> No
           identity_sha256, content_sha256, body_sha256, file_mtime_ns, created_at, updated_at
         ) VALUES (?,?,?,?,?,?,?,?, ?,?, 0.0, ?, 0.05, ?,?,?, 0, ?, ?)
         """,
-        [
-            (
-                eid, name, f"{name}.egr.md", "engram/0.2", 1, "authored", "verified", "nascent",
-                f"does {name}", f"use when {name}", now, eid, eid, eid, now, now,
-            )
-            for eid, name in zip(ids, names, strict=True)
-        ],
+        rows,
     )
 
     # L2-normalised random embeddings -- clustered into ~20 groups so
@@ -85,10 +111,10 @@ def _build_synthetic_registry(conn, embedder, *, n: int, seed: int = 1234) -> No
     vectors = cluster_centers[cluster_of] + noise
     vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
 
-    for eid, vec in zip(ids, vectors, strict=True):
+    for eid, vec, digest in zip(ids, vectors, digests, strict=True):
         ephemeral_mod.upsert_embedding(
             conn, engram_id=eid, model_name=embedder.model_name, dim=dim,
-            vec=vec.astype(np.float32), source_sha256=eid,
+            vec=vec.astype(np.float32), source_sha256=digest,
         )
 
     # Community assignment (as sync() step 9 would have produced).
@@ -136,7 +162,8 @@ def _build_synthetic_registry(conn, embedder, *, n: int, seed: int = 1234) -> No
 @pytest.mark.acceptance
 @pytest.mark.benchmark
 def test_p95_under_100ms(cfg, db_conn, embedder) -> None:
-    _build_synthetic_registry(db_conn, embedder, n=N_ENGRAMS)
+    router_mod._SUBJECT_CACHE.clear()
+    _build_synthetic_registry(cfg, db_conn, embedder, n=N_ENGRAMS)
 
     query = "rollback proton for a steam game after a bad update"
 

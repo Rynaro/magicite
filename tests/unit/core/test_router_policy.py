@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from magicite.core import router as router_mod
+from magicite.engram import ids as ids_mod
 from magicite.storage import ephemeral as ephemeral_mod
 
 
@@ -14,7 +15,45 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _insert_engram(conn, engram_id: str, name: str) -> None:
+def _insert_engram(cfg, conn, engram_id: str, name: str) -> str:
+    body = f"## Procedure\n{name}\n"
+    raw = f"""---
+spec: engram/0.2
+name: {name}
+id: {engram_id}
+version: 1
+provenance: authored
+intent:
+  does: "does {name}"
+  use_when: "use when {name}"
+  not_when: "never"
+triggers:
+  positive: ["{name}"]
+  negative: []
+context_affinity: []
+plasticity:
+  storage_strength: 0.0
+  exposure_count: 0
+  outcome:
+    success: 0
+    failure: 0
+  excitability: 0.05
+  status: nascent
+needs: []
+inhibits: []
+provenance_journal: []
+trust:
+  origin: authored
+  verification_status: verified
+---
+{body}"""
+    # Engram ids must be egr_[0-9a-f]{8}; tests use that shape.
+    rel = f".magicite/engrams/{name}.egr.md"
+    full = cfg.project_root / rel
+    full.parent.mkdir(parents=True, exist_ok=True)
+    data = raw.encode("utf-8")
+    full.write_bytes(data)
+    digest = ids_mod.content_sha256(data)
     now = _now()
     conn.execute(
         """
@@ -27,7 +66,7 @@ def _insert_engram(conn, engram_id: str, name: str) -> None:
         (
             engram_id,
             name,
-            f"{name}.egr.md",
+            rel,
             "engram/0.2",
             1,
             "authored",
@@ -36,16 +75,17 @@ def _insert_engram(conn, engram_id: str, name: str) -> None:
             "does",
             "use_when",
             now,
-            engram_id,
-            engram_id,
-            engram_id,
+            digest,
+            digest,
+            digest,
             now,
             now,
         ),
     )
+    return digest
 
 
-def _embed_and_store(conn, embedder, engram_id: str, text: str) -> None:
+def _embed_and_store(conn, embedder, engram_id: str, text: str, digest: str) -> None:
     vec = embedder.embed(text)
     ephemeral_mod.upsert_embedding(
         conn,
@@ -53,7 +93,7 @@ def _embed_and_store(conn, embedder, engram_id: str, text: str) -> None:
         model_name=embedder.model_name,
         dim=embedder.dim,
         vec=vec,
-        source_sha256=engram_id,
+        source_sha256=digest,
     )
 
 
@@ -81,9 +121,10 @@ def test_fallback_identity(cfg, db_conn, embedder, monkeypatch) -> None:
     WHEN routing runs
     THEN the result SHALL identify configured fallback or explicit operational error.
     """
+    router_mod._SUBJECT_CACHE.clear()
     query = "timeout fallback query"
-    _insert_engram(db_conn, "egr_keep", "keep-skill")
-    _embed_and_store(db_conn, embedder, "egr_keep", query)
+    digest = _insert_engram(cfg, db_conn, "egr_aa01cc01", "keep-skill")
+    _embed_and_store(db_conn, embedder, "egr_aa01cc01", query, digest)
 
     # --- missing required model with configured fallback ---
     cfg.reranker_provider = "missing-model-xyz"
@@ -97,7 +138,7 @@ def test_fallback_identity(cfg, db_conn, embedder, monkeypatch) -> None:
     assert outcome.decision.operational_error is None
     assert outcome.decision.status == "selected"
     assert outcome.candidates
-    assert outcome.candidates[0].id == "egr_keep"
+    assert outcome.candidates[0].id == "egr_aa01cc01"
     assert outcome.decision.selection_mechanism == "dense-v1"
 
     # --- missing required model without fallback → operational error ---

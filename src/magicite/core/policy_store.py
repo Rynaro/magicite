@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from magicite.config import Config
+from magicite.core import approvals as approvals_mod
 from magicite.core import fingerprint_key as fingerprint_key_mod
 from magicite.errors import InvalidInputError, NotFoundError
 from magicite.storage import lease as lease_mod
@@ -123,6 +124,32 @@ def policy_store_dir(cfg: Config) -> Path:
 
 def policy_store_path(cfg: Config) -> Path:
     return policy_store_dir(cfg) / "state.json"
+
+
+def prior_policy_governance_evidence(cfg: Config) -> bool:
+    """True iff durable evidence of prior policy-store use exists.
+
+    Checks leftover files under ``policy_store/`` (other than a missing
+    ``state.json``) and governed approval mirrors for ``policy_activate`` /
+    ``policy_rollback`` under ``approvals_dir`` (a different authoritative
+    domain — deleting the store directory alone cannot erase this).
+    """
+    store_dir = policy_store_dir(cfg)
+    if store_dir.is_dir():
+        for child in store_dir.iterdir():
+            if child.name == "state.json":
+                continue
+            return True
+    approvals_dir = cfg.approvals_dir
+    if approvals_dir.is_dir():
+        for path in approvals_dir.glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if data.get("op") in {"policy_activate", "policy_rollback"}:
+                return True
+    return False
 
 
 def _mac_subkey(cfg: Config) -> bytes:
@@ -399,6 +426,18 @@ def activate(
             approval_id=approval_id,
         )
         _save_raw(cfg, state)
+        approvals_mod.record_policy_control_event(
+            cfg,
+            op="policy_activate",
+            policy_id=manifest.policy_id,
+            policy_digest=candidate_digest,
+            actor="policy-store-activate",
+            payload={
+                "approval_id": approval_id,
+                "expected_current": expected_current,
+                "prior_digest": active,
+            },
+        )
         return status(cfg)
 
 
@@ -460,6 +499,17 @@ def rollback(
             expected_current=expected_current,
         )
         _save_raw(cfg, state)
+        approvals_mod.record_policy_control_event(
+            cfg,
+            op="policy_rollback",
+            policy_id=prior_manifest.policy_id,
+            policy_digest=prior_digest,
+            actor="policy-store-rollback",
+            payload={
+                "expected_current": expected_current,
+                "restored_from": active,
+            },
+        )
         return status(cfg)
 
 
@@ -525,6 +575,7 @@ __all__ = [
     "get_active_manifest",
     "policy_store_dir",
     "policy_store_path",
+    "prior_policy_governance_evidence",
     "register_evaluated",
     "retain_simple_incumbent_evidence",
     "rollback",
