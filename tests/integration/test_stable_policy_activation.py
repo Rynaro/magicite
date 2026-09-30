@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import threading
 
 import pytest
 
 from magicite.core import fingerprint_key as fk
 from magicite.core import policy_store as ps
 from magicite.core import routing_policy as policy_mod
-from magicite.errors import InvalidInputError, NotFoundError
+from magicite.errors import BusyError, InvalidInputError, NotFoundError
 from magicite.storage import lease as lease_mod
 
 
@@ -31,7 +32,7 @@ def test_activation_without_learning(cfg) -> None:
     """GIVEN S10 is not installed and reviewed simple/hybrid policy artifacts exist
     WHEN activation and rollback use the expected-current API
     THEN the active digest SHALL follow exactly the approved compare-and-swap transitions
-    including stale-current rejection.
+    including stale-current rejection; inconclusive hybrid SHALL be refused (N4).
     """
     cfg.ensure_dirs()
     fk.set_fingerprint_key_override(b"\x22" * fk.KEY_BYTES)
@@ -47,6 +48,11 @@ def test_activation_without_learning(cfg) -> None:
             index_generation_id="gen_hybrid",
             snapshot_id="snap_hybrid",
             selection="hybrid_rrf",
+        )
+        adaptive = _manifest(
+            cfg,
+            policy_id=policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1,
+            family="experimental",
         )
 
         # Hybrid cannot claim PASS without a real empirical run — record UNEVALUATED.
@@ -72,10 +78,15 @@ def test_activation_without_learning(cfg) -> None:
             evaluation_status="unevaluated",
             evidence="UNEVALUATED: no SkillRet run in this environment",
         )
+        ps.register_evaluated(
+            cfg,
+            adaptive,
+            evaluation_status="pass",
+            evidence="paired comparison PASS for experimental adaptive",
+        )
 
         dense_approval = ps.approve(cfg, dense.policy_digest, actor="reviewer")
-        # Unevaluated hybrid may be approved only after explicit evaluation status —
-        # raise it to inconclusive (failed promotion) then approve for CAS tests.
+        # Raise hybrid to inconclusive (failed promotion) then approve — still not activatable.
         ps.register_evaluated(
             cfg,
             hybrid,
@@ -83,6 +94,7 @@ def test_activation_without_learning(cfg) -> None:
             evidence="inconclusive paired comparison; retain simple incumbent",
         )
         hybrid_approval = ps.approve(cfg, hybrid.policy_digest, actor="reviewer")
+        adaptive_approval = ps.approve(cfg, adaptive.policy_digest, actor="reviewer")
 
         # Activate dense from empty incumbent.
         st = ps.activate(
@@ -99,24 +111,35 @@ def test_activation_without_learning(cfg) -> None:
             ps.activate(
                 cfg,
                 expected_current=None,
+                candidate_digest=adaptive.policy_digest,
+                approval_id=adaptive_approval,
+            )
+
+        # N4: inconclusive/fail/UNEVALUATED non-incumbent must be refused.
+        with pytest.raises(InvalidInputError, match="promotion_not_earned|evaluation_status=pass"):
+            ps.activate(
+                cfg,
+                expected_current=dense.policy_digest,
                 candidate_digest=hybrid.policy_digest,
                 approval_id=hybrid_approval,
             )
+        assert ps.get_active_manifest(cfg) is not None
+        assert ps.get_active_manifest(cfg).policy_digest == dense.policy_digest  # type: ignore[union-attr]
 
-        # CAS to hybrid (still reviewed; promotion evidence inconclusive).
+        # CAS to evaluated experimental (PASS earned).
         st2 = ps.activate(
             cfg,
             expected_current=dense.policy_digest,
-            candidate_digest=hybrid.policy_digest,
-            approval_id=hybrid_approval,
+            candidate_digest=adaptive.policy_digest,
+            approval_id=adaptive_approval,
         )
-        assert st2.active_digest == hybrid.policy_digest
+        assert st2.active_digest == adaptive.policy_digest
         assert st2.prior_digest == dense.policy_digest
 
         # Exact rollback to previous approved incumbent + matching manifests.
         st3 = ps.rollback(
             cfg,
-            expected_current=hybrid.policy_digest,
+            expected_current=adaptive.policy_digest,
             prior_digest=dense.policy_digest,
         )
         assert st3.active_digest == dense.policy_digest
@@ -175,15 +198,11 @@ def test_activation_without_learning(cfg) -> None:
         )
         ps.register_evaluated(
             cfg,
-            hybrid,
-            evaluation_status="inconclusive",
-            evidence="restore hybrid",
+            adaptive,
+            evaluation_status="pass",
+            evidence="restore adaptive",
         )
-        hybrid_approval2 = ps.approve(cfg, hybrid.policy_digest, actor="reviewer")
-
-        import threading
-
-        from magicite.errors import BusyError
+        adaptive_approval2 = ps.approve(cfg, adaptive.policy_digest, actor="reviewer")
 
         err_box: list[BaseException] = []
 
@@ -192,8 +211,8 @@ def test_activation_without_learning(cfg) -> None:
                 ps.activate(
                     cfg,
                     expected_current=dense.policy_digest,
-                    candidate_digest=hybrid.policy_digest,
-                    approval_id=hybrid_approval2,
+                    candidate_digest=adaptive.policy_digest,
+                    approval_id=adaptive_approval2,
                 )
             except BaseException as exc:  # noqa: BLE001 — capture for assertion
                 err_box.append(exc)
