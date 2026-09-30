@@ -265,3 +265,170 @@ def test_ttl_overrun_fences_stale_writer(tmp_path: Path) -> None:
             replacement.release()
         if replacement_conn is not None:
             replacement_conn.close()
+
+
+def _stale_domain_writer(
+    project_root: str,
+    lock_path: str,
+    domain: str,
+    acquired: Any,
+    attempt_write: Any,
+    results: Any,
+) -> None:
+    """Hold a fenced lease via try_acquire (no heartbeat), then attempt a domain write."""
+    from magicite.config import Config
+    from magicite.core import approvals as approvals_mod
+    from magicite.core import evidence as evidence_mod
+    from magicite.core import fingerprint_key as fk
+    from magicite.core import trust as trust_mod
+    from magicite.errors import BusyError
+    from magicite.storage import db as db_mod
+    from magicite.storage import lease
+
+    cfg = Config.load(Path(project_root), env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    conn = db_mod.connect(cfg.db_path)
+    candidate = lease.CrossProcessLease(
+        lock_path=lock_path,
+        conn=conn,
+        holder=f"stale-{domain}",
+        ttl_s=0.35,
+    )
+    try:
+        lease_result = candidate.try_acquire()
+        acquired.put(lease_result.fencing_token)
+        if not attempt_write.wait(timeout=10):
+            results.put({"domain": domain, "status": "timeout"})
+            return
+        try:
+            # Fence check first (same as schema_meta stale writer).
+            candidate.assert_owned()
+            if domain == "evidence":
+                event = evidence_mod.EvidenceEvent(
+                    event_id="ev_stale_fence",
+                    decision_id="dec_stale_fence",
+                    event_type="decision",
+                    recorded_at="2026-09-29T12:00:00+00:00",
+                    candidate_ids=("skill_a",),
+                    chosen_action="skill_a",
+                    behavior_policy_id="dense-v1",
+                    behavior_policy_digest="digest_a",
+                    propensity=1.0,
+                    query_fingerprint="c" * 64,
+                    fingerprint_scheme=fk.FINGERPRINT_SCHEME,
+                    source_tier=0,
+                    retention_class="operational",
+                )
+                # Without context-var lease, checkpoint acquires anew → BusyError
+                # once replacement holds the row; assert_owned already failed above
+                # when fenced, so this is defense-in-depth if assert is skipped.
+                evidence_mod.checkpoint(cfg, conn, event)
+            elif domain == "trust":
+                trust_mod.save_policy(cfg, trust_mod.default_policy())
+            elif domain == "approvals":
+                with lease.writer_lease(holder="stale-approvals"):
+                    lease.assert_single_writer()
+                    approvals_mod.propose(
+                        conn,
+                        cfg,
+                        op="nucleate",
+                        target_name="stale-target",
+                        payload={"note": "should-not-land"},
+                        proposed_by="stale",
+                    )
+            else:
+                results.put({"domain": domain, "status": "unknown-domain"})
+                return
+        except BusyError:
+            results.put({"domain": domain, "status": "fenced"})
+        else:
+            results.put({"domain": domain, "status": "committed"})
+    finally:
+        candidate.release()
+        conn.close()
+
+
+@pytest.mark.acceptance
+@pytest.mark.parametrize("domain", ["evidence", "trust", "approvals"])
+def test_stale_writer_cannot_commit_domain_stores(tmp_path: Path, domain: str) -> None:
+    """AC-S12-04: stale/killed lease holder cannot commit via evidence/trust/approvals.
+
+    Policy-store writer is a forward for S07 (not merged on this integration base).
+    """
+    from magicite.config import Config
+    from magicite.core import fingerprint_key as fk
+    from magicite.storage import db as db_mod
+
+    project = tmp_path / "proj"
+    (project / ".magicite" / "engrams").mkdir(parents=True)
+    (project / ".magicite" / "engrams" / "toy.egr.md").write_text(
+        "---\n"
+        "spec: engram/0.2\n"
+        "name: lease-toy\n"
+        "id: egr_lease0001\n"
+        "version: 1\n"
+        "provenance: authored\n"
+        "intent:\n"
+        "  does: Fence stale writers\n"
+        "  use_when: lease tests\n"
+        "  not_when: skipping fence\n"
+        "triggers:\n"
+        "  positive: [lease]\n"
+        "  negative: [race]\n"
+        "---\n"
+        "## Procedure\n"
+        "1. Acquire lease.\n",
+        encoding="utf-8",
+    )
+    cfg = Config.load(project, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    cfg.ensure_dirs()
+    fk.load_or_create_fingerprint_key(cfg)
+    seed = db_mod.connect(cfg.db_path)
+    seed.close()
+    # trust domain only needs an initialized DB + lease row; no registry seed required.
+
+    ctx = _spawn_context()
+    acquired = ctx.Queue()
+    attempt_write = ctx.Event()
+    results = ctx.Queue()
+    stale = ctx.Process(
+        target=_stale_domain_writer,
+        args=(
+            str(project),
+            str(tmp_path / f"stale-{domain}.lock"),
+            domain,
+            acquired,
+            attempt_write,
+            results,
+        ),
+    )
+    stale.start()
+
+    replacement_conn = None
+    replacement = None
+    try:
+        stale_token = acquired.get(timeout=10)
+        time.sleep(0.6)
+        replacement_conn = db_mod.connect(cfg.db_path)
+        replacement = lease.CrossProcessLease(
+            lock_path=tmp_path / f"replacement-{domain}.lock",
+            conn=replacement_conn,
+            holder="replacement",
+            ttl_s=5.0,
+        )
+        replacement_result = replacement.try_acquire()
+        assert replacement_result.fencing_token == stale_token + 1
+
+        attempt_write.set()
+        outcome = results.get(timeout=15)
+        assert outcome["domain"] == domain
+        assert outcome["status"] == "fenced", outcome
+
+        if domain == "approvals":
+            assert not list(cfg.approvals_dir.glob("*.json"))
+    finally:
+        attempt_write.set()
+        _join_cleanly([stale])
+        if replacement is not None:
+            replacement.release()
+        if replacement_conn is not None:
+            replacement_conn.close()
