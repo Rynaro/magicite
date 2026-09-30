@@ -133,3 +133,23 @@ def test_writer_class_tools_are_exactly_the_nine_r2_r3_mutators() -> None:
         "promote",
         "archive",
     }
+
+
+def test_v1_payload_parity(cfg, embedder) -> None:
+    """AC-S11-02: text and structured payloads represent identical data."""
+    import json
+
+    state = app_mod.build_state(cfg)
+    try:
+        registry_mod.register(cfg, state.writer_conn, embedder, path=".magicite/engrams")
+        result = app_mod.dispatch_call(state, "route", {"query": "steam wont open", "k": 3})
+        assert result.is_error is False
+        assert result.structured_content is not None
+        text_payload = json.loads(result.content[0].text)
+        assert text_payload == result.structured_content
+        # No raw query leakage on the public envelope.
+        blob = json.dumps(text_payload)
+        assert "steam wont open" not in blob
+    finally:
+        state.conn.close()
+        state.writer_conn.close()

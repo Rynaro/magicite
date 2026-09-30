@@ -1,0 +1,3010 @@
+{
+  "tools": [
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "manual_trigger": {
+            "default": false,
+            "title": "Manual Trigger",
+            "type": "boolean"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "title": "ConsolidateInput",
+        "type": "object"
+      },
+      "name": "consolidate",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "consolidation_id": {
+            "title": "Consolidation Id",
+            "type": "string"
+          },
+          "enqueued": {
+            "title": "Enqueued",
+            "type": "boolean"
+          },
+          "estimated_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Start"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "consolidation_id",
+          "enqueued",
+          "status",
+          "estimated_start",
+          "note"
+        ],
+        "title": "ConsolidateOutput",
+        "type": "object"
+      },
+      "risk_class": "R3",
+      "side_effect": "batch",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "min_support": {
+            "default": 5,
+            "minimum": 1,
+            "title": "Min Support",
+            "type": "integer"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "trace_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Trace Ids"
+          }
+        },
+        "title": "NucleateInput",
+        "type": "object"
+      },
+      "name": "nucleate",
+      "output_schema": {
+        "$defs": {
+          "NucleateCandidate": {
+            "additionalProperties": false,
+            "properties": {
+              "draft_skeleton": {
+                "title": "Draft Skeleton",
+                "type": "string"
+              },
+              "mean_valence": {
+                "title": "Mean Valence",
+                "type": "number"
+              },
+              "path_names": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Path Names",
+                "type": "array"
+              },
+              "proposal_id": {
+                "title": "Proposal Id",
+                "type": "string"
+              },
+              "support": {
+                "title": "Support",
+                "type": "integer"
+              },
+              "trace_ir": {
+                "additionalProperties": true,
+                "title": "Trace Ir",
+                "type": "object"
+              }
+            },
+            "required": [
+              "proposal_id",
+              "path_names",
+              "support",
+              "mean_valence",
+              "draft_skeleton"
+            ],
+            "title": "NucleateCandidate",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "approval_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Approval Ids",
+            "type": "array"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/$defs/NucleateCandidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidates",
+          "approval_ids",
+          "note"
+        ],
+        "title": "NucleateOutput",
+        "type": "object"
+      },
+      "risk_class": "R3",
+      "side_effect": "proposal",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "consolidation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Consolidation Id"
+          },
+          "include_health": {
+            "default": false,
+            "title": "Include Health",
+            "type": "boolean"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Skill Id"
+          }
+        },
+        "title": "IntrospectInput",
+        "type": "object"
+      },
+      "name": "introspect",
+      "output_schema": {
+        "$defs": {
+          "ConsolidationInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "audit_report": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Audit Report"
+              },
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "phase": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Phase"
+              },
+              "state": {
+                "title": "State",
+                "type": "string"
+              },
+              "stats": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Stats"
+              }
+            },
+            "required": [
+              "id",
+              "state"
+            ],
+            "title": "ConsolidationInfo",
+            "type": "object"
+          },
+          "EdgeOut": {
+            "additionalProperties": false,
+            "properties": {
+              "effective_strength": {
+                "default": 0.0,
+                "title": "Effective Strength",
+                "type": "number"
+              },
+              "evidence_count": {
+                "default": 0,
+                "title": "Evidence Count",
+                "type": "integer"
+              },
+              "provenance": {
+                "title": "Provenance",
+                "type": "string"
+              },
+              "storage_strength": {
+                "title": "Storage Strength",
+                "type": "number"
+              },
+              "target": {
+                "title": "Target",
+                "type": "string"
+              },
+              "type": {
+                "title": "Type",
+                "type": "string"
+              }
+            },
+            "required": [
+              "target",
+              "type",
+              "storage_strength",
+              "provenance"
+            ],
+            "title": "EdgeOut",
+            "type": "object"
+          },
+          "HistoryEntry": {
+            "additionalProperties": false,
+            "properties": {
+              "author": {
+                "title": "Author",
+                "type": "string"
+              },
+              "event": {
+                "title": "Event",
+                "type": "string"
+              },
+              "note": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Note"
+              },
+              "timestamp": {
+                "title": "Timestamp",
+                "type": "string"
+              },
+              "version": {
+                "title": "Version",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "event",
+              "timestamp",
+              "author"
+            ],
+            "title": "HistoryEntry",
+            "type": "object"
+          },
+          "RegistrySummary": {
+            "additionalProperties": false,
+            "properties": {
+              "autonomous_mode": {
+                "title": "Autonomous Mode",
+                "type": "boolean"
+              },
+              "counts_by_status": {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "title": "Counts By Status",
+                "type": "object"
+              },
+              "detector": {
+                "title": "Detector",
+                "type": "string"
+              },
+              "embedding_model": {
+                "title": "Embedding Model",
+                "type": "string"
+              },
+              "last_consolidation": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Last Consolidation"
+              },
+              "last_sync": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Last Sync"
+              },
+              "registry_size": {
+                "title": "Registry Size",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "counts_by_status",
+              "detector",
+              "last_sync",
+              "last_consolidation",
+              "registry_size",
+              "embedding_model",
+              "autonomous_mode"
+            ],
+            "title": "RegistrySummary",
+            "type": "object"
+          },
+          "SkillIntrospect": {
+            "additionalProperties": false,
+            "properties": {
+              "exposure_count": {
+                "title": "Exposure Count",
+                "type": "integer"
+              },
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "operation_execution_status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Operation Execution Status"
+              },
+              "outcome": {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "title": "Outcome",
+                "type": "object"
+              },
+              "reliability": {
+                "title": "Reliability",
+                "type": "number"
+              },
+              "status": {
+                "title": "Status",
+                "type": "string"
+              },
+              "storage_strength": {
+                "title": "Storage Strength",
+                "type": "number"
+              },
+              "verification_status": {
+                "title": "Verification Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "status",
+              "verification_status",
+              "storage_strength",
+              "exposure_count",
+              "outcome",
+              "reliability"
+            ],
+            "title": "SkillIntrospect",
+            "type": "object"
+          },
+          "TierState": {
+            "additionalProperties": false,
+            "properties": {
+              "live_tags": {
+                "default": 0,
+                "title": "Live Tags",
+                "type": "integer"
+              },
+              "pending_dw": {
+                "default": 0.0,
+                "title": "Pending Dw",
+                "type": "number"
+              },
+              "reliability": {
+                "title": "Reliability",
+                "type": "number"
+              },
+              "retrieval_strength": {
+                "title": "Retrieval Strength",
+                "type": "number"
+              },
+              "storage_strength": {
+                "title": "Storage Strength",
+                "type": "number"
+              },
+              "storage_strength_effective_now": {
+                "title": "Storage Strength Effective Now",
+                "type": "number"
+              }
+            },
+            "required": [
+              "storage_strength",
+              "storage_strength_effective_now",
+              "retrieval_strength",
+              "reliability"
+            ],
+            "title": "TierState",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "consolidation": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ConsolidationInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "health": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Health"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/$defs/HistoryEntry"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "inbound_edges": {
+            "items": {
+              "$ref": "#/$defs/EdgeOut"
+            },
+            "title": "Inbound Edges",
+            "type": "array"
+          },
+          "outbound_edges": {
+            "items": {
+              "$ref": "#/$defs/EdgeOut"
+            },
+            "title": "Outbound Edges",
+            "type": "array"
+          },
+          "registry_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RegistrySummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "silent_engram_flag": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Silent Engram Flag"
+          },
+          "skill": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SkillIntrospect"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "tier_state": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TierState"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "title": "IntrospectOutput",
+        "type": "object"
+      },
+      "risk_class": "R0",
+      "side_effect": "none",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 50,
+            "maximum": 500,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "window_days": {
+            "default": 30,
+            "minimum": 1,
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "title": "FlagDeadInput",
+        "type": "object"
+      },
+      "name": "flag_dead",
+      "output_schema": {
+        "$defs": {
+          "DeadCandidate": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "last_routed": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Last Routed"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "reason": {
+                "title": "Reason",
+                "type": "string"
+              },
+              "retrieval_strength": {
+                "title": "Retrieval Strength",
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "last_routed",
+              "retrieval_strength",
+              "reason"
+            ],
+            "title": "DeadCandidate",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/$defs/DeadCandidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "recommendation": {
+            "title": "Recommendation",
+            "type": "string"
+          },
+          "silent_pct": {
+            "title": "Silent Pct",
+            "type": "number"
+          }
+        },
+        "required": [
+          "candidates",
+          "recommendation",
+          "silent_pct"
+        ],
+        "title": "FlagDeadOutput",
+        "type": "object"
+      },
+      "risk_class": "R0",
+      "side_effect": "none",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "$defs": {
+          "SharpenChanges": {
+            "additionalProperties": false,
+            "properties": {
+              "pitfalls": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Pitfalls",
+                "type": "array"
+              },
+              "procedures": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Procedures",
+                "type": "array"
+              },
+              "triggers": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Triggers",
+                "type": "array"
+              }
+            },
+            "title": "SharpenChanges",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "proposed_changes": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SharpenChanges"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SharpenInput",
+        "type": "object"
+      },
+      "name": "sharpen",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Approval Id"
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "consolidation_scheduled": {
+            "default": false,
+            "title": "Consolidation Scheduled",
+            "type": "boolean"
+          },
+          "requires_approval": {
+            "default": false,
+            "title": "Requires Approval",
+            "type": "boolean"
+          },
+          "sharpened": {
+            "default": false,
+            "title": "Sharpened",
+            "type": "boolean"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "State"
+          },
+          "version_bumped": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Version Bumped"
+          }
+        },
+        "title": "SharpenOutput",
+        "type": "object"
+      },
+      "risk_class": "R3",
+      "side_effect": "proposal->durable",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PromoteInput",
+        "type": "object"
+      },
+      "name": "promote",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Approval Id"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Evidence"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "new_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "New Status"
+          },
+          "promoted": {
+            "default": false,
+            "title": "Promoted",
+            "type": "boolean"
+          },
+          "requires_approval": {
+            "default": false,
+            "title": "Requires Approval",
+            "type": "boolean"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "State"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PromoteOutput",
+        "type": "object"
+      },
+      "risk_class": "R3",
+      "side_effect": "proposal->durable",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ArchiveInput",
+        "type": "object"
+      },
+      "name": "archive",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Approval Id"
+          },
+          "archived": {
+            "default": false,
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provenance_entry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provenance Entry"
+          },
+          "requires_approval": {
+            "default": false,
+            "title": "Requires Approval",
+            "type": "boolean"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "State"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ArchiveOutput",
+        "type": "object"
+      },
+      "risk_class": "R3",
+      "side_effect": "proposal->durable",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "egr",
+              "skill"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "RegisterInput",
+        "type": "object"
+      },
+      "name": "register",
+      "output_schema": {
+        "$defs": {
+          "RegisteredEntryOut": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "origin": {
+                "title": "Origin",
+                "type": "string"
+              },
+              "status": {
+                "title": "Status",
+                "type": "string"
+              },
+              "verification_status": {
+                "title": "Verification Status",
+                "type": "string"
+              },
+              "warnings": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Warnings",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "origin",
+              "status",
+              "verification_status"
+            ],
+            "title": "RegisteredEntryOut",
+            "type": "object"
+          },
+          "ValidationErrorOut": {
+            "additionalProperties": false,
+            "properties": {
+              "message": {
+                "title": "Message",
+                "type": "string"
+              },
+              "path": {
+                "title": "Path",
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "message"
+            ],
+            "title": "ValidationErrorOut",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "consolidation_scheduled": {
+            "title": "Consolidation Scheduled",
+            "type": "boolean"
+          },
+          "ingested": {
+            "title": "Ingested",
+            "type": "integer"
+          },
+          "registered": {
+            "items": {
+              "$ref": "#/$defs/RegisteredEntryOut"
+            },
+            "title": "Registered",
+            "type": "array"
+          },
+          "skipped_unchanged": {
+            "title": "Skipped Unchanged",
+            "type": "integer"
+          },
+          "validation_errors": {
+            "items": {
+              "$ref": "#/$defs/ValidationErrorOut"
+            },
+            "title": "Validation Errors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ingested",
+          "registered",
+          "validation_errors",
+          "skipped_unchanged",
+          "consolidation_scheduled"
+        ],
+        "title": "RegisterOutput",
+        "type": "object"
+      },
+      "risk_class": "R2",
+      "side_effect": "filesystem+durable_index",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "title": "SyncInput",
+        "type": "object"
+      },
+      "name": "sync",
+      "output_schema": {
+        "$defs": {
+          "ValidationErrorOut": {
+            "additionalProperties": false,
+            "properties": {
+              "message": {
+                "title": "Message",
+                "type": "string"
+              },
+              "path": {
+                "title": "Path",
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "message"
+            ],
+            "title": "ValidationErrorOut",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "consolidation_scheduled": {
+            "title": "Consolidation Scheduled",
+            "type": "boolean"
+          },
+          "dangling": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dangling",
+            "type": "array"
+          },
+          "detector": {
+            "title": "Detector",
+            "type": "string"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Removed",
+            "type": "array"
+          },
+          "synced": {
+            "title": "Synced",
+            "type": "integer"
+          },
+          "validation_errors": {
+            "items": {
+              "$ref": "#/$defs/ValidationErrorOut"
+            },
+            "title": "Validation Errors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "synced",
+          "removed",
+          "validation_errors",
+          "dangling",
+          "detector",
+          "consolidation_scheduled"
+        ],
+        "title": "SyncOutput",
+        "type": "object"
+      },
+      "risk_class": "R2",
+      "side_effect": "durable_index",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "title": "CheckpointInput",
+        "type": "object"
+      },
+      "name": "checkpoint",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "checkpointed": {
+            "title": "Checkpointed",
+            "type": "integer"
+          },
+          "modified_engrams": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Modified Engrams",
+            "type": "array"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "write_ratio": {
+            "title": "Write Ratio",
+            "type": "number"
+          }
+        },
+        "required": [
+          "checkpointed",
+          "modified_engrams",
+          "write_ratio",
+          "timestamp"
+        ],
+        "title": "CheckpointOutput",
+        "type": "object"
+      },
+      "risk_class": "R2",
+      "side_effect": "filesystem",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "min_status": {
+            "default": "consolidated",
+            "enum": [
+              "consolidated",
+              "promoted"
+            ],
+            "title": "Min Status",
+            "type": "string"
+          },
+          "out_dir": {
+            "title": "Out Dir",
+            "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "out_dir"
+        ],
+        "title": "ExportInput",
+        "type": "object"
+      },
+      "name": "export",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "exported": {
+            "title": "Exported",
+            "type": "integer"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "target_dir": {
+            "title": "Target Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "exported",
+          "target_dir",
+          "format",
+          "note"
+        ],
+        "title": "ExportOutput",
+        "type": "object"
+      },
+      "risk_class": "R2",
+      "side_effect": "filesystem",
+      "signal_tier": null
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "$defs": {
+          "RouteContext": {
+            "additionalProperties": false,
+            "properties": {
+              "project_tag": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Project Tag"
+              },
+              "recent_failures": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Recent Failures",
+                "type": "array"
+              },
+              "user_prefs": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "User Prefs",
+                "type": "array"
+              }
+            },
+            "title": "RouteContext",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RouteContext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "k": {
+            "default": 5,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "K",
+            "type": "integer"
+          },
+          "query": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "schema_version": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Schema Version"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "RouteInput",
+        "type": "object"
+      },
+      "name": "route",
+      "output_schema": {
+        "$defs": {
+          "Candidate": {
+            "additionalProperties": false,
+            "properties": {
+              "body_ref": {
+                "title": "Body Ref",
+                "type": "string"
+              },
+              "diagnostics": {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "title": "Diagnostics",
+                "type": "object"
+              },
+              "exposure_count": {
+                "title": "Exposure Count",
+                "type": "integer"
+              },
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "intent_does": {
+                "title": "Intent Does",
+                "type": "string"
+              },
+              "intent_use_when": {
+                "title": "Intent Use When",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "rank": {
+                "title": "Rank",
+                "type": "integer"
+              },
+              "score": {
+                "title": "Score",
+                "type": "number"
+              },
+              "signal_tier_0": {
+                "default": true,
+                "title": "Signal Tier 0",
+                "type": "boolean"
+              },
+              "status": {
+                "title": "Status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "rank",
+              "id",
+              "name",
+              "intent_does",
+              "intent_use_when",
+              "score",
+              "status",
+              "exposure_count",
+              "body_ref"
+            ],
+            "title": "Candidate",
+            "type": "object"
+          },
+          "ConfidenceOut": {
+            "additionalProperties": false,
+            "properties": {
+              "calibration_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Calibration Id"
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Value"
+              }
+            },
+            "title": "ConfidenceOut",
+            "type": "object"
+          },
+          "ExclusionSummaryOut": {
+            "additionalProperties": false,
+            "description": "Bounded exclusion summary \u2014 engram id + reason codes only (no bodies/paths).",
+            "properties": {
+              "engram_id": {
+                "title": "Engram Id",
+                "type": "string"
+              },
+              "reason_codes": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Reason Codes",
+                "type": "array"
+              }
+            },
+            "required": [
+              "engram_id"
+            ],
+            "title": "ExclusionSummaryOut",
+            "type": "object"
+          },
+          "HostVerificationReportOut": {
+            "additionalProperties": false,
+            "properties": {
+              "details": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Details"
+              },
+              "plan_snapshot_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Plan Snapshot Id"
+              },
+              "schema_version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Schema Version"
+              },
+              "structural_validity": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "valid",
+                      "invalid"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Structural Validity"
+              },
+              "verified_task_outcome": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "pass",
+                      "fail",
+                      "unevaluated"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Verified Task Outcome"
+              },
+              "verifier_artifact_digest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Verifier Artifact Digest"
+              },
+              "verifier_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Verifier Id"
+              },
+              "verifier_type": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Verifier Type"
+              },
+              "verifier_version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Verifier Version"
+              }
+            },
+            "title": "HostVerificationReportOut",
+            "type": "object"
+          },
+          "PlanDiagnosticOut": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "title": "Code",
+                "type": "string"
+              },
+              "message": {
+                "title": "Message",
+                "type": "string"
+              },
+              "related_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Related Ids",
+                "type": "array"
+              },
+              "subject_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Subject Id"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "title": "PlanDiagnosticOut",
+            "type": "object"
+          },
+          "PlanEdgeOut": {
+            "additionalProperties": false,
+            "properties": {
+              "capability_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Capability Id"
+              },
+              "dst_id": {
+                "title": "Dst Id",
+                "type": "string"
+              },
+              "optional": {
+                "default": false,
+                "title": "Optional",
+                "type": "boolean"
+              },
+              "src_id": {
+                "title": "Src Id",
+                "type": "string"
+              },
+              "type": {
+                "title": "Type",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "src_id",
+              "dst_id"
+            ],
+            "title": "PlanEdgeOut",
+            "type": "object"
+          },
+          "PlanNodeOut": {
+            "additionalProperties": false,
+            "properties": {
+              "content_digest": {
+                "title": "Content Digest",
+                "type": "string"
+              },
+              "engram_id": {
+                "title": "Engram Id",
+                "type": "string"
+              },
+              "procedure_ref": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Procedure Ref"
+              },
+              "required_permissions": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Required Permissions",
+                "type": "array"
+              },
+              "risk": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Risk"
+              },
+              "version": {
+                "title": "Version",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "engram_id",
+              "version",
+              "content_digest"
+            ],
+            "title": "PlanNodeOut",
+            "type": "object"
+          },
+          "PlanOut": {
+            "additionalProperties": false,
+            "description": "Public Plan/1 projection (C5). Absent router fields map to null/empty.",
+            "properties": {
+              "diagnostics": {
+                "items": {
+                  "$ref": "#/$defs/PlanDiagnosticOut"
+                },
+                "title": "Diagnostics",
+                "type": "array"
+              },
+              "edges": {
+                "items": {
+                  "$ref": "#/$defs/PlanEdgeOut"
+                },
+                "title": "Edges",
+                "type": "array"
+              },
+              "executable": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Executable"
+              },
+              "nodes": {
+                "items": {
+                  "$ref": "#/$defs/PlanNodeOut"
+                },
+                "title": "Nodes",
+                "type": "array"
+              },
+              "plan_digest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Plan Digest"
+              },
+              "policy_digest": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Policy Digest"
+              },
+              "policy_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Policy Id"
+              },
+              "schema_version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Schema Version"
+              },
+              "snapshot_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Snapshot Id"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "valid",
+                      "invalid"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              },
+              "topological_order": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Topological Order",
+                "type": "array"
+              }
+            },
+            "title": "PlanOut",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Public route envelope: legacy L1 fields + RouteDecision/1 + Plan/1 (S11).\n\nNever includes raw query text. Exclusion summaries never include bodies or\nfilesystem paths. Fields the router has not yet populated are null.",
+        "properties": {
+          "calibration_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Calibration Digest"
+          },
+          "calibration_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Calibration Status"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/$defs/Candidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "composition_plan": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Composition Plan",
+            "type": "array"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ConfidenceOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "config_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Config Digest"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Decision Id"
+          },
+          "decision_schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Decision Schema Version"
+          },
+          "default_local_authorship_policy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Default Local Authorship Policy"
+          },
+          "exclusions": {
+            "items": {
+              "$ref": "#/$defs/ExclusionSummaryOut"
+            },
+            "title": "Exclusions",
+            "type": "array"
+          },
+          "explanation_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Explanation Version"
+          },
+          "fallback_identity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fallback Identity"
+          },
+          "host_verification_report": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HostVerificationReportOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "index_generation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Index Generation Id"
+          },
+          "instructions": {
+            "title": "Instructions",
+            "type": "string"
+          },
+          "missing_context": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Context",
+            "type": "array"
+          },
+          "model_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model Digest"
+          },
+          "operational_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Operational Error"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/PlanOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "plan_confidence": {
+            "title": "Plan Confidence",
+            "type": "number"
+          },
+          "plan_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Plan Digest"
+          },
+          "policy_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Policy Digest"
+          },
+          "policy_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Policy Family"
+          },
+          "policy_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Policy Id"
+          },
+          "policy_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "store",
+                  "config_fresh_install"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Policy Source"
+          },
+          "propensity": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Propensity",
+            "type": "object"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "registry_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Registry Digest"
+          },
+          "registry_size": {
+            "title": "Registry Size",
+            "type": "integer"
+          },
+          "schema_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Schema Digest"
+          },
+          "score_components": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            "title": "Score Components",
+            "type": "object"
+          },
+          "selected_content_digests": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Selected Content Digests",
+            "type": "object"
+          },
+          "selected_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Selected Ids",
+            "type": "array"
+          },
+          "selection_mechanism": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Selection Mechanism"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "selected",
+                  "abstained",
+                  "error",
+                  "ok"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "tokenizer_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tokenizer Digest"
+          },
+          "truncations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Truncations",
+            "type": "object"
+          },
+          "unresolved_context": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved Context",
+            "type": "array"
+          }
+        },
+        "required": [
+          "candidates",
+          "composition_plan",
+          "plan_confidence",
+          "instructions",
+          "session_id",
+          "registry_size"
+        ],
+        "title": "RouteOutput",
+        "type": "object"
+      },
+      "risk_class": "R0",
+      "side_effect": "none",
+      "signal_tier": 0
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Cursor",
+            "type": "integer"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Decision Id"
+          },
+          "expected_content_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Content Digest"
+          },
+          "expected_policy_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Policy Digest"
+          },
+          "expected_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Snapshot Id"
+          },
+          "level": {
+            "default": "L2",
+            "enum": [
+              "L2",
+              "L3"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "max_bytes": {
+            "default": 8192,
+            "minimum": 1,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "LoadSkillBodyInput",
+        "type": "object"
+      },
+      "name": "load_skill_body",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "examples": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Examples"
+          },
+          "exec_blocks_present": {
+            "default": false,
+            "title": "Exec Blocks Present",
+            "type": "boolean"
+          },
+          "exec_blocks_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exec Blocks Warning"
+          },
+          "level": {
+            "enum": [
+              "L2",
+              "L3"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "missing_context": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Context",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Offset"
+          },
+          "pitfalls": {
+            "title": "Pitfalls",
+            "type": "string"
+          },
+          "procedure": {
+            "title": "Procedure",
+            "type": "string"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Provenance"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "status": {
+            "default": "ok",
+            "enum": [
+              "ok",
+              "stale_decision",
+              "missing_context"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "level",
+          "procedure",
+          "pitfalls"
+        ],
+        "title": "LoadSkillBodyOutput",
+        "type": "object"
+      },
+      "risk_class": "R0",
+      "side_effect": "none",
+      "signal_tier": 0
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Adapter Token"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          },
+          "skill_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Skill Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "skill_ids"
+        ],
+        "title": "SignalUseInput",
+        "type": "object"
+      },
+      "name": "signal_use",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "capped": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capped",
+            "type": "array"
+          },
+          "co_activation_candidates": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Co Activation Candidates",
+            "type": "array"
+          },
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "signal_tier": {
+            "title": "Signal Tier",
+            "type": "integer"
+          },
+          "tagged": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tagged",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tagged",
+          "co_activation_candidates",
+          "expires_at",
+          "signal_tier",
+          "note"
+        ],
+        "title": "SignalUseOutput",
+        "type": "object"
+      },
+      "risk_class": "R1",
+      "side_effect": "ephemeral",
+      "signal_tier": "1|2"
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Adapter Token"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "salience": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 0.5,
+            "title": "Salience"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          },
+          "skill_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Skill Ids"
+          },
+          "valence": {
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "title": "Valence",
+            "type": "number"
+          }
+        },
+        "required": [
+          "valence"
+        ],
+        "title": "SignalOutcomeInput",
+        "type": "object"
+      },
+      "name": "signal_outcome",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "captured": {
+            "title": "Captured",
+            "type": "integer"
+          },
+          "consolidation_scheduled": {
+            "title": "Consolidation Scheduled",
+            "type": "boolean"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "signal_tier": {
+            "title": "Signal Tier",
+            "type": "integer"
+          },
+          "skills_credited": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills Credited",
+            "type": "array"
+          }
+        },
+        "required": [
+          "captured",
+          "skills_credited",
+          "signal_tier",
+          "consolidation_scheduled",
+          "note"
+        ],
+        "title": "SignalOutcomeOutput",
+        "type": "object"
+      },
+      "risk_class": "R1",
+      "side_effect": "ephemeral",
+      "signal_tier": "1|2"
+    },
+    {
+      "idempotent": true,
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "SessionEndInput",
+        "type": "object"
+      },
+      "name": "session_end",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "captured_pending": {
+            "title": "Captured Pending",
+            "type": "integer"
+          },
+          "closed": {
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "dream_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dream Run Id"
+          },
+          "enqueued": {
+            "title": "Enqueued",
+            "type": "boolean"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "tags_expired": {
+            "title": "Tags Expired",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "closed",
+          "tags_expired",
+          "captured_pending",
+          "dream_run_id",
+          "enqueued"
+        ],
+        "title": "SessionEndOutput",
+        "type": "object"
+      },
+      "risk_class": "R1",
+      "side_effect": "ephemeral+enqueue",
+      "signal_tier": 1
+    }
+  ]
+}

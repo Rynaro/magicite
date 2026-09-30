@@ -1,0 +1,50 @@
+{
+  "schema": "magicite/host-support-manifest/1",
+  "description": "Pinned host/SDK/protocol matrix for PROTOCOL release gate (S11). Untested hosts remain experimental/unevaluated.",
+  "mcp_sdk": {
+    "distribution": "mcp",
+    "version": "2.2.0",
+    "constraint": "mcp>=2.0,<3.0"
+  },
+  "protocol_versions": {
+    "handshake": [
+      "2024-11-05",
+      "2025-03-26",
+      "2025-06-18",
+      "2025-11-25"
+    ],
+    "modern_additive": [
+      "2026-07-28"
+    ],
+    "negotiated_in_tests": "2025-11-25"
+  },
+  "hosts": [
+    {
+      "id": "stdio-generic",
+      "adapter": "mcp.client.stdio",
+      "status": "stable",
+      "sdk_version": "2.2.0",
+      "protocol_version": "2025-11-25",
+      "probes": [
+        "handshake",
+        "tools_list",
+        "offline_fixture_route",
+        "body_retrieval"
+      ],
+      "transcript": "transcripts/stdio-generic.json"
+    },
+    {
+      "id": "claude-code",
+      "adapter": "docs/adapters/claude-code.md",
+      "status": "experimental",
+      "sdk_version": "2.2.0",
+      "protocol_version": "2025-11-25",
+      "probes": [
+        "handshake",
+        "tools_list"
+      ],
+      "transcript": "transcripts/claude-code.UNEVALUATED.json",
+      "note": "Documented adapter; real-host transcript UNEVALUATED until operator evidence is attached."
+    }
+  ]
+}
