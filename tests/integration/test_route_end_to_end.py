@@ -1,9 +1,10 @@
 """AC-012's proving integration test, against the real toy registry
 (register() -> route()), plus a couple of M2 end-to-end sanity checks that
 exercise sync()'s new steps 8-9 (derived similar_to edges + community
-detection) feeding back into route()'s community rerank. AC-037/AC-038
-(DECLARED-EDGES-AMENDED, 2026-08-15) are the amended plan_confidence's
-proving units."""
+detection) feeding back into route()'s community rerank. AC-037 remains a
+plan_confidence proving unit; the legacy AC-038 partial-confidence case is
+superseded by v1 C5 (dangling mandatory reference → invalid plan) and is now
+proven as a ``composition_invalid`` abstention."""
 
 from __future__ import annotations
 
