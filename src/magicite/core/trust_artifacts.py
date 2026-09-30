@@ -130,7 +130,10 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
     }
     if set(payload) - {"conversion_provenance"} != expected or payload["schema"] != "ArtifactTransform/1":
         raise CustodianError("invalid artifact transform schema")
-    if payload["transform_id"] != TRANSFORM or payload["grants_admission"] is not False:
+    if (
+        payload["transform_id"] not in {TRANSFORM, "magicite-authored-edit/1"}
+        or payload["grants_admission"] is not False
+    ):
         raise CustodianError("artifact transformation cannot grant admission")
     if not isinstance(payload["engram_id"], str) or not payload["engram_id"]:
         raise CustodianError("transform identity required")
@@ -287,3 +290,55 @@ def require_bound_artifact(cfg: Any, path: Any) -> Any:
     ):
         raise CustodianError("artifact has no authenticated transformed content identity")
     return artifact
+
+
+def publish_authored_edit(
+    cfg: Any, target: Any, content: bytes, *, expected_source_digest: str, actor: str
+) -> None:
+    """Explicit authored mutation with source CAS and no admission inheritance."""
+    from pathlib import Path
+
+    from magicite.core.trust_journal import _directory_fd, _read_file, _replace_file
+    from magicite.core.writer_guard import bound_journal
+
+    journal, held, fence = bound_journal(cfg)
+    target = Path(target)
+    target.resolve().relative_to(cfg.registry_dir.resolve())
+    with _directory_fd(target.parent) as directory:
+        source = _read_file(directory, target.name)
+    if hashlib.sha256(source).hexdigest() != expected_source_digest:
+        raise CustodianError("authored edit source changed")
+    original = require_bound_artifact(cfg, target)
+    artifact, _ = parser.parse_artifact(content.decode(), relpath=str(target), admit=True)
+    require_enrollment_marker(artifact, journal.registry_id)
+    if not isinstance(artifact, EngramV1):
+        raise CustodianError("authored edit requires v1 artifact")
+    if original.id != artifact.id:
+        raise CustodianError("authored edit cannot replace artifact identity")
+    lineage = mark_artifact(source, registry_id=journal.registry_id, relpath=str(target), actor=actor).lineage
+    lineage["transform_id"] = "magicite-authored-edit/1"
+    lineage["target_digest"] = hashlib.sha256(content).hexdigest()
+    lineage["resources"] = {
+        key: value.model_dump(mode="json") for key, value in artifact.frontmatter.assets.items()
+    }
+    held.assert_owned()
+    with _directory_fd(cfg.data_dir / "trust/sources", create=True) as directory:
+        try:
+            prior = _read_file(directory, expected_source_digest)
+        except FileNotFoundError:
+            _replace_file(directory, expected_source_digest, source, held.assert_owned)
+        else:
+            if prior != source:
+                raise CustodianError("source archive digest mismatch")
+    journal.append(
+        record_id="transform-" + hashlib.sha256(_bytes(lineage)).hexdigest(),
+        kind="artifact_transform",
+        payload=lineage,
+        fence=fence,
+        assert_owned=held.assert_owned,
+    )
+    with _directory_fd(target.parent) as directory:
+        if hashlib.sha256(_read_file(directory, target.name)).hexdigest() != expected_source_digest:
+            raise CustodianError("authored edit source changed before publication")
+        _replace_file(directory, target.name, content, held.assert_owned)
+    held.assert_owned()

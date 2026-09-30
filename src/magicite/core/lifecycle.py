@@ -411,8 +411,11 @@ def execute_sharpen(
     # on the next `upsert_engram` below.
     current_verification_status = str(row["verification_status"])
 
-    parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-    engram = parsed.engram
+    from magicite.core import trust_artifacts
+    from magicite.engram.model_v1 import ProvenanceJournalEntryV1
+    typed = trust_artifacts.require_bound_artifact(cfg, file_path)
+    source_digest = typed.content_sha256
+    engram = registry_mod._artifact_to_engram(typed, intake_channel="local_register")
     if engram.frontmatter.trust is None:
         from magicite.engram.model import Trust
 
@@ -482,9 +485,26 @@ def execute_sharpen(
         # content; it costs the pre-existing file's YAML comments, an
         # acceptable, disclosed trade-off for a sharpen -- unlike a
         # checkpoint, this is not supposed to look untouched.
-        rendered = writer_mod.render_document(engram, None)
-        engram.content_sha256 = ids_mod.content_sha256(rendered.encode("utf-8"))
-        writer_mod.atomic_write(file_path, rendered)
+        # Keep all v1-only constraints and assets; only the requested authored
+        # delta is copied back from the existing algorithm's legacy projection.
+        typed.frontmatter.version = new_version
+        typed.frontmatter.routing.positive = list(engram.frontmatter.triggers.positive)
+        typed.frontmatter.routing.negative = list(engram.frontmatter.triggers.negative)
+        typed.body = engram.body.model_copy(deep=True)
+        typed.frontmatter.origin.journal = [
+            ProvenanceJournalEntryV1(**entry.model_dump())
+            for entry in engram.frontmatter.provenance_journal
+        ]
+        rendered = writer_mod.render_document_v1(typed)
+        trust_artifacts.publish_authored_edit(cfg,file_path,rendered.encode(),
+            expected_source_digest=source_digest,actor=actor)
+        published = trust_artifacts.require_bound_artifact(cfg,file_path)
+        engram = registry_mod._artifact_to_engram(published,intake_channel="local_register")
+        if engram.frontmatter.trust is not None:
+            engram.frontmatter.trust = engram.frontmatter.trust.model_copy(
+                update={"verification_status": current_verification_status}
+            )
+
 
         identity = registry_mod.identity_hash(engram)  # CR-8: drift-only, `id` itself never recomputed
         durable_mod.upsert_engram(conn, engram, identity_sha256=identity)

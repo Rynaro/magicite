@@ -412,3 +412,59 @@ def test_skill_raw_source_archive_and_conversion_provenance(enrolled):
         "source_digest": digest,
         "intermediate_digest": lineage["source_digest"],
     }
+
+
+def test_sharpen_preserves_v1_contract_and_invalidates_prior_admission(enrolled):
+    import shutil
+    from types import SimpleNamespace
+
+    from magicite.core import lifecycle, registry, trust_artifacts
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, _ = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    target = cfg.registry_dir / "sample.egr.md"
+    shutil.copy(fixture, target)
+    embedder = get_embedder(dim=256)
+    registry.register(cfg, conn, embedder, path=".magicite/engrams")
+    before = trust_artifacts.require_bound_artifact(cfg, target)
+    registry.review_approve(
+        cfg, conn, engram_id=before.id, expected_digest=before.content_sha256, actor="operator"
+    )
+    assert registry.trust_view_for(cfg, conn, engram_id=before.id).admitted
+    result = lifecycle.execute_sharpen(
+        cfg,
+        conn,
+        embedder,
+        name=before.name,
+        proposed_changes=SimpleNamespace(
+            procedures=["Keep the source archive."], triggers=["explicit marker regression"], pitfalls=[]
+        ),
+        actor="operator",
+    )
+    after = trust_artifacts.require_bound_artifact(cfg, target)
+    assert result.new_version == before.frontmatter.version + 1
+    for field in ("compatibility", "capabilities", "relations", "risk", "assets", "extensions"):
+        assert getattr(after.frontmatter, field) == getattr(before.frontmatter, field)
+    assert "explicit marker regression" in after.frontmatter.routing.positive
+    assert not registry.trust_view_for(cfg, conn, engram_id=after.id).admitted
+
+
+def test_authored_edit_rejects_stale_source_before_journal_advance(enrolled):
+    import shutil
+
+    from magicite.core import registry, trust_artifacts, writer_guard
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, store = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    target = cfg.registry_dir / "sample.egr.md"
+    shutil.copy(fixture, target)
+    registry.register(cfg, conn, get_embedder(dim=256), path=".magicite/engrams")
+    head = store.read_current("r")
+    with writer_guard.registry_writer_lease(cfg, conn).acquire():
+        with pytest.raises(CustodianError, match="source changed"):
+            trust_artifacts.publish_authored_edit(
+                cfg, target, target.read_bytes(), expected_source_digest="0" * 64, actor="operator"
+            )
+    assert store.read_current("r")["head_mac"] == head["head_mac"]
