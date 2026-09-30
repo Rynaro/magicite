@@ -33,9 +33,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from magicite.config import Config
+from magicite.core import trust as trust_mod
+from magicite.core import trust_artifacts, writer_guard
 from magicite.core.decay_math import effective_value
 from magicite.engram import ids as ids_mod
-from magicite.engram import parser as parser_mod
 from magicite.engram import writer as writer_mod
 from magicite.engram.model import ROUTABLE_STATUSES, ProvenanceJournalEntry
 from magicite.storage import durable as durable_mod
@@ -195,8 +196,9 @@ def archive_one(
     if not file_path.is_file():
         return None
 
-    parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-    engram = parsed.engram
+    from magicite.core.registry import project_v1_to_durable_engram
+    typed = trust_artifacts.require_bound_artifact(cfg,file_path)
+    engram = project_v1_to_durable_engram(typed,server_origin="authored")
     s_eff = effective_value(row["storage_strength"], row["s_decayed_at"], now, cfg.lambda_s_per_day)
     plasticity = engram.frontmatter.plasticity
     base_plasticity = plasticity.model_copy() if plasticity is not None else None
@@ -243,14 +245,23 @@ def archive_one(
     # archived row is part of durable_projection() too (it is not filtered
     # by status), so a stale digest here would equally break the rebuild
     # invariant for any registry that has ever auto-archived an engram.
-    final_text = writer_mod.render_document(candidate, parsed.frontmatter_doc)
-    writer_mod.atomic_write(archive_path, final_text)
+    from magicite.core.dream import _render_checkpoint_v1
+    final_text = _render_checkpoint_v1(typed,candidate)
+    trust_artifacts.publish_authored_edit(cfg,file_path,final_text.encode(),
+        expected_source_digest=typed.content_sha256,actor=author,
+        transform_id="magicite-archive/1",destination=archive_path)
     new_content_sha256 = ids_mod.content_sha256(final_text.encode("utf-8"))
     new_body_sha256 = ids_mod.body_sha256(writer_mod.render_body(candidate.body))
 
     # The archive copy is durably on disk before we touch the registry
     # copy -- "never deleted" holds even if the process dies here.
-    os.remove(file_path)
+    from magicite.core.trust_journal import _directory_fd
+    _, held, _ = writer_guard.bound_journal(cfg)
+    with _directory_fd(file_path.parent) as directory:
+        held.assert_owned()
+        os.unlink(file_path.name,dir_fd=directory)
+        os.fsync(directory)
+    held.assert_owned()
 
     durable_mod.mark_archived(
         conn,
@@ -327,6 +338,13 @@ def archive_below_floor(cfg: Config, conn, *, now: str) -> list[ArchivedEntry]: 
 
     archived: list[ArchivedEntry] = []
     for row in rows:
+        file_path = cfg.project_root / row["path"]
+        if file_path.is_file():
+            artifact = trust_artifacts.require_bound_artifact(cfg,file_path)
+            if trust_mod.admission_still_valid(cfg,engram_id=artifact.id,
+                    content_digest=artifact.content_sha256,
+                    resource_digest=trust_mod.compute_resource_digest_at(cfg,relpath=artifact.path)):
+                continue  # Adaptive decay cannot remove an admitted stable artifact.
         s_eff = effective_value(row["storage_strength"], row["s_decayed_at"], now, cfg.lambda_s_per_day)
         if s_eff >= floor:
             continue

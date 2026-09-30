@@ -611,3 +611,94 @@ def test_missing_source_decision_reference_rejected_before_preparation(enrolled)
             )
     assert store.read_current("r")["head_sequence"] == 1
     assert store.prepared_record("r") is None
+
+
+@pytest.mark.parametrize("admitted", [False, True])
+def test_dream_checkpoint_preserves_v1_and_admitted_stable_bytes(enrolled, admitted):
+    import shutil
+
+    from magicite.core import dream, registry, router, trust_artifacts, writer_guard
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.storage import lease
+
+    cfg, conn, _ = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/toy-registry/engrams/steam-prefix-access.egr.md"
+    target = cfg.registry_dir / fixture.name
+    shutil.copy(fixture, target)
+    embedder = get_embedder(dim=256)
+    registry.register(cfg, conn, embedder, path=".magicite/engrams")
+    before = trust_artifacts.require_bound_artifact(cfg, target)
+    if admitted:
+        registry.review_approve(
+            cfg, conn, engram_id=before.id, expected_digest=before.content_sha256, actor="operator"
+        )
+    original = target.read_bytes()
+    route_before = router.route(
+        cfg,
+        conn,
+        embedder,
+        query="Locate and prepare a Steam Proton compatdata prefix for a given appid",
+        k=5,
+    )
+    if admitted:
+        assert route_before.candidates
+    with writer_guard.registry_writer_lease(cfg, conn).acquire(), lease.writer_lease():
+        conn.execute("UPDATE engram SET storage_strength=0.9 WHERE id=?", (before.id,))
+    result = dream.run_checkpoint_only(cfg, conn)
+    after = trust_artifacts.require_bound_artifact(cfg, target)
+    for field in ("compatibility", "capabilities", "relations", "risk", "assets", "extensions"):
+        assert getattr(after.frontmatter, field) == getattr(before.frontmatter, field)
+    if admitted:
+        assert target.read_bytes() == original
+        assert result.checkpointed == 0
+        assert [
+            x.id
+            for x in router.route(
+                cfg,
+                conn,
+                embedder,
+                query="Locate and prepare a Steam Proton compatdata prefix for a given appid",
+                k=5,
+            ).candidates
+        ] == [x.id for x in route_before.candidates]
+    else:
+        assert result.checkpointed == 1
+        assert target.read_bytes() != original
+        assert not registry.trust_view_for(cfg, conn, engram_id=before.id).admitted
+
+
+def test_automatic_archive_preserves_admitted_bytes_but_explicit_archive_keeps_v1(enrolled):
+    import shutil
+
+    from magicite.core import decay, dream, registry, trust_artifacts, writer_guard
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.storage import lease
+
+    cfg, conn, _ = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/toy-registry/engrams/steam-prefix-access.egr.md"
+    target = cfg.registry_dir / fixture.name
+    shutil.copy(fixture, target)
+    registry.register(cfg, conn, get_embedder(dim=256), path=".magicite/engrams")
+    before = trust_artifacts.require_bound_artifact(cfg, target)
+    registry.review_approve(
+        cfg, conn, engram_id=before.id, expected_digest=before.content_sha256, actor="operator"
+    )
+    original = target.read_bytes()
+    with (
+        writer_guard.registry_writer_lease(cfg, conn).acquire(),
+        lease.writer_lease(),
+        dream.checkpoint_phase(),
+    ):
+        conn.execute(
+            "UPDATE engram SET storage_strength=0,peak_storage_strength=1,success_count=3 WHERE id=?",
+            (before.id,),
+        )
+        assert decay.archive_below_floor(cfg, conn, now="2026-09-30T00:00:00Z") == []
+    assert target.read_bytes() == original
+    dream.archive_engram(cfg, conn, name=before.name, reason="explicit operator archival", actor="operator")
+    row = conn.execute("SELECT path,status,content_sha256 FROM engram WHERE id=?", (before.id,)).fetchone()
+    assert row["status"] == "archived"
+    after = trust_artifacts.require_bound_artifact(cfg, cfg.project_root / row["path"])
+    assert after.content_sha256 == row["content_sha256"]
+    assert after.frontmatter.extensions == before.frontmatter.extensions
+    assert not target.exists()

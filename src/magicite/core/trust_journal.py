@@ -225,7 +225,8 @@ class TrustJournal:
                     source_key = (lineage["engram_id"], lineage["source_digest"])
                     target_key = (lineage["engram_id"], lineage["target_digest"])
                     if (
-                        lineage["transform_id"] == "magicite-authored-edit/1"
+                        lineage["transform_id"]
+                        in {"magicite-authored-edit/1", "magicite-dream-checkpoint/1", "magicite-archive/1"}
                         and source_key not in transformed_targets
                     ):
                         raise CustodianError("authored lineage source is missing")

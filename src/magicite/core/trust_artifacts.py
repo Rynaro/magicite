@@ -131,7 +131,8 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
     if set(payload) - {"conversion_provenance"} != expected or payload["schema"] != "ArtifactTransform/1":
         raise CustodianError("invalid artifact transform schema")
     if (
-        payload["transform_id"] not in {TRANSFORM, "magicite-authored-edit/1"}
+        payload["transform_id"]
+        not in {TRANSFORM, "magicite-authored-edit/1", "magicite-dream-checkpoint/1", "magicite-archive/1"}
         or payload["grants_admission"] is not False
     ):
         raise CustodianError("artifact transformation cannot grant admission")
@@ -303,7 +304,14 @@ def require_bound_artifact(cfg: Any, path: Any) -> Any:
 
 
 def publish_authored_edit(
-    cfg: Any, target: Any, content: bytes, *, expected_source_digest: str, actor: str
+    cfg: Any,
+    target: Any,
+    content: bytes,
+    *,
+    expected_source_digest: str,
+    actor: str,
+    transform_id: str = "magicite-authored-edit/1",
+    destination: Any | None = None,
 ) -> None:
     """Explicit authored mutation with source CAS and no admission inheritance."""
     from pathlib import Path
@@ -314,6 +322,11 @@ def publish_authored_edit(
     journal, held, fence = bound_journal(cfg)
     target = Path(target)
     target.resolve().relative_to(cfg.registry_dir.resolve())
+    output = target if destination is None else Path(destination)
+    if destination is not None:
+        if transform_id != "magicite-archive/1":
+            raise CustodianError("relocation requires explicit archive transform")
+        output.resolve().relative_to(cfg.archive_dir.resolve())
     with _directory_fd(target.parent) as directory:
         source = _read_file(directory, target.name)
     if hashlib.sha256(source).hexdigest() != expected_source_digest:
@@ -326,7 +339,9 @@ def publish_authored_edit(
     if original.id != artifact.id:
         raise CustodianError("authored edit cannot replace artifact identity")
     lineage = mark_artifact(source, registry_id=journal.registry_id, relpath=str(target), actor=actor).lineage
-    lineage["transform_id"] = "magicite-authored-edit/1"
+    if transform_id not in {"magicite-authored-edit/1", "magicite-dream-checkpoint/1", "magicite-archive/1"}:
+        raise CustodianError("unsupported artifact mutation")
+    lineage["transform_id"] = transform_id
     lineage["target_digest"] = hashlib.sha256(content).hexdigest()
     lineage["resources"] = {
         key: value.model_dump(mode="json") for key, value in artifact.frontmatter.assets.items()
@@ -350,5 +365,6 @@ def publish_authored_edit(
     with _directory_fd(target.parent) as directory:
         if hashlib.sha256(_read_file(directory, target.name)).hexdigest() != expected_source_digest:
             raise CustodianError("authored edit source changed before publication")
-        _replace_file(directory, target.name, content, held.assert_owned)
+    with _directory_fd(output.parent, create=True) as directory:
+        _replace_file(directory, output.name, content, held.assert_owned)
     held.assert_owned()

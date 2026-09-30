@@ -346,7 +346,11 @@ class CustodianStore:
                         or original["payload"]["content_digest"] != payload["source_digest"]
                     ):
                         raise CustodianError("invalid source decision reference")
-                if payload["transform_id"] == "magicite-authored-edit/1" and not any(
+                if payload["transform_id"] in {
+                    "magicite-authored-edit/1",
+                    "magicite-dream-checkpoint/1",
+                    "magicite-archive/1",
+                } and not any(
                     record["kind"] == "artifact_transform"
                     and record["payload"]["engram_id"] == payload["engram_id"]
                     and record["payload"]["target_digest"] == payload["source_digest"]
