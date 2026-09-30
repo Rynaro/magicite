@@ -1,11 +1,15 @@
 """Direct (non-stdio) unit coverage for ``mcp/bind_retrieval.py``.
 
-S11: RouteDecision/1 projection + C10 body disclosure gate.
+S11: RouteDecision/1 + Plan/1 projection + C10 body disclosure gate.
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
+from magicite.core import eligibility as eligibility_mod
 from magicite.core import registry as registry_mod
+from magicite.core import router as router_mod
 from magicite.core import routing_policy as policy_mod
 from magicite.mcp import bind_retrieval
 from magicite.mcp.registry import ToolContext
@@ -34,8 +38,72 @@ def test_route_tool_returns_composition_plan_via_adapter(cfg, db_conn, embedder)
     assert out.decision_id
     assert out.status in {"selected", "abstained", "error"}
     assert out.selected_content_digests
-    # Plan/1 not yet wired on router at c656fb8 — defensive null.
-    assert out.plan is None or out.plan.status in {"valid", "invalid"}
+    assert out.plan is not None
+    assert out.plan.status == "valid"
+    assert out.host_verification_report is None  # not produced on route path
+
+
+def test_public_plan_digest_matches_decision(cfg, db_conn, embedder) -> None:
+    """FIX 1: public plan_digest is exactly decision.plan_digest."""
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    outcome = router_mod.route(
+        cfg, db_conn, embedder, query="rollback proton for a steam game", k=5
+    )
+    assert outcome.decision is not None
+    assert outcome.decision.plan_digest is not None
+    assert outcome.plan is not None
+
+    out = bind_retrieval.project_route_output(outcome)
+    assert out.plan_digest == outcome.decision.plan_digest
+    assert out.plan is not None
+    assert out.plan.plan_digest == outcome.decision.plan_digest
+    assert router_mod._plan_identity_digest(outcome.plan) == outcome.decision.plan_digest
+
+
+def test_valid_multi_node_plan_projected_in_topo_order(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    out = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=5))
+
+    assert out.status == "selected"
+    assert out.plan is not None
+    assert out.plan.status == "valid"
+    assert out.plan.executable is True
+    assert len(out.plan.nodes) >= 2
+    assert out.plan.topological_order == [n.engram_id for n in out.plan.nodes]
+    assert all(n.content_digest for n in out.plan.nodes)
+    assert out.composition_plan.index("steam-prefix-access") < out.composition_plan.index(
+        "proton-ge-proton-downgrade"
+    )
+
+
+def test_composition_invalid_abstain_projects_no_nodes(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    winner_id = db_conn.execute(
+        "SELECT id FROM engram WHERE name = 'proton-ge-proton-downgrade'"
+    ).fetchone()["id"]
+    now = datetime.now(UTC).isoformat()
+    db_conn.execute(
+        """
+        INSERT INTO edge (src_id, dst_name, dst_id, type, storage_strength, s_decayed_at,
+                          evidence_count, provenance, first_observed, dangling)
+        VALUES (?, 'nonexistent-skill', NULL, 'depends_on', 0.0, ?, 0, 'declared', ?, 1)
+        """,
+        (winner_id, now, now),
+    )
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    out = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=5))
+
+    assert out.status == "abstained"
+    assert router_mod.REASON_COMPOSITION_INVALID in out.reason_codes
+    assert eligibility_mod.REASON_DANGLING_DEPENDENCY in out.reason_codes
+    assert out.candidates == []
+    assert out.composition_plan == []
+    # No plan nodes/bodies of ineligible deps on the public surface.
+    if out.plan is not None:
+        assert out.plan.nodes == []
+        assert out.plan.edges == []
+        assert out.plan.topological_order == []
 
 
 def test_route_tool_hard_excludes_via_context(cfg, db_conn, embedder) -> None:
