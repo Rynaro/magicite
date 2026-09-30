@@ -1,20 +1,28 @@
-"""``magicite`` click CLI: serve|sync|dream|export|tools|doctor|fetch-model.
-
-M0 implements ``serve``, ``sync`` and ``tools`` for real. The remaining
-subcommands exist (the CLI surface is named in spec §1) but raise a clear
-``ClickException`` naming the milestone that implements them, rather than
-silently doing nothing -- the CLI-level equivalent of the MCP tools'
-typed ``not_implemented`` error (INV-4).
+"""``magicite`` click CLI: serve|sync|dream|export|tools|doctor|fetch-model
+plus S11 operator surfaces: trust|policy|evidence|backup.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import sys
 
 import click
 
 from magicite.config import Config
+from magicite.errors import MagiciteError
+
+
+def _echo_json(payload: object) -> None:
+    click.echo(json.dumps(payload, indent=2, default=str))
+
+
+def _die_magicite(exc: MagiciteError) -> None:
+    from magicite.mcp.redact import redact_error_payload
+
+    _echo_json(redact_error_payload(exc.to_dict()))
+    sys.exit(1)
 
 
 @click.group()
@@ -65,12 +73,7 @@ def sync_cmd(project_root: str) -> None:
 @click.option("--autonomous", is_flag=True, default=False)
 @click.option("--project-root", default=".", show_default=True, help="Registry project root.")
 def dream_cmd(once: bool, autonomous: bool, project_root: str) -> None:
-    """Run the Dream consolidation worker inline (spec §4.1: "CLI / cron /
-    container run: `magicite dream --once` runs the same orchestrator
-    inline"). This is a single, synchronous, single-process invocation --
-    it never shares a process with a live `magicite serve` (no in-v1 idle
-    poll, spec §4.1 "0 (off) in v1"), so it never runs *alongside* a live
-    ``stdio_server()`` in the same interpreter."""
+    """Run the Dream consolidation worker inline (spec §4.1)."""
     import json as _json
 
     from magicite.core import dream as dream_mod
@@ -80,15 +83,6 @@ def dream_cmd(once: bool, autonomous: bool, project_root: str) -> None:
         raise click.ClickException("magicite dream currently only supports --once (spec §4.1 v1 scope)")
 
     cfg = Config.load(project_root)
-    # M5: the approval machinery (core/approvals.py) and its autonomous-mode
-    # bypass (docs/06 §Autonomous Mode) now exist. Dream's own phases never
-    # call nucleate()/sharpen()/promote()/archive() directly in v1 (the one
-    # auto lifecycle transition Dream performs -- the decay-floor archive,
-    # AC-033 -- has no approval gate to begin with: spec §5.1 "auto on decay
-    # floor"), so this flag has no *currently observable* effect from the
-    # CLI alone; it is wired through cfg.autonomous anyway so a future Dream
-    # phase that does create R3 proposals inherits the same governance
-    # switch the MCP tools already honor (docs/operations.md §9).
     if autonomous:
         cfg.autonomous = True
     cfg.ensure_dirs()
@@ -136,12 +130,10 @@ def export_cmd(out_dir: str, project_root: str, min_status: str) -> None:
 @cli.command(name="doctor")
 @click.option("--project-root", default=".", show_default=True)
 def doctor_cmd(project_root: str) -> None:
-    """Diagnose the registry/filesystem/embedding-provider setup (spec M7,
-    Risks R7/R9). Deliberately not reassuring -- see obs/doctor.py."""
-    from magicite.obs import doctor as doctor_mod
+    """Diagnose the registry/filesystem/embedding-provider setup (doctor/1)."""
+    from magicite.mcp import bind_ops
 
-    cfg = Config.load(project_root)
-    report = doctor_mod.run_doctor(cfg)
+    report = bind_ops.doctor_report(project_root)
     click.echo(json.dumps(report, indent=2, default=str))
     if not report["healthy"]:
         for warning in report["warnings"]:
@@ -151,15 +143,356 @@ def doctor_cmd(project_root: str) -> None:
 @cli.command(name="fetch-model")
 @click.option("--model-name", default=None, help="Override the default fastembed model name.")
 def fetch_model_cmd(model_name: str | None) -> None:
-    """Pre-download the default ONNX embedding model for offline use (R4:
-    the one legitimate network-touching step -- run this before setting
-    MAGICITE_EMBEDDING_OFFLINE=1 / baking a hardened image)."""
+    """Pre-download the default ONNX embedding model for offline use."""
     from magicite.embeddings.fastembed_provider import DEFAULT_MODEL_NAME, fetch_model
 
     resolved = model_name or DEFAULT_MODEL_NAME
     click.echo(f"fetching {resolved!r} ...")
     fetch_model(model_name=resolved)
     click.echo(json.dumps({"fetched": resolved}, indent=2))
+
+
+# ── S11: trust ──────────────────────────────────────────────────────────
+
+
+@cli.group(name="trust")
+def trust_group() -> None:
+    """Bundle trust and local review (C10). Requires explicit operator actor."""
+
+
+@trust_group.command(name="list")
+@click.option("--project-root", default=".", show_default=True)
+def trust_list_cmd(project_root: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json({"decisions": bind_ops.trust_list(project_root)})
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@trust_group.command(name="review")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--engram-id", required=True)
+def trust_review_cmd(project_root: str, engram_id: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.trust_review(project_root, engram_id=engram_id))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@trust_group.command(name="approve")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--engram-id", required=True)
+@click.option("--expected-digest", required=True)
+@click.option("--actor", required=True, help="Explicit operator identity (required).")
+@click.option("--reason", default=None)
+@click.option("--event-id", default=None)
+def trust_approve_cmd(
+    project_root: str,
+    engram_id: str,
+    expected_digest: str,
+    actor: str,
+    reason: str | None,
+    event_id: str | None,
+) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.trust_approve(
+                project_root,
+                engram_id=engram_id,
+                expected_digest=expected_digest,
+                actor=actor,
+                reason=reason,
+                event_id=event_id,
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@trust_group.command(name="reject")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--engram-id", required=True)
+@click.option("--expected-digest", required=True)
+@click.option("--actor", required=True)
+@click.option("--reason", default=None)
+@click.option("--event-id", default=None)
+def trust_reject_cmd(
+    project_root: str,
+    engram_id: str,
+    expected_digest: str,
+    actor: str,
+    reason: str | None,
+    event_id: str | None,
+) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.trust_reject(
+                project_root,
+                engram_id=engram_id,
+                expected_digest=expected_digest,
+                actor=actor,
+                reason=reason,
+                event_id=event_id,
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@trust_group.command(name="revoke")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--engram-id", required=True)
+@click.option("--actor", required=True)
+@click.option("--expected-digest", default=None)
+@click.option("--reason", default=None)
+@click.option("--event-id", default=None)
+def trust_revoke_cmd(
+    project_root: str,
+    engram_id: str,
+    actor: str,
+    expected_digest: str | None,
+    reason: str | None,
+    event_id: str | None,
+) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.trust_revoke(
+                project_root,
+                engram_id=engram_id,
+                actor=actor,
+                expected_digest=expected_digest,
+                reason=reason,
+                event_id=event_id,
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@trust_group.command(name="import-bundle")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--archive", "archive_path", required=True, type=click.Path(exists=True))
+@click.option("--actor", required=True)
+def trust_import_bundle_cmd(project_root: str, archive_path: str, actor: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.trust_import_bundle(
+                project_root, archive_path=archive_path, actor=actor
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+# ── S11: policy ─────────────────────────────────────────────────────────
+
+
+@cli.group(name="policy")
+def policy_group() -> None:
+    """Reviewed policy activation/rollback (compare-and-swap)."""
+
+
+@policy_group.command(name="status")
+@click.option("--project-root", default=".", show_default=True)
+def policy_status_cmd(project_root: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.policy_status(project_root))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@policy_group.command(name="activate")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--candidate-digest", required=True)
+@click.option("--approval-id", required=True)
+@click.option(
+    "--expected-current",
+    default=None,
+    help="Compare-and-swap guard; omit/empty when no incumbent.",
+)
+def policy_activate_cmd(
+    project_root: str,
+    candidate_digest: str,
+    approval_id: str,
+    expected_current: str | None,
+) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.policy_activate(
+                project_root,
+                candidate_digest=candidate_digest,
+                approval_id=approval_id,
+                expected_current=expected_current or None,
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@policy_group.command(name="rollback")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--prior-digest", required=True)
+@click.option("--expected-current", default=None)
+def policy_rollback_cmd(
+    project_root: str, prior_digest: str, expected_current: str | None
+) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.policy_rollback(
+                project_root,
+                prior_digest=prior_digest,
+                expected_current=expected_current or None,
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+# ── S11: evidence ───────────────────────────────────────────────────────
+
+
+@cli.group(name="evidence")
+def evidence_group() -> None:
+    """Evidence export, erasure, and retention (C6)."""
+
+
+@evidence_group.command(name="export")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--export-dir", default=None, type=click.Path())
+@click.option("--event-id", "event_ids", multiple=True)
+def evidence_export_cmd(
+    project_root: str, export_dir: str | None, event_ids: tuple[str, ...]
+) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.evidence_export(
+                project_root,
+                export_dir=export_dir,
+                event_ids=list(event_ids) or None,
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@evidence_group.command(name="delete")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--event-id", required=True)
+@click.option("--actor", required=True)
+@click.option("--reason", default=None)
+def evidence_delete_cmd(
+    project_root: str, event_id: str, actor: str, reason: str | None
+) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.evidence_delete(
+                project_root, event_id=event_id, actor=actor, reason=reason
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@evidence_group.command(name="retention-status")
+@click.option("--project-root", default=".", show_default=True)
+def evidence_retention_status_cmd(project_root: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.evidence_retention_status(project_root))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@evidence_group.command(name="apply-retention")
+@click.option("--project-root", default=".", show_default=True)
+def evidence_apply_retention_cmd(project_root: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.evidence_apply_retention(project_root))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+# ── S11: backup ─────────────────────────────────────────────────────────
+
+
+@cli.group(name="backup")
+def backup_group() -> None:
+    """Backup create/restore/status (C8)."""
+
+
+@backup_group.command(name="create")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--dest", required=True, type=click.Path())
+def backup_create_cmd(project_root: str, dest: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.backup_create(project_root, dest=dest))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@backup_group.command(name="restore")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--backup-path", required=True, type=click.Path(exists=True))
+@click.option("--overlay", "overlay_path", default=None, type=click.Path(exists=True))
+@click.option("--anchor", "anchor_path", default=None, type=click.Path(exists=True))
+def backup_restore_cmd(
+    project_root: str,
+    backup_path: str,
+    overlay_path: str | None,
+    anchor_path: str | None,
+) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.backup_restore(
+                project_root,
+                backup_path=backup_path,
+                overlay_path=overlay_path,
+                anchor_path=anchor_path,
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@backup_group.command(name="status")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--backup-path", default=None, type=click.Path())
+def backup_status_cmd(project_root: str, backup_path: str | None) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.backup_status(project_root, backup_path=backup_path))
+    except MagiciteError as exc:
+        _die_magicite(exc)
 
 
 if __name__ == "__main__":
