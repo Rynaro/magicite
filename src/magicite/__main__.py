@@ -316,6 +316,18 @@ def policy_status_cmd(project_root: str) -> None:
         _die_magicite(exc)
 
 
+@policy_group.command(name="reconcile")
+@click.option("--project-root", default=".", show_default=True)
+def policy_reconcile_cmd(project_root: str) -> None:
+    """Finish an authenticated interrupted policy commit under the writer lease."""
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.policy_reconcile(project_root))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
 @policy_group.command(name="activate")
 @click.option("--project-root", default=".", show_default=True)
 @click.option("--candidate-digest", required=True)

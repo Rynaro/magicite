@@ -574,7 +574,7 @@ def rollback(
 def status(cfg: Config) -> PolicyStoreStatus:
     state = _load_raw(cfg)
     if state.get("pending_control") is not None:
-        raise InvalidInputError("policy control finalization pending; run guarded reconciliation")
+        raise InvalidInputError("policy control finalization pending; run magicite policy reconcile")
     records_raw = state.get("records") or {}
     records = tuple(
         _record_from_dict(digest, row) for digest, row in sorted(records_raw.items())

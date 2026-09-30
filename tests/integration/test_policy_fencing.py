@@ -149,3 +149,44 @@ def test_prepared_mirror_directory_is_durable_before_state_commit(
         ps.activate(cfg, expected_current=None, candidate_digest="a", approval_id=approval)
     assert ps.policy_store_path(cfg).read_bytes() == before
     assert ps.status(cfg).active_digest is None
+
+
+@pytest.mark.parametrize("mirror_state", ["valid", "missing", "conflicting"])
+def test_public_cli_reconciliation_and_read_only_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mirror_state: str,
+) -> None:
+    from click.testing import CliRunner
+
+    from magicite.__main__ import cli
+    cfg, approval = _prepared(tmp_path)
+    original = approvals.finalize_policy_control_event
+    def crash(*args: object) -> None:
+        raise OSError("crash before finalization")
+    monkeypatch.setattr(approvals, "finalize_policy_control_event", crash)
+    with pytest.raises(OSError):
+        ps.activate(cfg, expected_current=None, candidate_digest="a", approval_id=approval)
+    monkeypatch.setattr(approvals, "finalize_policy_control_event", original)
+    mirror = next(cfg.approvals_dir.glob("*.json"))
+    if mirror_state == "missing":
+        mirror.unlink()
+    elif mirror_state == "conflicting":
+        raw = json.loads(mirror.read_text())
+        raw["payload"]["policy_digest"] = "untrusted"
+        mirror.write_text(json.dumps(raw))
+    def snapshot() -> dict[str, bytes]:
+        return {str(path.relative_to(cfg.data_dir)): path.read_bytes()
+                for path in cfg.data_dir.rglob("*") if path.is_file()}
+    before = snapshot()
+    with pytest.raises(InvalidInputError, match="pending"):
+        ps.get_active_manifest(cfg)
+    runner = CliRunner()
+    runner.invoke(cli, ["doctor", "--project-root", str(tmp_path)])
+    assert snapshot() == before
+    result = runner.invoke(cli, ["policy", "reconcile", "--project-root", str(tmp_path)])
+    assert result.exit_code == (0 if mirror_state == "valid" else 1), result.output
+    if mirror_state == "valid":
+        assert json.loads(result.output)["active_digest"] == "a"
+    else:
+        assert ps.policy_store_path(cfg).read_bytes() == before["policy_store/state.json"]
+        with pytest.raises(InvalidInputError, match="pending"):
+            ps.status(cfg)
