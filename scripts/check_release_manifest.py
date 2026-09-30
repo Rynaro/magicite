@@ -144,6 +144,16 @@ def _witness(ref: Any, root: Path, gate: str, source: str) -> str:
     return str(obligation)
 
 
+def _bound_report(row: dict[str, Any], root: Path, schema: str, keys: tuple[str, ...]) -> None:
+    """The digest-bound report, rather than an unsigned wrapper assertion, is authoritative."""
+    report = read_json(_artifact(row.get("artifact"), root))
+    if not isinstance(report, dict) or report.get("schema") != schema:
+        raise ValueError("unsupported immutable report schema")
+    for key in keys:
+        if key not in row or key not in report or report[key] != row[key]:
+            raise ValueError(f"immutable report contradicts or omits {key}")
+
+
 def _rcs(value: Any, root: Path, source: str) -> None:
     if not isinstance(value, list) or len(value) != 2 or not all(isinstance(x, dict) for x in value):
         raise ValueError("two RCs required")
@@ -156,7 +166,13 @@ def _rcs(value: Any, root: Path, source: str) -> None:
                 raise ValueError("RC identity and independent builder required")
         if not _sha(row.get("source_commit"), 40):
             raise ValueError("RC source commit missing")
-        _artifact(row.get("artifact"), root)
+        _bound_report(
+            row,
+            root,
+            "magicite/rc-build-report/1",
+            ("id", "builder", "source_commit", "fingerprints", "matrix", "build_artifact"),
+        )
+        _artifact(row.get("build_artifact"), root)
         fingerprints = row.get("fingerprints")
         if (
             not isinstance(fingerprints, dict)
@@ -171,7 +187,7 @@ def _rcs(value: Any, root: Path, source: str) -> None:
             raise ValueError("RC supported matrix not passing")
     if any(left[key] == right[key] for key in ("id", "builder")):
         raise ValueError("RCs must be distinct independent builds")
-    if left["artifact"]["sha256"] == right["artifact"]["sha256"]:
+    if left["build_artifact"]["sha256"] == right["build_artifact"]["sha256"]:
         raise ValueError("RC artifacts must be distinct")
     if left["fingerprints"] != right["fingerprints"]:
         raise ValueError("stable fingerprints changed: fresh RC pair required")
@@ -202,7 +218,14 @@ def _external(value: Any, root: Path, source: str) -> None:
             raise ValueError("external operator/reviewer must be independent of implementation and labels")
         if report.get("source_commit") != source:
             raise ValueError("external report source mismatch")
-        _artifact(report.get("artifact"), root)
+        if report.get("status") != "PASS" or report.get("independent") is not True:
+            raise ValueError("external report must attest independently evaluated PASS")
+        keys = ("operator", "reviewer", "authors", "source_commit", "checks", "status", "independent")
+        if pilots:
+            keys += ("repository",)
+        _bound_report(
+            report, root, "magicite/external-pilot/1" if pilots else "magicite/external-reproduction/1", keys
+        )
         checks = report.get("checks")
         if not isinstance(checks, dict) or any(
             checks.get(key) is not True for key in (PILOT_CHECKS if pilots else REPRODUCTION_CHECKS)
@@ -276,7 +299,9 @@ def validate(manifest: Any, root: Path) -> dict[str, Any]:
             or signoff.get("approved") is not True
         ):
             raise ValueError("explicit maintainer sign-off at candidate source required")
-        _artifact(signoff.get("artifact"), root)
+        _bound_report(
+            signoff, root, "magicite/maintainer-signoff/1", ("identity", "source_commit", "approved")
+        )
     except (ValueError, OSError, TypeError, KeyError) as exc:
         errors.append(f"GA-ALL: {exc}")
     return {

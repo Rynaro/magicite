@@ -24,6 +24,12 @@ def artifact(root, name, payload):
     return {"path": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
+def bind_report(root, row, schema):
+    payload = {key: value for key, value in row.items() if key != "artifact"}
+    payload["schema"] = schema
+    row["artifact"] = artifact(root, row["artifact"]["path"], payload)
+
+
 @pytest.fixture
 def candidate(tmp_path):
     """Synthetic complete release; this fixture is not product qualification."""
@@ -65,10 +71,15 @@ def candidate(tmp_path):
         }
         for n in (1, 2)
     ]
+    for row in rcs:
+        row["build_artifact"] = artifact(tmp_path, row["id"] + "-build.json", {"build": row["id"]})
+        bind_report(tmp_path, row, "magicite/rc-build-report/1")
     external = {
         "path": "reproduction",
         "reports": [
             {
+                "status": "PASS",
+                "independent": True,
                 "operator": "external-person",
                 "reviewer": "independence-reviewer",
                 "authors": ["builder", "label-author"],
@@ -78,7 +89,8 @@ def candidate(tmp_path):
             }
         ],
     }
-    return {
+    bind_report(tmp_path, external["reports"][0], "magicite/external-reproduction/1")
+    result = {
         "schema": "magicite/release-manifest/1",
         "source_commit": source,
         "gates": gates,
@@ -91,6 +103,9 @@ def candidate(tmp_path):
             "artifact": artifact(tmp_path, "signoff.json", {"approved": True}),
         },
     }
+
+    bind_report(tmp_path, result["maintainer_signoff"], "magicite/maintainer-signoff/1")
+    return result
 
 
 def test_complete_synthetic_candidate(candidate, tmp_path):
@@ -209,6 +224,8 @@ def test_two_independent_pilots_qualify(candidate, tmp_path):
     second["repository"] = "repo-two"
     second["artifact"] = artifact(tmp_path, "pilot-two.json", {"pilot": 2})
     external["reports"].append(second)
+    for row in external["reports"]:
+        bind_report(tmp_path, row, "magicite/external-pilot/1")
     assert validator.validate(candidate, tmp_path)["eligible"]
 
 
@@ -231,4 +248,36 @@ def test_all_obligations_required(candidate, tmp_path):
 
 def test_lock_bytes_are_verified(candidate, tmp_path):
     (tmp_path / "uv.lock").write_text("changed")
+    assert not validator.validate(candidate, tmp_path)["eligible"]
+
+
+@pytest.mark.parametrize(
+    "target,field,value",
+    [
+        ("signoff", "approved", False),
+        ("signoff", "source_commit", "d" * 40),
+        ("signoff", "identity", "somebody-else"),
+        ("external", "status", "UNEVALUATED"),
+        ("external", "independent", False),
+        ("rc", "fingerprints", {"api": "d" * 64, "schema": "e" * 64}),
+        ("rc", "matrix", {"python-3.11": "FAIL"}),
+    ],
+)
+def test_hash_valid_report_contradictions_rejected(candidate, tmp_path, target, field, value):
+    row = {
+        "signoff": candidate["maintainer_signoff"],
+        "external": candidate["external"]["reports"][0],
+        "rc": candidate["release_candidates"][0],
+    }[target]
+    ref = row["artifact"]
+    payload = json.loads((tmp_path / ref["path"]).read_text())
+    payload[field] = value
+    row["artifact"] = artifact(tmp_path, ref["path"], payload)
+    assert not validator.validate(candidate, tmp_path)["eligible"]
+
+
+def test_distinct_rc_reports_cannot_reuse_one_build(candidate, tmp_path):
+    left, right = candidate["release_candidates"]
+    right["build_artifact"] = left["build_artifact"]
+    bind_report(tmp_path, right, "magicite/rc-build-report/1")
     assert not validator.validate(candidate, tmp_path)["eligible"]
