@@ -468,3 +468,146 @@ def test_authored_edit_rejects_stale_source_before_journal_advance(enrolled):
                 cfg, target, target.read_bytes(), expected_source_digest="0" * 64, actor="operator"
             )
     assert store.read_current("r")["head_mac"] == head["head_mac"]
+
+
+def test_source_root_restriction_survives_target_review_and_authored_edit(enrolled):
+    from types import SimpleNamespace
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    from magicite.core import lifecycle, registry, router, trust_artifacts, writer_guard
+    from magicite.core.bundles import public_key_fingerprint
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.errors import InvalidInputError
+    from magicite.mcp import bind_retrieval
+    from magicite.mcp.registry import ToolContext
+    from magicite.mcp.schemas import LoadSkillBodyInput
+
+    cfg, conn, _ = enrolled
+    public = Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    trust.pin_trust_root(cfg, public_key_bytes=public)
+    fingerprint = public_key_fingerprint(public)
+    fixture = (
+        Path(__file__).resolve().parents[2]
+        / "fixtures/toy-registry/engrams/proton-ge-proton-downgrade.egr.md"
+    )
+    target = cfg.registry_dir / fixture.name
+    with writer_guard.registry_writer_lease(cfg, conn).acquire():
+        trust_artifacts.publish_new_artifact(
+            cfg,
+            target,
+            fixture.read_bytes(),
+            actor="verified-fixture",
+            source_signature={"signature_valid": True, "signer_fingerprint": fingerprint},
+        )
+    embedder = get_embedder(dim=256)
+    registry.register(cfg, conn, embedder, path=".magicite/engrams")
+    artifact = trust_artifacts.require_bound_artifact(cfg, target)
+    approved = registry.review_approve(
+        cfg, conn, engram_id=artifact.id, expected_digest=artifact.content_sha256, actor="operator"
+    )
+    assert approved.signature_valid is not True
+    lifecycle.execute_sharpen(
+        cfg,
+        conn,
+        embedder,
+        name=artifact.name,
+        proposed_changes=SimpleNamespace(
+            procedures=["Preserve reviewed source lineage."], triggers=[], pitfalls=[]
+        ),
+        actor="operator",
+    )
+    artifact = trust_artifacts.require_bound_artifact(cfg, target)
+    approved = registry.review_approve(
+        cfg, conn, engram_id=artifact.id, expected_digest=artifact.content_sha256, actor="operator"
+    )
+    assert approved.signature_valid is not True
+    params = LoadSkillBodyInput(
+        name=artifact.name,
+        level="L2",
+        expected_content_digest=artifact.content_sha256,
+        expected_policy_digest=bind_retrieval._active_policy_digest(cfg),
+    )
+    ctx = ToolContext(cfg=cfg, conn=conn, embedder=embedder)
+    assert bind_retrieval.load_skill_body(ctx, params).status == "ok"
+    trust.revoke_trust_root(cfg, fingerprint=fingerprint)
+    with pytest.raises(InvalidInputError):
+        registry.review_approve(
+            cfg, conn, engram_id=artifact.id, expected_digest=artifact.content_sha256, actor="operator"
+        )
+    assert bind_retrieval.load_skill_body(ctx, params).status != "ok"
+    assert not router.route(cfg, conn, embedder, query="rollback proton for steam", k=5).candidates
+
+
+def test_changed_digest_review_never_inherits_target_publisher_signature(enrolled):
+    import shutil
+    from types import SimpleNamespace
+
+    from magicite.core import lifecycle, registry, trust_artifacts
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, _ = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    target = cfg.registry_dir / "sample.egr.md"
+    shutil.copy(fixture, target)
+    embedder = get_embedder(dim=256)
+    registry.register(cfg, conn, embedder, path=".magicite/engrams")
+    artifact = trust_artifacts.require_bound_artifact(cfg, target)
+    prior = trust.approve(
+        cfg,
+        conn,
+        engram_id=artifact.id,
+        expected_digest=artifact.content_sha256,
+        actor="fixture",
+        signature_valid=True,
+        signer_fingerprint="a" * 64,
+    )
+    assert prior.signature_valid is True
+    lifecycle.execute_sharpen(
+        cfg,
+        conn,
+        embedder,
+        name=artifact.name,
+        proposed_changes=SimpleNamespace(
+            procedures=["Exact target requires separate review."], triggers=[], pitfalls=[]
+        ),
+        actor="operator",
+    )
+    artifact = trust_artifacts.require_bound_artifact(cfg, target)
+    new = trust.approve(
+        cfg, conn, engram_id=artifact.id, expected_digest=artifact.content_sha256, actor="operator"
+    )
+    assert new.signature_valid is None
+    assert new.signer_fingerprint is None
+
+
+def test_missing_source_decision_reference_rejected_before_preparation(enrolled):
+    import hashlib
+
+    from magicite.core import trust_artifacts, writer_guard
+    from magicite.core.trust_custodian import _bytes
+
+    cfg, conn, store = enrolled
+    source = (
+        Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    ).read_bytes()
+    lineage = trust_artifacts.mark_artifact(
+        source,
+        registry_id="r",
+        relpath="sample.egr.md",
+        actor="operator",
+        source_decision_ids=("missing-original",),
+    ).lineage
+    with writer_guard.registry_writer_lease(cfg, conn).acquire():
+        journal, held, fence = writer_guard.bound_journal(cfg)
+        with pytest.raises(CustodianError, match="source decision"):
+            journal.append(
+                record_id="transform-" + hashlib.sha256(_bytes(lineage)).hexdigest(),
+                kind="artifact_transform",
+                payload=lineage,
+                fence=fence,
+                assert_owned=held.assert_owned,
+            )
+    assert store.read_current("r")["head_sequence"] == 1
+    assert store.prepared_record("r") is None

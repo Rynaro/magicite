@@ -34,6 +34,7 @@ class TrustSnapshot:
     decisions: tuple[dict[str, Any], ...]
     latest_by_engram: dict[str, dict[str, Any]]
     records: tuple[dict[str, Any], ...]
+    source_signers: dict[tuple[str, str], frozenset[str]]
 
 
 @contextmanager
@@ -203,6 +204,9 @@ class TrustJournal:
             policy = records[0]["payload"]["policy"]
             decisions: list[dict[str, Any]] = []
             latest: dict[str, dict[str, Any]] = {}
+            source_signers: dict[tuple[str, str], frozenset[str]] = {}
+            decision_ids: dict[str, dict[str, Any]] = {}
+            transformed_targets: set[tuple[str, str]] = set()
             for record in records[1:]:
                 if record["kind"] == "policy_snapshot":
                     policy = record["payload"]
@@ -210,15 +214,47 @@ class TrustJournal:
                     decision = record["payload"]
                     decisions.append(decision)
                     latest[decision["engram_id"]] = decision
+                    decision_ids[decision["decision_id"]] = decision
+                    if decision.get("signature_valid") is True and decision.get("signer_fingerprint"):
+                        key = (decision["engram_id"], decision["content_digest"])
+                        source_signers[key] = source_signers.get(key, frozenset()) | {
+                            decision["signer_fingerprint"]
+                        }
                 elif record["kind"] == "artifact_transform":
-                    pass  # Lineage grants nothing and cannot clear a prior restriction.
+                    lineage = record["payload"]
+                    source_key = (lineage["engram_id"], lineage["source_digest"])
+                    target_key = (lineage["engram_id"], lineage["target_digest"])
+                    if (
+                        lineage["transform_id"] == "magicite-authored-edit/1"
+                        and source_key not in transformed_targets
+                    ):
+                        raise CustodianError("authored lineage source is missing")
+                    signers = set(source_signers.get(source_key, frozenset()))
+                    for identity in lineage["source_decision_ids"]:
+                        original = decision_ids.get(identity)
+                        if (
+                            original is None
+                            or original["engram_id"] != source_key[0]
+                            or original["content_digest"] != source_key[1]
+                        ):
+                            raise CustodianError("invalid source decision reference")
+                        if original.get("signature_valid") is True and original.get("signer_fingerprint"):
+                            signers.add(original["signer_fingerprint"])
+                    provenance = lineage["signature_provenance"]["source"]
+                    if provenance is not None and provenance["signature_valid"] is True:
+                        signers.add(provenance["signer_fingerprint"])
+                    source_signers[target_key] = source_signers.get(target_key, frozenset()) | frozenset(
+                        signers
+                    )
+                    transformed_targets.add(target_key)
+                    # Lineage grants nothing and cannot clear prior restrictions.
                 else:
                     raise CustodianError("unsupported authenticated journal kind")
             import hashlib
 
             if hashlib.sha256(_bytes(policy)).hexdigest() != head["policy_digest"]:
                 raise CustodianError("snapshot policy commitment mismatch")
-            return TrustSnapshot(head, policy, tuple(decisions), latest, tuple(records))
+            return TrustSnapshot(head, policy, tuple(decisions), latest, tuple(records), source_signers)
         except (OSError, ValueError, KeyError, TypeError) as exc:
             raise CustodianError("trust history requires reconciliation") from exc
 

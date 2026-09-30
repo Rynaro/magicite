@@ -423,7 +423,7 @@ def compose_route_plan(
     limits = _compose_limits(cfg)
 
     try:
-        decisions, trust_policy = _trust_decisions_by_engram(cfg)
+        decisions, trust_policy, trust_snapshot = _trust_decisions_by_engram(cfg)
     except trust_mod.TrustLedgerCorruptError:
         return _ComposeRouteResult(
             ok=False,
@@ -501,7 +501,8 @@ def compose_route_plan(
         if row is None:
             raise KeyError(engram_id)
         return _route_trust_view(
-            cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy
+            cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy,
+                snapshot=trust_snapshot
         )
 
     try:
@@ -634,12 +635,13 @@ def _cache_put(key: tuple[Any, ...], entry: _SubjectCacheEntry) -> None:
 
 def _trust_decisions_by_engram(
     cfg: Config,
-) -> tuple[dict[str, trust_mod.TrustDecision], trust_mod.TrustPolicy]:
+) -> tuple[dict[str, trust_mod.TrustDecision], trust_mod.TrustPolicy, trust_mod.TrustSnapshot]:
     """One authenticated head binds policy and sequence-ordered decisions."""
     snapshot = trust_mod.authenticated_snapshot(cfg)
     return (
         {key: trust_mod.TrustDecision.from_dict(value) for key, value in snapshot.latest_by_engram.items()},
         trust_mod.TrustPolicy.from_dict(snapshot.policy),
+        snapshot,
     )
 
 
@@ -757,6 +759,7 @@ def _route_trust_view(
     *,
     cached_decision: trust_mod.TrustDecision | None,
     cached_policy: trust_mod.TrustPolicy,
+    snapshot: trust_mod.TrustSnapshot | None = None,
 ) -> trust_mod.TrustDecisionView:
     """Build TrustDecisionView for route eligibility without per-row file I/O.
 
@@ -778,7 +781,8 @@ def _route_trust_view(
         resource_digest = (trust_mod.compute_resource_digest_at(cfg, relpath=str(row["path"]))
                            if "path" in row.keys() else None)
         admitted = trust_mod.decision_valid_under_policy(
-            decision, cached_policy, content_digest=content_digest, resource_digest=resource_digest)
+            decision, cached_policy, content_digest=content_digest,
+            resource_digest=resource_digest, snapshot=snapshot)
     except InvalidInputError:
         admitted = False
 
@@ -827,7 +831,7 @@ def _evaluate_route_eligibility(
     exclusions: list[ExclusionSummary] = []
     missing_context: list[str] = []
     try:
-        decisions, trust_policy = _trust_decisions_by_engram(cfg)
+        decisions, trust_policy, trust_snapshot = _trust_decisions_by_engram(cfg)
         ledger_corrupt = False
     except trust_mod.TrustLedgerCorruptError:
         decisions = {}
@@ -846,7 +850,8 @@ def _evaluate_route_eligibility(
         try:
             subject = _build_subject_from_row(cfg, row)
             trust = _route_trust_view(
-                cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy
+                cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy,
+                snapshot=trust_snapshot
             )
             result = eligibility_mod.evaluate_eligibility(
                 subject, route_context, trust, server_policy, path="route"

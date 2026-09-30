@@ -487,7 +487,8 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
                      for key, value in disclosure_snapshot.latest_by_engram.items()}
         trust_policy = trust_mod.TrustPolicy.from_dict(disclosure_snapshot.policy)
         trust_view = router_mod._route_trust_view(
-            ctx.cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy
+            ctx.cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy,
+                snapshot=disclosure_snapshot
         )
     except trust_mod.TrustLedgerCorruptError:
         return _refuse_stale(row["name"], params.level, codes=["stale_decision", "trust_unavailable"])

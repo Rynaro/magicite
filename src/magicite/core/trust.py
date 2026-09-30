@@ -645,14 +645,16 @@ def approve(
                 },
             )
 
-        policy = load_policy(cfg)
-        prior = latest_decision_for(cfg, engram_id)
+        snapshot = authenticated_snapshot(cfg)
+        policy = TrustPolicy.from_dict(snapshot.policy)
+        prior_value = snapshot.latest_by_engram.get(engram_id)
+        prior = TrustDecision.from_dict(prior_value) if prior_value is not None else None
         if prior is not None:
             if source_channel is None:
                 source_channel = prior.source_channel
-            if signature_valid is None:
+            if signature_valid is None and prior.content_digest == live:
                 signature_valid = prior.signature_valid
-            if signer_fingerprint is None:
+            if signer_fingerprint is None and prior.content_digest == live:
                 signer_fingerprint = prior.signer_fingerprint
             if resource_digest is None and prior.resource_digest is not None:
                 # Prior staged resource must still match live assets.
@@ -687,7 +689,7 @@ def approve(
             event_id=event_id,
         )
         if not decision_valid_under_policy(decision, policy, content_digest=live,
-                                           resource_digest=bound_resource):
+                                           resource_digest=bound_resource, snapshot=snapshot):
             raise InvalidInputError("admission conflicts with current authenticated trust policy")
         persist_decision(cfg, conn, decision)
 
@@ -717,8 +719,10 @@ def reject(
     with _trust_write_leases(cfg, conn, holder="trust-reject"):
         live = live_content_digest(conn, engram_id)
         _require_expected_digest(expected=expected_digest, actual=live, label="reject")
-        policy = load_policy(cfg)
-        prior = latest_decision_for(cfg, engram_id)
+        snapshot = authenticated_snapshot(cfg)
+        policy = TrustPolicy.from_dict(snapshot.policy)
+        prior_value = snapshot.latest_by_engram.get(engram_id)
+        prior = TrustDecision.from_dict(prior_value) if prior_value is not None else None
         decision = TrustDecision(
             decision_id=new_decision_id(),
             engram_id=engram_id,
@@ -753,8 +757,10 @@ def revoke(
 ) -> TrustDecision:
     """Revoke local admission. Keeps signature/audit history; does not delete mirrors."""
     with _trust_write_leases(cfg, conn, holder="trust-revoke"):
-        policy = load_policy(cfg)
-        prior = latest_decision_for(cfg, engram_id)
+        snapshot = authenticated_snapshot(cfg)
+        policy = TrustPolicy.from_dict(snapshot.policy)
+        prior_value = snapshot.latest_by_engram.get(engram_id)
+        prior = TrustDecision.from_dict(prior_value) if prior_value is not None else None
         if prior is None:
             raise NotFoundError(f"no trust decision for engram {engram_id!r}")
         live = live_content_digest(conn, engram_id)
@@ -784,7 +790,7 @@ def revoke(
 
 def decision_valid_under_policy(
     decision: TrustDecision | None, policy: TrustPolicy, *, content_digest: str,
-    resource_digest: str | None = None,
+    resource_digest: str | None = None, snapshot: TrustSnapshot | None = None,
 ) -> bool:
     """Shared admission predicate for writes, routing, and body disclosure."""
     if decision is None or decision.decision != "admit" or decision.content_digest != content_digest:
@@ -795,7 +801,10 @@ def decision_valid_under_policy(
             return False
     if decision.policy_digest != policy.digest() or decision.policy_revision != policy.revision:
         return False
-    return not any(root.fingerprint == decision.signer_fingerprint and root.revoked for root in policy.roots)
+    restricted = {decision.signer_fingerprint} if decision.signer_fingerprint else set()
+    if snapshot is not None:
+        restricted.update(snapshot.source_signers.get((decision.engram_id, content_digest), frozenset()))
+    return not any(root.fingerprint in restricted and root.revoked for root in policy.roots)
 
 
 def admission_still_valid(
@@ -818,7 +827,7 @@ def admission_still_valid(
         decision = TrustDecision.from_dict(value) if value is not None else None
         policy = TrustPolicy.from_dict(snapshot.policy)
         return decision_valid_under_policy(decision, policy, content_digest=content_digest,
-                                           resource_digest=resource_digest)
+                                           resource_digest=resource_digest, snapshot=snapshot)
     except (TrustLedgerCorruptError, InvalidInputError):
         return False
 

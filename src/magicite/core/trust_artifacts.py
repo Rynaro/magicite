@@ -171,6 +171,16 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
         or provenance["target_signature_valid"] is not False
     ):
         raise CustodianError("transformed bytes have no inherited publisher signature")
+    source_signature = provenance["source"]
+    if source_signature is not None:
+        if (
+            not isinstance(source_signature, dict)
+            or set(source_signature) != {"signature_valid", "signer_fingerprint"}
+            or type(source_signature["signature_valid"]) is not bool
+            or not isinstance(source_signature["signer_fingerprint"], str)
+            or re.fullmatch("[0-9a-f]{64}", source_signature["signer_fingerprint"]) is None
+        ):
+            raise CustodianError("invalid source signature provenance")
     if not isinstance(payload["source_decision_ids"], list) or any(
         not isinstance(value, str) or not value for value in payload["source_decision_ids"]
     ):

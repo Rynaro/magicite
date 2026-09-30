@@ -335,6 +335,24 @@ class CustodianStore:
             self._conn.execute("BEGIN IMMEDIATE")
             state = self._load(registry)
             self._assert_fence(state, fence)
+            if kind == "artifact_transform":
+                records_by_id = {record["record_id"]: record for record in state["records"]}
+                for identity in payload["source_decision_ids"]:
+                    original = records_by_id.get(identity)
+                    if (
+                        original is None
+                        or original["kind"] != "trust_decision"
+                        or original["payload"]["engram_id"] != payload["engram_id"]
+                        or original["payload"]["content_digest"] != payload["source_digest"]
+                    ):
+                        raise CustodianError("invalid source decision reference")
+                if payload["transform_id"] == "magicite-authored-edit/1" and not any(
+                    record["kind"] == "artifact_transform"
+                    and record["payload"]["engram_id"] == payload["engram_id"]
+                    and record["payload"]["target_digest"] == payload["source_digest"]
+                    for record in state["records"]
+                ):
+                    raise CustodianError("authored lineage source is missing")
             for existing in [*state["records"], state["pending"]]:
                 if existing and existing["record_id"] == record_id:
                     if existing["kind"] == kind and _equal(existing["payload"], payload):
