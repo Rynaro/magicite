@@ -8,6 +8,8 @@ persists raw runtime queries beyond locked corpus bytes already on disk.
 from __future__ import annotations
 
 import json
+import re
+import sys
 import tarfile
 import tempfile
 from datetime import UTC, datetime
@@ -50,6 +52,23 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+_OPERATOR_HARNESS_REASON = (
+    "operator harness output is not release evidence; retain frozen incumbent"
+)
+
+
+def _demote_pass(verdict: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite a gate ``pass`` to ``unevaluated``; the computed status stays under a non-verdict key."""
+    if verdict.get("status") != "pass":
+        return verdict
+    return {
+        **verdict,
+        "status": "unevaluated",
+        "harness_computed_status": "pass",
+        "reason": _OPERATOR_HARNESS_REASON,
+    }
+
+
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -70,6 +89,28 @@ def _load_corpus(path: Path) -> CorpusManifest:
     return corpus
 
 
+_SHA256_HEX = re.compile(r"[0-9a-fA-F]{64}")
+
+
+def _safe_extract(tar: tarfile.TarFile, dest: Path) -> None:
+    """Extract only regular files/dirs that stay inside ``dest``; refuse the whole archive otherwise."""
+    root = dest.resolve()
+    members = tar.getmembers()
+    for member in members:
+        name = member.name
+        if not (member.isfile() or member.isdir()):
+            raise ValueError(f"archive member {name!r} is not a regular file or directory")
+        if name.startswith(("/", "\\")) or Path(name).is_absolute() or ".." in Path(name).parts:
+            raise ValueError(f"archive member {name!r} escapes the extraction directory")
+        target = (root / name).resolve()
+        if target != root and root not in target.parents:
+            raise ValueError(f"archive member {name!r} escapes the extraction directory")
+    if sys.version_info >= (3, 12):
+        tar.extractall(root, members=members, filter="data")
+    else:
+        tar.extractall(root, members=members)  # noqa: S202 — members validated above
+
+
 def cmd_acquire_skillret(
     *,
     archive: Path,
@@ -81,6 +122,8 @@ def cmd_acquire_skillret(
     acquired_at: str | None = None,
 ) -> dict[str, Any]:
     """Record archive digest + verify/write CorpusManifest (offline)."""
+    if not _SHA256_HEX.fullmatch(expected_sha256):
+        raise ValueError("--expected-sha256 must be 64 hex characters")
     if not archive.is_file():
         raise FileNotFoundError(f"archive not found: {archive}")
     actual = sha256_path(archive)
@@ -105,7 +148,7 @@ def cmd_acquire_skillret(
                 )
             tmp_hold = tempfile.TemporaryDirectory()
             with tarfile.open(archive, "r:*") as tar:
-                tar.extractall(tmp_hold.name)  # noqa: S202 — operator-supplied local archive
+                _safe_extract(tar, Path(tmp_hold.name))
             matches = list(Path(tmp_hold.name).rglob(corpus_json.name))
             if not matches:
                 raise FileNotFoundError(
@@ -246,6 +289,12 @@ def cmd_run_paired_policies(
     seed: int,
     output: Path,
 ) -> dict[str, Any]:
+    """Paired Hit@1 verdicts over one sealed corpus.
+
+    The candidate arm is the offline ranker re-run with a perturbed prediction
+    seed (``candidate_arm_kind="harness_seed_perturbation"``), not a real
+    policy rank function, so every gate ``pass`` is demoted to ``unevaluated``.
+    """
     experiment = _load_experiment(experiment_path)
     corpus = _load_corpus(corpus_path)
     seal_errors = validate_experiment_corpus_seal(experiment, corpus)
@@ -298,27 +347,17 @@ def cmd_run_paired_policies(
         abstention=abst,
         hybrid_vs_incumbent_evaluated=True,
     )
-    overall_dict = overall.to_dict()
-    # Fail-closed: fixture/offline paired runs never emit release PASS.
-    if overall_dict["status"] == "pass":
-        overall_dict = {
-            **overall_dict,
-            "status": "unevaluated",
-            "reason": (
-                "fixture/offline paired run cannot satisfy release promotion; "
-                "retain frozen incumbent"
-            ),
-        }
     payload: dict[str, Any] = {
         "status": "UNEVALUATED",
         "evidence_status": "UNEVALUATED",
         "incumbent": incumbent,
         "candidate": candidate,
+        "candidate_arm_kind": "harness_seed_perturbation",
         "interval": interval.to_dict(),
-        "noninferiority": ni.to_dict(),
-        "critical_slices": slices.to_dict(),
-        "abstention": abst.to_dict(),
-        "overall_promotion": overall_dict,
+        "noninferiority": _demote_pass(ni.to_dict()),
+        "critical_slices": _demote_pass(slices.to_dict()),
+        "abstention": _demote_pass(abst.to_dict()),
+        "overall_promotion": _demote_pass(overall.to_dict()),
         "policy_activation": "not_called",
         "default_remains_simple_incumbent": True,
         "n_groups": interval.n_groups,
@@ -390,7 +429,7 @@ def cmd_run_abstention_gate(
         "final_split": final_split,
         "calibration_query_count": cal_n,
         "abstention_report": report.to_dict(),
-        "verdict": verdict.to_dict(),
+        "verdict": _demote_pass(verdict.to_dict()),
         "min_groups_required": min_groups,
         "note": (
             "Fixture/offline abstention gate cannot satisfy release promotion; "
@@ -433,6 +472,10 @@ def cmd_run_host_tasks(
         raise ValueError("no host-task arms matched requested --arms filter")
     report = evaluate_paired_host_tasks(rows, n_resamples=n_resamples, seed=seed)
     payload = report.to_dict()
+    if payload.get("usefulness_status") == "pass":
+        payload["usefulness_status"] = "unevaluated"
+        payload["harness_computed_usefulness_status"] = "pass"
+        payload["usefulness_reason"] = _OPERATOR_HARNESS_REASON
     payload["status"] = "UNEVALUATED"
     payload["evidence_status"] = "UNEVALUATED"
     payload["note"] = (

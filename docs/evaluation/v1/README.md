@@ -35,7 +35,7 @@ cannot satisfy `status=supported`.
 | `supported-10k` | 10k | dedicated runner | only with production provider **and** real licensed corpus (`corpus.kind=manifest`) |
 | `exploratory-50k` | 50k | `--opt-in-exploratory` | no until amended budget |
 
-Synthetic matrix runs always set `corpus.kind=synthetic` and `ga_eligible=false`. Supplying `--corpus-manifest` validates the CorpusManifest, builds/measures that registry, and sets `corpus.kind=manifest`.
+Synthetic matrix runs always set `corpus.kind=synthetic` and `ga_eligible=false`. Supplying `--corpus-manifest` validates the CorpusManifest, builds/measures that registry, and sets `corpus.kind=manifest`. A manifest run is still `ga_eligible=false` unless it uses the production provider, a profile with `ga_support_claim`, `--envelope-mode budget` with a passing envelope, and a non-fixture licensed corpus at the profile's size; every unmet condition is listed in `corpus.ga_ineligible_reasons`.
 
 Holm critical-slice family uses a **conservative** family-α CI approximation (see `verdicts.holm_critical_slice_family`); it does not widen intervals in a way that could turn FAIL into PASS.
 

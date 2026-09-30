@@ -22,7 +22,8 @@ Commands below match `python -m magicite.eval --help` / `scripts/run_benchmark_m
 - E6 budgets: `magicite-benchmark-profile-result/1` with `fingerprint.provider=production` and FastEmbed `model_digest`.
 - Hybrid paired: Verdict JSON; on fail/inconclusive call `policy_store.retain_simple_incumbent_evidence`; never `activate()`.
 - Host tasks: `Claim/1` with `evidence_class=host-task` bound to paired arm digests.
-- Matrix corpus provenance: synthetic runs set `corpus.kind=synthetic` (`ga_eligible=false`); `--corpus-manifest` runs set `corpus.kind=manifest` and measure that registry.
+- Matrix corpus provenance: synthetic runs set `corpus.kind=synthetic` (`ga_eligible=false`); `--corpus-manifest` runs set `corpus.kind=manifest` and measure that registry, but stay `ga_eligible=false` (with `corpus.ga_ineligible_reasons`) unless provider, profile, budget envelope and a non-fixture corpus all qualify.
+- Operator commands never emit a release `pass`: any gate that would pass is rewritten to `unevaluated`, with the computed value kept under `harness_computed_status` / `harness_computed_usefulness_status`.
 
 ## Holm critical-slice note
 

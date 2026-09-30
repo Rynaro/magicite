@@ -152,5 +152,65 @@ __all__ = [
     "EnvelopeMode",
     "budget_errors",
     "completeness_errors",
+    "compute_ga_eligibility",
     "validate_envelope",
 ]
+
+
+def compute_ga_eligibility(
+    *,
+    provider: str,
+    profile_ga_support_claim: bool,
+    corpus_kind: str,
+    envelope_mode: str,
+    envelope_budget_ok: bool | None,
+    corpus_path: str | None,
+    corpus_license: str | None,
+    n_candidates: int | None,
+    profile_corpus_artifacts: int,
+) -> tuple[bool, list[str]]:
+    """Decide whether a matrix run may claim GA support evidence.
+
+    ``ga_eligible`` is True only when **all** of the following hold:
+
+    - ``provider == "production"``
+    - the profile's ``budget.ga_support_claim`` is True
+    - ``corpus.kind == "manifest"``
+    - ``envelope_mode == "budget"`` and the budget envelope passed
+    - the corpus is not a fixture (path not under a fixtures tree; license
+      does not look fixture-only; candidate count meets the profile size)
+
+    Otherwise returns False with a non-empty ``ga_ineligible_reasons`` list.
+    """
+    reasons: list[str] = []
+    if provider != "production":
+        reasons.append(f"provider={provider!r} (need production)")
+    if not profile_ga_support_claim:
+        reasons.append("profile.budget.ga_support_claim is false")
+    if corpus_kind != "manifest":
+        reasons.append(f"corpus.kind={corpus_kind!r} (need manifest)")
+    if envelope_mode != "budget":
+        reasons.append(f"envelope_mode={envelope_mode!r} (need budget)")
+    elif envelope_budget_ok is not True:
+        reasons.append("budget envelope did not pass")
+
+    path_l = (corpus_path or "").replace("\\", "/").lower()
+    if not corpus_path:
+        reasons.append("corpus path missing")
+    elif "/fixtures/" in path_l or path_l.endswith("/fixtures") or "skillret-tiny" in path_l:
+        reasons.append(f"corpus path looks like a fixture: {corpus_path}")
+
+    license_l = (corpus_license or "").lower()
+    if not corpus_license:
+        reasons.append("corpus license missing")
+    elif "fixture" in license_l:
+        reasons.append(f"corpus license looks fixture-only: {corpus_license!r}")
+
+    if n_candidates is None:
+        reasons.append("n_candidates missing")
+    elif n_candidates < profile_corpus_artifacts:
+        reasons.append(
+            f"n_candidates={n_candidates} < profile corpus size {profile_corpus_artifacts}"
+        )
+
+    return (len(reasons) == 0, reasons)

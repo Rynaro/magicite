@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import json
 import shlex
 import subprocess
 import sys
 import tarfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -375,6 +377,233 @@ def test_run_host_tasks_offline_e2e(tmp_path: Path) -> None:
     assert payload["evidence_class"] == "host-task"
 
 
+def test_run_host_tasks_demotes_nested_pass(tmp_path: Path) -> None:
+    rows = []
+    for i in range(40):
+        for arm, outcome in (("no_skill", "fail"), ("composed_plan", "pass")):
+            rows.append(
+                {
+                    "task_id": f"t{i}",
+                    "group_id": f"g{i}",
+                    "arm": arm,
+                    "outcome": outcome,
+                    "verifier_id": "echo",
+                    "verifier_artifact_digest": "a" * 64,
+                }
+            )
+    corpus = tmp_path / "host.json"
+    corpus.write_text(json.dumps({"arms": rows}), encoding="utf-8")
+    out = tmp_path / "host-out.json"
+    rc = eval_main.main(
+        [
+            "run-host-tasks",
+            "--corpus",
+            str(corpus),
+            "--arms",
+            "no_skill,composed_plan",
+            "--n-resamples",
+            "200",
+            "--seed",
+            "0",
+            "--output",
+            str(out),
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["harness_computed_usefulness_status"] == "pass"
+    assert payload["usefulness_status"] == "unevaluated"
+
+
+def test_run_abstention_gate_demotes_nested_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from magicite.eval import operator_cli
+    from magicite.eval.verdicts import Verdict
+
+    monkeypatch.setattr(
+        operator_cli,
+        "abstention_verdict",
+        lambda **_: Verdict(gate="abstention", status="pass", reason="forced", details={}),
+    )
+    exp = _sealed_experiment_for_tiny(tmp_path)
+    out = tmp_path / "abstention.json"
+    rc = eval_main.main(
+        [
+            "run-abstention-gate",
+            "--calibration-split",
+            "development",
+            "--final-split",
+            "final",
+            "--experiment",
+            str(exp),
+            "--corpus",
+            str(TINY_CORPUS),
+            "--output",
+            str(out),
+        ]
+    )
+    assert rc == 0
+    verdict = json.loads(out.read_text(encoding="utf-8"))["verdict"]
+    assert verdict["status"] == "unevaluated"
+    assert verdict["harness_computed_status"] == "pass"
+
+
+def test_demote_pass_rewrites_only_pass() -> None:
+    from magicite.eval.operator_cli import _demote_pass
+
+    demoted = _demote_pass({"gate": "abstention", "status": "pass", "reason": "ok"})
+    assert demoted["status"] == "unevaluated"
+    assert demoted["harness_computed_status"] == "pass"
+    for status in ("fail", "inconclusive", "unevaluated"):
+        verdict = {"gate": "abstention", "status": status, "reason": "r"}
+        assert _demote_pass(verdict) == verdict
+
+
+def test_paired_policies_labels_candidate_arm_and_never_nests_pass(tmp_path: Path) -> None:
+    exp = _sealed_experiment_for_tiny(tmp_path)
+    out = tmp_path / "paired.json"
+    rc = eval_main.main(
+        [
+            "run-paired-policies",
+            "--incumbent",
+            "dense-v1",
+            "--candidate",
+            "hybrid-rrf-v1",
+            "--experiment",
+            str(exp),
+            "--corpus",
+            str(TINY_CORPUS),
+            "--n-resamples",
+            "50",
+            "--seed",
+            "0",
+            "--output",
+            str(out),
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["candidate_arm_kind"] == "harness_seed_perturbation"
+    for key in ("noninferiority", "critical_slices", "abstention", "overall_promotion"):
+        assert payload[key]["status"] != "pass", key
+
+
+def _experiment_with(tmp_path: Path, **overrides: Any) -> Path:
+    path = _sealed_experiment_for_tiny(tmp_path)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data.update(overrides)
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "label_provenance": {
+                "origin": "independent",
+                "production_expansion_used": False,
+                "final_labels_opened": False,
+            }
+        },
+        {"corpus_sha256": "0" * 64},
+    ],
+    ids=["unsealed-final", "corpus-digest-mismatch"],
+)
+def test_cli_refuses_unsealed_or_mismatched_experiment(
+    tmp_path: Path, overrides: dict[str, Any]
+) -> None:
+    exp = _experiment_with(tmp_path, **overrides)
+    rc = eval_main.main(
+        [
+            "run-retrieval",
+            "--experiment",
+            str(exp),
+            "--corpus",
+            str(TINY_CORPUS),
+            "--split",
+            "final",
+            "--provider",
+            "hashing",
+            "--output",
+            str(tmp_path / "out"),
+        ]
+    )
+    assert rc != 0
+    assert not (tmp_path / "out" / "result_manifest.json").exists()
+
+
+def test_verify_acquired_corpus_rejects_content_identity_mismatch(tmp_path: Path) -> None:
+    from magicite.eval.external import verify_acquired_corpus_manifest
+
+    data = json.loads(TINY_CORPUS.read_text(encoding="utf-8"))
+    data["queries"][0]["query_text"] = data["queries"][0]["query_text"] + " tampered"
+    tampered = tmp_path / "corpus_manifest.json"
+    tampered.write_text(json.dumps(data), encoding="utf-8")
+    _, errors = verify_acquired_corpus_manifest(tampered)
+    assert any("content_identity" in e for e in errors), errors
+
+
+def _acquire_args(archive: Path, digest: str, out: Path, corpus_json: Path) -> list[str]:
+    return [
+        "acquire-skillret",
+        "--archive",
+        str(archive),
+        "--expected-sha256",
+        digest,
+        "--license",
+        "fixture-only",
+        "--revision",
+        "x",
+        "--corpus-json",
+        str(corpus_json),
+        "--output",
+        str(out),
+    ]
+
+
+def test_acquire_rejects_malformed_expected_sha256(tmp_path: Path) -> None:
+    archive = tmp_path / "tiny.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.add(TINY_CORPUS, arcname="corpus_manifest.json")
+    for bad in ("abc", "z" * 64, sha256_path(archive) + "0"):
+        out = tmp_path / "out.json"
+        assert eval_main.main(_acquire_args(archive, bad, out, TINY_CORPUS)) == 1
+        assert not out.exists()
+
+
+@pytest.mark.parametrize("member_name", ["../escape.json", "/tmp/magicite-abs-escape.json"])
+def test_acquire_refuses_path_traversal_archive(tmp_path: Path, member_name: str) -> None:
+    archive = tmp_path / "evil.tar"
+    payload = TINY_CORPUS.read_bytes()
+    with tarfile.open(archive, "w") as tar:
+        info = tarfile.TarInfo(member_name)
+        info.size = len(payload)
+        tar.addfile(info, io.BytesIO(payload))
+    out = tmp_path / "out.json"
+    missing_json = tmp_path / "work" / "corpus_manifest.json"
+    rc = eval_main.main(_acquire_args(archive, sha256_path(archive), out, missing_json))
+    assert rc == 1
+    assert not out.exists()
+    assert not (tmp_path / "escape.json").exists()
+    assert not Path("/tmp/magicite-abs-escape.json").exists()
+
+
+def test_acquire_refuses_symlink_member(tmp_path: Path) -> None:
+    archive = tmp_path / "link.tar"
+    with tarfile.open(archive, "w") as tar:
+        info = tarfile.TarInfo("corpus_manifest.json")
+        info.type = tarfile.SYMTYPE
+        info.linkname = "/etc/passwd"
+        tar.addfile(info)
+    out = tmp_path / "out.json"
+    missing_json = tmp_path / "work" / "corpus_manifest.json"
+    rc = eval_main.main(_acquire_args(archive, sha256_path(archive), out, missing_json))
+    assert rc == 1
+    assert not out.exists()
+
+
 def test_matrix_synthetic_vs_manifest_corpus(tmp_path: Path) -> None:
     script = ROOT / "scripts" / "run_benchmark_matrix.py"
     syn_out = tmp_path / "syn.json"
@@ -432,6 +661,49 @@ def test_matrix_synthetic_vs_manifest_corpus(tmp_path: Path) -> None:
     assert man["corpus"]["content_identity_sha256"]
     assert man["corpus"]["n_candidates"] >= 1
     assert man["measurements"]["size"] == man["corpus"]["n_candidates"]
+    assert man["corpus"]["ga_eligible"] is False
+    reasons = " ".join(man["corpus"]["ga_ineligible_reasons"])
+    assert "production" in reasons
+    assert "fixture" in reasons
+    assert syn["corpus"]["ga_ineligible_reasons"]
+
+
+_GA_OK: dict[str, Any] = {
+    "provider": "production",
+    "profile_ga_support_claim": True,
+    "corpus_kind": "manifest",
+    "envelope_mode": "budget",
+    "envelope_budget_ok": True,
+    "corpus_path": "/data/licensed/skills-10k/corpus_manifest.json",
+    "corpus_license": "CC-BY-4.0",
+    "n_candidates": 10_000,
+    "profile_corpus_artifacts": 10_000,
+}
+
+
+def test_ga_eligibility_requires_every_condition() -> None:
+    from magicite.eval.envelopes import compute_ga_eligibility
+
+    assert compute_ga_eligibility(**_GA_OK) == (True, [])
+
+    failing: list[dict[str, Any]] = [
+        {"provider": "hashing"},
+        {"profile_ga_support_claim": False},
+        {"corpus_kind": "synthetic"},
+        {"envelope_mode": "completeness"},
+        {"envelope_budget_ok": False},
+        {"envelope_budget_ok": None},
+        {"corpus_path": None},
+        {"corpus_path": "/repo/docs/evaluation/v1/fixtures/skillret-tiny/corpus_manifest.json"},
+        {"corpus_license": None},
+        {"corpus_license": "fixture-only"},
+        {"n_candidates": None},
+        {"n_candidates": 9_999},
+    ]
+    for override in failing:
+        eligible, reasons = compute_ga_eligibility(**{**_GA_OK, **override})
+        assert eligible is False, override
+        assert reasons, override
 
 
 def test_composition_v1_structural_loader() -> None:

@@ -250,7 +250,10 @@ def main(argv: list[str] | None = None) -> int:
 
     paired = subparsers.add_parser(
         "run-paired-policies",
-        help="Paired incumbent vs candidate Hit@1 verdicts (never activates policies).",
+        help=(
+            "Paired incumbent vs candidate Hit@1 verdicts (never activates policies). "
+            "The candidate arm is a seed-perturbed harness arm, not a real policy rank."
+        ),
     )
     paired.add_argument("--incumbent", required=True)
     paired.add_argument("--candidate", required=True)

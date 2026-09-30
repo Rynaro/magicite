@@ -29,7 +29,7 @@ from magicite.config import Config
 from magicite.core import router as router_mod
 from magicite.embeddings import get_embedder
 from magicite.embeddings.cache import CachingEmbedder
-from magicite.eval.envelopes import validate_envelope
+from magicite.eval.envelopes import compute_ga_eligibility, validate_envelope
 from magicite.eval.profiles import (
     PROFILES,
     build_profile_result_skeleton,
@@ -352,12 +352,14 @@ def _build_registry_from_corpus_manifest(
     conn.commit()
     meta = {
         "kind": "manifest",
-        "path": str(corpus_manifest_path),
+        "path": str(corpus_manifest_path.resolve()),
         "content_identity_sha256": corpus.content_identity_sha256,
         "corpus_id": corpus.corpus_id,
+        "license": corpus.license,
         "n_candidates": len(ids),
         "n_queries": len(query_texts),
-        "ga_eligible": True,  # still subject to production budget + UNEVALUATED catalog
+        # ga_eligible is decided later by compute_ga_eligibility (never true here).
+        "ga_eligible": False,
     }
     return meta, query_texts
 
@@ -585,8 +587,11 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         result["corpus"] = {
             "kind": "synthetic",
             "ga_eligible": False,
+            "ga_ineligible_reasons": ["corpus.kind=synthetic"],
             "path": None,
             "content_identity_sha256": None,
+            "license": None,
+            "n_candidates": None,
         }
         if profile.budget.ga_support_claim:
             result["ga_support_claim_status"] = "UNEVALUATED"
@@ -599,9 +604,12 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             raise FileNotFoundError(f"corpus manifest not found: {args.corpus_manifest}")
         result["corpus"] = {
             "kind": "manifest",
-            "ga_eligible": True,
-            "path": str(args.corpus_manifest),
+            "ga_eligible": False,
+            "ga_ineligible_reasons": ["pending_measurement"],
+            "path": str(args.corpus_manifest.resolve()),
             "content_identity_sha256": None,  # filled after load
+            "license": None,
+            "n_candidates": None,
         }
 
     try:
@@ -645,6 +653,7 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                         n=size,
                         seed=1234,
                     )
+                    result["corpus"]["n_candidates"] = size
                 build_s = time.perf_counter() - build_started
                 raw = _measure_profile(
                     cfg,
@@ -671,22 +680,54 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 conn.close()
 
         result["status"] = "measured"
+        envelope_budget_ok: bool | None = None
         if args.envelope_mode != "none":
             check = validate_envelope(result, profile, mode=args.envelope_mode)  # type: ignore[arg-type]
             result["envelope_check"] = check.to_dict()
+            if args.envelope_mode == "budget":
+                envelope_budget_ok = check.ok
             if not check.ok and args.envelope_mode == "completeness":
                 result["status"] = "incomplete"
+                _apply_ga_eligibility(result, profile, args, envelope_budget_ok)
                 return result, 2
             if not check.ok and args.envelope_mode == "budget":
                 result["status"] = "budget_failed"
-                # Do not flip default policy; report failure only.
+                _apply_ga_eligibility(result, profile, args, envelope_budget_ok)
                 return result, 3
+        _apply_ga_eligibility(result, profile, args, envelope_budget_ok)
         return result, 0
     except Exception as exc:
         result["status"] = "unavailable"
         result["error"] = f"{type(exc).__name__}: {exc}"
         # Ensure cache_states remain identified even on failure.
+        _apply_ga_eligibility(result, profile, args, None)
         return result, 2
+
+
+def _apply_ga_eligibility(
+    result: dict[str, Any],
+    profile: Any,
+    args: argparse.Namespace,
+    envelope_budget_ok: bool | None,
+) -> None:
+    corpus = result.get("corpus") or {}
+    eligible, reasons = compute_ga_eligibility(
+        provider=str(args.provider),
+        profile_ga_support_claim=bool(profile.budget.ga_support_claim),
+        corpus_kind=str(corpus.get("kind") or "synthetic"),
+        envelope_mode=str(args.envelope_mode),
+        envelope_budget_ok=envelope_budget_ok,
+        corpus_path=corpus.get("path"),
+        corpus_license=corpus.get("license"),
+        n_candidates=corpus.get("n_candidates"),
+        profile_corpus_artifacts=int(profile.corpus_artifacts),
+    )
+    corpus["ga_eligible"] = eligible
+    corpus["ga_ineligible_reasons"] = reasons
+    result["corpus"] = corpus
+    if not eligible and profile.budget.ga_support_claim:
+        result["ga_support_claim_status"] = "UNEVALUATED"
+        result["ga_support_claim_reason"] = "; ".join(reasons) if reasons else "ineligible"
 
 
 def main() -> int:
