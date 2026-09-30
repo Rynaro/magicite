@@ -634,6 +634,16 @@ def approve(
         live = live_content_digest(conn, engram_id)
         _require_expected_digest(expected=expected_digest, actual=live, label="approve")
 
+        from magicite.core.trust_artifacts import require_bound_artifact
+        from magicite.core.trust_custodian import CustodianError
+        row = conn.execute("SELECT path FROM engram WHERE id=?", (engram_id,)).fetchone()
+        try:
+            artifact = require_bound_artifact(cfg, cfg.project_root / row["path"])
+            if artifact.id != engram_id or artifact.content_sha256 != live:
+                raise CustodianError("reviewed artifact differs from indexed identity")
+        except (CustodianError, OSError, ValueError, TypeError) as exc:
+            raise InvalidInputError("review requires authenticated marked artifact bytes") from exc
+
         live_resource = live_resource_digest(cfg, conn, engram_id)
         if resource_digest is not None and resource_digest != live_resource:
             raise InvalidInputError(

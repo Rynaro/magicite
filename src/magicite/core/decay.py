@@ -255,9 +255,13 @@ def archive_one(
 
     # The archive copy is durably on disk before we touch the registry
     # copy -- "never deleted" holds even if the process dies here.
-    from magicite.core.trust_journal import _directory_fd
+    from magicite.core.trust_custodian import CustodianError
+    from magicite.core.trust_journal import _directory_fd, _read_file
     _, held, _ = writer_guard.bound_journal(cfg)
     with _directory_fd(file_path.parent) as directory:
+        held.assert_owned()
+        if ids_mod.content_sha256(_read_file(directory,file_path.name)) != typed.content_sha256:
+            raise CustodianError("archive source changed during publication")
         held.assert_owned()
         os.unlink(file_path.name,dir_fd=directory)
         os.fsync(directory)

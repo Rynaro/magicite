@@ -702,3 +702,77 @@ def test_automatic_archive_preserves_admitted_bytes_but_explicit_archive_keeps_v
     assert after.content_sha256 == row["content_sha256"]
     assert after.frontmatter.extensions == before.frontmatter.extensions
     assert not target.exists()
+
+
+def test_unmarked_source_cannot_route_or_disclose_even_with_old_admission(enrolled):
+    import hashlib
+    from dataclasses import replace
+
+    from magicite.core import registry, router
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.errors import InvalidInputError
+    from magicite.mcp import bind_retrieval
+    from magicite.mcp.registry import ToolContext
+    from magicite.mcp.schemas import LoadSkillBodyInput
+
+    cfg, conn, _ = enrolled
+    source = (
+        Path(__file__).resolve().parents[2] / "fixtures/toy-registry/engrams/steam-prefix-access.egr.md"
+    ).read_bytes()
+    target = cfg.registry_dir / "source.egr.md"
+    target.write_bytes(source)
+    embedder = get_embedder(dim=256)
+    registry.register(cfg, conn, embedder, path=".magicite/engrams")
+    row = conn.execute("SELECT * FROM engram").fetchone()
+    original_digest = hashlib.sha256(source).hexdigest()
+    target.write_bytes(source)
+    conn.execute("UPDATE engram SET content_sha256=? WHERE id=?", (original_digest, row["id"]))
+    old = replace(decision("original-admit", "admit"), engram_id=row["id"], content_digest=original_digest)
+    trust.persist_decision(cfg, conn, old)
+    params = LoadSkillBodyInput(
+        name=row["name"],
+        level="L2",
+        expected_content_digest=original_digest,
+        expected_policy_digest=bind_retrieval._active_policy_digest(cfg),
+    )
+    assert (
+        bind_retrieval.load_skill_body(ToolContext(cfg=cfg, conn=conn, embedder=embedder), params).status
+        != "ok"
+    )
+    assert not router.route(
+        cfg,
+        conn,
+        embedder,
+        query="Locate and prepare a Steam Proton compatdata prefix for a given appid",
+        k=5,
+    ).candidates
+    with pytest.raises(InvalidInputError):
+        registry.review_approve(
+            cfg, conn, engram_id=row["id"], expected_digest=original_digest, actor="operator"
+        )
+
+
+def test_archive_closes_without_unlinking_source_changed_during_publication(enrolled, monkeypatch):
+    import shutil
+
+    from magicite.core import dream, registry, trust_artifacts
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, _ = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/toy-registry/engrams/steam-prefix-access.egr.md"
+    target = cfg.registry_dir / fixture.name
+    shutil.copy(fixture, target)
+    registry.register(cfg, conn, get_embedder(dim=256), path=".magicite/engrams")
+    artifact = trust_artifacts.require_bound_artifact(cfg, target)
+    original = trust_artifacts.publish_authored_edit
+    changed = target.read_bytes() + b"\nchanged during archive publication\n"
+
+    def interleave(*args, **kwargs):
+        original(*args, **kwargs)
+        target.write_bytes(changed)
+
+    monkeypatch.setattr(trust_artifacts, "publish_authored_edit", interleave)
+    with pytest.raises(CustodianError, match="source changed"):
+        dream.archive_engram(cfg, conn, name=artifact.name, reason="test", actor="operator")
+    assert target.read_bytes() == changed
+    assert conn.execute("SELECT status FROM engram WHERE id=?", (artifact.id,)).fetchone()[0] != "archived"

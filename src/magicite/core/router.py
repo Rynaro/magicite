@@ -679,7 +679,10 @@ def _build_subject_from_row(
             "missing_artifact",
         ) from exc
 
-    cache_key: tuple[Any, ...] = (root_key, engram_id, file_ident)
+    from magicite.core.trust_artifacts import require_enrollment_marker
+    from magicite.core.writer_guard import resolve_custody
+    registry_id, _ = resolve_custody(cfg)
+    cache_key: tuple[Any, ...] = (root_key, registry_id, engram_id, file_ident)
     cached = _cache_get(cache_key)
     if cached is not None and cached.db_digest == db_digest:
         # Re-stat asset files the subject's validity depended on.
@@ -723,6 +726,7 @@ def _build_subject_from_row(
             "eligibility_parse_error",
         ) from exc
 
+    require_enrollment_marker(artifact, registry_id)
     asset_idents: tuple[tuple[Any, ...], ...] = ()
     if isinstance(artifact, EngramV1):
         assets = dict(artifact.frontmatter.assets or {})

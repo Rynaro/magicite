@@ -535,6 +535,8 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
             admit=False,
             require_asset_files=False,
         )
+        from magicite.core.trust_artifacts import require_enrollment_marker
+        require_enrollment_marker(artifact, disclosure_snapshot.head["registry_id"])
         from magicite.engram.model_v1 import EngramFrontmatterV1, EngramV1
 
         if isinstance(artifact, (EngramV1, EngramFrontmatterV1)):
