@@ -98,16 +98,16 @@ def test_valid_marker_invalidated_by_new_tombstone(cfg, db_conn, monkeypatch) ->
     evidence_mod.checkpoint(cfg, db_conn, first)
     evidence_mod.delete_event(cfg, db_conn, first.event_id, reason="r5_mark_a")
 
-    calls = {"n": 0}
-    real = evidence_mod._pending_tombstone_payload_ids
+    purge_calls = {"n": 0}
+    real_purge = evidence_mod._physically_purge_event_from_segments
 
-    def counting(root: Path):
-        calls["n"] += 1
-        return real(root)
+    def counting_purge(root: Path, event_id: str):
+        purge_calls["n"] += 1
+        return real_purge(root, event_id)
 
-    monkeypatch.setattr(evidence_mod, "_pending_tombstone_payload_ids", counting)
+    monkeypatch.setattr(evidence_mod, "_physically_purge_event_from_segments", counting_purge)
 
-    # With a valid marker and no new tombstones, skip scan.
+    # With a valid marker and nothing pending, physical purge is not re-run.
     evidence_mod.checkpoint(
         cfg,
         db_conn,
@@ -117,22 +117,16 @@ def test_valid_marker_invalidated_by_new_tombstone(cfg, db_conn, monkeypatch) ->
             query_fingerprint="c" * 64,
         ),
     )
-    assert calls["n"] == 0
+    assert purge_calls["n"] == 0
 
-    # New tombstone must force a scan even if an old marker file still exists.
-    calls["n"] = 0
     evidence_mod.delete_event(cfg, db_conn, "ev_r5_mark_b", reason="r5_mark_b")
-    # delete itself runs pending scan after invalidate; checkpoint afterward with
-    # a fresh marker should skip — plant a stale marker with OLD generation
-    # after we invalidate by appending would be wrong. Instead: after complete
-    # delete, forge marker for PREVIOUS generation while current differs — 
-    # simpler: append a tombstone line then plant marker with outdated binding.
     root = evidence_mod.evidence_dir(cfg)
-    # Force-write a marker that matches OLD empty/wrong digests but looks complete.
+    # Stale/mismatched marker must not suppress pending computation → purge path.
     (root / "purge_complete.marker").write_text(
         json.dumps(
             {
                 "purge_complete": True,
+                "pending_count": 0,
                 "generation": "stale:0:0",
                 "tombstone_digest": "0" * 64,
                 "manifest_digest": "0" * 64,
@@ -142,7 +136,14 @@ def test_valid_marker_invalidated_by_new_tombstone(cfg, db_conn, monkeypatch) ->
         ),
         encoding="utf-8",
     )
-    calls["n"] = 0
+    pending_calls = {"n": 0}
+    real_pending = evidence_mod._pending_tombstone_payload_ids
+
+    def counting_pending(root: Path):
+        pending_calls["n"] += 1
+        return real_pending(root)
+
+    monkeypatch.setattr(evidence_mod, "_pending_tombstone_payload_ids", counting_pending)
     evidence_mod.checkpoint(
         cfg,
         db_conn,
@@ -152,7 +153,7 @@ def test_valid_marker_invalidated_by_new_tombstone(cfg, db_conn, monkeypatch) ->
             query_fingerprint="d" * 64,
         ),
     )
-    assert calls["n"] >= 1, "stale/mismatched marker must not skip the pending-purge scan"
+    assert pending_calls["n"] >= 1, "stale/mismatched marker must still compute pending ids"
 
 
 # ── Finding 2: case-insensitive path alias denial ──────────────────────────

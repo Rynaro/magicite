@@ -251,6 +251,8 @@ def test_authority_scan_deleted_stub_wins_over_later_live_row(cfg, db_conn) -> N
         + "\n",
         encoding="utf-8",
     )
+    evidence_mod._rewrite_segment_manifest(sealed, sealed=True)  # noqa: SLF001
+    evidence_mod._rewrite_segment_manifest(open_path, sealed=False)  # noqa: SLF001
     by_id, _ = evidence_mod._scan_segment_authority(evidence_mod.evidence_dir(cfg))
     assert by_id[event.event_id].get("deleted") is True
     # Without tombstone, load still uses index; but authority row is deleted.

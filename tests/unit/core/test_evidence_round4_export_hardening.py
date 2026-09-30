@@ -220,7 +220,7 @@ def test_evidence_export_roots_env_uses_pathsep_not_colon_or_comma(monkeypatch) 
 # ── Finding 4: one-pass repurge + skip when complete ───────────────────────
 
 
-def test_checkpoint_skips_segment_scan_when_purge_complete(cfg, db_conn, monkeypatch) -> None:
+def test_checkpoint_skips_physical_purge_when_marker_complete(cfg, db_conn, monkeypatch) -> None:
     cfg.ensure_dirs()
     for i in range(3):
         ev = _event(
@@ -231,15 +231,15 @@ def test_checkpoint_skips_segment_scan_when_purge_complete(cfg, db_conn, monkeyp
         evidence_mod.checkpoint(cfg, db_conn, ev)
         evidence_mod.delete_event(cfg, db_conn, ev.event_id, reason="r4_tomb")
 
-    # Marker should now say purge is complete for current tombstone generation.
+    # Marker complete: pending scan may still run, but physical purge must not.
     calls = {"n": 0}
-    real = evidence_mod._pending_tombstone_payload_ids
+    real = evidence_mod._physically_purge_event_from_segments
 
-    def counting(root: Path):
+    def counting(root: Path, event_id: str):
         calls["n"] += 1
-        return real(root)
+        return real(root, event_id)
 
-    monkeypatch.setattr(evidence_mod, "_pending_tombstone_payload_ids", counting)
+    monkeypatch.setattr(evidence_mod, "_physically_purge_event_from_segments", counting)
 
     evidence_mod.checkpoint(
         cfg,
@@ -250,4 +250,4 @@ def test_checkpoint_skips_segment_scan_when_purge_complete(cfg, db_conn, monkeyp
             query_fingerprint="c" * 64,
         ),
     )
-    assert calls["n"] == 0, "repurge must skip segment scan when purge_complete marker matches"
+    assert calls["n"] == 0, "complete marker must not re-run physical purge when pending is empty"

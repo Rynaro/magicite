@@ -743,12 +743,11 @@ def _default_meta() -> dict[str, Any]:
         "last_sequence": 0,
         "open_segment_id": "00000001",
         "redaction_version": REDACTION_VERSION,
-        "retention_operational_days": DEFAULT_OPERATIONAL_RETENTION_DAYS,
-        "retention_audit_days": DEFAULT_AUDIT_RETENTION_DAYS,
         "backup_expiry_days": DEFAULT_BACKUP_EXPIRY_DAYS,
         # Backups expire per backup_expiry_days; restore MUST replay
         # tombstones via apply_privacy_overlay (S12) before evidence access.
         "backup_restore_requires_privacy_overlay": True,
+        # Retention policy lives on Config (C6); meta must not carry it.
     }
 
 
@@ -804,21 +803,74 @@ def _append_line_fsync(path: Path, line: str) -> None:
 
 
 def _iter_segment_records(root: Path) -> list[dict[str, Any]]:
+    """Parse segment records. Sealed segments fail closed on any corrupt line.
+
+    OPEN segment: only a torn trailing line may be skipped (after repair);
+    any corrupt non-trailing line fails closed. Sealed segment bytes must
+    also match their sibling manifest sha256 when a manifest exists.
+    """
     segments = root / _SEGMENTS_DIRNAME
     _repair_torn_open_segment(segments)
     out: list[dict[str, Any]] = []
     for path in sorted(segments.glob("*.events.jsonl")):
         if not path.is_file():
             continue
-        for line in path.read_text(encoding="utf-8").splitlines():
+        sealed = path.name != _OPEN_SEGMENT_NAME
+        # Sealed: refuse to trust if manifest digest mismatches file bytes.
+        if sealed:
+            _assert_sealed_segment_manifest(path)
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for idx, line in enumerate(lines):
             if not line.strip():
                 continue
             try:
                 row = json.loads(line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                is_trailing = idx == len(lines) - 1
+                if sealed or not is_trailing:
+                    raise InvalidInputError(
+                        "corrupt evidence segment record; refusing to trust ledger",
+                        details={
+                            "segment": path.name,
+                            "line_index": idx,
+                            "sealed": sealed,
+                            "error": str(exc),
+                        },
+                    ) from exc
+                # Open segment: trailing torn line already handled by repair;
+                # if still present, skip only this trailing line.
                 continue
+            if not isinstance(row, dict):
+                raise InvalidInputError(
+                    "corrupt evidence segment record; non-object JSON",
+                    details={"segment": path.name, "line_index": idx},
+                )
             out.append(row)
     return out
+
+
+def _assert_sealed_segment_manifest(segment_path: Path) -> None:
+    manifest_path = _manifest_path_for_segment(segment_path)
+    if not manifest_path.is_file():
+        raise InvalidInputError(
+            "sealed segment is missing its manifest; refusing to trust ledger",
+            details={"segment": segment_path.name},
+        )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise InvalidInputError(
+            "sealed segment manifest is corrupt",
+            details={"segment": segment_path.name, "error": str(exc)},
+        ) from exc
+    data = segment_path.read_bytes()
+    actual = hashlib.sha256(data).hexdigest()
+    expected = str(manifest.get("sha256") or "")
+    if not expected or not hmac.compare_digest(expected, actual):
+        raise InvalidInputError(
+            "sealed segment manifest sha256 mismatch; refusing to trust ledger",
+            details={"segment": segment_path.name},
+        )
 
 
 def _record_event_id(row: dict[str, Any]) -> str | None:
@@ -931,8 +983,6 @@ def _reconcile_authority(root: Path) -> tuple[dict[str, Any], dict[str, Any], in
     )
     if need_rewrite:
         for key in (
-            "retention_operational_days",
-            "retention_audit_days",
             "backup_expiry_days",
             "backup_restore_requires_privacy_overlay",
             "redaction_version",
@@ -940,6 +990,9 @@ def _reconcile_authority(root: Path) -> tuple[dict[str, Any], dict[str, Any], in
         ):
             if key in meta:
                 derived_meta[key] = meta[key]
+        # Strip any forged retention knobs — policy lives on Config only.
+        derived_meta.pop("retention_operational_days", None)
+        derived_meta.pop("retention_audit_days", None)
         derived_meta["last_sequence"] = max(
             int(derived_meta.get("last_sequence", 0)), authority_max
         )
@@ -1006,10 +1059,9 @@ def _evidence_write_guard(
     event that still has residual payload bytes (never on the route hot path).
     """
     def _enter() -> None:
-        root = evidence_dir(cfg)
-        if root.exists():
-            _ensure_tombstone_mac(cfg, root)
-            _repurge_tombstoned_payloads(cfg, root)
+        root = _ensure_ledger_dirs(cfg)
+        _ensure_tombstone_mac(cfg, root)
+        _repurge_tombstoned_payloads(cfg, root)
 
     if lease_mod._CROSS_PROCESS_LEASE.get() is not None:  # noqa: SLF001
         with writer_lease(holder):
@@ -1228,24 +1280,26 @@ def checkpoint_receipt(
 
 
 def load_event(cfg: Config, event_id: str) -> EvidenceEvent | None:
-    """Load via derived index; rebuild restores index after loss (C6)."""
+    """Load via derived index; rebuild restores index after loss (C6).
+
+    Never returns live data when a deleted stub exists for ``event_id`` or a
+    tombstone names it. Segment stubs are authority independent of journal
+    truncation (which fails closed via tombstones.mac).
+    """
     root = evidence_dir(cfg)
     if not root.exists():
         return None
     _assert_tombstone_mac_or_absent(cfg, root)
-    index_path = root / _INDEX_FILENAME
-    if not index_path.is_file():
-        return None
     if _is_tombstoned(root, event_id):
-        return None
-    index = _load_index(root)
-    entry = (index.get("events") or {}).get(event_id)
-    if entry is None:
         return None
     by_id, _ = _scan_segment_authority(root)
     row = by_id.get(event_id)
     if row is None or row.get("deleted"):
         return None
+    # Defense in depth: any deleted stub for this id anywhere wins.
+    for rec in _iter_segment_records(root):
+        if _record_event_id(rec) == event_id and rec.get("deleted"):
+            return None
     event_data = row.get("event")
     if not isinstance(event_data, dict):
         return None
@@ -1269,22 +1323,22 @@ def _is_tombstoned(root: Path, event_id: str) -> bool:
 
 
 def _assert_tombstone_mac_or_absent(cfg: Config, root: Path) -> None:
-    """Read-path gate: fail closed if tombstone MAC is present-but-wrong.
+    """Read-path gate: fail closed on missing/wrong tombstone MAC when ledger exists.
 
-    Call from load/export paths that must not expose deleted data after a
-    truncated journal. A present MAC must always match current journal bytes
-    (including empty/truncated). Missing MAC with a non-empty journal also
-    fails closed on the read path (write guard heals under lease).
+    Never auto-heals. Missing MAC fails closed whenever segments exist, any
+    manifest records ``tombstone_mac_initialized``, or the journal is non-empty.
     """
     path = root / _TOMBSTONES_FILENAME
     mac_path = root / _TOMBSTONE_MAC_FILENAME
+    initialized = _any_manifest_tombstone_mac_initialized(root)
+    has_segments = _ledger_has_any_segments(root)
+    has_tombstones = path.is_file() and bool(path.read_bytes().strip())
+
     if not mac_path.is_file():
-        if path.is_file() and path.read_bytes().strip():
-            raise InvalidInputError(
-                "tombstones.mac is missing; refusing to trust tombstone journal",
-                details={"hint": "run rebuild/checkpoint under the writer lease to heal"},
-            )
+        if initialized or has_segments or has_tombstones:
+            _refuse_missing_tombstone_mac(root)
         return
+
     raw = path.read_bytes() if path.is_file() else b""
     try:
         body = json.loads(mac_path.read_text(encoding="utf-8"))
@@ -1300,6 +1354,19 @@ def _assert_tombstone_mac_or_absent(cfg: Config, root: Path) -> None:
             "tombstones.mac HMAC verification failed",
             details={"hint": "tombstone journal may be truncated or forged"},
         )
+    if initialized or has_segments:
+        current = _tombstone_set_digest(root)
+        for mpath in (root / _SEGMENTS_DIRNAME).glob("*.manifest.json"):
+            try:
+                mbody = json.loads(mpath.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            bound = mbody.get("tombstone_digest")
+            if bound is not None and str(bound) != current:
+                raise InvalidInputError(
+                    "tombstone digest diverges from segment manifest binding",
+                    details={"manifest": mpath.name},
+                )
 
 
 def _event_from_dict(data: dict[str, Any]) -> EvidenceEvent:
@@ -1415,14 +1482,17 @@ def _manifest_path_for_segment(segment_path: Path) -> Path:
 
 
 def _rewrite_segment_manifest(segment_path: Path, *, sealed: bool | None = None) -> dict[str, Any]:
-    """Recompute sha256 / record_count and atomically rewrite the sibling manifest."""
+    """Recompute sha256 / record_count and atomically rewrite the sibling manifest.
+
+    Binds ``tombstone_mac_initialized`` + current tombstone journal digest so a
+    truncated journal cannot be re-authenticated as a fresh ledger.
+    """
     data = segment_path.read_bytes() if segment_path.is_file() else b""
     digest = hashlib.sha256(data).hexdigest()
     count = sum(1 for ln in data.splitlines() if ln.strip())
     if sealed is None:
         sealed = segment_path.name != _OPEN_SEGMENT_NAME
     if segment_path.name == _OPEN_SEGMENT_NAME:
-        # Prefer open_segment_id from parent meta when available.
         segment_id = "open"
         try:
             meta = _load_meta(segment_path.parent.parent)
@@ -1431,16 +1501,90 @@ def _rewrite_segment_manifest(segment_path: Path, *, sealed: bool | None = None)
             pass
     else:
         segment_id = segment_path.name.replace(".events.jsonl", "")
+    root = segment_path.parent.parent
+    # Preserve prior initialized flag if present; once true it stays true.
+    prior_initialized = False
+    prior_path = _manifest_path_for_segment(segment_path)
+    if prior_path.is_file():
+        try:
+            prior = json.loads(prior_path.read_text(encoding="utf-8"))
+            prior_initialized = bool(prior.get("tombstone_mac_initialized"))
+        except (OSError, json.JSONDecodeError):
+            prior_initialized = False
+    mac_exists = (root / _TOMBSTONE_MAC_FILENAME).is_file()
     payload = {
         "segment_id": segment_id,
         "kind": LEDGER_KIND,
         "record_count": count,
         "sha256": digest,
         "sealed": sealed,
+        "tombstone_mac_initialized": prior_initialized or mac_exists,
+        "tombstone_digest": _tombstone_set_digest(root),
+        "tombstone_count": _tombstone_line_count(root),
         "updated_at": _now(),
     }
     _atomic_write_json(_manifest_path_for_segment(segment_path), payload)
     return payload
+
+
+def _tombstone_line_count(root: Path) -> int:
+    path = root / _TOMBSTONES_FILENAME
+    if not path.is_file():
+        return 0
+    return sum(1 for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip())
+
+
+def _any_manifest_tombstone_mac_initialized(root: Path) -> bool:
+    segments = root / _SEGMENTS_DIRNAME
+    if not segments.is_dir():
+        return False
+    for path in segments.glob("*.manifest.json"):
+        try:
+            body = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if body.get("tombstone_mac_initialized"):
+            return True
+    return False
+
+
+def _stamp_tombstone_digest_on_all_manifests(root: Path, *, initialized: bool) -> None:
+    segments = root / _SEGMENTS_DIRNAME
+    if not segments.is_dir():
+        return
+    digest = _tombstone_set_digest(root)
+    count = _tombstone_line_count(root)
+    for path in list(segments.glob("*.events.jsonl")):
+        manifest_path = _manifest_path_for_segment(path)
+        if manifest_path.is_file():
+            try:
+                body = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                body = {}
+        else:
+            body = {}
+        data = path.read_bytes() if path.is_file() else b""
+        body.update(
+            {
+                "segment_id": body.get("segment_id")
+                or (
+                    "open"
+                    if path.name == _OPEN_SEGMENT_NAME
+                    else path.name.replace(".events.jsonl", "")
+                ),
+                "kind": LEDGER_KIND,
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "record_count": sum(1 for ln in data.splitlines() if ln.strip()),
+                "sealed": path.name != _OPEN_SEGMENT_NAME,
+                "tombstone_mac_initialized": bool(
+                    body.get("tombstone_mac_initialized") or initialized
+                ),
+                "tombstone_digest": digest,
+                "tombstone_count": count,
+                "updated_at": _now(),
+            }
+        )
+        _atomic_write_json(manifest_path, body)
 
 
 def verify_segments(root: Path) -> None:
@@ -1573,10 +1717,18 @@ def _purge_marker_mac(cfg: Config, body: dict[str, Any]) -> str:
     return hmac.new(key, message, hashlib.sha256).hexdigest()
 
 
+def _ledger_has_any_segments(root: Path) -> bool:
+    segments = root / _SEGMENTS_DIRNAME
+    if not segments.is_dir():
+        return False
+    return any(p.is_file() for p in segments.glob("*.events.jsonl"))
+
+
 def _purge_is_complete(cfg: Config, root: Path) -> bool:
     """Return True only when an authenticated marker still matches live state.
 
     Unauthenticated / mismatched markers are ignored (never suppress a purge).
+    Callers must still compute pending ids even when this returns True.
     """
     marker = root / _PURGE_COMPLETE_FILENAME
     if not marker.is_file():
@@ -1586,6 +1738,8 @@ def _purge_is_complete(cfg: Config, root: Path) -> bool:
     except (OSError, json.JSONDecodeError):
         return False
     if not isinstance(data, dict) or not data.get("purge_complete"):
+        return False
+    if int(data.get("pending_count", -1)) != 0:
         return False
     actual = str(data.get("mac") or "")
     if not actual:
@@ -1607,6 +1761,7 @@ def _purge_is_complete(cfg: Config, root: Path) -> bool:
 def _mark_purge_complete(cfg: Config, root: Path) -> None:
     body = {
         "purge_complete": True,
+        "pending_count": 0,
         "generation": _tombstone_generation(root),
         "tombstone_digest": _tombstone_set_digest(root),
         "manifest_digest": _segment_manifest_digest(root),
@@ -1634,30 +1789,43 @@ def _compute_tombstone_mac(cfg: Config, raw: bytes) -> str:
     return hmac.new(key, b"v1|" + raw, hashlib.sha256).hexdigest()
 
 
-def _ensure_tombstone_mac(cfg: Config, root: Path) -> None:
-    """Verify or lease-heal the tombstone MAC (fail closed on mismatch).
+def _refuse_missing_tombstone_mac(root: Path) -> None:
+    raise InvalidInputError(
+        "tombstones.mac is missing; refusing to trust tombstone journal",
+        details={
+            "hint": (
+                "restore tombstones.mac from backup, or for a pre-MAC ledger with "
+                "no tombstone_mac_initialized manifests call migrate_tombstone_mac"
+            ),
+            "initialized": _any_manifest_tombstone_mac_initialized(root),
+            "has_segments": _ledger_has_any_segments(root),
+        },
+    )
 
-    Missing MAC with an existing tombstone file is healed once under the write
-    lease (upgrade path). Present-but-wrong MAC always fails closed so a
-    truncated/forged tombstone journal cannot suppress deletion hiding.
+
+def _ensure_tombstone_mac(cfg: Config, root: Path) -> None:
+    """Verify tombstone MAC. Never auto-heal a missing MAC on a non-empty ledger.
+
+    Initialization is allowed only when the ledger has no segment files at all
+    (brand-new ledger). Otherwise missing MAC fails closed. Pre-MAC ledgers
+    must use :func:`migrate_tombstone_mac` which itself refuses if any segment
+    manifest already records ``tombstone_mac_initialized``.
     """
     path = root / _TOMBSTONES_FILENAME
     mac_path = root / _TOMBSTONE_MAC_FILENAME
-    if not path.is_file():
-        return
-    raw = path.read_bytes()
-    expected = _compute_tombstone_mac(cfg, raw)
+    initialized = _any_manifest_tombstone_mac_initialized(root)
+    has_segments = _ledger_has_any_segments(root)
+    has_tombstones = path.is_file() and bool(path.read_bytes().strip())
+
     if not mac_path.is_file():
-        # Lease-held heal for pre-Round-5 ledgers.
-        _atomic_write_json(
-            mac_path,
-            {
-                "mac_scheme": _TOMBSTONE_MAC_SCHEME,
-                "mac": expected,
-                "updated_at": _now(),
-            },
-        )
+        if initialized or has_segments or has_tombstones:
+            _refuse_missing_tombstone_mac(root)
+        # Completely empty ledger — initialize empty MAC once.
+        _write_tombstone_mac(cfg, root)
+        _stamp_tombstone_digest_on_all_manifests(root, initialized=True)
         return
+
+    raw = path.read_bytes() if path.is_file() else b""
     try:
         body = json.loads(mac_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -1665,6 +1833,7 @@ def _ensure_tombstone_mac(cfg: Config, root: Path) -> None:
             "tombstones.mac is corrupt; refusing to trust tombstone journal",
             details={"error": str(exc)},
         ) from exc
+    expected = _compute_tombstone_mac(cfg, raw)
     actual = str(body.get("mac") or "")
     if not actual or not hmac.compare_digest(expected, actual):
         raise InvalidInputError(
@@ -1674,6 +1843,51 @@ def _ensure_tombstone_mac(cfg: Config, root: Path) -> None:
                 "mac_scheme": _TOMBSTONE_MAC_SCHEME,
             },
         )
+    # Cross-check digest bound into segment manifests when initialized.
+    if initialized or has_segments:
+        current = _tombstone_set_digest(root)
+        for mpath in (root / _SEGMENTS_DIRNAME).glob("*.manifest.json"):
+            try:
+                mbody = json.loads(mpath.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            bound = mbody.get("tombstone_digest")
+            if bound is not None and str(bound) != current:
+                raise InvalidInputError(
+                    "tombstone digest diverges from segment manifest binding",
+                    details={"manifest": mpath.name, "bound": bound, "current": current},
+                )
+
+
+def migrate_tombstone_mac(cfg: Config, *, confirm: bool = False) -> dict[str, Any]:
+    """Operator-only one-shot migration for pre-MAC ledgers.
+
+    Refused unless ``confirm=True`` and no segment manifest already records
+    ``tombstone_mac_initialized`` (so deleting ``tombstones.mac`` cannot make
+    a truncated journal look like a fresh pre-MAC ledger).
+    """
+    if not confirm:
+        raise InvalidInputError(
+            "migrate_tombstone_mac requires confirm=True",
+            details={"hint": "explicit operator acknowledgment required"},
+        )
+    root = _ensure_ledger_dirs(cfg)
+    if (root / _TOMBSTONE_MAC_FILENAME).is_file():
+        raise InvalidInputError(
+            "tombstones.mac already exists; migrate refused",
+        )
+    if _any_manifest_tombstone_mac_initialized(root):
+        raise InvalidInputError(
+            "tombstone_mac_initialized already recorded in segment manifests; migrate refused",
+            details={"hint": "restore authentic tombstones.mac from backup"},
+        )
+    _write_tombstone_mac(cfg, root)
+    _stamp_tombstone_digest_on_all_manifests(root, initialized=True)
+    return {
+        "status": "ok",
+        "tombstone_digest": _tombstone_set_digest(root),
+        "tombstone_count": _tombstone_line_count(root),
+    }
 
 
 def _write_tombstone_mac(cfg: Config, root: Path) -> None:
@@ -1692,6 +1906,7 @@ def _write_tombstone_mac(cfg: Config, root: Path) -> None:
 def _append_tombstone_line(cfg: Config, root: Path, tombstone: dict[str, Any]) -> None:
     _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
     _write_tombstone_mac(cfg, root)
+    _stamp_tombstone_digest_on_all_manifests(root, initialized=True)
     _invalidate_purge_complete(root)
 
 
@@ -1715,12 +1930,14 @@ def _pending_tombstone_payload_ids(root: Path) -> set[str]:
 def _repurge_tombstoned_payloads(cfg: Config, root: Path) -> None:
     """Resume physical purge for tombstoned events that still have payloads.
 
-    One segment scan per guard entry. Skipped only when an authenticated
-    ``purge_complete`` marker still matches tombstone + segment-manifest digests.
+    Even a MAC-valid purge marker cannot suppress purge when pending payloads
+    remain — always compute pending ids; marker only avoids re-writing when
+    pending is already empty.
     """
-    if _purge_is_complete(cfg, root):
-        return
+    marker_ok = _purge_is_complete(cfg, root)
     pending = _pending_tombstone_payload_ids(root)
+    if marker_ok and not pending:
+        return
     for eid in pending:
         _physically_purge_event_from_segments(root, eid)
     _mark_purge_complete(cfg, root)
@@ -2553,13 +2770,20 @@ def apply_retention(
     *,
     now: datetime | None = None,
 ) -> list[str]:
-    """Tombstone+purge expired operational/audit records per retention policy."""
+    """Tombstone+purge expired operational/audit records per Config policy (C6).
+
+    Retention days come from operator Config defaults (30d operational / 90d
+    audit). ``meta.json`` retention fields are ignored.
+    """
     with _evidence_write_guard(cfg, conn, "evidence-retention"):
         root = evidence_dir(cfg)
-        meta = _load_meta(root) if root.exists() else _default_meta()
         now_dt = now or datetime.now(UTC)
-        op_days = int(meta.get("retention_operational_days", DEFAULT_OPERATIONAL_RETENTION_DAYS))
-        audit_days = int(meta.get("retention_audit_days", DEFAULT_AUDIT_RETENTION_DAYS))
+        op_days = int(
+            getattr(cfg, "evidence_retention_operational_days", DEFAULT_OPERATIONAL_RETENTION_DAYS)
+        )
+        audit_days = int(
+            getattr(cfg, "evidence_retention_audit_days", DEFAULT_AUDIT_RETENTION_DAYS)
+        )
         deleted: list[str] = []
         by_id, _ = _scan_segment_authority(root) if root.exists() else ({}, 0)
         for event_id, row in list(by_id.items()):
@@ -2779,8 +3003,12 @@ def privacy_gate_evidence(cfg: Config) -> dict[str, Any]:
         "default_raw_capture": False,
         "fingerprint_scheme": fingerprint_key_mod.FINGERPRINT_SCHEME,
         "fingerprint_key_exported": False,
-        "retention_operational_days": DEFAULT_OPERATIONAL_RETENTION_DAYS,
-        "retention_audit_days": DEFAULT_AUDIT_RETENTION_DAYS,
+        "retention_operational_days": int(
+            getattr(cfg, "evidence_retention_operational_days", DEFAULT_OPERATIONAL_RETENTION_DAYS)
+        ),
+        "retention_audit_days": int(
+            getattr(cfg, "evidence_retention_audit_days", DEFAULT_AUDIT_RETENTION_DAYS)
+        ),
         "backup_expiry_days": backup_expiry_days(cfg),
         "checkpoint_rpo": "unacknowledged_ephemeral_receipts_may_be_lost",
         "redaction_version": REDACTION_VERSION,
