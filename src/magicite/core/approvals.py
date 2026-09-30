@@ -60,6 +60,7 @@ from pathlib import Path
 from typing import Any
 
 from magicite.config import Config
+from magicite.storage.lease import assert_cross_process_fence
 
 AUTONOMOUS_ACTOR = "autonomous-mode"
 
@@ -254,7 +255,13 @@ def _upsert_row(conn: sqlite3.Connection, record: ApprovalRecord) -> None:
 
 
 def _persist(cfg: Config, conn: sqlite3.Connection, record: ApprovalRecord) -> ApprovalRecord:
-    """File wins first (durable outside the DB), then the DB cache row."""
+    """File wins first (durable outside the DB), then the DB cache row.
+
+    S12 / AC-S12-04: when a CrossProcessLease is held, refuse durable approval
+    writes after fencing-token loss (no second lock system). In-process
+    writer_lease remains optional for legacy propose/decide callers.
+    """
+    assert_cross_process_fence()
     _write_mirror(cfg, record)
     _upsert_row(conn, record)
     return record
