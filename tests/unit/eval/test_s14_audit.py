@@ -226,6 +226,9 @@ def test_ga_requires_both_matching_complete_evidence_strata():
         model_digest="a" * 64,
         runner_label="dedicated-linux-amd64-4c-16g",
     )
+    from magicite.core.index_generation import TOKENIZER_ID
+
+    result["fingerprint"]["payload_tokenizer"] = TOKENIZER_ID
     result["status"] = "measured"
     for state in result["cache_states"].values():
         state.update(measured=True, latency_ms=1)
@@ -280,6 +283,11 @@ def test_ga_requires_both_matching_complete_evidence_strata():
         support_runs=[synthetic],
     )
     assert compute_ga_eligibility(**args) == (True, [])
+    tokenizer = synthetic["fingerprint"].pop("payload_tokenizer")
+    assert compute_ga_eligibility(**args)[0] is False
+    synthetic["fingerprint"]["payload_tokenizer"] = "different-tokenizer"
+    assert compute_ga_eligibility(**args)[0] is False
+    synthetic["fingerprint"]["payload_tokenizer"] = tokenizer
     synthetic["profile"]["profile_id"] = "small-100"
     assert compute_ga_eligibility(**args)[0] is False
     synthetic["profile"]["profile_id"] = "supported-10k"

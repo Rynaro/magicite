@@ -149,6 +149,10 @@ def measurement_provenance_errors(result: dict[str, Any], profile: BenchmarkProf
     """Reject placeholders: a declared parameter is not a measured observation."""
     errors: list[str] = []
     fingerprint = result.get("fingerprint") or {}
+    from magicite.core.index_generation import TOKENIZER_ID
+
+    if fingerprint.get("payload_tokenizer") != TOKENIZER_ID:
+        errors.append("payload tokenizer must identify the implemented lexical tokenizer")
     for key in ("model_digest", "dependency_lock_sha256"):
         value = fingerprint.get(key)
         if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value) or value == "0" * 64:
@@ -352,6 +356,7 @@ def compute_ga_eligibility(
                     "model_digest",
                     "dependency_lock_sha256",
                     "runner_label",
+                    "payload_tokenizer",
                     "platform",
                     "machine",
                     "processor",

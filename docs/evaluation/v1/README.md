@@ -100,3 +100,8 @@ its frozen lower-bound and group-count gate. Host usefulness requires all three
 arms paired by task and seed; executed timeouts count zero and missing/unrun
 arms block evaluation. False-selection uses the one-sided 95% Wilson upper
 bound. Operator harness outputs remain UNEVALUATED, including nested verdicts.
+
+`payload_tokens` uses the repository's pinned lexical word tokenizer, identified
+by `fingerprint.payload_tokenizer` (`TOKENIZER_ID`). This is a reproducible
+word-token payload measure, not BPE tokens or a host context-capacity claim.
+Missing or mixed tokenizer identities cannot qualify a support evidence bundle.
