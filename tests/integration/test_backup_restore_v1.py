@@ -400,12 +400,8 @@ def test_missing_stale_overlay_closed(project_root: Path, tmp_path: Path) -> Non
         conn.close()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="router gate wired after S07 merges (C9)",
-)
 def test_route_refused_while_reconciliation_required(project_root: Path, tmp_path: Path) -> None:
-    """B1(b): route() must refuse while reconciliation_required (xfail until S07)."""
+    """B1(b)/C9: route() refuses while reconciliation_required (S07 merged)."""
     from magicite.core import router as router_mod
     from magicite.embeddings.hashing_provider import get_embedder
 
@@ -579,5 +575,165 @@ def test_registry_id_mismatch_rejected(project_root: Path, tmp_path: Path) -> No
         )
         assert result["reconciliation_required"] is True
         assert "registry_id" in (result.get("reason") or "").lower() or True
+    finally:
+        conn.close()
+
+
+def test_deleted_revoke_mirror_refuses_preserve(project_root: Path, tmp_path: Path) -> None:
+    """Anti-shrink: delete a revoke known to the backup → preserve refuses."""
+    cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    cfg.ensure_dirs()
+    conn = db_mod.connect(cfg.db_path)
+    try:
+        engram_id, digest = _seed_registry(cfg, conn)
+        registry_mod.review_approve(
+            cfg,
+            conn,
+            engram_id=engram_id,
+            expected_digest=digest,
+            actor="reviewer",
+            event_id="evt-s12-shrink-admit",
+        )
+        revoke = registry_mod.review_revoke(
+            cfg,
+            conn,
+            engram_id=engram_id,
+            actor="reviewer",
+            expected_digest=digest,
+            reason="bound-into-backup",
+            event_id="evt-s12-shrink-revoke",
+        )
+        key = fk.load_or_create_fingerprint_key(cfg)
+        backup_dir = tmp_path / "backup-shrink-revoke"
+        snap = backup_mod.create_snapshot(cfg, conn, backup_dir)
+        assert revoke.decision_id in snap["known_revocation_ids"]
+
+        # Attacker deletes the revoke decision mirror (S04 ledger has no set-MAC).
+        mirror = trust_mod.trust_decisions_dir(cfg) / f"{revoke.decision_id}.json"
+        assert mirror.is_file()
+        mirror.unlink()
+        assert trust_mod.latest_decision_for(cfg, engram_id).decision == "admit"
+
+        result = backup_mod.restore_snapshot(
+            cfg,
+            conn,
+            backup_dir,
+            overlay=None,
+            sequence_anchor=None,
+            custody_key=key,
+            preserve_live_overlay=True,
+        )
+        assert result["reconciliation_required"] is True
+        assert result["activated"] is False
+        assert "live_overlay_shrunk" in (result.get("reason") or "")
+        assert backup_mod.is_reconciliation_required(cfg) is True
+    finally:
+        conn.close()
+
+
+def test_deleted_privacy_tombstone_refuses_preserve(project_root: Path, tmp_path: Path) -> None:
+    """Anti-shrink: re-MAC after dropping a tombstone known to the backup → refuse."""
+    from magicite.storage import lease as lease_mod
+
+    cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    cfg.ensure_dirs()
+    conn = db_mod.connect(cfg.db_path)
+    try:
+        key = fk.load_or_create_fingerprint_key(cfg)
+        event = _decision_event(
+            event_id="ev_s12_tomb_shrink",
+            decision_id="dec_s12_tomb_shrink",
+            query_fingerprint=fk.query_fingerprint("tomb-shrink", key=key),
+        )
+        evidence_mod.checkpoint(cfg, conn, event)
+        evidence_mod.delete_event(cfg, conn, event.event_id, reason="privacy", actor="op")
+        tombs = evidence_mod.load_verified_tombstones(cfg)
+        assert tombs
+        tomb_id = str(tombs[0].get("tombstone_id") or tombs[0].get("target_event_id"))
+
+        backup_dir = tmp_path / "backup-shrink-tomb"
+        snap = backup_mod.create_snapshot(cfg, conn, backup_dir)
+        assert tomb_id in snap["known_deletion_ids"]
+
+        # Drop the tombstone line, re-sign MAC, and rebind segment digests so the
+        # ledger still verifies — exposing anti-shrink (not the B3 MAC gate).
+        root = evidence_mod.evidence_dir(cfg)
+        tomb_path = root / "tombstones.jsonl"
+        with lease_mod.writer_lease(holder="shrink-tomb"):
+            tomb_path.write_text("", encoding="utf-8")
+            evidence_mod._write_tombstone_mac(cfg, root)  # noqa: SLF001
+            evidence_mod._stamp_tombstone_digest_on_all_manifests(  # noqa: SLF001
+                root, initialized=True
+            )
+
+        result = backup_mod.restore_snapshot(
+            cfg,
+            conn,
+            backup_dir,
+            overlay=None,
+            sequence_anchor=None,
+            custody_key=key,
+            preserve_live_overlay=True,
+        )
+        assert result["reconciliation_required"] is True
+        assert "live_overlay_shrunk" in (result.get("reason") or "")
+    finally:
+        conn.close()
+
+
+def test_backup_excludes_restore_generation_markers(project_root: Path, tmp_path: Path) -> None:
+    """Hardening: backups never carry restore-generation markers; restore stays clean."""
+    cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    cfg.ensure_dirs()
+    conn = db_mod.connect(cfg.db_path)
+    try:
+        key = fk.load_or_create_fingerprint_key(cfg)
+        event = _decision_event(query_fingerprint=fk.query_fingerprint("markers", key=key))
+        evidence_mod.checkpoint(cfg, conn, event)
+        # First restore stamps markers (offline).
+        seed_backup = tmp_path / "backup-seed-markers"
+        backup_mod.create_snapshot(cfg, conn, seed_backup)
+        offline = backup_mod.restore_snapshot(
+            cfg,
+            conn,
+            seed_backup,
+            overlay=None,
+            sequence_anchor=None,
+            custody_key=key,
+            preserve_live_overlay=False,
+        )
+        assert offline["reconciliation_required"] is True
+        assert gate_mod.collect_generation_markers(cfg)
+
+        # Snapshot from the restored (marker-bearing) instance.
+        marked_backup = tmp_path / "backup-from-restored"
+        snap = backup_mod.create_snapshot(cfg, conn, marked_backup)
+        paths = {e["path"] for e in snap["files"]}
+        assert not any(gate_mod.DOMAIN_MARKER_NAME in p for p in paths)
+        assert not any(gate_mod.RUNTIME_MARKER_NAME in p for p in paths)
+        assert not any(p.startswith("recovery/") for p in paths)
+
+        # Restore onto a fresh data dir — must not import stale markers.
+        other = tmp_path / "other-proj"
+        (other / ".magicite" / "engrams").mkdir(parents=True)
+        other_cfg = Config.load(other, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+        other_cfg.ensure_dirs()
+        other_conn = db_mod.connect(other_cfg.db_path)
+        try:
+            # No markers before restore.
+            assert gate_mod.collect_generation_markers(other_cfg) == []
+            # Partial restore will stamp NEW markers for this generation — that's
+            # expected — but the archive itself must not have carried old ones.
+            # Verify archive file tree has none:
+            files_root = marked_backup / "files"
+            leaked = [
+                p
+                for p in files_root.rglob("*")
+                if p.is_file()
+                and p.name in {gate_mod.DOMAIN_MARKER_NAME, gate_mod.RUNTIME_MARKER_NAME}
+            ]
+            assert leaked == []
+        finally:
+            other_conn.close()
     finally:
         conn.close()

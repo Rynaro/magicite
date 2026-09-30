@@ -366,11 +366,18 @@ def _killed_holder(db_path: str, lock_path: str, token_path: str) -> None:
 def test_killed_holder_lease_reclaimed(tmp_path: Path) -> None:
     """B6: SIGKILL a lease holder; after TTL the replacement reclaims the fence.
 
-    Uses a file token (not mp.Queue) so SIGKILL cannot strand the resource
-    tracker. Domain-writer fencing after reclaim is covered by
-    ``test_stale_writer_cannot_commit_domain_stores``.
+    Also verifies a resumed stale fencing token cannot commit through the real
+    approvals domain API (kill + stale-token resume for at least one domain).
     """
-    db_path = tmp_path / "kill.db"
+    from magicite.config import Config
+    from magicite.core import approvals as approvals_mod
+    from magicite.errors import BusyError
+
+    project = tmp_path / "kill-proj"
+    project.mkdir()
+    cfg = Config.load(project, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    cfg.ensure_dirs()
+    db_path = cfg.db_path
     token_path = tmp_path / "token.txt"
     seed = db_mod.connect(db_path)
     seed.close()
@@ -383,6 +390,7 @@ def test_killed_holder_lease_reclaimed(tmp_path: Path) -> None:
     holder.start()
     replacement_conn = None
     replacement = None
+    stale_token_ctx = None
     try:
         for _ in range(100):
             if token_path.is_file() and token_path.stat().st_size > 0:
@@ -406,7 +414,31 @@ def test_killed_holder_lease_reclaimed(tmp_path: Path) -> None:
         result = replacement.try_acquire()
         assert result.fencing_token == token + 1
         assert result.stolen is True
+
+        # Resume the killed holder's stale token and attempt a real approvals write.
+        stale = lease.CrossProcessLease(
+            lock_path=tmp_path / "stale-resume.lock",
+            conn=replacement_conn,
+            holder="kill-holder",
+            ttl_s=5.0,
+        )
+        stale._held = True
+        stale._fencing_token = token
+        stale_token_ctx = lease._CROSS_PROCESS_LEASE.set(stale)  # noqa: SLF001
+        with pytest.raises(BusyError):
+            with lease.writer_lease(holder="stale-resume"):
+                approvals_mod.propose(
+                    replacement_conn,
+                    cfg,
+                    op="nucleate",
+                    target_name="after-kill",
+                    payload={"note": "must-not-land"},
+                    proposed_by="stale",
+                )
+        assert not list(cfg.approvals_dir.glob("*.json"))
     finally:
+        if stale_token_ctx is not None:
+            lease._CROSS_PROCESS_LEASE.reset(stale_token_ctx)  # noqa: SLF001
         if holder.is_alive():
             try:
                 os.kill(holder.pid, signal.SIGKILL)  # type: ignore[arg-type]
