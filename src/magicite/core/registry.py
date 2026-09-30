@@ -1201,6 +1201,7 @@ def _assert_import_destinations_safe(
     registry_root: Path,
     verified_staging: Path,
     manifest_entries: list[Any],
+    transformed_bytes: dict[str, bytes] | None = None,
 ) -> tuple[dict[str, bool], list[str]]:
     """Pre-check every destination. Returns (skip_publish, pre_existing_paths).
 
@@ -1229,7 +1230,7 @@ def _assert_import_destinations_safe(
 
         dest = registry_root / rel
         src = verified_staging / rel
-        incoming = src.read_bytes()
+        incoming = transformed_bytes[rel] if transformed_bytes is not None else src.read_bytes()
 
         # Exact path exists?
         if dest.exists() or (key in existing and existing[key].as_posix() == rel):
@@ -1607,12 +1608,37 @@ def import_bundle(
     publish_staging: Path | None = None
     with cross_lease.acquire(), lease_mod.writer_lease():
         _recover_incomplete_bundle_publishes(cfg, conn, registry_root)
+        current_policy = trust_mod.load_policy(cfg)
+        if verified.signer_fingerprint not in {root.fingerprint for root in current_policy.active_roots()}:
+            raise InvalidInputError("bundle signer no longer admitted by current policy")
+        journal, held, _ = writer_guard.bound_journal(cfg)
+        transformed: dict[str, trust_artifacts.MarkedArtifact] = {}
+        targets: dict[str, bytes] = {}
+        revisions: dict[str, int] = {}
+        for entry in verified.manifest.entries:
+            rel = str(_assert_safe_journal_member_path(entry.path))
+            raw = (verified.staging_dir / rel).read_bytes()
+            if sha256_hex(raw) != entry.sha256 or len(raw) != entry.size:
+                raise InvalidInputError("verified bundle source changed before transformation")
+            targets[rel] = raw
+            if rel.endswith(".egr.md"):
+                artifact, _ = parser_mod.parse_artifact(raw.decode(), relpath=rel, admit=True)
+                revisions[artifact.name] = artifact.frontmatter.version
+        for rel, raw in list(targets.items()):
+            if rel.endswith(".egr.md"):
+                marked = trust_artifacts.mark_artifact(raw,registry_id=journal.registry_id,relpath=rel,
+                    actor=actor,revision_map=revisions,source_signature={"signature_valid": True,
+                    "signer_fingerprint": verified.signer_fingerprint,
+                    "manifest_digest": verified.manifest_digest})
+                transformed[rel] = marked
+                targets[rel] = marked.target
         skip_publish, pre_existing_paths = _assert_import_destinations_safe(
             conn=conn,
             cfg=cfg,
             registry_root=registry_root,
             verified_staging=verified.staging_dir,
             manifest_entries=list(verified.manifest.entries),
+            transformed_bytes=targets,
         )
 
         # Stage under the registry root; publish only after checks + re-hash.
@@ -1622,6 +1648,8 @@ def import_bundle(
         aborted_engram_ids: list[str] = []
         journal_body: dict[str, Any] | None = None
         try:
+            for marked in transformed.values():
+                trust_artifacts.bind_prepared_transform(cfg, marked)
             for entry in verified.manifest.entries:
                 rel = str(_assert_safe_journal_member_path(entry.path))
                 src = verified.staging_dir / rel
@@ -1639,13 +1667,14 @@ def import_bundle(
                     raise InvalidInputError(
                         f"staged bytes diverged from verified manifest for {rel!r}"
                     )
+                raw = targets[rel]
                 staged.write_bytes(raw)
                 if not skip_publish.get(rel):
                     journal_members.append(
                         {
                             "path": rel,
-                            "sha256": entry.sha256,
-                            "size": entry.size,
+                            "sha256": sha256_hex(raw),
+                            "size": len(raw),
                             "pre_existing": False,
                         }
                     )
@@ -1698,7 +1727,11 @@ def import_bundle(
                     except FileNotFoundError:
                         pass
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(publish_staging / rel, dest)
+                from magicite.core.trust_journal import _directory_fd, _replace_file
+                with _directory_fd(dest.parent) as destination_directory:
+                    held.assert_owned()
+                    _replace_file(destination_directory,dest.name,targets[rel],held.assert_owned)
+                held.assert_owned()
                 if rel.endswith(".egr.md"):
                     staged_egr.append(dest)
 
@@ -1729,8 +1762,8 @@ def import_bundle(
                     registry_dir=cfg.registry_dir,
                     cfg=cfg,
                     intake_channel="bundle_import",
-                    signature_valid=True,
-                    signer_fingerprint=verified.signer_fingerprint,
+                    signature_valid=None,
+                    signer_fingerprint=None,
                     resource_digest=resource,
                 )
                 if verr:

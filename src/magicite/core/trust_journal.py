@@ -14,6 +14,7 @@ import os
 import secrets
 import stat
 import time
+from collections import deque
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -207,6 +208,7 @@ class TrustJournal:
             source_signers: dict[tuple[str, str], frozenset[str]] = {}
             decision_ids: dict[str, dict[str, Any]] = {}
             transformed_targets: set[tuple[str, str]] = set()
+            descendants: dict[tuple[str, str], set[tuple[str, str]]] = {}
             for record in records[1:]:
                 if record["kind"] == "policy_snapshot":
                     policy = record["payload"]
@@ -224,6 +226,7 @@ class TrustJournal:
                     lineage = record["payload"]
                     source_key = (lineage["engram_id"], lineage["source_digest"])
                     target_key = (lineage["engram_id"], lineage["target_digest"])
+                    descendants.setdefault(source_key, set()).add(target_key)
                     if (
                         lineage["transform_id"]
                         in {"magicite-authored-edit/1", "magicite-dream-checkpoint/1", "magicite-archive/1"}
@@ -251,6 +254,18 @@ class TrustJournal:
                     # Lineage grants nothing and cannot clear prior restrictions.
                 else:
                     raise CustodianError("unsupported authenticated journal kind")
+            # A later verified import can establish source provenance for an
+            # already-authored descendant. Propagate restrictions to a fixed
+            # point; never propagate admission or publisher-validity flags.
+            pending = deque(key for key, signers in source_signers.items() if signers)
+            while pending:
+                source_key = pending.popleft()
+                for target_key in descendants.get(source_key, set()):
+                    old = source_signers.get(target_key, frozenset())
+                    merged = old | source_signers[source_key]
+                    if merged != old:
+                        source_signers[target_key] = merged
+                        pending.append(target_key)
             import hashlib
 
             if hashlib.sha256(_bytes(policy)).hexdigest() != head["policy_digest"]:

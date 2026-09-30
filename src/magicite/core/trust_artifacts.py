@@ -176,12 +176,17 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
     if source_signature is not None:
         if (
             not isinstance(source_signature, dict)
-            or set(source_signature) != {"signature_valid", "signer_fingerprint"}
+            or set(source_signature) - {"manifest_digest"} != {"signature_valid", "signer_fingerprint"}
             or type(source_signature["signature_valid"]) is not bool
             or not isinstance(source_signature["signer_fingerprint"], str)
             or re.fullmatch("[0-9a-f]{64}", source_signature["signer_fingerprint"]) is None
         ):
             raise CustodianError("invalid source signature provenance")
+        if "manifest_digest" in source_signature and (
+            not isinstance(source_signature["manifest_digest"], str)
+            or re.fullmatch("[0-9a-f]{64}", source_signature["manifest_digest"]) is None
+        ):
+            raise CustodianError("invalid signed manifest commitment")
     if not isinstance(payload["source_decision_ids"], list) or any(
         not isinstance(value, str) or not value for value in payload["source_decision_ids"]
     ):
@@ -257,6 +262,21 @@ def publish_new_artifact(
         actor=actor,
         source_signature=source_signature,
     )
+    bind_prepared_transform(cfg, transformed, source_document=source_document)
+    with _directory_fd(target.parent, create=True) as directory:
+        _replace_file(directory, target.name, transformed.target, held.assert_owned)
+    held.assert_owned()
+
+
+def bind_prepared_transform(
+    cfg: Any, transformed: MarkedArtifact, *, source_document: bytes | None = None
+) -> None:
+    """Archive and commit non-authorizing lineage before a separate publish job."""
+    from magicite.core.trust_journal import _directory_fd, _read_file, _replace_file
+    from magicite.core.writer_guard import bound_journal
+
+    journal, held, fence = bound_journal(cfg)
+    source = transformed.source
     held.assert_owned()
     if source_document is not None:
         transformed.lineage["conversion_provenance"] = {
@@ -281,9 +301,6 @@ def publish_new_artifact(
         fence=fence,
         assert_owned=held.assert_owned,
     )
-    with _directory_fd(target.parent, create=True) as directory:
-        _replace_file(directory, target.name, transformed.target, held.assert_owned)
-    held.assert_owned()
 
 
 def require_bound_artifact(cfg: Any, path: Any) -> Any:

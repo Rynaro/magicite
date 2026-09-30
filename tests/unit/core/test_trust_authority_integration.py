@@ -776,3 +776,142 @@ def test_archive_closes_without_unlinking_source_changed_during_publication(enro
         dream.archive_engram(cfg, conn, name=artifact.name, reason="test", actor="operator")
     assert target.read_bytes() == changed
     assert conn.execute("SELECT status FROM engram WHERE id=?", (artifact.id,)).fetchone()[0] != "archived"
+
+
+def test_real_signed_bundle_binds_transformed_publication_and_source_only_signature(
+    enrolled, tmp_path, monkeypatch
+):
+    import copy
+    import hashlib
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    from magicite.core import bundles, registry, trust_artifacts
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.errors import InvalidInputError
+
+    cfg, conn, store = enrolled
+    key = Ed25519PrivateKey.generate()
+    public = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    trust.pin_trust_root(cfg, public_key_bytes=public)
+    source = tmp_path / "bundle-source"
+    source.mkdir()
+    raw = (
+        Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    ).read_bytes()
+    (source / "sample.egr.md").write_bytes(raw)
+    archive = tmp_path / "signed.zip"
+    bundles.write_signed_bundle(source_dir=source, out_path=archive, private_key=key)
+    captured = []
+    original = registry._write_publish_journal
+
+    def capture(cfg, path, body):
+        captured.append(copy.deepcopy(body))
+        return original(cfg, path, body)
+
+    monkeypatch.setattr(registry, "_write_publish_journal", capture)
+    embedder = get_embedder(dim=256)
+    outcome = registry.import_bundle(cfg, conn, embedder, archive_path=archive)
+    assert outcome.ingested == 1, outcome.validation_errors
+    target = cfg.registry_dir / "sample.egr.md"
+    artifact = trust_artifacts.require_bound_artifact(cfg, target)
+    assert target.read_bytes() != raw
+    member = next(item for item in captured[0]["members"] if item["path"] == "sample.egr.md")
+    assert member["sha256"] == hashlib.sha256(target.read_bytes()).hexdigest()
+    assert member["size"] == len(target.read_bytes())
+    lineage = next(r["payload"] for r in store.committed_records("r") if r["kind"] == "artifact_transform")
+    assert lineage["signature_provenance"]["source"]["signature_valid"] is True
+    assert lineage["signature_provenance"]["target_signature_valid"] is False
+    pending = trust.latest_decision_for(cfg, artifact.id)
+    assert pending.decision == "pending" and pending.signature_valid is not True
+    approved = registry.review_approve(
+        cfg, conn, engram_id=artifact.id, expected_digest=artifact.content_sha256, actor="operator"
+    )
+    assert approved.signature_valid is not True
+    repeated = registry.import_bundle(cfg, conn, embedder, archive_path=archive)
+    assert not repeated.validation_errors
+    assert hashlib.sha256(target.read_bytes()).hexdigest() == artifact.content_sha256
+    trust.revoke_trust_root(cfg, fingerprint=bundles.public_key_fingerprint(public))
+    with pytest.raises(InvalidInputError):
+        registry.review_approve(
+            cfg, conn, engram_id=artifact.id, expected_digest=artifact.content_sha256, actor="operator"
+        )
+
+
+def test_late_verified_source_provenance_restricts_existing_descendant(enrolled):
+    from types import SimpleNamespace
+
+    from magicite.core import lifecycle, registry, trust_artifacts, writer_guard
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, _ = enrolled
+    raw = (
+        Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    ).read_bytes()
+    target = cfg.registry_dir / "sample.egr.md"
+    target.write_bytes(raw)
+    embedder = get_embedder(dim=256)
+    registry.register(cfg, conn, embedder, path=".magicite/engrams")
+    original = trust_artifacts.require_bound_artifact(cfg, target)
+    lifecycle.execute_sharpen(
+        cfg,
+        conn,
+        embedder,
+        name=original.name,
+        proposed_changes=SimpleNamespace(procedures=["New authored descendant."], triggers=[], pitfalls=[]),
+        actor="operator",
+    )
+    descendant = trust_artifacts.require_bound_artifact(cfg, target)
+    later = trust_artifacts.mark_artifact(
+        raw,
+        registry_id="r",
+        relpath=str(target),
+        actor="verified-later",
+        source_signature={"signature_valid": True, "signer_fingerprint": "a" * 64},
+    )
+    with writer_guard.registry_writer_lease(cfg, conn).acquire():
+        trust_artifacts.bind_prepared_transform(cfg, later)
+    snapshot = trust.authenticated_snapshot(cfg)
+    assert "a" * 64 in snapshot.source_signers[(descendant.id, descendant.content_sha256)]
+
+
+def test_bundle_failure_after_target_publication_compensates_exact_marked_bytes(
+    enrolled, tmp_path, monkeypatch
+):
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    from magicite.core import bundles, registry, trust_artifacts, trust_journal
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, _ = enrolled
+    key = Ed25519PrivateKey.generate()
+    trust.pin_trust_root(cfg, public_key_bytes=key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))
+    source = tmp_path / "source"
+    source.mkdir()
+    raw = (
+        Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    ).read_bytes()
+    (source / "sample.egr.md").write_bytes(raw)
+    archive = tmp_path / "signed.zip"
+    bundles.write_signed_bundle(source_dir=source, out_path=archive, private_key=key)
+    original = trust_journal._replace_file
+
+    def fail_after(directory, name, content, *args, **kwargs):
+        original(directory, name, content, *args, **kwargs)
+        if name == "sample.egr.md":
+            raise RuntimeError("injected publication stop")
+
+    monkeypatch.setattr(trust_journal, "_replace_file", fail_after)
+    with pytest.raises(RuntimeError, match="publication stop"):
+        registry.import_bundle(cfg, conn, get_embedder(dim=256), archive_path=archive)
+    assert not (cfg.registry_dir / "sample.egr.md").exists()
+    assert conn.execute("SELECT count(*) FROM engram").fetchone()[0] == 0
+    assert list((cfg.data_dir / "quarantine").rglob("sample.egr.md"))
+    assert (source / "sample.egr.md").read_bytes() == raw
+    monkeypatch.setattr(trust_journal, "_replace_file", original)
+    outcome = registry.import_bundle(cfg, conn, get_embedder(dim=256), archive_path=archive)
+    assert outcome.ingested == 1
+    artifact = trust_artifacts.require_bound_artifact(cfg, cfg.registry_dir / "sample.egr.md")
+    assert not registry.trust_view_for(cfg, conn, engram_id=artifact.id).admitted
