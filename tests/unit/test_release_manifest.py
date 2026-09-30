@@ -62,6 +62,7 @@ def candidate(tmp_path):
     matrix = list(validator.MATRIX)
     rcs = [
         {
+            "source_dirty": False,
             "id": f"rc{n}",
             "builder": f"builder{n}",
             "source_commit": source,
@@ -92,6 +93,7 @@ def candidate(tmp_path):
     bind_report(tmp_path, external["reports"][0], "magicite/external-reproduction/1")
     result = {
         "schema": "magicite/release-manifest/1",
+        "source_dirty": False,
         "source_commit": source,
         "gates": gates,
         "release_candidates": rcs,
@@ -293,5 +295,27 @@ def test_immutable_report_requires_json_booleans(candidate, tmp_path, target):
     else:
         payload["independent"] = 1
         payload["checks"] = dict.fromkeys(payload["checks"], 1)
+    row["artifact"] = artifact(tmp_path, ref["path"], payload)
+    assert not validator.validate(candidate, tmp_path)["eligible"]
+
+
+@pytest.mark.parametrize("target", ["candidate", "rc"])
+@pytest.mark.parametrize("value", [None, True, 0])
+def test_release_sources_require_explicit_clean_boolean(candidate, tmp_path, target, value):
+    row = candidate if target == "candidate" else candidate["release_candidates"][1]
+    if value is None:
+        row.pop("source_dirty")
+    else:
+        row["source_dirty"] = value
+    if target == "rc":
+        bind_report(tmp_path, row, "magicite/rc-build-report/1")
+    assert not validator.validate(candidate, tmp_path)["eligible"]
+
+
+def test_rc_immutable_report_cannot_hide_dirty_source(candidate, tmp_path):
+    row = candidate["release_candidates"][1]
+    ref = row["artifact"]
+    payload = json.loads((tmp_path / ref["path"]).read_text())
+    payload["source_dirty"] = True
     row["artifact"] = artifact(tmp_path, ref["path"], payload)
     assert not validator.validate(candidate, tmp_path)["eligible"]

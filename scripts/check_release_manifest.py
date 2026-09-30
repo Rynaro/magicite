@@ -171,11 +171,13 @@ def _rcs(value: Any, root: Path, source: str) -> None:
                 raise ValueError("RC identity and independent builder required")
         if not _sha(row.get("source_commit"), 40):
             raise ValueError("RC source commit missing")
+        if row.get("source_dirty") is not False:
+            raise ValueError("RC source must be explicitly clean")
         _bound_report(
             row,
             root,
             "magicite/rc-build-report/1",
-            ("id", "builder", "source_commit", "fingerprints", "matrix", "build_artifact"),
+            ("id", "builder", "source_commit", "source_dirty", "fingerprints", "matrix", "build_artifact"),
         )
         _artifact(row.get("build_artifact"), root)
         fingerprints = row.get("fingerprints")
@@ -250,6 +252,8 @@ def validate(manifest: Any, root: Path) -> dict[str, Any]:
     errors: list[str] = []
     if not isinstance(manifest, dict) or manifest.get("schema") != "magicite/release-manifest/1":
         return {"eligible": False, "recommendation": "NO-GA", "errors": ["unsupported manifest schema"]}
+    if manifest.get("source_dirty") is not False:
+        errors.append("candidate source must be explicitly clean")
     source = manifest.get("source_commit")
     if not _sha(source, 40):
         errors.append("candidate source commit missing")
