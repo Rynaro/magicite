@@ -663,3 +663,24 @@ def test_v03_checker_rejects_non_historical_evidence_class(tmp_path) -> None:
     # Point corpus path still relative to repo root via checker.ROOT
     errors = checker.check_historical_v03(forged, payload)
     assert any("evidence_class to historical" in e for e in errors)
+
+
+@pytest.mark.parametrize("metric,value", [
+    ("made_up_accuracy", 1.0), ("hit_at_1", None), ("hit_at_1", True),
+    ("hit_at_1", float("nan")), ("hit_at_1", float("inf")),
+])
+def test_supported_claim_requires_actual_finite_metric(metric, value) -> None:
+    corpus = _corpus_from_offline()
+    experiment = _seal(_experiment(corpus_sha256=corpus.content_identity_sha256,
+                                  labels_sha256=corpus.content_identity_sha256))
+    predictions = run_predictions(experiment, corpus)
+    result = build_result_manifest(result_id="finite/1", experiment=experiment,
+                                   predictions=predictions, aggregates={"hit_at_1": 0.5})
+    claim = Claim(claim_id="finite", text_location="README.md", metric=metric, value=value,
+                  unit="fraction", population_split="final", result_digest=result.digest(),
+                  confidence_interval=None, evidence_class="retrieval", status="supported",
+                  limitations="fixture")
+    errors = validate_claim_integrity(claim, result=result, predictions=predictions,
+                                     experiment=experiment, corpus=corpus,
+                                     current_labels_sha256=experiment.labels_sha256)
+    assert any("finite" in error for error in errors)

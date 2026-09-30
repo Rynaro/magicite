@@ -658,10 +658,11 @@ def preview(
 
 def status(cfg: Config, operation_id: str, conn: sqlite3.Connection | None = None) -> MigrationStatus:
     own_conn = conn is None
+    temp_dir = None
     if own_conn:
-        cfg.ensure_dirs()
-        conn = db_mod.connect(cfg.db_path, migrate=True)
-    assert conn is not None
+        conn, _schema, own_conn, temp_dir = _connect_preview_readonly(cfg)
+    if conn is None:
+        raise NotFoundError(f"unknown migration operation {operation_id!r}")
     try:
         row = ops.get_migration_operation(conn, operation_id)
         if row is None:
@@ -688,6 +689,8 @@ def status(cfg: Config, operation_id: str, conn: sqlite3.Connection | None = Non
     finally:
         if own_conn:
             conn.close()
+        if temp_dir is not None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def _write_backup_manifest(
@@ -1137,7 +1140,7 @@ def _verify_backup_files(backup_root: Path, manifest: dict[str, Any]) -> None:
 
 def _resolve_backup_paths(backup_path: str | Path) -> tuple[Path, Path]:
     """Return ``(backup_root, manifest_path)`` for a restore input path."""
-    root = Path(backup_path)
+    root = Path(backup_path).resolve()
     if not root.exists():
         raise NotFoundError(f"backup path not found: {backup_path}")
 

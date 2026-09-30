@@ -1456,9 +1456,179 @@
       "idempotent": true,
       "input_schema": {
         "$defs": {
+          "ContextIdentity": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Version"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "title": "ContextIdentity",
+            "type": "object"
+          },
           "RouteContext": {
             "additionalProperties": false,
             "properties": {
+              "allowed_tools": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Allowed Tools"
+              },
+              "artifact_inventory": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/$defs/ContextIdentity"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Artifact Inventory"
+              },
+              "capabilities": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Capabilities"
+              },
+              "excluded_engram_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Excluded Engram Ids",
+                "type": "array"
+              },
+              "frameworks": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "title": "Frameworks",
+                "type": "object"
+              },
+              "host": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContextIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "languages": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "title": "Languages",
+                "type": "object"
+              },
+              "package_managers": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "title": "Package Managers",
+                "type": "object"
+              },
+              "permission_grants": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Permission Grants"
+              },
+              "platform": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "linux",
+                      "macos",
+                      "windows"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Platform"
+              },
               "project_tag": {
                 "anyOf": [
                   {
@@ -1477,6 +1647,12 @@
                 },
                 "title": "Recent Failures",
                 "type": "array"
+              },
+              "schema_version": {
+                "const": "RouteContext/1",
+                "default": "RouteContext/1",
+                "title": "Schema Version",
+                "type": "string"
               },
               "user_prefs": {
                 "items": {
@@ -2478,8 +2654,230 @@
     {
       "idempotent": true,
       "input_schema": {
+        "$defs": {
+          "ContextIdentity": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Version"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "title": "ContextIdentity",
+            "type": "object"
+          },
+          "RouteContext": {
+            "additionalProperties": false,
+            "properties": {
+              "allowed_tools": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Allowed Tools"
+              },
+              "artifact_inventory": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/$defs/ContextIdentity"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Artifact Inventory"
+              },
+              "capabilities": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Capabilities"
+              },
+              "excluded_engram_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Excluded Engram Ids",
+                "type": "array"
+              },
+              "frameworks": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "title": "Frameworks",
+                "type": "object"
+              },
+              "host": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ContextIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "languages": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "title": "Languages",
+                "type": "object"
+              },
+              "package_managers": {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "title": "Package Managers",
+                "type": "object"
+              },
+              "permission_grants": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Permission Grants"
+              },
+              "platform": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "linux",
+                      "macos",
+                      "windows"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Platform"
+              },
+              "project_tag": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Project Tag"
+              },
+              "recent_failures": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Recent Failures",
+                "type": "array"
+              },
+              "schema_version": {
+                "const": "RouteContext/1",
+                "default": "RouteContext/1",
+                "title": "Schema Version",
+                "type": "string"
+              },
+              "user_prefs": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "User Prefs",
+                "type": "array"
+              }
+            },
+            "title": "RouteContext",
+            "type": "object"
+          }
+        },
         "additionalProperties": false,
         "properties": {
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RouteContext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "cursor": {
             "default": 0,
             "minimum": 0,

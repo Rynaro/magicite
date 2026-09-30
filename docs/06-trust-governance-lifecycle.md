@@ -1,5 +1,21 @@
 # 06. Trust, Governance, and Lifecycle
 
+## Current v1 integration contract
+
+External intake owns origin and starts pending/quarantined; artifact text cannot
+self-declare admission. Signature validity does not establish safety or efficacy.
+Approval binds content, resources, scanner and policy revision; revocation or drift
+invalidates body disclosure. Policy activation/rollback uses reviewed manifests
+and expected-current compare-and-swap under the cross-process writer lease.
+Pending policy transactions fail closed until explicit `magicite policy reconcile`;
+doctor reads do not repair. Trust-history hardening beyond the implemented overlay
+and anchor model remains a human decision, not an adopted release guarantee.
+
+See [AUTHORITY](AUTHORITY.md), [generated reference](generated/runtime-reference.json),
+and [operator tutorial](operator-tutorial.md).
+
+## Retained design and historical context
+
 **Status:** Draft-refined / v1  
 **Provenance:** GAP-001, GAP-002, GAP-006, exploratory/mcp20-server-dossier.md sections 5–11, engram-format.md §5, D5 augmentation ranks 2/3/9  
 **Decisions implemented:** Provenance-tiered trust model; governance via mcp20 approval machinery; lifecycle-op risk classes; rollback semantics; interim sharing policy (rank 9)

@@ -1000,7 +1000,6 @@ def _reconcile_authority(root: Path) -> tuple[dict[str, Any], dict[str, Any], in
     return index, meta, max(authority_max, int(meta.get("last_sequence", 0)))
 
 
-
 def _next_seal_segment_id(root: Path) -> str:
     """Allocate the next sealed segment id from existing files (not forgeable meta).
 
@@ -1077,6 +1076,7 @@ def _maybe_rotate_open_segment(root: Path, *, max_bytes: int | None = None) -> s
         },
     )
     return next_id
+
 
 @contextmanager
 def _evidence_write_guard(
@@ -1306,6 +1306,54 @@ def checkpoint_receipt(
     with _buffer_lock:
         _receipt_buffer.pop(receipt_id, None)
     return ack
+
+
+def checkpoint_self_report(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    decision_event_id: str,
+    outcome: str,
+    event_id: str,
+) -> CheckpointAck:
+    """Bind delayed operator feedback to an existing durable decision, never caller policy."""
+    from dataclasses import replace
+
+    with _evidence_write_guard(cfg, conn, "operator-evidence-checkpoint"):
+        original = load_event(cfg, decision_event_id)
+        if (
+            original is None
+            or original.event_type != "decision"
+            or not original.chosen_action
+            or not original.behavior_policy_digest
+            or original.chosen_action not in original.candidate_ids
+            or len(original.candidate_ids) != len(original.candidate_revisions)
+            or not all(original.candidate_revisions)
+        ):
+            raise InvalidInputError("checkpoint requires an existing committed decision with policy identity")
+        event = make_outcome_event(
+            decision_id=original.decision_id,
+            outcome=outcome,
+            event_id=event_id,
+            source_tier=1,
+            verifier=VerifierRef(type="self_reported", id="operator-cli", version="1"),
+            behavior_policy_id=original.behavior_policy_id,
+            behavior_policy_digest=original.behavior_policy_digest,
+            chosen_action=original.chosen_action,
+            propensity=original.propensity,
+            query_fingerprint=original.query_fingerprint,
+        )
+        event = replace(
+            event,
+            candidate_ids=original.candidate_ids,
+            candidate_revisions=original.candidate_revisions,
+            candidate_scores=original.candidate_scores,
+            registry_fingerprint=original.registry_fingerprint,
+            config_fingerprint=original.config_fingerprint,
+            model_fingerprint=original.model_fingerprint,
+            context_fingerprint=original.context_fingerprint,
+        )
+        return checkpoint(cfg, conn, event)
 
 
 def load_event(cfg: Config, event_id: str) -> EvidenceEvent | None:
@@ -2972,6 +3020,7 @@ def apply_privacy_overlay(
         "control_sequence": overlay.control_sequence,
         "status": "ok",
     }
+
 
 _ABS_PATH_RE = re.compile(r"(^|[\s\"'])(/[\w.-]+(?:/[\w.-]+)+)")
 

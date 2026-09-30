@@ -9,7 +9,15 @@
 
 Current normative interpretation starts with [AUTHORITY.md](AUTHORITY.md).
 Archived construction records and `research/exploratory/` remain evidence and
-context, but do not override the 0.3 acceptance criteria or runtime schemas.
+context, but do not override the frozen v1 acceptance criteria or installed runtime schemas.
+
+## Current v1 operator entry points
+
+Start with the [tested tutorial](operator-tutorial.md), [generated runtime reference](generated/runtime-reference.json),
+[support and deprecation policy](support-policy.json), [stable incumbent ADR](decisions/001-stable-dense-v1-incumbent.md),
+and [UNEVALUATED evidence](evaluation/v1/unevaluated.md). Stable routing uses dense-v1;
+adaptive routing is experimental. The design history below is not evidence of
+implemented or empirically validated efficacy.
 
 ## Overview
 

@@ -27,10 +27,26 @@ class MagiciteModel(BaseModel):
 # ── shared fragments ─────────────────────────────────────────────────────
 
 
+class ContextIdentity(MagiciteModel):
+    id: str
+    version: str | None = None
+
+
 class RouteContext(MagiciteModel):
     project_tag: str | None = None
     recent_failures: list[str] = Field(default_factory=list)
     user_prefs: list[str] = Field(default_factory=list)
+    languages: dict[str, str | None] = Field(default_factory=dict)
+    frameworks: dict[str, str | None] = Field(default_factory=dict)
+    package_managers: dict[str, str | None] = Field(default_factory=dict)
+    platform: Literal["linux", "macos", "windows"] | None = None
+    host: ContextIdentity | None = None
+    capabilities: dict[str, str | None] | None = None
+    permission_grants: list[str] | None = None
+    allowed_tools: list[str] | None = None
+    artifact_inventory: list[ContextIdentity] | None = None
+    excluded_engram_ids: list[str] = Field(default_factory=list)
+    schema_version: Literal["RouteContext/1"] = "RouteContext/1"
 
 
 class Candidate(MagiciteModel):
@@ -276,6 +292,7 @@ class RouteOutput(MagiciteModel):
 
 class LoadSkillBodyInput(MagiciteModel):
     name: str
+    context: RouteContext | None = None
     level: Literal["L2", "L3"] = "L2"
     max_bytes: int = Field(default=8192, ge=1)
     cursor: int = Field(default=0, ge=0)

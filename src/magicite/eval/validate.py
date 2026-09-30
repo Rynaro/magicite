@@ -7,6 +7,7 @@ to remain carried-forward but cannot satisfy a new-run gate.
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -406,6 +407,10 @@ def validate_claim_data(
 
     metric = data.get("metric")
     value = data.get("value")
+    if data.get("status") == "supported" and (
+        not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value)
+    ):
+        errors.append("supported claim value must be a finite number")
     evidence_class = data.get("evidence_class")
     if evidence_class == "structural" and metric in EFFICACY_METRICS:
         # Deduplicate with claim_eligible when status=supported; still flag
@@ -424,6 +429,14 @@ def validate_claim_data(
         if sha256_json(result_dict) != data.get("result_digest"):
             errors.append("result_digest does not match provided result bytes")
         aggregates = result_dict.get("aggregates") or {}
+        if data.get("status") == "supported":
+            observed = aggregates.get(metric) if isinstance(metric, str) else None
+            if (
+                not isinstance(observed, (int, float))
+                or isinstance(observed, bool)
+                or not math.isfinite(observed)
+            ):
+                errors.append("supported claim metric requires a finite result aggregate")
         if (
             isinstance(metric, str)
             and metric in aggregates

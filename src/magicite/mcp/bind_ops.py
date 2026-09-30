@@ -395,3 +395,156 @@ def backup_status(project_root: str | Path, *, backup_path: str | None = None) -
         else:
             raise NotFoundError(f"no backup manifest at {backup_path!r}")
     return out
+
+
+# Migration readers deliberately bypass _cfg: preview/status must create nothing.
+def migration_preview(project_root: str | Path) -> dict[str, Any]:
+    from magicite.core import migration
+
+    return migration.preview_as_dict(migration.preview(Config.load(str(project_root))))
+
+
+def migration_status(project_root: str | Path, *, operation_id: str) -> dict[str, Any]:
+    from magicite.core import migration
+
+    return asdict(migration.status(Config.load(str(project_root)), operation_id))
+
+
+def migration_apply(project_root: str | Path, *, operation_id: str | None = None) -> dict[str, Any]:
+    from magicite.core import migration
+
+    return asdict(migration.apply(Config.load(str(project_root)), operation_id=operation_id))
+
+
+def migration_resume(project_root: str | Path, *, operation_id: str) -> dict[str, Any]:
+    from magicite.core import migration
+
+    return asdict(migration.resume(Config.load(str(project_root)), operation_id))
+
+
+def migration_restore(project_root: str | Path, *, backup_path: str) -> dict[str, Any]:
+    from magicite.core import migration
+
+    return asdict(migration.restore(Config.load(str(project_root)), backup_path=backup_path))
+
+
+def policy_register_evaluated(
+    project_root: str | Path,
+    *,
+    manifest_path: str,
+    evaluation_status: str,
+    evidence: str,
+) -> dict[str, Any]:
+    try:
+        manifest = policy_store_mod.PolicyManifest.from_dict(json.loads(Path(manifest_path).read_text()))
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise InvalidInputError("policy manifest is missing or malformed") from exc
+    return asdict(
+        policy_store_mod.register_evaluated(
+            _cfg(project_root),
+            manifest,
+            evaluation_status=evaluation_status,  # type: ignore[arg-type]
+            evidence=evidence,
+        )
+    )
+
+
+def policy_approve(project_root: str | Path, *, policy_digest: str, actor: str) -> dict[str, Any]:
+    return {"approval_id": policy_store_mod.approve(_cfg(project_root), policy_digest, actor=actor)}
+
+
+def evidence_checkpoint(
+    project_root: str | Path, *, decision_event_id: str, outcome: str, event_id: str
+) -> dict[str, Any]:
+    """Durably record linked CLI self-report with server-owned provenance."""
+    cfg = _cfg(project_root)
+    conn = authorizer_mod.writer_connection(cfg.db_path)
+    try:
+        return asdict(
+            evidence_mod.checkpoint_self_report(
+                cfg, conn, decision_event_id=decision_event_id, outcome=outcome, event_id=event_id
+            )
+        )
+    finally:
+        conn.close()
+
+
+def evidence_route_checkpoint(project_root: str | Path, *, request: Any, event_id: str) -> dict[str, Any]:
+    """Explicit route+durable checkpoint; ordinary route remains read-only."""
+    from datetime import UTC, datetime
+
+    from magicite.core import fingerprint_key, router
+    from magicite.embeddings import get_embedder
+    from magicite.errors import IdempotencyKeyConflictError
+    from magicite.mcp import bind_retrieval
+    from magicite.mcp.schemas import RouteInput
+    from magicite.storage import lease
+
+    params = RouteInput.model_validate(request)
+    bind_retrieval.validate_route_version(params)
+    cfg = _cfg(project_root)
+    conn = authorizer_mod.writer_connection(cfg.db_path)
+    try:
+        with lease.CrossProcessLease(
+            lock_path=cfg.dream_lock_path, conn=conn, holder="cli-route-checkpoint"
+        ).acquire():
+            key = fingerprint_key.load_or_create_fingerprint_key(cfg)
+            canonical = json.dumps(params.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+            request_fp = fingerprint_key.query_fingerprint(canonical, key=key)
+            existing = evidence_mod.load_event(cfg, event_id)
+            if existing is not None:
+                if existing.extra.get("checkpoint_request_hmac") != request_fp:
+                    raise IdempotencyKeyConflictError("checkpoint event identity is bound to another request")
+                event = existing
+            else:
+                outcome = router.route(
+                    cfg,
+                    conn,
+                    get_embedder(cfg),
+                    query=params.query,
+                    context=bind_retrieval.legacy_route_context(params.context),
+                    route_context=bind_retrieval.typed_route_context(params.context),
+                    server_policy=bind_retrieval._server_policy(
+                        cfg, bind_retrieval._active_policy_digest(cfg) or "policy-unavailable"
+                    ),
+                    k=params.k,
+                    session_id=params.session_id,
+                )
+                decision = outcome.decision
+                if decision is None or decision.status == "error":
+                    raise InvalidInputError("route did not yield a checkpointable decision")
+                ids = tuple(decision.selected_ids)
+                event = evidence_mod.EvidenceEvent(
+                    event_id=event_id,
+                    decision_id=decision.decision_id,
+                    event_type="decision",
+                    recorded_at=datetime.now(UTC).isoformat(),
+                    candidate_ids=ids,
+                    candidate_revisions=tuple(decision.selected_content_digests[i] for i in ids),
+                    chosen_action=ids[0] if ids else None,
+                    behavior_policy_id=decision.policy_id,
+                    behavior_policy_digest=decision.policy_digest,
+                    propensity=decision.propensity.get(ids[0] if ids else "__abstain__"),
+                    registry_fingerprint=decision.registry_digest,
+                    config_fingerprint=decision.config_digest,
+                    model_fingerprint=decision.model_digest,
+                    query_fingerprint=decision.query_fingerprint,
+                    source_tier=0,
+                    extra={
+                        "checkpoint_request_hmac": request_fp,
+                        "request_schema": "RouteInput/1",
+                        "status": decision.status,
+                    },
+                )
+            ack = evidence_mod.checkpoint(cfg, conn, event)
+            return {
+                "checkpoint": asdict(ack),
+                "decision_id": event.decision_id,
+                "selected_ids": list(event.candidate_ids),
+                "policy_digest": event.behavior_policy_digest,
+                "selected_content_digests": dict(
+                    zip(event.candidate_ids, event.candidate_revisions, strict=True)
+                ),
+            }
+    finally:
+        conn.close()

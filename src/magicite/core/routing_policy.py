@@ -137,13 +137,27 @@ def compute_policy_digest(
     else:
         raise InvalidInputError(f"unknown routing_policy {policy_id!r}")
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return bind_server_ceiling_digest(hashlib.sha256(canonical.encode("utf-8")).hexdigest(), cfg)
+
+
+def bind_server_ceiling_digest(base_digest: str, cfg: Config) -> str:
+    """Bind operator grants to effective identity while preserving empty-ceiling legacy pins."""
+    from magicite.core.context import normalize_grant_set
+
+    permissions = sorted(normalize_grant_set(cfg.allowed_permissions))
+    tools = sorted(normalize_grant_set(cfg.allowed_tools))
+    if not permissions and not tools:
+        return base_digest
+    payload = {"policy_digest": base_digest, "allowed_permissions": permissions, "allowed_tools": tools}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def compute_config_digest(cfg: Config) -> str:
     """Stable digest of config knobs that affect route selection semantics."""
     payload = {
         "routing_policy": cfg.routing_policy,
+        "allowed_permissions": sorted(cfg.allowed_permissions),
+        "allowed_tools": sorted(cfg.allowed_tools),
         "reranker_provider": cfg.reranker_provider,
         "reranker_timeout_s": cfg.reranker_timeout_s,
         "reranker_fallback": cfg.reranker_fallback,
