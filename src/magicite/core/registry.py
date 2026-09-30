@@ -32,12 +32,13 @@ import os
 import re
 import shutil
 import sqlite3
+import stat
 import time
 import unicodedata
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import numpy as np
@@ -308,7 +309,32 @@ def _resolve_scan_root(project_root: Path, path: str) -> Path:
 # Reserved registry subdirs (crash leftovers must never be ingestible).
 _IMPORT_STAGING_DIRNAME = ".import-staging"
 _PUBLISH_JOURNAL_NAME = "publish-journal.json"
+_QUARANTINE_DIRNAME = "quarantine"
 _RESERVED_REGISTRY_DIRNAMES = frozenset({_IMPORT_STAGING_DIRNAME})
+_SAFE_JOB_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _assert_safe_journal_member_path(name: str) -> PurePosixPath:
+    """Same containment rules as zip members (bundles._assert_safe_member_path)."""
+    from magicite.core.bundles import _assert_safe_member_path
+
+    return _assert_safe_member_path(name)
+
+
+def _assert_safe_job_id(job_id: str) -> str:
+    """Reject job ids that could introduce path separators or escapes."""
+    if not job_id or "\x00" in job_id or "/" in job_id or "\\" in job_id or ".." in job_id:
+        raise InvalidInputError(f"unsafe publish job_id rejected: {job_id!r}")
+    if not _SAFE_JOB_ID_RE.fullmatch(job_id):
+        raise InvalidInputError(f"unsafe publish job_id rejected: {job_id!r}")
+    return job_id
+
+
+def _sanitize_job_id(job_id: str) -> str:
+    try:
+        return _assert_safe_job_id(job_id)
+    except InvalidInputError:
+        return f"unsafe-{uuid.uuid4().hex[:16]}"
 
 
 def _is_reserved_registry_path(
@@ -331,6 +357,30 @@ def _is_reserved_registry_path(
     return False
 
 
+def _is_reserved_intake_path(path: Path | str, *, cfg: Config) -> bool:
+    """True for registry staging dirs or ``data_dir/quarantine/**`` debris."""
+    if _is_reserved_registry_path(path, registry_root=cfg.registry_dir):
+        return True
+    p = Path(path)
+    try:
+        resolved = p.resolve()
+    except OSError:
+        resolved = p
+    try:
+        resolved.relative_to((cfg.data_dir / _QUARANTINE_DIRNAME).resolve())
+        return True
+    except (ValueError, OSError):
+        pass
+    # Also catch relative spellings before resolve (e.g. mid-walk).
+    if _QUARANTINE_DIRNAME in p.parts:
+        try:
+            resolved.relative_to(cfg.data_dir.resolve())
+            return True
+        except (ValueError, OSError):
+            pass
+    return False
+
+
 def _iter_registry_files(registry_dir: Path, pattern: str) -> list[Path]:
     """rglob under the registry, skipping reserved staging / control dirs."""
     root = registry_dir.resolve()
@@ -343,13 +393,20 @@ def _iter_registry_files(registry_dir: Path, pattern: str) -> list[Path]:
     )
 
 
-def _discover_files(scan_root: Path, fmt: str) -> tuple[list[Path], list[Path]]:
+def _discover_files(
+    scan_root: Path, fmt: str, *, cfg: Config | None = None
+) -> tuple[list[Path], list[Path]]:
     """Returns (egr_files, skill_files) under ``scan_root``."""
+
+    def _reserved(p: Path) -> bool:
+        if cfg is not None:
+            return _is_reserved_intake_path(p, cfg=cfg)
+        return _is_reserved_registry_path(p)
+
     if scan_root.is_file():
-        if _is_reserved_registry_path(scan_root):
+        if _reserved(scan_root):
             raise InvalidInputError(
-                f"refusing reserved registry path under {_IMPORT_STAGING_DIRNAME}: "
-                f"{scan_root}"
+                f"refusing reserved path under staging/quarantine: {scan_root}"
             )
         if scan_root.suffix == ".md" and scan_root.name.endswith(".egr.md"):
             return [scan_root], []
@@ -357,17 +414,16 @@ def _discover_files(scan_root: Path, fmt: str) -> tuple[list[Path], list[Path]]:
             return [], [scan_root]
         raise InvalidInputError(f"{scan_root} is neither a .egr.md nor a SKILL.md file")
 
-    if _is_reserved_registry_path(scan_root):
+    if _reserved(scan_root):
         raise InvalidInputError(
-            f"refusing reserved registry path under {_IMPORT_STAGING_DIRNAME}: "
-            f"{scan_root}"
+            f"refusing reserved path under staging/quarantine: {scan_root}"
         )
 
     egr_files = (
         sorted(
             p
             for p in scan_root.rglob("*.egr.md")
-            if p.is_file() and not _is_reserved_registry_path(p)
+            if p.is_file() and not _reserved(p)
         )
         if fmt in ("auto", "egr")
         else []
@@ -376,7 +432,7 @@ def _discover_files(scan_root: Path, fmt: str) -> tuple[list[Path], list[Path]]:
         sorted(
             p
             for p in scan_root.rglob("SKILL.md")
-            if p.is_file() and not _is_reserved_registry_path(p)
+            if p.is_file() and not _reserved(p)
         )
         if fmt in ("auto", "skill")
         else []
@@ -733,7 +789,11 @@ def register(
     project_root = cfg.project_root.resolve()
     _ensure_registry_gitignore(cfg)
     scan_root = _resolve_scan_root(project_root, path)
-    egr_files, skill_files = _discover_files(scan_root, fmt)
+    if _is_reserved_intake_path(scan_root, cfg=cfg):
+        raise InvalidInputError(
+            f"refusing reserved path under staging/quarantine: {scan_root}"
+        )
+    egr_files, skill_files = _discover_files(scan_root, fmt, cfg=cfg)
 
     outcome = IngestOutcome()
     cross_lease = _cross_process_lease(cfg, conn, "register")
@@ -1286,12 +1346,21 @@ def _import_rollback_quarantine_root(cfg: Config) -> Path:
 
 def _quarantine_tree(cfg: Config, src: Path, *, job_id: str) -> Path:
     """Move ``src`` (file or dir) under quarantine/import-rollback/<job_id>/."""
-    dest_root = _import_rollback_quarantine_root(cfg) / job_id
+    safe_job = _sanitize_job_id(job_id)
+    dest_root = _import_rollback_quarantine_root(cfg) / safe_job
     dest_root.mkdir(parents=True, exist_ok=True)
     target = dest_root / src.name
     # Avoid clobbering a prior quarantine of the same name.
     if target.exists():
         target = dest_root / f"{src.name}.{uuid.uuid4().hex[:8]}"
+    # Containment: target must stay under quarantine root.
+    qroot = _import_rollback_quarantine_root(cfg).resolve()
+    try:
+        target.resolve(strict=False).relative_to(qroot)
+    except ValueError as exc:
+        raise InvalidInputError(
+            f"quarantine target escapes quarantine root: {target}"
+        ) from exc
     os.replace(src, target)
     _fsync_dir(dest_root)
     return target
@@ -1303,18 +1372,53 @@ def _quarantine_registry_member(
     *,
     rel: str,
     job_id: str,
-) -> Path | None:
-    """Move a published registry member into quarantine; never unlink."""
-    src = registry_root / rel
-    if not src.is_file():
-        return None
-    dest = _import_rollback_quarantine_root(cfg) / job_id / rel
+) -> tuple[Path | None, str | None]:
+    """Move a published registry member into quarantine; never unlink.
+
+    Returns ``(dest, None)`` on success or ``(None, reason)`` when the member
+    path fails containment / symlink checks (fail closed: leave in place).
+    """
+    try:
+        safe_rel = str(_assert_safe_journal_member_path(rel))
+        safe_job = _assert_safe_job_id(job_id)
+    except InvalidInputError as exc:
+        return None, f"left in place (unsafe path): {rel} ({exc})"
+
+    reg_root = registry_root.resolve()
+    src = (reg_root / safe_rel)
+    try:
+        src_resolved = src.resolve(strict=False)
+        src_resolved.relative_to(reg_root)
+    except (ValueError, OSError) as exc:
+        return None, f"left in place (escapes registry): {rel} ({exc})"
+
+    try:
+        st = src.lstat()
+    except OSError as exc:
+        return None, f"left in place (unreadable): {rel} ({exc})"
+    if stat.S_ISLNK(st.st_mode):
+        return None, f"left in place (symlink): {rel}"
+    if not stat.S_ISREG(st.st_mode):
+        return None, f"left in place (not a regular file): {rel}"
+
+    q_job = _import_rollback_quarantine_root(cfg).resolve() / safe_job
+    dest = q_job / safe_rel
+    try:
+        dest.resolve(strict=False).relative_to(q_job)
+    except ValueError as exc:
+        return None, f"left in place (quarantine escape): {rel} ({exc})"
+
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
         dest = dest.with_name(dest.name + f".{uuid.uuid4().hex[:8]}")
+        try:
+            dest.resolve(strict=False).relative_to(q_job)
+        except ValueError as exc:
+            return None, f"left in place (quarantine escape): {rel} ({exc})"
+
     os.replace(src, dest)
     _fsync_dir(dest.parent)
-    return dest
+    return dest, None
 
 
 def _compensate_published_members(
@@ -1329,12 +1433,19 @@ def _compensate_published_members(
 
     A member is moved only when: (i) not owned by a durable engram other than
     the aborted import's engrams, (ii) absent from the pre-import path index
-    snapshot, and (iii) live bytes still match the journal digest. Returns
+    snapshot, (iii) live bytes still match the journal digest, and (iv) the
+    path passes zip-member containment + non-symlink checks. Returns
     human-readable skip reasons for anything left in place.
     """
     from magicite.engram.digests import sha256_hex
 
     reports: list[str] = []
+    try:
+        safe_job = _assert_safe_job_id(job_id)
+    except InvalidInputError as exc:
+        reports.append(f"refusing compensation for unsafe job_id: {job_id!r} ({exc})")
+        return reports
+
     members = journal.get("members")
     if not isinstance(members, list):
         return reports
@@ -1352,14 +1463,26 @@ def _compensate_published_members(
             continue
         if member.get("pre_existing"):
             continue
-        rel = str(member.get("path", "")).replace("\\", "/")
-        if not rel:
+        rel_raw = str(member.get("path", ""))
+        if not rel_raw:
+            continue
+        try:
+            rel = str(_assert_safe_journal_member_path(rel_raw))
+        except InvalidInputError as exc:
+            reports.append(f"left in place (unsafe path): {rel_raw!r} ({exc})")
             continue
         if rel in pre_existing:
             reports.append(f"left in place (pre-existing snapshot): {rel}")
             continue
         dest = registry_root / rel
-        if not dest.is_file():
+        try:
+            st = dest.lstat()
+        except OSError:
+            continue
+        if stat.S_ISLNK(st.st_mode):
+            reports.append(f"left in place (symlink): {rel}")
+            continue
+        if not stat.S_ISREG(st.st_mode):
             continue
         expected = str(member.get("sha256", ""))
         try:
@@ -1376,7 +1499,11 @@ def _compensate_published_members(
                 f"left in place (owned by other engram {owner}): {rel}"
             )
             continue
-        _quarantine_registry_member(cfg, registry_root, rel=rel, job_id=job_id)
+        _moved, reason = _quarantine_registry_member(
+            cfg, registry_root, rel=rel, job_id=safe_job
+        )
+        if reason:
+            reports.append(reason)
     return reports
 
 
@@ -1399,17 +1526,17 @@ def _recover_incomplete_bundle_publishes(
     for job_dir in list(staging_root.iterdir()):
         if not job_dir.is_dir():
             continue
-        job_id = job_dir.name
+        job_id = _sanitize_job_id(job_dir.name)
         journal_path = job_dir / _PUBLISH_JOURNAL_NAME
         if not journal_path.is_file():
             _quarantine_tree(cfg, job_dir, job_id=f"{job_id}-no-journal")
-            reports.append(f"quarantined staging job without journal: {job_id}")
+            reports.append(f"quarantined staging job without journal: {job_dir.name}")
             continue
         journal = _load_publish_journal(journal_path)
         if journal is None or not _verify_publish_journal(cfg, journal):
             _quarantine_tree(cfg, job_dir, job_id=f"{job_id}-unauth")
             reports.append(
-                f"quarantined unauthenticated/corrupt publish journal: {job_id}"
+                f"quarantined unauthenticated/corrupt publish journal: {job_dir.name}"
             )
             continue
         if journal.get("complete") is True:
@@ -1474,16 +1601,22 @@ def import_bundle(
         )
 
         # Stage under the registry root; publish only after checks + re-hash.
-        job_id = uuid.uuid4().hex
+        job_id = _assert_safe_job_id(uuid.uuid4().hex)
         publish_staging = registry_root / _IMPORT_STAGING_DIRNAME / job_id
         journal_members: list[dict[str, Any]] = []
         aborted_engram_ids: list[str] = []
         journal_body: dict[str, Any] | None = None
         try:
             for entry in verified.manifest.entries:
-                rel = entry.path.replace("\\", "/")
+                rel = str(_assert_safe_journal_member_path(entry.path))
                 src = verified.staging_dir / rel
                 staged = publish_staging / rel
+                try:
+                    staged.resolve(strict=False).relative_to(publish_staging.resolve())
+                except ValueError as exc:
+                    raise InvalidInputError(
+                        f"bundle member escapes publish staging: {rel!r}"
+                    ) from exc
                 staged.parent.mkdir(parents=True, exist_ok=True)
                 raw = src.read_bytes()
                 # TOCTOU: re-hash staged bytes against the verified manifest.
@@ -1506,12 +1639,19 @@ def import_bundle(
                         if eid is not None:
                             aborted_engram_ids.append(eid)
 
+            # Re-validate every journal + pre-existing path before signing.
+            for member in journal_members:
+                _assert_safe_journal_member_path(str(member["path"]))
+            safe_pre_existing = [
+                str(_assert_safe_journal_member_path(p)) for p in pre_existing_paths
+            ]
+
             journal_body = {
                 "schema": "BundlePublishJournal/1",
                 "bundle_id": verified.manifest_digest or job_id,
                 "complete": False,
                 "members": journal_members,
-                "pre_existing_paths": pre_existing_paths,
+                "pre_existing_paths": safe_pre_existing,
                 "aborted_engram_ids": aborted_engram_ids,
             }
 
@@ -1521,8 +1661,8 @@ def import_bundle(
 
             staged_egr: list[Path] = []
             for entry in verified.manifest.entries:
-                rel = entry.path.replace("\\", "/")
-                dest = (registry_root / rel).resolve()
+                rel = str(_assert_safe_journal_member_path(entry.path))
+                dest = (registry_root / rel).resolve(strict=False)
                 try:
                     dest.relative_to(registry_root)
                 except ValueError as exc:
@@ -1533,6 +1673,15 @@ def import_bundle(
                     if rel.endswith(".egr.md"):
                         staged_egr.append(dest)
                     continue
+                # Refuse to publish through a symlink at the destination.
+                if dest.exists() or dest.is_symlink():
+                    try:
+                        if dest.is_symlink() or stat.S_ISLNK(dest.lstat().st_mode):
+                            raise InvalidInputError(
+                                f"refusing to publish onto symlink destination: {rel!r}"
+                            )
+                    except FileNotFoundError:
+                        pass
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(publish_staging / rel, dest)
                 if rel.endswith(".egr.md"):

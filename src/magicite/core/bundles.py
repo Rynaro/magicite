@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import tempfile
+import unicodedata
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -198,9 +199,11 @@ SequenceTrustRoots = list[TrustRoot] | tuple[TrustRoot, ...]
 
 
 def _assert_safe_member_path(name: str) -> PurePosixPath:
-    """Reject zip-slip, absolute paths, drive letters, UNC, and backslash escapes."""
+    """Reject zip-slip, absolute paths, drive letters, UNC, NUL, and non-NFC paths."""
     if not name or name.endswith("/"):
         raise InvalidInputError(f"unsafe archive member path {name!r}")
+    if "\x00" in name:
+        raise InvalidInputError(f"NUL in archive member path rejected: {name!r}")
     if "\\" in name:
         raise InvalidInputError(f"archive member path must use POSIX separators: {name!r}")
     if name.startswith("/") or name.startswith("\\"):
@@ -210,6 +213,10 @@ def _assert_safe_member_path(name: str) -> PurePosixPath:
         raise InvalidInputError(f"drive-letter archive member path rejected: {name!r}")
     if name.startswith("//") or name.startswith("\\\\"):
         raise InvalidInputError(f"UNC-style archive member path rejected: {name!r}")
+    # Require NFC; reject other Unicode normal forms / non-ASCII for V1.
+    nfc = unicodedata.normalize("NFC", name)
+    if nfc != name:
+        raise InvalidInputError(f"non-NFC archive member path rejected: {name!r}")
     posix = PurePosixPath(name)
     if posix.is_absolute() or ".." in posix.parts or posix.parts[0] == "":
         raise InvalidInputError(f"path escape rejected for archive member: {name!r}")
