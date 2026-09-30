@@ -120,6 +120,7 @@ class CustodyProfile:
     client_uid: int
     public_key: str
     profile_path: Path | None = None
+    transition: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -138,14 +139,28 @@ class CustodyProfile:
             raise CustodianError("invalid custodian public pin") from exc
 
     @classmethod
-    def load(cls, path: Path, *, expected_owner_uid: int) -> CustodyProfile:
+    def load(cls, path: Path, *, expected_owner_uid: int, maintenance: bool = False) -> CustodyProfile:
         # The expected owner comes from the protected deployment entrypoint, never
         # from the unverified profile itself or from a registry-local setting.
         protected_path(path, expected_owner_uid)
         try:
             data = json.loads(path.read_bytes())
-            if data.get("state") != "ACTIVE":
+            pending = data.get("state") == "ROTATION_PENDING"
+            if data.get("state") not in {"ACTIVE", "ROTATION_PENDING"} or (pending and not maintenance):
                 raise CustodianError("custody maintenance requires reconciliation")
+            transition = data.get("transition") if pending else None
+            if pending:
+                from magicite.core.trust_rotation import verify_transition
+
+                if not isinstance(transition, dict):
+                    raise CustodianError("missing protected transition")
+                body = verify_transition(transition)
+                if (
+                    body["registry_id"] != data["registry_id"]
+                    or body["old_epoch"] != data["epoch"]
+                    or body["old_public_key"] != data["public_key"]
+                ):
+                    raise CustodianError("pending custody transition mismatch")
             profile = cls(
                 registry_id=data["registry_id"],
                 epoch=data["epoch"],
@@ -154,6 +169,7 @@ class CustodyProfile:
                 client_uid=data["client_uid"],
                 public_key=data["public_key"],
                 profile_path=path,
+                transition=transition,
             )
             if (expected_owner_uid != 0 and profile.custodian_uid != expected_owner_uid) or data[
                 "minimum_epoch"
@@ -165,7 +181,7 @@ class CustodyProfile:
             raise CustodianError("protected custody profile unavailable") from exc
 
     @classmethod
-    def from_enrollment(cls, path: Path, *, project_root: Path) -> CustodyProfile:
+    def from_enrollment(cls, path: Path, *, project_root: Path, maintenance: bool = False) -> CustodyProfile:
         """Root enrollment delegates only a pinned identity to mutable custody."""
         protected_path(path, 0)
         try:
@@ -188,7 +204,9 @@ class CustodyProfile:
             ):
                 raise CustodianError("invalid protected enrollment descriptor")
             profile = cls.load(
-                Path(descriptor["profile_path"]), expected_owner_uid=descriptor["custodian_uid"]
+                Path(descriptor["profile_path"]),
+                expected_owner_uid=descriptor["custodian_uid"],
+                maintenance=maintenance,
             )
             if any(
                 getattr(profile, key) != descriptor[key]
@@ -199,10 +217,10 @@ class CustodyProfile:
         except (OSError, ValueError, TypeError, KeyError, RecursionError) as exc:
             raise CustodianError("protected custody enrollment unavailable") from exc
 
-    def refresh(self) -> CustodyProfile:
+    def refresh(self, *, maintenance: bool = False) -> CustodyProfile:
         if self.profile_path is None:
             return self
-        current = self.load(self.profile_path, expected_owner_uid=self.custodian_uid)
+        current = self.load(self.profile_path, expected_owner_uid=self.custodian_uid, maintenance=maintenance)
         if (current.registry_id, current.custodian_uid, current.client_uid, current.socket_path) != (
             self.registry_id,
             self.custodian_uid,
@@ -412,15 +430,21 @@ class CustodianClient:
 class CustodianService:
     """One bounded request per connection; caller runs this as custodian UID.
 
-    Enrollment and key/profile maintenance are administrative store operations,
-    deliberately absent from this application socket's dispatch allowlist.
+    Enrollment remains an administrative store operation. Explicit rotation
+    control is available only to the kernel-authenticated enrolled client UID;
+    keys and protected profile updates stay on the custodian side.
     """
 
     def __init__(self, store: CustodianStore, profile: CustodyProfile):
         self.store, self.profile = store, profile
 
+    def rotation_operation(self, operation: str, arguments: dict[str, Any]) -> Any:
+        from magicite.core.trust_rotation_service import rotation_operation
+
+        return rotation_operation(self, operation, arguments)
+
     def handle(self, connection: socket.socket) -> None:
-        profile = self.profile.refresh()
+        profile = self.profile.refresh(maintenance=True)
         self.profile = profile
         if os.getuid() != profile.custodian_uid:
             raise CustodianError("custodian service identity mismatch")
@@ -453,15 +477,26 @@ class CustodianService:
         }
         try:
             operation = request["operation"]
-            if operation not in dispatch or not isinstance(request.get("arguments"), dict):
+            from magicite.core.trust_rotation_service import ROTATION_OPERATIONS
+
+            if operation not in dispatch and operation not in ROTATION_OPERATIONS:
                 raise CustodianError("unsupported custody operation")
-            payload["result"] = dispatch[operation](profile.registry_id, **request["arguments"])
+            from magicite.core.trust_rotation_service import ROTATION_OPERATIONS
+
+            if operation in ROTATION_OPERATIONS:
+                payload["result"] = self.rotation_operation(operation, request["arguments"])
+            else:
+                if profile.transition is not None:
+                    raise CustodianError("custody maintenance requires reconciliation")
+                payload["result"] = dispatch[operation](profile.registry_id, **request["arguments"])
         except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
             payload["error"] = "reconciliation_required"
-        send_message(connection, sign_receipt(self.store.signing_key, payload), deadline=deadline)
+        send_message(
+            connection, sign_receipt(self.store.signer_for(profile.registry_id), payload), deadline=deadline
+        )
 
     def serve(self) -> None:
-        profile = self.profile.refresh()
+        profile = self.profile.refresh(maintenance=True)
         self.profile = profile
         if os.getuid() != profile.custodian_uid:
             raise CustodianError("custodian service identity mismatch")
