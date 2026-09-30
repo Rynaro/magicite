@@ -263,6 +263,32 @@ def test_policy_reapplication(project_root: Path, tmp_path: Path) -> None:
         conn.close()
 
 
+def test_snapshot_refuses_corrupt_tombstones(project_root: Path, tmp_path: Path) -> None:
+    """Corrupt live tombstones abort the snapshot instead of binding empty known sets."""
+    cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    cfg.ensure_dirs()
+    conn = db_mod.connect(cfg.db_path)
+    try:
+        _seed_registry(cfg, conn)
+        key = fk.load_or_create_fingerprint_key(cfg)
+        event = _decision_event(
+            event_id="ev_corrupt_snap",
+            decision_id="dec_corrupt_snap",
+            query_fingerprint=fk.query_fingerprint("corrupt", key=key),
+        )
+        evidence_mod.checkpoint(cfg, conn, event)
+        evidence_mod.delete_event(cfg, conn, event.event_id, reason="privacy", actor="op")
+        tomb = evidence_mod.evidence_dir(cfg) / "tombstones.jsonl"
+        tomb.write_text(tomb.read_text(encoding="utf-8") + "{truncated\n", encoding="utf-8")
+
+        backup_dir = tmp_path / "backup-corrupt"
+        with pytest.raises(InvalidInputError):
+            backup_mod.create_snapshot(cfg, conn, backup_dir)
+        assert not (backup_dir / "manifest.json").exists()
+    finally:
+        conn.close()
+
+
 def test_poison_live_overlay_refuses_preserve(project_root: Path, tmp_path: Path) -> None:
     """B3: truncating tombstones / deleting revoke without key → refuse preserve."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})

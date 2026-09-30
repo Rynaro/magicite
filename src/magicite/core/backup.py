@@ -880,22 +880,20 @@ def _overlay_known_sets(overlay: RecoveryOverlay) -> tuple[frozenset[str], froze
 
 
 def _collect_live_known_sets(cfg: Config) -> tuple[frozenset[str], frozenset[str]]:
-    """Best-effort live id sets for backup manifests (fail closed on corrupt reads)."""
+    """Live id sets for backup manifests.
+
+    Corrupt trust or tombstone reads propagate so the snapshot aborts rather
+    than binding empty known sets that would disable anti-shrink on restore.
+    """
     revokes: set[str] = set()
     deletions: set[str] = set()
-    try:
-        for d in trust_mod.list_decisions(cfg):
-            if d.decision == "revoke" and d.decision_id:
-                revokes.add(d.decision_id)
-    except trust_mod.TrustLedgerCorruptError:
-        pass
-    try:
-        for row in evidence_mod.load_verified_tombstones(cfg):
-            tid = str(row.get("tombstone_id") or "") or str(row.get("target_event_id") or "")
-            if tid:
-                deletions.add(tid)
-    except InvalidInputError:
-        pass
+    for d in trust_mod.list_decisions(cfg):
+        if d.decision == "revoke" and d.decision_id:
+            revokes.add(d.decision_id)
+    for row in evidence_mod.load_verified_tombstones(cfg):
+        tid = str(row.get("tombstone_id") or "") or str(row.get("target_event_id") or "")
+        if tid:
+            deletions.add(tid)
     return frozenset(revokes), frozenset(deletions)
 
 
@@ -1114,9 +1112,10 @@ def create_snapshot(
                     "for S07 merge"
                 ),
                 "anti_shrink": (
-                    "known_revocation_ids / known_deletion_ids are authenticated via "
-                    "manifest sha256; preserve/activate refuses live_overlay_shrunk "
-                    "when the live overlay lacks any bound id"
+                    "known_revocation_ids / known_deletion_ids are bound into this "
+                    "archive under operator custody (integrity, not HMAC); only the "
+                    "activation seal HMAC-authenticates them. preserve/activate refuses "
+                    "live_overlay_shrunk when the live overlay lacks any known id"
                 ),
             },
         }
