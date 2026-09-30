@@ -6,10 +6,10 @@ Framework-free (INV-1), read-only. No runtime subprocess or network.
   one snapshot/eligibility policy. Cycles, budget exhaustion, conflicts,
   dangling requires, ambiguity, and denied nodes yield ``status=invalid``
   with **no executable prefix**.
-* **Legacy** — :func:`expand` / :func:`plan_confidence` remain for S07 router
-  callers until S07 switches. Legacy cycle-breaking order is retained for
-  diagnostics only when surfaced via :attr:`Plan.legacy_order`; it is never
-  marked executable under Plan/1.
+* **Legacy** — :func:`expand` / :func:`plan_confidence` remain for eval/bench
+  callers (circular Plan-F1 diagnostics). The stable ``route()`` path uses
+  :func:`compose` only. Legacy cycle-breaking order may appear on
+  :attr:`Plan.legacy_order` for diagnostics; it is never marked executable.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from magicite.core.context import RouteContext, ServerPermissionPolicy
 from magicite.core.eligibility import (
     REASON_BUDGET_EXCEEDED,
     REASON_CONFLICT,
+    REASON_CONTEXT_REQUIRED,
     REASON_CYCLE,
     REASON_DANGLING_DEPENDENCY,
     REASON_VERSION_MISMATCH,
@@ -70,7 +71,7 @@ TrustViewFn = Callable[[str], TrustDecisionView]
 
 
 # ---------------------------------------------------------------------------
-# Legacy expand (S07 router callers — unchanged contract)
+# Legacy expand (eval/bench only — not on the stable route() path)
 # ---------------------------------------------------------------------------
 
 
@@ -829,10 +830,23 @@ def _revalidate_node(
         path="dependency",
         expected_content_digest=node.content_digest,
     )
-    diags: list[PlanDiagnostic] = [
-        PlanDiagnostic(code=code, message=f"eligibility denied: {code}", subject_id=node.id)
-        for code in result.reason_codes
-    ]
+    diags: list[PlanDiagnostic] = []
+    for code in result.reason_codes:
+        # C2: surface missing context fields on context_required so route()
+        # can abstain without silently bypassing new constraints (S07 wire-up).
+        related = (
+            tuple(result.missing_fields)
+            if code == REASON_CONTEXT_REQUIRED and result.missing_fields
+            else ()
+        )
+        diags.append(
+            PlanDiagnostic(
+                code=code,
+                message=f"eligibility denied: {code}",
+                subject_id=node.id,
+                related_ids=related,
+            )
+        )
     return result.eligible, diags, result.unsatisfied_artifacts
 
 

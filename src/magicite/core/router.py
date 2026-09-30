@@ -61,7 +61,7 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -90,7 +90,7 @@ from magicite.engram import ids as ids_mod
 from magicite.engram import parser as parser_mod
 from magicite.engram.assets import validate_assets
 from magicite.engram.model import ROUTABLE_STATUSES, Engram
-from magicite.engram.model_v1 import EngramV1
+from magicite.engram.model_v1 import EngramRevisionRef, EngramV1, Relations
 from magicite.errors import InvalidInputError
 from magicite.storage import ephemeral as ephemeral_mod
 
@@ -98,6 +98,10 @@ INTENT_TRUNCATE = 200
 CONTRAINDICATION_VIEW_SCHEMA = "magicite-contraindication-view/1"
 ROUTE_DECISION_SCHEMA = "RouteDecision/1"
 EXPLANATION_VERSION = "RouteExplanation/1"
+#: Bound on composition diagnostic codes folded into RouteDecision.reason_codes.
+_COMPOSITION_REASON_BOUND = 8
+REASON_COMPOSITION_INVALID = "composition_invalid"
+REASON_COMPOSITION_ERROR = "composition_error"
 
 #: Default server permission ceiling when the caller does not supply one.
 #: Unconstrained subjects (no required permissions/tools) remain eligible;
@@ -182,6 +186,8 @@ class RouteDecision:
     default_local_authorship_policy: bool = True
     #: Where the selected policy id came from (store vs fresh-install cfg).
     policy_source: Literal["store", "config_fresh_install"] | None = None
+    #: Plan/1 identity digest when composition succeeded (None on abstain/error).
+    plan_digest: str | None = None
     schema_version: str = ROUTE_DECISION_SCHEMA
 
 
@@ -258,10 +264,11 @@ def expand_composition(
     max_size: int,
     declared_edge_strength: float,
 ) -> composition_mod.CompositionPlan:
-    """Composition seam for S08: swap this body for ``compose()`` later.
+    """Retired from the stable ``route()`` path — use :func:`compose_route_plan`.
 
-    Invalid plans from a future ``compose()`` must abstain; today's
-    ``expand()`` always returns a plan (cycle-broken if needed).
+    Kept as a thin legacy wrapper for any external callers that still expect
+    Kahn ``expand()`` behaviour. Prefer :func:`magicite.core.composition.expand`
+    directly for eval/bench gold.
     """
     return composition_mod.expand(
         conn,
@@ -270,6 +277,291 @@ def expand_composition(
         max_depth=max_depth,
         max_size=max_size,
         declared_edge_strength=declared_edge_strength,
+    )
+
+
+@dataclass(frozen=True)
+class _ComposeRouteResult:
+    """Internal outcome of wiring Plan/1 into RouteOutcome composition fields."""
+
+    ok: bool
+    order_names: tuple[str, ...] = ()
+    plan_confidence: float = 0.0
+    plan_digest: str | None = None
+    reason_codes: tuple[str, ...] = ()
+    missing_context: tuple[str, ...] = ()
+
+
+def _compose_limits(cfg: Config) -> composition_mod.CompositionLimits:
+    """Map router knobs onto compose limits without loosening S08 defaults."""
+    return composition_mod.CompositionLimits(
+        max_nodes=min(int(cfg.plan_max_size), composition_mod.DEFAULT_MAX_NODES),
+        max_edges=composition_mod.DEFAULT_MAX_EDGES,
+        max_depth=min(int(cfg.plan_max_depth), composition_mod.DEFAULT_MAX_DEPTH),
+    )
+
+
+def _plan_identity_digest(plan: composition_mod.Plan) -> str:
+    """Stable digest of Plan/1 identity fields (no opaque timings)."""
+    payload = {
+        "schema_version": plan.schema_version,
+        "status": plan.status,
+        "topological_order": list(plan.topological_order),
+        "nodes": [
+            {
+                "engram_id": n.engram_id,
+                "version": n.version,
+                "content_digest": n.content_digest,
+            }
+            for n in plan.nodes
+        ],
+        "edges": [
+            {
+                "type": e.type,
+                "src_id": e.src_id,
+                "dst_id": e.dst_id,
+                "optional": e.optional,
+                "capability_id": e.capability_id,
+            }
+            for e in plan.edges
+        ],
+        "snapshot_id": plan.snapshot_id,
+        "policy_id": plan.policy_id,
+        "policy_digest": plan.policy_digest,
+        "diagnostics": [d.code for d in plan.diagnostics],
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _legacy_requires_refs(
+    conn: sqlite3.Connection, engram_id: str
+) -> tuple[list[EngramRevisionRef], bool]:
+    """Bridge declared depends_on/composes DB edges → relations.requires.
+
+    Returns ``(refs, has_dangling)``. Dangling targets cannot form a valid
+    EngramRevisionRef pin; callers must abstain (C5).
+    """
+    placeholders = ",".join("?" for _ in composition_mod.PLAN_EDGE_TYPES)
+    rows = conn.execute(
+        f"""
+        SELECT e.dst_id, e.dst_name, e.dangling, d.version AS dst_version
+        FROM edge e
+        LEFT JOIN engram d ON d.id = e.dst_id
+        WHERE e.src_id = ? AND e.type IN ({placeholders})
+        ORDER BY e.dst_name
+        """,
+        (engram_id, *composition_mod.PLAN_EDGE_TYPES),
+    ).fetchall()
+    refs: list[EngramRevisionRef] = []
+    has_dangling = False
+    for row in rows:
+        if row["dangling"] or row["dst_id"] is None:
+            has_dangling = True
+            continue
+        version = int(row["dst_version"] or 1)
+        refs.append(EngramRevisionRef(id=str(row["dst_id"]), version=version))
+    return refs, has_dangling
+
+
+def _subject_for_composition(
+    subject: eligibility_mod.EligibilitySubject,
+    conn: sqlite3.Connection,
+    engram_id: str,
+) -> tuple[eligibility_mod.EligibilitySubject, bool]:
+    """Attach legacy edge requires when the artifact has no V1 relations.requires."""
+    existing = (
+        list(subject.relations.requires)
+        if subject.relations is not None and subject.relations.requires
+        else []
+    )
+    if existing:
+        return subject, False
+    refs, has_dangling = _legacy_requires_refs(conn, engram_id)
+    if not refs and not has_dangling:
+        return subject, False
+    prior = subject.relations
+    new_relations = Relations(
+        requires=refs,
+        before=list(prior.before) if prior is not None else [],
+        supersedes=list(prior.supersedes) if prior is not None else [],
+    )
+    return replace(subject, relations=new_relations), has_dangling
+
+
+def _row_by_engram_id(
+    conn: sqlite3.Connection, engram_id: str
+) -> sqlite3.Row | None:
+    return conn.execute(
+        """
+        SELECT id, name, path, version, status, origin, verification_status,
+               content_sha256, identity_sha256
+        FROM engram WHERE id = ?
+        """,
+        (engram_id,),
+    ).fetchone()
+
+
+def compose_route_plan(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    winner_id: str,
+    winner_name: str,
+    route_context: RouteContext,
+    server_policy: ServerPermissionPolicy,
+    policy_id: str,
+    policy_digest: str,
+    snapshot_id: str | None,
+) -> _ComposeRouteResult:
+    """Stable-route composition: Plan/1 ``compose()`` only (never ``expand()``).
+
+    Invalid / exceptional plans abstain — never a partial or truncated order.
+    """
+    limits = _compose_limits(cfg)
+
+    try:
+        decisions = _trust_decisions_by_engram(cfg)
+    except trust_mod.TrustLedgerCorruptError:
+        return _ComposeRouteResult(
+            ok=False,
+            reason_codes=(REASON_COMPOSITION_INVALID, eligibility_mod.REASON_UNTRUSTED_ORIGIN),
+        )
+
+    nodes: dict[str, composition_mod.CompositionNode] = {}
+    id_to_name: dict[str, str] = {winner_id: winner_name}
+    frontier: list[tuple[str, int]] = [(winner_id, 0)]
+    seen = {winner_id}
+
+    while frontier:
+        eid, depth = frontier.pop(0)
+        row = _row_by_engram_id(conn, eid)
+        if row is None:
+            return _ComposeRouteResult(
+                ok=False,
+                reason_codes=(
+                    REASON_COMPOSITION_INVALID,
+                    eligibility_mod.REASON_DANGLING_DEPENDENCY,
+                ),
+            )
+        id_to_name[eid] = str(row["name"])
+        try:
+            subject = _build_subject_from_row(cfg, row)
+            subject, dangling = _subject_for_composition(subject, conn, eid)
+        except _SubjectProjectionDenied as denied:
+            return _ComposeRouteResult(
+                ok=False,
+                reason_codes=(
+                    REASON_COMPOSITION_INVALID,
+                    *denied.reason_codes[:_COMPOSITION_REASON_BOUND],
+                ),
+            )
+        except Exception:
+            return _ComposeRouteResult(
+                ok=False,
+                reason_codes=(REASON_COMPOSITION_ERROR, "composition_subject_error"),
+            )
+        if dangling:
+            return _ComposeRouteResult(
+                ok=False,
+                reason_codes=(
+                    REASON_COMPOSITION_INVALID,
+                    eligibility_mod.REASON_DANGLING_DEPENDENCY,
+                ),
+            )
+        nodes[eid] = composition_mod.CompositionNode(
+            subject=subject,
+            content_digest=str(row["content_sha256"] or ""),
+            procedure_ref=str(row["path"]) if row["path"] else None,
+        )
+
+        # Seed transitive requires into the snapshot so compose can distinguish
+        # dangling vs budget (C5). Compose itself enforces depth/node limits.
+        requires = (
+            list(subject.relations.requires)
+            if subject.relations is not None
+            else []
+        )
+        for ref in requires:
+            if ref.id in seen:
+                continue
+            # Hard failsafe only — never looser than 2× S08 node default.
+            if len(seen) >= composition_mod.DEFAULT_MAX_NODES * 2:
+                continue
+            seen.add(ref.id)
+            frontier.append((ref.id, depth + 1))
+
+    snap = composition_mod.CompositionSnapshot(
+        snapshot_id=snapshot_id or "snapshot_unpinned",
+        policy_id=policy_id,
+        policy_digest=policy_digest,
+        nodes=nodes,
+    )
+
+    def trust_view(engram_id: str) -> trust_mod.TrustDecisionView:
+        row = _row_by_engram_id(conn, engram_id)
+        if row is None:
+            raise KeyError(engram_id)
+        return _route_trust_view(cfg, row, cached_decision=decisions.get(engram_id))
+
+    try:
+        plan = composition_mod.compose(
+            [winner_id],
+            route_context,
+            snap,
+            limits,
+            server_policy=server_policy,
+            trust_view=trust_view,
+        )
+    except Exception:
+        return _ComposeRouteResult(
+            ok=False,
+            reason_codes=(REASON_COMPOSITION_ERROR,),
+        )
+
+    if plan.status != "valid" or not plan.structurally_valid or not plan.executable:
+        diag_codes = list(
+            dict.fromkeys(d.code for d in plan.diagnostics if d.code)
+        )[:_COMPOSITION_REASON_BOUND]
+        missing: list[str] = []
+        for d in plan.diagnostics:
+            if d.code == eligibility_mod.REASON_CONTEXT_REQUIRED:
+                missing.extend(d.related_ids)
+        reasons = list(
+            dict.fromkeys([REASON_COMPOSITION_INVALID, *diag_codes])
+        )[: _COMPOSITION_REASON_BOUND + 1]
+        return _ComposeRouteResult(
+            ok=False,
+            reason_codes=tuple(reasons),
+            missing_context=tuple(dict.fromkeys(missing)),
+            plan_digest=_plan_identity_digest(plan),
+        )
+
+    order_names: list[str] = []
+    for eid in plan.topological_order:
+        name = id_to_name.get(eid)
+        if name is None:
+            row = _row_by_engram_id(conn, eid)
+            if row is None:
+                return _ComposeRouteResult(
+                    ok=False,
+                    reason_codes=(
+                        REASON_COMPOSITION_INVALID,
+                        eligibility_mod.REASON_DANGLING_DEPENDENCY,
+                    ),
+                )
+            name = str(row["name"])
+            id_to_name[eid] = name
+        order_names.append(name)
+
+    # Downstream CompositionPlan confidence: valid Plan/1 ⇒ fully satisfied.
+    adapted = composition_mod.CompositionPlan(order=list(order_names))
+    confidence = composition_mod.plan_confidence(adapted)
+    return _ComposeRouteResult(
+        ok=True,
+        order_names=tuple(order_names),
+        plan_confidence=confidence,
+        plan_digest=_plan_identity_digest(plan),
     )
 
 
@@ -727,6 +1019,7 @@ def semantic_decision_fields(decision: RouteDecision) -> dict[str, Any]:
         "operational_error": decision.operational_error,
         "default_local_authorship_policy": decision.default_local_authorship_policy,
         "policy_source": decision.policy_source,
+        "plan_digest": decision.plan_digest,
         "schema_version": decision.schema_version,
     }
 
@@ -1215,6 +1508,8 @@ def route(
             schema_digest=schema_d,
             tokenizer_digest=tok_d,
             policy_source=policy_source,
+            route_context=rctx,
+            server_policy=spolicy,
         )
 
     if policy_id == policy_mod.POLICY_DENSE_V1:
@@ -1326,15 +1621,20 @@ def _finalize_route(
     schema_digest: str | None = None,
     tokenizer_digest: str | None = None,
     policy_source: Literal["store", "config_fresh_install"] | None = None,
+    route_context: RouteContext | None = None,
+    server_policy: ServerPermissionPolicy | None = None,
 ) -> RouteOutcome:
     key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
     query_fp = fingerprint_key_mod.query_fingerprint(query, key=key)
     cfg_digest = config_digest or policy_mod.compute_config_digest(cfg)
     missing = list(missing_context or [])
     missing.extend(unresolved_context)
+    rctx = route_context if route_context is not None else RouteContext()
+    spolicy = server_policy if server_policy is not None else DEFAULT_SERVER_POLICY
 
     composition_plan: list[str] = []
     plan_confidence = 0.0
+    plan_digest: str | None = None
     final_candidates = list(candidates)
     final_status: Literal["selected", "abstained", "error"]
     final_reasons = list(reason_codes)
@@ -1384,18 +1684,31 @@ def _finalize_route(
             if "no_eligible_candidate" not in final_reasons and not operational_error:
                 final_reasons.append("no_eligible_candidate")
         else:
-            final_status = "selected"
             winner = final_candidates[0]
-            plan = expand_composition(
+            composed = compose_route_plan(
+                cfg,
                 conn,
-                winner.id,
-                winner.name,
-                max_depth=cfg.plan_max_depth,
-                max_size=cfg.plan_max_size,
-                declared_edge_strength=cfg.declared_edge_strength,
+                winner_id=winner.id,
+                winner_name=winner.name,
+                route_context=rctx,
+                server_policy=spolicy,
+                policy_id=policy_id,
+                policy_digest=policy_digest,
+                snapshot_id=snapshot_id,
             )
-            composition_plan = plan.order
-            plan_confidence = composition_mod.plan_confidence(plan)
+            if not composed.ok:
+                final_status = "abstained"
+                final_candidates = []
+                composition_plan = []
+                plan_confidence = 0.0
+                plan_digest = composed.plan_digest
+                final_reasons.extend(composed.reason_codes)
+                missing.extend(composed.missing_context)
+            else:
+                final_status = "selected"
+                composition_plan = list(composed.order_names)
+                plan_confidence = composed.plan_confidence
+                plan_digest = composed.plan_digest
 
     # Deterministic propensity under a nonadaptive policy.
     propensity: dict[str, float] = {}
@@ -1442,6 +1755,7 @@ def _finalize_route(
         operational_error=operational_error,
         default_local_authorship_policy=bool(cfg.default_local_authorship_admission),
         policy_source=policy_source,
+        plan_digest=plan_digest,
     )
 
     # step 11: Tier-C bookkeeping ONLY -- R and S are never touched here (Principle 1).
@@ -1540,6 +1854,8 @@ def _route_dense_v1(
             schema_digest=schema_digest,
             tokenizer_digest=tokenizer_digest,
             policy_source=policy_source,
+            route_context=route_context,
+            server_policy=server_policy,
         )
 
     node_ids: list[str] = []
@@ -1622,6 +1938,8 @@ def _route_dense_v1(
         schema_digest=schema_digest,
         tokenizer_digest=tokenizer_digest,
         policy_source=policy_source,
+        route_context=route_context,
+        server_policy=server_policy,
     )
 
 
@@ -1686,6 +2004,8 @@ def _route_adaptive_blend_v1(
             schema_digest=schema_digest,
             tokenizer_digest=tokenizer_digest,
             policy_source=policy_source,
+            route_context=route_context,
+            server_policy=server_policy,
         )
 
     now = datetime.now(UTC).isoformat()
@@ -1869,6 +2189,8 @@ def _route_adaptive_blend_v1(
         schema_digest=schema_digest,
         tokenizer_digest=tokenizer_digest,
         policy_source=policy_source,
+        route_context=route_context,
+        server_policy=server_policy,
     )
 
 
