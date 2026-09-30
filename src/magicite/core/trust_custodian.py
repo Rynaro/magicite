@@ -36,7 +36,7 @@ def _bytes(value: Any) -> bytes:
         encoded = json.dumps(
             value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
         ).encode()
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, RecursionError) as exc:
         raise CustodianError("invalid authority value") from exc
     if len(encoded) > MAX_PAYLOAD:
         raise CustodianError("authority value exceeds limit")

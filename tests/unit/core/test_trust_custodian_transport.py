@@ -258,3 +258,21 @@ def test_acl_inspection_rejects_extended_grant(tmp_path):
         # The ordinary no-ACL path above is real; ACL deployment qualification
         # requires its separate provisioned Linux job, not a fabricated grant.
         assert "system.posix_acl_access" not in os.listxattr(path)
+
+
+def test_parser_recursion_is_normalized_to_redacted_protocol_error(monkeypatch):
+    from magicite.core import trust_custodian_transport as transport
+
+    a, b = socket.socketpair()
+
+    def exhausted_parser(*args, **kwargs):
+        raise RecursionError("nested adversarial JSON")
+
+    b.sendall((2).to_bytes(4, "big") + b"{}")
+    monkeypatch.setattr(transport.json, "loads", exhausted_parser)
+    try:
+        with pytest.raises(CustodianError):
+            transport.receive_frame(a)
+    finally:
+        a.close()
+        b.close()

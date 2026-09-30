@@ -130,7 +130,7 @@ class CustodyProfile:
             raise CustodianError("invalid protected enrollment")
         try:
             Ed25519PublicKey.from_public_bytes(bytes.fromhex(self.public_key))
-        except (ValueError, TypeError) as exc:
+        except (ValueError, TypeError, RecursionError) as exc:
             raise CustodianError("invalid custodian public pin") from exc
 
     @classmethod
@@ -186,7 +186,7 @@ def receive_frame(connection: socket.socket) -> dict[str, Any]:
             raise ValueError("object required")
         _bytes(data)
         return data
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, RecursionError) as exc:
         raise CustodianError("invalid custodian frame") from exc
 
 
@@ -230,7 +230,7 @@ def verify_receipt(
         if payload.get("error") is not None:
             raise CustodianError("custodian rejected operation")
         return payload["result"]
-    except (InvalidSignature, ValueError, TypeError, KeyError) as exc:
+    except (InvalidSignature, ValueError, TypeError, KeyError, AttributeError, RecursionError) as exc:
         raise CustodianError("invalid custodian receipt") from exc
 
 
