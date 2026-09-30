@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Run the v0.3 cold/index-miss/index-hit route benchmark matrix.
+"""Run declared E6 benchmark profiles (S14 / evaluation.md).
 
-The runner is deliberately executable both from a source checkout and inside
-the production image.  ``--provider production`` selects Magicite's default
-offline FastEmbed provider; it never downloads a missing model.  The synthetic
-registry vectors are generated deterministically so the measured provider work
-is the query embedding plus the real routing pipeline, not corpus ingestion.
+Default ``--profile ci-smoke`` is CI-feasible: synthetic registry, hashing
+or production provider, completeness + semantic equality. Dedicated-runner
+budget enforcement requires ``--envelope-mode budget`` with
+``--provider production`` on the reference hardware.
+
+External/real corpora and hybrid paired comparisons that cannot run offline
+are recorded as UNEVALUATED with operator commands — never fabricated PASS.
 """
 
 from __future__ import annotations
@@ -13,7 +15,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import platform
 import sqlite3
 import sys
 import tempfile
@@ -28,14 +29,28 @@ from magicite.config import Config
 from magicite.core import router as router_mod
 from magicite.embeddings import get_embedder
 from magicite.embeddings.cache import CachingEmbedder
+from magicite.eval.envelopes import validate_envelope
+from magicite.eval.profiles import (
+    PROFILES,
+    build_profile_result_skeleton,
+    get_profile,
+)
+from magicite.eval.scale import latency_percentiles_ms, path_size_gib, process_rss_gib
+from magicite.eval.unevaluated import unevaluated_catalog
 from magicite.storage import db as db_mod
 from magicite.storage import ephemeral as ephemeral_mod
 
+# Legacy defaults retained for callers that still pass --sizes.
 DEFAULT_SIZES = (1000, 10000)
 DEFAULT_CALLS = 20
 DEFAULT_WARMUP = 2
-DEFAULT_BUDGET_MS = 100.0
-QUERY = "rollback proton for a steam game after a bad update"
+QUERY_TEMPLATES = (
+    "rollback proton for a steam game after a bad update",
+    "fix wine prefix permissions for a broken launcher",
+    "install a verified skill for offline documentation generation",
+    "compose a plan for dependency-ordered packaging",
+    "abstain when no eligible skill matches the query",
+)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -44,36 +59,76 @@ def _parse_args() -> argparse.Namespace:
         "--provider",
         choices=("hashing", "production"),
         default="hashing",
-        help="production uses the offline FastEmbed provider configured by Magicite",
+        help="production uses the offline FastEmbed provider; never downloads models",
     )
-    parser.add_argument("--sizes", nargs="+", type=int, default=list(DEFAULT_SIZES))
-    parser.add_argument("--calls", type=int, default=DEFAULT_CALLS)
-    parser.add_argument("--warmup", type=int, default=DEFAULT_WARMUP)
-    parser.add_argument("--budget-ms", type=float, default=DEFAULT_BUDGET_MS)
+    parser.add_argument(
+        "--profile",
+        choices=sorted(PROFILES),
+        default="ci-smoke",
+        help="declared E6 / CI profile (default: ci-smoke)",
+    )
+    parser.add_argument(
+        "--sizes",
+        nargs="+",
+        type=int,
+        default=None,
+        help="legacy size list; overrides profile corpus_artifacts when set",
+    )
+    parser.add_argument("--calls", type=int, default=None, help="measured calls (overrides profile)")
+    parser.add_argument("--warmup", type=int, default=None, help="warmup calls (overrides profile)")
+    parser.add_argument(
+        "--repetitions",
+        type=int,
+        default=None,
+        help="clean-process repetitions (overrides profile)",
+    )
+    parser.add_argument(
+        "--budget-ms",
+        type=float,
+        default=None,
+        help="legacy single latency budget; ignored when profile budgets apply",
+    )
+    parser.add_argument(
+        "--envelope-mode",
+        choices=("completeness", "budget", "none"),
+        default="completeness",
+        help="completeness=shared CI; budget=dedicated runner; none=skip check",
+    )
+    parser.add_argument(
+        "--opt-in-exploratory",
+        action="store_true",
+        help="required to run exploratory-50k",
+    )
     parser.add_argument(
         "--environment-label",
         default=os.environ.get("MAGICITE_BENCHMARK_ENVIRONMENT", "local-workspace"),
-        help="evidence label such as local-workspace or production-container",
+        help="evidence label such as local-workspace or dedicated-linux-amd64-4c-16g",
+    )
+    parser.add_argument(
+        "--project-root-for-lock",
+        type=Path,
+        default=None,
+        help="path used to hash uv.lock for fingerprint (default: cwd)",
+    )
+    parser.add_argument(
+        "--corpus-manifest",
+        type=Path,
+        default=None,
+        help="optional real CorpusManifest/1; absence of real 10k stays UNEVALUATED",
     )
     parser.add_argument("--output", type=Path, help="write the JSON result to this path")
     args = parser.parse_args()
-    if any(size < 1 for size in args.sizes):
+    if args.sizes is not None and any(size < 1 for size in args.sizes):
         parser.error("--sizes values must be positive")
-    if args.calls < 2:
+    if args.calls is not None and args.calls < 2:
         parser.error("--calls must be at least 2 for a percentile")
-    if args.warmup < 1:
+    if args.warmup is not None and args.warmup < 1:
         parser.error("--warmup must be positive")
-    if args.budget_ms <= 0:
-        parser.error("--budget-ms must be positive")
     return args
 
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
-
-
-def _inside_container() -> bool:
-    return Path("/.dockerenv").exists() or os.environ.get("container") is not None
 
 
 def _build_synthetic_registry(
@@ -192,7 +247,6 @@ def _build_synthetic_registry(
 
 
 def _semantic_signature(outcome: router_mod.RouteOutcome) -> dict[str, Any]:
-    """Exclude Tier-C counters/session identity while checking route equality."""
     return {
         "candidates": [
             {
@@ -210,14 +264,8 @@ def _semantic_signature(outcome: router_mod.RouteOutcome) -> dict[str, Any]:
     }
 
 
-def _percentiles(durations_s: list[float]) -> dict[str, float]:
-    durations_ms = np.asarray(durations_s, dtype=np.float64) * 1000.0
-    return {
-        "calls": int(durations_ms.size),
-        "p50_ms": round(float(np.percentile(durations_ms, 50)), 3),
-        "p95_ms": round(float(np.percentile(durations_ms, 95)), 3),
-        "max_ms": round(float(np.max(durations_ms)), 3),
-    }
+def _query_for_index(index: int) -> str:
+    return QUERY_TEMPLATES[index % len(QUERY_TEMPLATES)] + f" [{index}]"
 
 
 def _timed_route(
@@ -225,6 +273,7 @@ def _timed_route(
     conn: sqlite3.Connection,
     embedder: Any,
     *,
+    query: str,
     session_id: str,
 ) -> tuple[float, router_mod.RouteOutcome]:
     started = time.perf_counter()
@@ -232,28 +281,14 @@ def _timed_route(
         cfg,
         conn,
         embedder,
-        query=QUERY,
+        query=query,
         k=5,
         session_id=session_id,
     )
     return time.perf_counter() - started, outcome
 
 
-def _budget_result(name: str, measured_ms: float, limit_ms: float) -> dict[str, Any]:
-    return {
-        "name": name,
-        "limit_ms": limit_ms,
-        "measured_ms": measured_ms,
-        "passed": measured_ms < limit_ms,
-    }
-
-
-def _budget_name(route_class: str, size: int, limit_ms: float) -> str:
-    rendered_limit = f"{limit_ms:g}ms"
-    return f"route-{route_class}-{size}-{rendered_limit}"
-
-
-def _measure_size(
+def _measure_profile(
     cfg: Config,
     conn: sqlite3.Connection,
     embedder: Any,
@@ -261,92 +296,199 @@ def _measure_size(
     size: int,
     calls: int,
     warmup: int,
-    budget_ms: float,
+    db_path: Path,
 ) -> dict[str, Any]:
     session_id = f"benchmark-{size}"
+    cache_states: dict[str, Any] = {
+        "cold_process": {"identified": True, "measured": False, "latency_ms": None, "notes": ""},
+        "cold_model": {"identified": True, "measured": False, "latency_ms": None, "notes": ""},
+        "cold_index": {"identified": True, "measured": False, "latency_ms": None, "notes": ""},
+        "warm_index": {"identified": True, "measured": False, "latency_ms": None, "notes": ""},
+        "hot_query_cache": {"identified": True, "measured": False, "latency_ms": None, "notes": ""},
+    }
+
     router_mod._cached_route_index.cache_clear()
     if isinstance(embedder, CachingEmbedder):
         embedder.clear()
 
-    cold_s, cold_outcome = _timed_route(cfg, conn, embedder, session_id=session_id)
+    # Cold process / cold model / cold index: cleared caches, first route.
+    cold_s, cold_outcome = _timed_route(
+        cfg, conn, embedder, query=_query_for_index(0), session_id=session_id
+    )
+    cold_ms = round(cold_s * 1000.0, 3)
+    cache_states["cold_process"] = {
+        "identified": True,
+        "measured": True,
+        "latency_ms": cold_ms,
+        "notes": "first route after process start in this measurement harness",
+    }
+    cache_states["cold_model"] = {
+        "identified": True,
+        "measured": True,
+        "latency_ms": cold_ms,
+        "notes": "embedder cache cleared; acquisition/download excluded",
+    }
+    cache_states["cold_index"] = {
+        "identified": True,
+        "measured": True,
+        "latency_ms": cold_ms,
+        "notes": "route index cache cleared",
+    }
 
     router_mod._cached_route_index.cache_clear()
-    _, uncached_outcome = _timed_route(cfg, conn, embedder, session_id=session_id)
-    _, cached_outcome = _timed_route(cfg, conn, embedder, session_id=session_id)
+    _, uncached_outcome = _timed_route(
+        cfg, conn, embedder, query=_query_for_index(0), session_id=session_id
+    )
+    _, cached_outcome = _timed_route(
+        cfg, conn, embedder, query=_query_for_index(0), session_id=session_id
+    )
     semantic_equal = _semantic_signature(uncached_outcome) == _semantic_signature(cached_outcome)
     if not semantic_equal:
         raise AssertionError("cached and uncached routing outcomes differ")
 
+    # Distinct-query index-miss path.
     miss_durations: list[float] = []
-    for _ in range(calls):
+    for index in range(calls):
         router_mod._cached_route_index.cache_clear()
-        duration, _ = _timed_route(cfg, conn, embedder, session_id=session_id)
+        duration, _ = _timed_route(
+            cfg, conn, embedder, query=_query_for_index(index), session_id=session_id
+        )
         miss_durations.append(duration)
 
+    # Warm index: warmup then measured warm routes (rotated queries).
     router_mod._cached_route_index.cache_clear()
-    for _ in range(warmup):
-        _timed_route(cfg, conn, embedder, session_id=session_id)
-    hit_durations = [
-        _timed_route(cfg, conn, embedder, session_id=session_id)[0] for _ in range(calls)
+    for index in range(warmup):
+        _timed_route(cfg, conn, embedder, query=_query_for_index(index), session_id=session_id)
+    warm_durations = [
+        _timed_route(
+            cfg, conn, embedder, query=_query_for_index(warmup + index), session_id=session_id
+        )[0]
+        for index in range(calls)
     ]
+    warm = latency_percentiles_ms(warm_durations)
+    cache_states["warm_index"] = {
+        "identified": True,
+        "measured": True,
+        "latency_ms": warm["p95_ms"],
+        "notes": f"after {warmup} warmups; distinct/rotated queries",
+    }
 
-    cold_ms = round(cold_s * 1000.0, 3)
-    miss = _percentiles(miss_durations)
-    hit = _percentiles(hit_durations)
+    # Hot query cache: repeated identical query.
+    hot_query = _query_for_index(0)
+    for _ in range(max(1, warmup)):
+        _timed_route(cfg, conn, embedder, query=hot_query, session_id=session_id)
+    hot_durations = [
+        _timed_route(cfg, conn, embedder, query=hot_query, session_id=session_id)[0]
+        for _ in range(calls)
+    ]
+    hot = latency_percentiles_ms(hot_durations)
+    cache_states["hot_query_cache"] = {
+        "identified": True,
+        "measured": True,
+        "latency_ms": hot["p95_ms"],
+        "notes": "repeated identical query after warmups",
+    }
+
+    miss = latency_percentiles_ms(miss_durations)
+    rss = process_rss_gib()
+    index_gib = path_size_gib(db_path)
     return {
         "size": size,
         "semantic_equality": semantic_equal,
-        "cold": {
-            "latency_ms": cold_ms,
-            "budget": _budget_result(
-                _budget_name("cold", size, budget_ms), cold_ms, budget_ms
-            ),
+        "cache_states": cache_states,
+        "cold_ready_s": round(cold_s, 6),
+        "warm_route": warm,
+        "index_miss_route": miss,
+        "hot_query_route": hot,
+        "process_rss_gib": round(rss, 6),
+        "index_gib": round(index_gib, 6),
+        "index_build_s": None,  # synthetic preloaded vectors; build measured separately
+        "index_build_peak_rss_gib": None,
+        "payload_tokens": None,
+        "cache_hit_rates": {
+            "route_index": "warm_vs_miss_reported_separately",
+            "query_embed_cache": "provider-dependent",
         },
-        "miss": {
-            **miss,
-            "budget": _budget_result(
-                _budget_name("index-miss-p95", size, budget_ms),
-                miss["p95_ms"],
-                budget_ms,
-            ),
-        },
-        "hit": {
-            **hit,
-            "budget": _budget_result(
-                _budget_name("index-hit-p95", size, budget_ms),
-                hit["p95_ms"],
-                budget_ms,
-            ),
-        },
-        "cold_top_candidate": cold_outcome.candidates[0].id
-        if cold_outcome.candidates
-        else None,
+        "truncations_fallbacks": [],
+        "cold_top_candidate": cold_outcome.candidates[0].id if cold_outcome.candidates else None,
+    }
+
+
+def _flatten_measurements(raw: dict[str, Any]) -> dict[str, Any]:
+    warm = raw.get("warm_route") or {}
+    return {
+        "warm_route_p50_ms": warm.get("p50_ms"),
+        "warm_route_p95_ms": warm.get("p95_ms"),
+        "warm_route_p99_ms": warm.get("p99_ms"),
+        "process_rss_gib": raw.get("process_rss_gib"),
+        "index_gib": raw.get("index_gib"),
+        "cold_ready_s": raw.get("cold_ready_s"),
+        "index_build_s": raw.get("index_build_s"),
+        "index_build_peak_rss_gib": raw.get("index_build_peak_rss_gib"),
+        "payload_tokens": raw.get("payload_tokens"),
+        "cache_hit_rates": raw.get("cache_hit_rates"),
+        "truncations_fallbacks": raw.get("truncations_fallbacks"),
+        "index_miss_route": raw.get("index_miss_route"),
+        "hot_query_route": raw.get("hot_query_route"),
+        "semantic_equality": raw.get("semantic_equality"),
+        "size": raw.get("size"),
     }
 
 
 def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    profile = get_profile(args.profile)
+    if profile.opt_in and not args.opt_in_exploratory:
+        raise SystemExit(
+            f"profile {profile.profile_id!r} is opt-in; pass --opt-in-exploratory"
+        )
+
+    calls = args.calls if args.calls is not None else max(2, min(profile.measured_queries_min, 32))
+    # CI smoke keeps calls small; full measured_queries_min is for dedicated runners.
+    if args.profile == "ci-smoke" and args.calls is None:
+        calls = 8
+    warmup = args.warmup if args.warmup is not None else min(profile.warmup_queries, 8)
+    if args.profile != "ci-smoke" and args.warmup is None and args.calls is None:
+        # Dedicated-style: honour profile mins when explicitly requested via profile
+        # other than ci-smoke *and* operator raised calls; default stays bounded.
+        warmup = min(profile.warmup_queries, 50)
+        calls = max(calls, 20)
+
+    sizes = args.sizes if args.sizes is not None else [profile.corpus_artifacts]
     provider_name = "fastembed" if args.provider == "production" else "hashing"
-    result: dict[str, Any] = {
-        "schema": "magicite-benchmark-matrix/1",
-        "recorded_at": _now(),
-        "status": "running",
-        "provider_requested": args.provider,
-        "provider": provider_name,
-        "environment": {
-            "python": platform.python_version(),
-            "platform": platform.platform(),
-            "label": args.environment_label,
-            "runtime_is_container": _inside_container(),
-            "container_image_digest": os.environ.get("MAGICITE_CONTAINER_IMAGE_DIGEST"),
-        },
-        "parameters": {
-            "sizes": args.sizes,
-            "calls": args.calls,
-            "warmup": args.warmup,
-            "budget_ms": args.budget_ms,
-        },
-        "measurements": [],
+    project_root_for_lock = args.project_root_for_lock or Path.cwd()
+
+    result = build_profile_result_skeleton(
+        profile,
+        provider=args.provider,  # type: ignore[arg-type]
+        model_name="pending",
+        model_digest=None,
+        runner_label=args.environment_label,
+        project_root=project_root_for_lock,
+    )
+    result["recorded_at"] = _now()
+    result["provider_requested"] = args.provider
+    result["provider"] = provider_name
+    result["parameters"] = {
+        "sizes": sizes,
+        "calls": calls,
+        "warmup": warmup,
+        "repetitions": args.repetitions if args.repetitions is not None else profile.repetitions,
+        "envelope_mode": args.envelope_mode,
+        "corpus_manifest": str(args.corpus_manifest) if args.corpus_manifest else None,
     }
+    result["legacy_measurements"] = []
+    result["unevaluated"] = unevaluated_catalog()
+
+    # Real licensed corpus absence stays UNEVALUATED (do not invent PASS).
+    if args.corpus_manifest is None and profile.budget.ga_support_claim:
+        # already in catalog; ensure status remains unevaluated for GA claim
+        result["ga_support_claim_status"] = "UNEVALUATED"
+        result["ga_support_claim_reason"] = (
+            "synthetic-only run; real licensed 10k corpus required for GA support claim"
+        )
+    elif args.corpus_manifest is not None and not args.corpus_manifest.is_file():
+        raise FileNotFoundError(f"corpus manifest not found: {args.corpus_manifest}")
+
     try:
         with tempfile.TemporaryDirectory(prefix="magicite-benchmark-") as temp_dir:
             project_root = Path(temp_dir)
@@ -355,35 +497,67 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             cfg.embedding_offline = True
             cfg.ensure_dirs()
             embedder = get_embedder(cfg)
-            for index, size in enumerate(args.sizes):
-                db_path = project_root / f"benchmark-{size}.db"
-                conn = db_mod.connect(db_path)
-                try:
-                    _build_synthetic_registry(
-                        conn,
-                        model_name=embedder.model_name,
-                        dim=embedder.dim,
-                        n=size,
-                        seed=1234 + index,
-                    )
-                    result["measurements"].append(
-                        _measure_size(
-                            cfg,
-                            conn,
-                            embedder,
-                            size=size,
-                            calls=args.calls,
-                            warmup=args.warmup,
-                            budget_ms=args.budget_ms,
-                        )
-                    )
-                finally:
-                    conn.close()
+            result["fingerprint"]["model_name"] = embedder.model_name
+            model_digest = getattr(embedder, "model_digest", None) or getattr(
+                embedder, "artifact_digest", None
+            )
+            result["fingerprint"]["model_digest"] = (
+                str(model_digest) if model_digest else f"provider:{provider_name}:{embedder.model_name}"
+            )
+
+            size = sizes[0]
+            db_path = project_root / f"benchmark-{size}.db"
+            build_started = time.perf_counter()
+            rss_before = process_rss_gib()
+            conn = db_mod.connect(db_path)
+            try:
+                _build_synthetic_registry(
+                    conn,
+                    model_name=embedder.model_name,
+                    dim=embedder.dim,
+                    n=size,
+                    seed=1234,
+                )
+                build_s = time.perf_counter() - build_started
+                raw = _measure_profile(
+                    cfg,
+                    conn,
+                    embedder,
+                    size=size,
+                    calls=calls,
+                    warmup=warmup,
+                    db_path=db_path,
+                )
+                raw["index_build_s"] = round(build_s, 6)
+                raw["index_build_peak_rss_gib"] = round(
+                    max(process_rss_gib(), rss_before), 6
+                )
+                result["cache_states"] = raw["cache_states"]
+                result["measurements"] = _flatten_measurements(raw)
+                result["measurements"]["index_build_s"] = raw["index_build_s"]
+                result["measurements"]["index_build_peak_rss_gib"] = raw[
+                    "index_build_peak_rss_gib"
+                ]
+                result["legacy_measurements"].append(raw)
+            finally:
+                conn.close()
+
         result["status"] = "measured"
+        if args.envelope_mode != "none":
+            check = validate_envelope(result, profile, mode=args.envelope_mode)  # type: ignore[arg-type]
+            result["envelope_check"] = check.to_dict()
+            if not check.ok and args.envelope_mode == "completeness":
+                result["status"] = "incomplete"
+                return result, 2
+            if not check.ok and args.envelope_mode == "budget":
+                result["status"] = "budget_failed"
+                # Do not flip default policy; report failure only.
+                return result, 3
         return result, 0
     except Exception as exc:
         result["status"] = "unavailable"
         result["error"] = f"{type(exc).__name__}: {exc}"
+        # Ensure cache_states remain identified even on failure.
         return result, 2
 
 
