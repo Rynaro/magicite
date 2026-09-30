@@ -27,8 +27,9 @@
     "path": "uv.lock",
     "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
   },
-  "review_status": "PENDING_EVIDENCE_REVIEW",
-  "reviewer": null,
+  "review_status": "APPROVED",
+  "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+  "reviewer": "RAMZA /root/v1_plan",
   "schema": "magicite/diagnostic-provenance/1",
   "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
   "source_dirty": false

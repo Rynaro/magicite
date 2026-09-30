@@ -1,7 +1,7 @@
 {
   "criterion_ledger": {
     "path": "docs/releases/v1/criterion-ledger.json",
-    "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+    "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
   },
   "draft_only": true,
   "external": null,
@@ -10,19 +10,19 @@
       "evidence": [
         {
           "path": "docs/releases/v1/evidence/policy-nonadaptive-default.json",
-          "sha256": "13ffe533727644bc3a1ea3bf401756125e3dd5f16ec3a25650cb964d61df8389"
+          "sha256": "219bcbe41233fb6a1fb7c993b2928ee85b5ceede5f35571c891a49c83ab28f44"
         },
         {
           "path": "docs/releases/v1/evidence/policy-dream-isolation.json",
-          "sha256": "fe8ae0490f8c19753310107e56d031460f9754ef699aa90cfacae6d6f320b006"
+          "sha256": "5a8e2c9618fbcc56b077dc3336f95c3c66b8e20abb5d12daef9345d6016ca153"
         },
         {
           "path": "docs/releases/v1/evidence/policy-explicit-experimental.json",
-          "sha256": "8bc09574826a38970a6b8b027788a812bd8cf82c3bb5c8222532c8aa55af9a46"
+          "sha256": "84cf36526eda3712843ce1b9f9153a77b504b0d071dce5356ff6118890c0fee6"
         },
         {
           "path": "docs/releases/v1/evidence/policy-pinned-incumbent.json",
-          "sha256": "2b842de3b7f22bbdef4be07c11a676bec6650cc42a2811eb43caeaeda7da4d36"
+          "sha256": "dc4c1d551e5add6c88862e541886f198955da3f79d361581505444407ac09de9"
         }
       ],
       "id": "POLICY",
@@ -33,12 +33,14 @@
         "pinned-incumbent"
       ],
       "reason": "Nonadaptive default, Dream isolation, explicit experimental selection and dense-v1 incumbent have executable witnesses.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "PASS",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -52,12 +54,14 @@
         "negative-history"
       ],
       "reason": "Integrity and claim CI fixtures pass and negative history is retained, but independent final label provenance and a complete new-run chain are absent.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -65,15 +69,15 @@
       "evidence": [
         {
           "path": "docs/releases/v1/evidence/schema-frozen-schema.json",
-          "sha256": "a0777e1e6b0f4048d684384e4135d2f59157f0d89ff332cd6a21f798f29815eb"
+          "sha256": "c483801131b66fb56525f2de61e233b11ac49375e984fe234d55bc78fb760ba7"
         },
         {
           "path": "docs/releases/v1/evidence/schema-roundtrip-corpus.json",
-          "sha256": "03c290235f08cd0e63d099b55c225fa7ed3b6b172b250362e7c37d03fb86e27d"
+          "sha256": "a13d5df6fb9948d82c0a0fd640f7e4534867574a372c53dcdbf56d8e81b9f4ae"
         },
         {
           "path": "docs/releases/v1/evidence/schema-migration-downgrade-replay.json",
-          "sha256": "b1450775e0b46be9d2cc818539ec981ae8abc5ab7d461b2701a5dbaa67ec1ec0"
+          "sha256": "7d5c88a68af90cce0b7777f023de89f004d8dc29becb20d6cb11cf10d23e8620"
         }
       ],
       "id": "SCHEMA",
@@ -83,12 +87,14 @@
         "migration-downgrade-replay"
       ],
       "reason": "Frozen schema, A01 roundtrip identity, migration/replay and complete-backup downgrade witnesses are available.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "PASS",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -102,12 +108,14 @@
         "adversarial-corpus"
       ],
       "reason": "Known live revocation mirror deletion can reinstate earlier admission; hardening remains a human decision.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "FAIL",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         },
         {
           "path": "docs/releases/v1/evidence/trust-mirror-loss.json",
@@ -123,11 +131,11 @@
         },
         {
           "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
-          "sha256": "a1434c5914318bc8c949ac7e25d3ccfe08a1f4c5a475ccd48bed4ba19e490cc7"
+          "sha256": "8dbaa58f4d9534621de57539196c8a5b165e7c4f83310c3e3aecb920d469a165"
         },
         {
           "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
-          "sha256": "a1434c5914318bc8c949ac7e25d3ccfe08a1f4c5a475ccd48bed4ba19e490cc7"
+          "sha256": "8dbaa58f4d9534621de57539196c8a5b165e7c4f83310c3e3aecb920d469a165"
         }
       ]
     },
@@ -142,12 +150,14 @@
         "e3-quality"
       ],
       "reason": "Index/eligibility/explanation mechanics exist; official final split, paired E3 quality and empirical abstention bounds are unrun.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -160,12 +170,14 @@
         "safe-invalid-plan"
       ],
       "reason": "Structural fixtures and bounded safe invalid plans exist; independently authored actual host-task execution evidence is unavailable.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -173,23 +185,23 @@
       "evidence": [
         {
           "path": "docs/releases/v1/evidence/privacy-data-map.json",
-          "sha256": "0a242c4766878f6973eafc1bfc57a4c34e422e2bb9607d0a79bca26fb4b6fa00"
+          "sha256": "98d51e0d3894120ca6e31f041cef8bfc53c66247826718fad64ff5320a6feaf7"
         },
         {
           "path": "docs/releases/v1/evidence/privacy-no-default-raw.json",
-          "sha256": "9a605a40fe9c760166b910e3125aaf7fe5be18dfd4ad7a8b183b9c4728a8a5ae"
+          "sha256": "00485ccdf35459d478553be2bf6246c3a7725adc3b421eb7741894de911fe144"
         },
         {
           "path": "docs/releases/v1/evidence/privacy-historical-cleanup.json",
-          "sha256": "2a6a9f85986796cf7ee064494eeb907763286f7760b161f521e58ec5f8a035b8"
+          "sha256": "2180152780b691c4c9af203917b83635a530a4b877e34e184c58f11ea15c717a"
         },
         {
           "path": "docs/releases/v1/evidence/privacy-checkpoint-rpo.json",
-          "sha256": "6973b81ccaaaf60cfab2fe4bfb5f9f5afc9a2cfc6657fe27948aafeccf79a526"
+          "sha256": "375971e37fcf81192e9c4142536aa1b2d7bda9ecc61066ca92f8be5ac10b2ac3"
         },
         {
           "path": "docs/releases/v1/evidence/privacy-lifecycle-tests.json",
-          "sha256": "a0c5e9352fe8dcddb20cb77c7edb833f9cf7659b3e5009236dc118aacd0dd160"
+          "sha256": "9e21b92afa3911c5c2c35000c81b7041efbb48659fa794d77b079ef02b4d3781"
         }
       ],
       "id": "PRIVACY",
@@ -201,12 +213,14 @@
         "lifecycle-tests"
       ],
       "reason": "Data map, default minimization, historical cleanup, checkpoint RPO and export/delete/retention/restore witnesses are available.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "PASS",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -214,11 +228,11 @@
       "evidence": [
         {
           "path": "docs/releases/v1/evidence/learning-containment.json",
-          "sha256": "bbf025a7623ef39549b48733d81164ea48cd3b125e8be329234d10735d9538c4"
+          "sha256": "4546d471307d311e1ab267314a213e959ed44b8084996187fd808cedb54e927c"
         },
         {
           "path": "docs/releases/v1/evidence/learning-fully-gated-or-unavailable.json",
-          "sha256": "4c7a02c6b714bd28c4772bb1a0ee59bf2ced88dc3ba9cd5a1c1798f0a0251168"
+          "sha256": "d35501a4f53235f087a2655300d84d29d68569b30f4a5b4bc318600a874922f4"
         }
       ],
       "id": "LEARNING",
@@ -227,12 +241,14 @@
         "fully-gated-or-unavailable"
       ],
       "reason": "Stable containment is mandatory and tested; optional S10 efficacy explicitly held/unavailable.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "PASS",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -245,12 +261,14 @@
         "advertised-transcripts"
       ],
       "reason": "Generic probes exist; advertised real Claude Code version/protocol transcript remains absent.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -263,12 +281,14 @@
         "zero-write-doctor"
       ],
       "reason": "Local kill/replay/fencing/backup/restore/doctor tests pass; complete advertised OS/channel/published-upgrade/store matrix has not run.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -281,16 +301,18 @@
         "supported-scale"
       ],
       "reason": "No dedicated production E6 budgets or licensed real 10k corpus evidence; hashing completeness is not performance qualification.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         },
         {
           "path": "docs/releases/v1/evidence/hashing-smoke-provenance.json",
-          "sha256": "9dd795a27a94c512392fc42e48cc2d89464c7d57911c211cc6e9fdfcd9ddb23a"
+          "sha256": "8a5dd747c07c00a356be92c3dbbe3b895f84cb2939f30d4e769d8f99f2b66452"
         }
       ]
     },
@@ -303,12 +325,14 @@
         "testpypi-rehearsal"
       ],
       "reason": "Published channel installs, fetched signatures/checksums/SBOM/provenance and TestPyPI rehearsal are unrun; no publishing authority.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -322,12 +346,14 @@
         "support-security-governance"
       ],
       "reason": "Generated/claims/support checks and scripted tutorial pass; required independent operator transcript remains absent.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -340,12 +366,14 @@
         "passing-matrix"
       ],
       "reason": "No two independently built RCs across the declared supported matrix; validator fixtures are not RC artifacts.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -356,12 +384,14 @@
         "independent-reproduction-or-two-pilots"
       ],
       "reason": "No independent external reproduction or two external production pilots; agent review is not product validation.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     },
@@ -374,12 +404,14 @@
         "critical-resolved"
       ],
       "reason": "Known trust-history integrity weakness remains unresolved; bounded fuzz and complete security evidence are also missing.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "FAIL",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         },
         {
           "path": "docs/releases/v1/evidence/trust-mirror-loss.json",
@@ -395,11 +427,11 @@
         },
         {
           "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
-          "sha256": "a1434c5914318bc8c949ac7e25d3ccfe08a1f4c5a475ccd48bed4ba19e490cc7"
+          "sha256": "8dbaa58f4d9534621de57539196c8a5b165e7c4f83310c3e3aecb920d469a165"
         },
         {
           "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
-          "sha256": "a1434c5914318bc8c949ac7e25d3ccfe08a1f4c5a475ccd48bed4ba19e490cc7"
+          "sha256": "8dbaa58f4d9534621de57539196c8a5b165e7c4f83310c3e3aecb920d469a165"
         }
       ]
     },
@@ -412,12 +444,14 @@
         "fetched-artifacts"
       ],
       "reason": "Required gates do not all pass; maintainer release sign-off and fetched published artifact checks are absent.",
-      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "review_status": "APPROVED",
+      "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+      "reviewer": "RAMZA /root/v1_plan",
       "status": "FAIL",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+          "sha256": "4bd9bc4544b6548062a0e5b2dcd58cfd513a81a40fd2cad242f2a4434cbc7210"
         }
       ]
     }

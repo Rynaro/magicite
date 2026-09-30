@@ -24,7 +24,10 @@ it cannot authenticate human identities or replace a reviewer inspecting evidenc
 [criterion-ledger.json](criterion-ledger.json) preserves all 76 exact frozen
 criteria, their GIVEN/WHEN/THEN/VERIFY clauses, mapped test nodes and subchecks,
 source heads, test-file/lock/environment/report digests, and independent review
-status. Criterion PASS is the complete stated mechanical obligation. It does not
+status. RAMZA accepted the evidence package at `52f7bba` against clean tested
+source `c0782fd`: **1,031 passed, 10 skipped**, plus type/lint/docs checks.
+The final review annotation commit changes only evidence metadata and digests.
+Criterion PASS is the complete stated mechanical obligation. It does not
 substitute for an empirical release gate: statistical boundary tests do not prove
 hybrid quality, and validator fixtures do not constitute RCs or external pilots.
 Unrun external clauses remain UNEVALUATED even when their supporting tests pass.

@@ -1,6 +1,6 @@
 # V1 gate table — NO-GA draft
 
-All 17 gates are explicit. PASS rows describe executed mechanical obligations; their assembled evidence is pending independent review in this draft. No release is authorized.
+All 17 gates are explicit. PASS rows describe executed mechanical obligations independently reviewed by RAMZA at `52f7bba`; tested code source is `c0782fd`. No release is authorized.
 
 | Gate | Status | Evidence and remaining obligation |
 |---|---|---|
@@ -22,6 +22,6 @@ All 17 gates are explicit. PASS rows describe executed mechanical obligations; t
 | SECURITY | **FAIL** | Known trust-history integrity weakness remains unresolved; bounded fuzz and complete security evidence are also missing. [criterion ledger](criterion-ledger.json), [observed failure](evidence/trust-mirror-loss.json) |
 | GA-ALL | **FAIL** | Required gates do not all pass; maintainer release sign-off and fetched published artifact checks are absent. [criterion ledger](criterion-ledger.json) |
 
-Four mechanical PASS candidates, ten UNEVALUATED gates, and three FAIL gates. The machine-readable manifest retains the exact obligation checklist for each gate.
+Four mechanical PASS gates, ten UNEVALUATED gates, and three FAIL gates. The machine-readable manifest retains the exact obligation checklist for each gate.
 
 Missing external evidence is not waived. The known trust failure and absent mandatory evidence independently block GA. See the [unadopted trust proposal](trust-ledger-proposal.md) and [package scope](README.md).

@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "path": "docs/releases/v1/evidence/test-results.json",
-      "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
+      "sha256": "3f167526c8fffd3618d98b3dd6b00129d09ce5bb332d2d77c2abbb496d0b219e"
     },
     {
       "path": "docs/releases/v1/evidence/pytest.txt",
@@ -49,10 +49,11 @@
   },
   "obligation": "containment",
   "producer": "Vivi /root/v1_release_evidence",
-  "review_status": "PENDING_EVIDENCE_REVIEW",
-  "reviewer": null,
+  "review_status": "APPROVED",
+  "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+  "reviewer": "RAMZA /root/v1_plan",
   "schema": "magicite/release-witness/1",
-  "scope": "Mechanical evidence from clean source at c0782fd; independent artifact review pending. No production/external/RC qualification.",
+  "scope": "Accepted local mechanical evidence at 52f7bba54eaf9e94acd6408ddaaa93fd144b5183 against clean tested source c0782fd5ea477857b7fe6e7a967a9bbf85808620; no production,external or RC qualification.",
   "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
   "status": "PASS"
 }

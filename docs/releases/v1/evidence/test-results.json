@@ -1,12 +1,13 @@
 {
-  "checker_status": "PENDING_EVIDENCE_REVIEW",
+  "checker_scope": "Inspected immutable local execution evidence in 52f7bba54eaf9e94acd6408ddaaa93fd144b5183; not external product reproduction.",
+  "checker_status": "APPROVED",
   "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
   "environment": {
     "path": "docs/releases/v1/evidence/environment.json",
     "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
   },
   "failed": 0,
-  "independent_checker": null,
+  "independent_checker": "RAMZA /root/v1_plan",
   "lock": {
     "path": "uv.lock",
     "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"

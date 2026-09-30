@@ -14,8 +14,10 @@
     "verdict": "APPROVED"
   },
   "evidence": {
-    "reviewer": null,
-    "scope": "76 criterion ledger,17 gate statuses,14 mechanical clause witnesses and trust proposal.",
-    "verdict": "PENDING"
+    "reviewed_head": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+    "reviewer": "RAMZA /root/v1_plan",
+    "scope": "Local mechanical evidence adjudication and NO-GA package:76 exact criteria,63PASS/13UNEVALUATED,14clause witnesses,17gates,1042nestedartifactrefs. Not GA approval, external reproduction or trust proposal adoption.",
+    "tested_source": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+    "verdict": "APPROVED"
   }
 }
