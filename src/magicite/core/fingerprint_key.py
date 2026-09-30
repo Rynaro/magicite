@@ -1,17 +1,21 @@
-"""Local keyed HMAC fingerprint material (C6; provisional S00 → S09 handoff).
+"""Local keyed HMAC fingerprint material (C6; owned by S09).
 
 Context/query fingerprints MUST use a local keyed HMAC so low-entropy prompts
 are not rainbow-tableable from persisted event payloads (contracts.md C6).
 
-S00 ships a minimal key provider so route events can satisfy AC-S00-04 without
-waiting on S09. S09 owns the durable evidence ledger, retention/deletion/export,
-and HMAC key lifecycle (slice s09 action 3). When S09 lands it SHOULD:
+S00 shipped this provider provisionally for AC-S00-04. S09 adopts it as the
+single key authority for query/context fingerprints, retention-adjacent key
+lifecycle (:func:`magicite.core.evidence.rotate_fingerprint_key`), and export
+pseudonym policy (never export raw key bytes).
 
-- Adopt this module (or move it under ``core/evidence.py`` / privacy) as the
-  single key authority for query and context fingerprints.
-- Keep the on-disk path and ``hmac-sha256/local-v1`` scheme stable, or publish
-  an explicit rotation/migration path.
-- Never export or log the raw key bytes; export uses fresh scoped pseudonyms.
+Stable contract (do not change without an explicit migration):
+- path: ``<data_dir>/runtime/fingerprint.key``
+- scheme: ``hmac-sha256/local-v1``
+- length: 32 bytes, mode ``0600``
+
+First-create publishes atomically (tmp + ``os.link``) so concurrent
+first-creators converge on one key — keep that behavior if this module is
+restructured; do not regress concurrent first-create safety.
 
 This module never logs key material.
 """

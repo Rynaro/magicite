@@ -156,6 +156,16 @@ class Config:
     #: one config line, ablation-switchable, [routing] in magicite.toml.
     declared_edge_strength: float = 1.0
 
+    #: S09 / C6: optional extra roots where evidence exports may be written and
+    #: later privacy-deleted. Paths are absolute or project-relative; unset means
+    #: only ``<data_dir>/evidence/exports/`` is allowed (refuse unmanaged dirs).
+    evidence_export_roots: tuple[str, ...] = ()
+    #: S09 / C6 retention policy (operator Config — never from meta.json).
+    evidence_retention_operational_days: int = 30
+    evidence_retention_audit_days: int = 90
+    #: S09 / C6 backup overlay expiry (operator Config — never from meta.json).
+    evidence_backup_expiry_days: int = 90
+
     # ── graph index build (spec §2.6 steps 8-9) ─────────────────────────
     similar_to_top_m: int = 5
     hub_penalty_percentile: float = 95.0
@@ -392,12 +402,24 @@ _ENV_FIELD_MAP: dict[str, str] = {
     "MAGICITE_COMMIT_DB": "commit_db",
     "MAGICITE_LOG_LEVEL": "log_level",
     "MAGICITE_ROUTING_POLICY": "routing_policy",
+    "MAGICITE_EVIDENCE_EXPORT_ROOTS": "evidence_export_roots",
+    "MAGICITE_EVIDENCE_RETENTION_OPERATIONAL_DAYS": "evidence_retention_operational_days",
+    "MAGICITE_EVIDENCE_RETENTION_AUDIT_DAYS": "evidence_retention_audit_days",
+    "MAGICITE_EVIDENCE_BACKUP_EXPIRY_DAYS": "evidence_backup_expiry_days",
 }
 
 _BOOL_FIELDS = {"embedding_offline", "autonomous", "commit_db", "dream_on_session_end"}
 
 
 def _coerce(field_name: str, raw: Any) -> Any:
+    if field_name == "evidence_export_roots":
+        if isinstance(raw, (list, tuple)):
+            return tuple(str(p).strip() for p in raw if str(p).strip())
+        if isinstance(raw, str):
+            # Use os.pathsep so Windows drive letters (C:\...) are not split on ':'.
+            # Commas are never separators — TOML lists cover multi-value config files.
+            return tuple(p.strip() for p in raw.split(os.pathsep) if p.strip())
+        return ()
     if not isinstance(raw, str):
         return raw
     if field_name in _BOOL_FIELDS:
