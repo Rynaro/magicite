@@ -152,9 +152,81 @@ class RouteInput(MagiciteModel):
     context: RouteContext | None = None
     k: int = Field(default=5, ge=1, le=20)
     session_id: str | None = None
+    #: Optional contract/version selector (C8). Unsupported values fail closed.
+    schema_version: str | None = Field(default=None, max_length=64)
+
+
+class ConfidenceOut(MagiciteModel):
+    value: float | None = None
+    calibration_id: str | None = None
+
+
+class ExclusionSummaryOut(MagiciteModel):
+    """Bounded exclusion summary — engram id + reason codes only (no bodies/paths)."""
+
+    engram_id: str
+    reason_codes: list[str] = Field(default_factory=list)
+
+
+class PlanDiagnosticOut(MagiciteModel):
+    code: str
+    message: str
+    subject_id: str | None = None
+    related_ids: list[str] = Field(default_factory=list)
+
+
+class PlanNodeOut(MagiciteModel):
+    engram_id: str
+    version: int
+    content_digest: str
+    procedure_ref: str | None = None
+    required_permissions: list[str] = Field(default_factory=list)
+    risk: dict[str, Any] | None = None
+
+
+class PlanEdgeOut(MagiciteModel):
+    type: str
+    src_id: str
+    dst_id: str
+    optional: bool = False
+    capability_id: str | None = None
+
+
+class PlanOut(MagiciteModel):
+    """Public Plan/1 projection (C5). Absent router fields map to null/empty."""
+
+    status: Literal["valid", "invalid"] | None = None
+    nodes: list[PlanNodeOut] = Field(default_factory=list)
+    edges: list[PlanEdgeOut] = Field(default_factory=list)
+    topological_order: list[str] = Field(default_factory=list)
+    diagnostics: list[PlanDiagnosticOut] = Field(default_factory=list)
+    plan_digest: str | None = None
+    snapshot_id: str | None = None
+    policy_id: str | None = None
+    policy_digest: str | None = None
+    executable: bool | None = None
+    schema_version: str | None = None
+
+
+class HostVerificationReportOut(MagiciteModel):
+    structural_validity: Literal["valid", "invalid"] | None = None
+    verified_task_outcome: Literal["pass", "fail", "unevaluated"] | None = None
+    plan_snapshot_id: str | None = None
+    verifier_type: str | None = None
+    verifier_id: str | None = None
+    verifier_version: str | None = None
+    verifier_artifact_digest: str | None = None
+    schema_version: str | None = None
+    details: str | None = None
 
 
 class RouteOutput(MagiciteModel):
+    """Public route envelope: legacy L1 fields + RouteDecision/1 + Plan/1 (S11).
+
+    Never includes raw query text. Exclusion summaries never include bodies or
+    filesystem paths. Fields the router has not yet populated are null.
+    """
+
     candidates: list[Candidate]
     composition_plan: list[str]
     plan_confidence: float
@@ -162,6 +234,41 @@ class RouteOutput(MagiciteModel):
     session_id: str
     registry_size: int
     unresolved_context: list[str] = Field(default_factory=list)
+    # ── RouteDecision/1 public projection (C4) ──────────────────────────
+    decision_id: str | None = None
+    status: Literal["selected", "abstained", "error", "ok"] | None = None
+    selected_ids: list[str] = Field(default_factory=list)
+    exclusions: list[ExclusionSummaryOut] = Field(default_factory=list)
+    score_components: dict[str, dict[str, float]] = Field(default_factory=dict)
+    confidence: ConfidenceOut | None = None
+    reason_codes: list[str] = Field(default_factory=list)
+    missing_context: list[str] = Field(default_factory=list)
+    truncations: dict[str, int] = Field(default_factory=dict)
+    policy_id: str | None = None
+    policy_digest: str | None = None
+    policy_family: str | None = None
+    policy_source: Literal["store", "config_fresh_install"] | None = None
+    default_local_authorship_policy: bool | None = None
+    config_digest: str | None = None
+    calibration_digest: str | None = None
+    calibration_status: str | None = None
+    registry_digest: str | None = None
+    schema_digest: str | None = None
+    model_digest: str | None = None
+    tokenizer_digest: str | None = None
+    index_generation_id: str | None = None
+    snapshot_id: str | None = None
+    selected_content_digests: dict[str, str] = Field(default_factory=dict)
+    selection_mechanism: str | None = None
+    propensity: dict[str, float] = Field(default_factory=dict)
+    explanation_version: str | None = None
+    operational_error: str | None = None
+    fallback_identity: str | None = None
+    decision_schema_version: str | None = None
+    # ── Plan/1 public projection (C5; null until router wires compose) ──
+    plan: PlanOut | None = None
+    plan_digest: str | None = None
+    host_verification_report: HostVerificationReportOut | None = None
 
 
 # ── 2. load_skill_body ─────────────────────────────────────────────────
@@ -172,6 +279,12 @@ class LoadSkillBodyInput(MagiciteModel):
     level: Literal["L2", "L3"] = "L2"
     max_bytes: int = Field(default=8192, ge=1)
     cursor: int = Field(default=0, ge=0)
+    #: Opaque id from a prior route (optional; digests are authoritative).
+    decision_id: str | None = None
+    #: Required for disclosure (C10). Omission → missing_context, no body.
+    expected_content_digest: str | None = None
+    expected_policy_digest: str | None = None
+    expected_snapshot_id: str | None = None
 
 
 class LoadSkillBodyOutput(MagiciteModel):
@@ -185,6 +298,9 @@ class LoadSkillBodyOutput(MagiciteModel):
     exec_blocks_warning: str | None = None
     truncated: bool = False
     next_offset: int | None = None
+    status: Literal["ok", "stale_decision", "missing_context"] = "ok"
+    missing_context: list[str] = Field(default_factory=list)
+    reason_codes: list[str] = Field(default_factory=list)
 
 
 # ── 3. introspect ───────────────────────────────────────────────────────

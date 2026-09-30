@@ -174,7 +174,9 @@ def _args_sha256(arguments: dict[str, Any]) -> str:
 
 
 def _error_result(error: MagiciteError) -> CallToolResult:
-    envelope = error.to_dict()
+    from magicite.mcp.redact import redact_error_payload
+
+    envelope = redact_error_payload(error.to_dict())
     return CallToolResult(
         content=[TextContent(type="text", text=json.dumps(envelope))],
         structured_content=envelope,
