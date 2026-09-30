@@ -41,6 +41,7 @@ from magicite.config import Config
 from magicite.core import approvals as approvals_mod
 from magicite.core import evidence as evidence_mod
 from magicite.core import fingerprint_key as fingerprint_key_mod
+from magicite.core import recovery_gate as gate_mod
 from magicite.core import registry as registry_mod
 from magicite.core import trust as trust_mod
 from magicite.errors import InvalidInputError
@@ -58,7 +59,7 @@ ACTIVATION_SEAL_KIND = "recovery_activation/1"
 
 _OVERLAY_MAC_LABEL = b"magicite/recovery-overlay/v1"
 _ANCHOR_MAC_LABEL = b"magicite/sequence-anchor/v1"
-_SEAL_MAC_LABEL = b"magicite/recovery-activation/v1"
+_JOURNAL_MAC_LABEL = b"magicite/recovery-journal/v1"
 
 #: Explicit registered backup domains. ``policy_store`` is included when the
 #: directory exists (opaque file-level copy); full semantic verification is a
@@ -88,6 +89,13 @@ _JOURNAL_FILENAME = "journal.jsonl"
 _STAGING_DIRNAME = "staging"
 
 FaultHook = Callable[[str], None] | None
+
+
+# Re-export serve-path gates from the leaf module (evidence/router import the leaf).
+is_reconciliation_required = gate_mod.is_reconciliation_required
+reconciliation_status = gate_mod.reconciliation_status
+assert_routing_allowed = gate_mod.assert_routing_allowed
+assert_evidence_access_allowed = gate_mod.assert_evidence_access_allowed
 
 
 def _now() -> str:
@@ -476,23 +484,40 @@ def build_recovery_overlay(
     key: bytes | None = None,
     custody_key: bytes | None = None,
 ) -> RecoveryOverlay:
-    """Snapshot current privacy tombstones + trust revocations for restore."""
-    auth_key = key or _resolve_auth_key(cfg, custody_key=custody_key, allow_create=True)
-    registry_id = ensure_registry_id(cfg)
-    deletion_records: list[dict[str, Any]] = []
-    tomb_path = evidence_mod.evidence_dir(cfg) / "tombstones.jsonl"
-    if tomb_path.is_file():
-        for line in tomb_path.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                deletion_records.append(json.loads(line))
-    revocation_records: list[dict[str, Any]] = []
-    for decision in trust_mod.list_decisions(cfg):
-        if decision.decision == "revoke":
-            revocation_records.append(decision.to_dict())
+    """Snapshot current privacy tombstones + trust revocations for restore.
+
+    Verifies tombstone MAC and trust ledger integrity before signing (B3).
+    Never creates a fingerprint key (``allow_create=False``).
+    """
+    auth_key = key or _resolve_auth_key(cfg, custody_key=custody_key, allow_create=False)
+    registry_id = load_registry_id(cfg) or ensure_registry_id(cfg)
+
+    # MAC-verified tombstones — refuse to sign poisoned state.
+    try:
+        deletion_records = list(evidence_mod.load_verified_tombstones(cfg))
+    except InvalidInputError as exc:
+        raise InvalidInputError(
+            "refusing to preserve overlay: evidence tombstones unverifiable",
+            details={"reconciliation_required": True, "cause": str(exc)},
+        ) from exc
+
+    try:
+        decisions = trust_mod.list_decisions(cfg)
+    except trust_mod.TrustLedgerCorruptError as exc:
+        raise InvalidInputError(
+            "refusing to preserve overlay: trust ledger corrupt",
+            details={"reconciliation_required": True, "cause": str(exc)},
+        ) from exc
+    revocation_records = [d.to_dict() for d in decisions if d.decision == "revoke"]
+
     try:
         policy_digest = trust_mod.load_policy(cfg).digest()
-    except Exception:
-        policy_digest = _sha256_bytes(b"")
+    except InvalidInputError as exc:
+        raise InvalidInputError(
+            "refusing to preserve overlay: trust policy unverifiable",
+            details={"reconciliation_required": True, "cause": str(exc)},
+        ) from exc
+
     content_hashes = tuple(
         sorted(
             _sha256_bytes(_canonical_json(r).encode("utf-8"))
@@ -513,6 +538,71 @@ def build_recovery_overlay(
     return RecoveryOverlay(
         kind=RECOVERY_OVERLAY_KIND,
         registry_id=registry_id,
+        control_sequence=control_sequence,
+        deletion_records=tuple(deletion_records),
+        revocation_records=tuple(revocation_records),
+        policy_digest=policy_digest,
+        content_hashes=content_hashes,
+        operator_provenance=operator_provenance,
+        mac=mac,
+    )
+
+
+def merge_recovery_overlays(
+    primary: RecoveryOverlay,
+    secondary: RecoveryOverlay,
+    *,
+    key: bytes,
+    operator_provenance: str,
+) -> RecoveryOverlay:
+    """Union deletions/revocations; control_sequence = max (B3). Never drop entries."""
+    if primary.registry_id != secondary.registry_id:
+        raise InvalidInputError(
+            "cannot merge overlays with mismatched registry_id",
+            details={"reconciliation_required": True},
+        )
+    deletions: dict[str, dict[str, Any]] = {}
+    for rec in (*primary.deletion_records, *secondary.deletion_records):
+        eid = str(rec.get("target_event_id") or "")
+        if eid:
+            deletions[eid] = rec
+    revokes: dict[str, dict[str, Any]] = {}
+    for rec in (*primary.revocation_records, *secondary.revocation_records):
+        eid = str(rec.get("engram_id") or "")
+        if eid:
+            # Prefer revoke records; later timestamp wins when both revoke.
+            prev = revokes.get(eid)
+            if prev is None or str(rec.get("timestamp") or "") >= str(prev.get("timestamp") or ""):
+                revokes[eid] = rec
+    deletion_records = list(deletions.values())
+    revocation_records = list(revokes.values())
+    control_sequence = max(primary.control_sequence, secondary.control_sequence)
+    content_hashes = tuple(
+        sorted(
+            _sha256_bytes(_canonical_json(r).encode("utf-8"))
+            for r in (*deletion_records, *revocation_records)
+        )
+    )
+    # Prefer the newer policy digest (by control sequence owner).
+    policy_digest = (
+        primary.policy_digest
+        if primary.control_sequence >= secondary.control_sequence
+        else secondary.policy_digest
+    )
+    body = {
+        "kind": RECOVERY_OVERLAY_KIND,
+        "registry_id": primary.registry_id,
+        "control_sequence": control_sequence,
+        "deletion_records": deletion_records,
+        "revocation_records": revocation_records,
+        "policy_digest": policy_digest,
+        "content_hashes": list(content_hashes),
+        "operator_provenance": operator_provenance,
+    }
+    mac = sign_overlay(body, key=key)
+    return RecoveryOverlay(
+        kind=RECOVERY_OVERLAY_KIND,
+        registry_id=primary.registry_id,
         control_sequence=control_sequence,
         deletion_records=tuple(deletion_records),
         revocation_records=tuple(revocation_records),
@@ -548,10 +638,33 @@ def issue_sequence_anchor(
     )
 
 
-def _append_journal(cfg: Config, entry: dict[str, Any]) -> None:
+def _journal_prev_mac(cfg: Config) -> str:
+    path = recovery_journal_path(cfg)
+    if not path.is_file():
+        return "genesis"
+    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    if not lines:
+        return "genesis"
+    try:
+        last = json.loads(lines[-1])
+    except json.JSONDecodeError:
+        return "genesis"
+    return str(last.get("entry_mac") or "genesis")
+
+
+def _append_journal(cfg: Config, entry: dict[str, Any], *, key: bytes | None) -> None:
+    """Append a journal entry. When ``key`` is set, bind an HMAC chain (B2)."""
     path = recovery_journal_path(cfg)
     _mkdir_secure(path.parent)
-    line = _canonical_json({"ts": _now(), **entry}) + "\n"
+    payload = {"ts": _now(), **entry}
+    if key is not None:
+        prev = _journal_prev_mac(cfg)
+        payload["prev_mac"] = prev
+        body = {k: v for k, v in payload.items() if k != "entry_mac"}
+        payload["entry_mac"] = _mac_hex(
+            key, _JOURNAL_MAC_LABEL, _canonical_json(body).encode("utf-8")
+        )
+    line = _canonical_json(payload) + "\n"
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(line)
         fh.flush()
@@ -570,111 +683,92 @@ def _write_state(cfg: Config, *, reconciliation_required: bool, reason: str, **e
     _write_json_durable(recovery_state_path(cfg), payload)
 
 
+def _install_custody_key(cfg: Config, key: bytes) -> None:
+    """Atomically install custody key at fingerprint.key path (0600; B4)."""
+    if len(key) != fingerprint_key_mod.KEY_BYTES:
+        raise InvalidInputError(
+            f"custody key must be {fingerprint_key_mod.KEY_BYTES} bytes",
+        )
+    path = fingerprint_key_mod.fingerprint_key_path(cfg)
+    _mkdir_secure(path.parent)
+    if path.is_file():
+        existing = fingerprint_key_mod._read_complete_key(path)  # noqa: SLF001
+        if not hmac.compare_digest(existing, key):
+            raise InvalidInputError(
+                "refusing to overwrite fingerprint.key with a different custody key",
+                details={"reconciliation_required": True},
+            )
+        return
+    if not fingerprint_key_mod._publish_key_atomically(path, key):  # noqa: SLF001
+        # Race: another publisher won — verify it matches.
+        existing = fingerprint_key_mod._read_complete_key(path)  # noqa: SLF001
+        if not hmac.compare_digest(existing, key):
+            raise InvalidInputError(
+                "fingerprint.key race published a different key",
+                details={"reconciliation_required": True},
+            )
+
+
+def _stamp_restore_generation(
+    cfg: Config,
+    *,
+    generation_id: str,
+    registry_id: str,
+    control_sequence: int,
+    key: bytes,
+    domains: Iterable[str],
+) -> None:
+    """Stamp HMAC'd generation markers into runtime + restored domain roots (B2)."""
+    marker = gate_mod.sign_generation_marker(
+        generation_id=generation_id,
+        registry_id=registry_id,
+        control_sequence=control_sequence,
+        key=key,
+    )
+    # Always stamp runtime (survives recovery/ deletion).
+    _mkdir_secure(cfg.runtime_dir)
+    _write_json_durable(gate_mod.runtime_generation_marker_path(cfg), marker)
+
+    domain_roots: dict[str, Path] = {
+        "registry": cfg.registry_dir,
+        "evidence": evidence_mod.evidence_dir(cfg),
+        "trust": trust_mod.trust_dir(cfg),
+        "approvals": cfg.approvals_dir,
+        "policy_store": policy_store_dir(cfg),
+        "archive": cfg.archive_dir,
+        "config": cfg.data_dir,
+    }
+    for domain in domains:
+        root = domain_roots.get(domain)
+        if root is None:
+            continue
+        _mkdir_secure(root)
+        if domain == "config":
+            _write_json_durable(cfg.data_dir / gate_mod.DOMAIN_MARKER_NAME, marker)
+        else:
+            _write_json_durable(gate_mod.domain_marker_path(root), marker)
+
+
 def _write_activation_seal(
     cfg: Config,
     *,
+    generation_id: str,
     overlay: RecoveryOverlay,
     anchor: SequenceAnchor,
     key: bytes,
 ) -> None:
-    body = {
-        "kind": ACTIVATION_SEAL_KIND,
-        "registry_id": overlay.registry_id,
-        "control_sequence": anchor.control_sequence,
-        "overlay_digest": overlay.content_digest(),
-        "anchor_mac": anchor.mac,
-        "activated_at": _now(),
-    }
-    payload = _canonical_json(body).encode("utf-8")
-    body["mac"] = _mac_hex(key, _SEAL_MAC_LABEL, payload)
+    body = gate_mod.sign_activation_seal(
+        generation_id=generation_id,
+        registry_id=overlay.registry_id,
+        control_sequence=anchor.control_sequence,
+        overlay_digest=overlay.content_digest(),
+        anchor_mac=anchor.mac,
+        activated_at=_now(),
+        key=key,
+    )
     _write_json_durable(recovery_activation_path(cfg), body)
-    _write_state(cfg, reconciliation_required=False, reason="activated")
-
-
-def _verify_activation_seal(cfg: Config, *, key: bytes | None) -> bool:
-    path = recovery_activation_path(cfg)
-    if not path.is_file():
-        return False
-    try:
-        body = _read_json(path)
-    except (OSError, json.JSONDecodeError):
-        return False
-    if body.get("kind") != ACTIVATION_SEAL_KIND:
-        return False
-    if key is None:
-        return False
-    mac = str(body.get("mac") or "")
-    check = {k: v for k, v in body.items() if k != "mac"}
-    expected = _mac_hex(key, _SEAL_MAC_LABEL, _canonical_json(check).encode("utf-8"))
-    return bool(mac) and hmac.compare_digest(mac, expected)
-
-
-def reconciliation_status(cfg: Config) -> dict[str, Any]:
-    state_path = recovery_state_path(cfg)
-    if not state_path.is_file():
-        # No recovery activity — operational unless interrupted journal says otherwise.
-        journal = recovery_journal_path(cfg)
-        if journal.is_file():
-            lines = [ln for ln in journal.read_text(encoding="utf-8").splitlines() if ln.strip()]
-            if lines:
-                try:
-                    last = json.loads(lines[-1])
-                except json.JSONDecodeError:
-                    return {
-                        "reconciliation_required": True,
-                        "reason": "corrupt recovery journal",
-                    }
-                if last.get("step") != "activate_complete":
-                    return {
-                        "reconciliation_required": True,
-                        "reason": "interrupted restore journal",
-                        "last_step": last.get("step"),
-                    }
-        return {"reconciliation_required": False, "reason": "no recovery state"}
-    try:
-        state = _read_json(state_path)
-    except (OSError, json.JSONDecodeError):
-        return {"reconciliation_required": True, "reason": "corrupt recovery state"}
-    if state.get("reconciliation_required"):
-        return {
-            "reconciliation_required": True,
-            "reason": state.get("reason") or "reconciliation_required",
-            "state": state,
-        }
-    # Fail closed: claimed-clear state without a verifiable activation seal.
-    try:
-        key = _resolve_auth_key(cfg, allow_create=False)
-    except InvalidInputError:
-        return {
-            "reconciliation_required": True,
-            "reason": "activation seal unverifiable without fingerprint/custody key",
-        }
-    if not _verify_activation_seal(cfg, key=key):
-        return {
-            "reconciliation_required": True,
-            "reason": "missing or invalid activation seal",
-        }
-    return {"reconciliation_required": False, "reason": state.get("reason") or "activated"}
-
-
-def is_reconciliation_required(cfg: Config) -> bool:
-    return bool(reconciliation_status(cfg).get("reconciliation_required"))
-
-
-def assert_routing_allowed(cfg: Config) -> None:
-    if is_reconciliation_required(cfg):
-        raise InvalidInputError(
-            "routing disabled: reconciliation_required",
-            details=reconciliation_status(cfg),
-        )
-
-
-def assert_evidence_access_allowed(cfg: Config) -> None:
-    if is_reconciliation_required(cfg):
-        raise InvalidInputError(
-            "evidence access disabled: reconciliation_required",
-            details=reconciliation_status(cfg),
-        )
+    # Advisory state only — gate clearance is seal+markers, not this file.
+    _write_state(cfg, reconciliation_required=False, reason="activated", generation_id=generation_id)
 
 
 @contextmanager
@@ -933,8 +1027,20 @@ def _load_backup_manifest(backup_path: Path) -> tuple[Path, Path, dict[str, Any]
 
 def _verify_backup_archive(files_root: Path, manifest: dict[str, Any]) -> None:
     root = files_root.resolve()
+    seen: set[str] = set()
+    seen_casefold: set[str] = set()
     for entry in manifest.get("files", []):
         rel = str(entry["path"])
+        if rel in seen:
+            raise InvalidInputError(f"duplicate backup manifest path {rel!r}")
+        folded = rel.casefold()
+        if folded in seen_casefold:
+            raise InvalidInputError(
+                f"casefold-colliding backup manifest path {rel!r}",
+                details={"path": rel},
+            )
+        seen.add(rel)
+        seen_casefold.add(folded)
         path = _constrained_under(root, rel, label="backup manifest")
         if _is_symlink(path):
             raise InvalidInputError(f"backup entry is a symlink: {rel!r}")
@@ -996,10 +1102,15 @@ def _restore_files_into(
         _copy_file_durable(src, dest)
 
 
+
 def _preserve_live_overlay(
     cfg: Config, *, key: bytes
 ) -> tuple[RecoveryOverlay | None, SequenceAnchor | None]:
-    """Capture live overlay/anchor outside replaced stores (in-place restore)."""
+    """Capture live overlay/anchor outside replaced stores (in-place restore).
+
+    Verifies tombstone MAC + trust integrity before signing. Raises
+    InvalidInputError (→ reconciliation_required) on poisoned live state (B3).
+    """
     if not evidence_mod.evidence_dir(cfg).exists() and not trust_mod.trust_dir(cfg).is_dir():
         return None, None
     sequences = _domain_sequences(cfg)
@@ -1075,6 +1186,39 @@ def _rebuild_projections(cfg: Config, conn: sqlite3.Connection) -> dict[str, Any
     }
 
 
+def _assert_registry_ids_consistent(
+    *,
+    overlay: RecoveryOverlay,
+    manifest: dict[str, Any],
+    live_id: str | None,
+) -> None:
+    """B5: overlay.registry_id must equal manifest id, and live id when present."""
+    backup_reg = str(manifest.get("registry_id") or "")
+    if not backup_reg:
+        raise InvalidInputError(
+            "backup manifest missing registry_id",
+            details={"reconciliation_required": True},
+        )
+    if overlay.registry_id != backup_reg:
+        raise InvalidInputError(
+            "overlay.registry_id does not match backup manifest registry_id",
+            details={
+                "overlay": overlay.registry_id,
+                "manifest": backup_reg,
+                "reconciliation_required": True,
+            },
+        )
+    if live_id is not None and live_id != overlay.registry_id:
+        raise InvalidInputError(
+            "overlay.registry_id does not match live registry.id",
+            details={
+                "overlay": overlay.registry_id,
+                "live": live_id,
+                "reconciliation_required": True,
+            },
+        )
+
+
 def restore_snapshot(
     cfg: Config,
     conn: sqlite3.Connection,
@@ -1089,66 +1233,158 @@ def restore_snapshot(
 ) -> dict[str, Any]:
     """Restore a ``backup/1`` snapshot under the shared writer lease (C8).
 
-    On missing/stale/unauthenticated overlay+anchor, restores only into the
-    recovery staging area and leaves routing/evidence gated with
-    ``reconciliation_required``. Interrupted restores stay offline via the
-    recovery journal (never serve a mixed-generation registry).
+    On missing/stale/unauthenticated overlay+anchor, stamps restore-generation
+    markers and leaves routing/evidence gated with ``reconciliation_required``.
+    Interrupted restores stay offline (never serve a mixed-generation registry).
     """
     files_root, _manifest_path, manifest = _load_backup_manifest(Path(backup_path))
     _verify_backup_archive(files_root, manifest)
+    domains = list(manifest.get("domains") or BACKUP_DOMAINS)
+    generation_id = f"gen_{uuid.uuid4().hex}"
 
-    overlay_obj: RecoveryOverlay | None = None
+    caller_overlay: RecoveryOverlay | None = None
     if isinstance(overlay, RecoveryOverlay):
-        overlay_obj = overlay
+        caller_overlay = overlay
     elif isinstance(overlay, dict):
-        overlay_obj = RecoveryOverlay.from_dict(overlay)
+        caller_overlay = RecoveryOverlay.from_dict(overlay)
 
-    anchor_obj: SequenceAnchor | None = None
+    caller_anchor: SequenceAnchor | None = None
     if isinstance(sequence_anchor, SequenceAnchor):
-        anchor_obj = sequence_anchor
+        caller_anchor = sequence_anchor
     elif isinstance(sequence_anchor, dict):
-        anchor_obj = SequenceAnchor.from_dict(sequence_anchor)
+        caller_anchor = SequenceAnchor.from_dict(sequence_anchor)
 
     with _backup_lease(cfg, conn, holder):
         lease_mod.assert_single_writer()
         _mkdir_secure(recovery_dir(cfg))
-        _append_journal(cfg, {"step": "restore_begin", "backup": str(backup_path)})
+
+        auth_key: bytes | None = None
+        if custody_key is not None:
+            _install_custody_key(cfg, custody_key)
+            auth_key = custody_key
+        else:
+            try:
+                auth_key = _resolve_auth_key(cfg, allow_create=False)
+            except InvalidInputError:
+                auth_key = None
+
+        _append_journal(
+            cfg,
+            {"step": "restore_begin", "backup": str(backup_path), "generation_id": generation_id},
+            key=auth_key,
+        )
         if fault_hook is not None:
             fault_hook("boundary:restore_begin")
 
-        auth_key: bytes | None = None
-        try:
-            auth_key = _resolve_auth_key(cfg, custody_key=custody_key, allow_create=False)
-        except InvalidInputError:
-            auth_key = custody_key
+        # Stamp generation markers early so deleting recovery/ cannot clear the gate.
+        registry_id_for_stamp = str(
+            manifest.get("registry_id") or load_registry_id(cfg) or "unknown"
+        )
+        if auth_key is not None:
+            _stamp_restore_generation(
+                cfg,
+                generation_id=generation_id,
+                registry_id=registry_id_for_stamp,
+                control_sequence=int(
+                    (manifest.get("recovery_point_sequences") or {}).get("evidence") or 0
+                ),
+                key=auth_key,
+                domains=domains,
+            )
+            _append_journal(
+                cfg, {"step": "generation_stamped", "generation_id": generation_id}, key=auth_key
+            )
+        else:
+            # Unauthenticated marker: gate fails closed once any key appears, and
+            # without a key markers are still collected so status stays required.
+            _mkdir_secure(cfg.runtime_dir)
+            _write_json_durable(
+                gate_mod.runtime_generation_marker_path(cfg),
+                {
+                    "kind": gate_mod.RESTORE_GENERATION_KIND,
+                    "generation_id": generation_id,
+                    "registry_id": registry_id_for_stamp,
+                    "control_sequence": 0,
+                    "mac": "unauthenticated",
+                },
+            )
 
-        preserved: tuple[RecoveryOverlay | None, SequenceAnchor | None] = (None, None)
+        preserve_error: str | None = None
+        preserved_overlay: RecoveryOverlay | None = None
         if preserve_live_overlay and auth_key is not None:
             try:
-                preserved = _preserve_live_overlay(cfg, key=auth_key)
-                _append_journal(cfg, {"step": "live_overlay_preserved"})
-            except InvalidInputError:
-                preserved = (None, None)
+                preserved_overlay, _preserved_anchor = _preserve_live_overlay(cfg, key=auth_key)
+                _append_journal(cfg, {"step": "live_overlay_preserved"}, key=auth_key)
+            except InvalidInputError as exc:
+                preserve_error = str(exc)
+                preserved_overlay = None
 
-        if overlay_obj is None and preserved[0] is not None:
-            overlay_obj = preserved[0]
-        if anchor_obj is None and preserved[1] is not None:
-            anchor_obj = preserved[1]
+        overlay_obj = caller_overlay
+        anchor_obj = caller_anchor
 
         can_activate = False
         activate_error: str | None = None
-        if overlay_obj is None or anchor_obj is None or auth_key is None:
+
+        if preserve_error is not None:
+            can_activate = False
+            activate_error = preserve_error
+        elif auth_key is None:
+            can_activate = False
+            activate_error = "missing overlay auth key / fingerprint.key"
+        elif overlay_obj is None and preserved_overlay is None:
             can_activate = False
             activate_error = "missing overlay, sequence anchor, or auth key"
         else:
             try:
+                if overlay_obj is not None and preserved_overlay is not None:
+                    overlay_obj = merge_recovery_overlays(
+                        preserved_overlay,
+                        overlay_obj,
+                        key=auth_key,
+                        operator_provenance="merged-live+caller",
+                    )
+                elif overlay_obj is None:
+                    overlay_obj = preserved_overlay
+
+                assert overlay_obj is not None
+
+                min_seq = overlay_obj.control_sequence
+                if preserved_overlay is not None:
+                    min_seq = max(min_seq, preserved_overlay.control_sequence)
+                last_seal_seq = gate_mod.last_activation_sequence(cfg)
+                if last_seal_seq is not None:
+                    min_seq = max(min_seq, last_seal_seq)
+
+                if anchor_obj is None:
+                    # Always issue against the *final* (possibly merged) overlay digest.
+                    anchor_obj = issue_sequence_anchor(
+                        overlay_obj, key=auth_key, control_sequence=min_seq
+                    )
+                else:
+                    if anchor_obj.control_sequence < min_seq:
+                        raise InvalidInputError(
+                            "sequence anchor is stale relative to preserved live / prior seal",
+                            details={
+                                "anchor_sequence": anchor_obj.control_sequence,
+                                "minimum_sequence": min_seq,
+                                "reconciliation_required": True,
+                            },
+                        )
+                    # Re-bind when merge/preserve changed overlay content.
+                    if anchor_obj.overlay_digest != overlay_obj.content_digest():
+                        anchor_obj = issue_sequence_anchor(
+                            overlay_obj,
+                            key=auth_key,
+                            control_sequence=max(anchor_obj.control_sequence, min_seq),
+                        )
+
                 verify_overlay(overlay_obj, key=auth_key)
                 verify_anchor(anchor_obj, key=auth_key, overlay=overlay_obj)
-                backup_reg = str(manifest.get("registry_id") or "")
-                if backup_reg and overlay_obj.registry_id != backup_reg:
-                    # Clean-machine may reuse registry id from overlay; mismatch fails.
-                    if load_registry_id(cfg) not in (None, overlay_obj.registry_id, backup_reg):
-                        raise InvalidInputError("registry_id mismatch between overlay and live id")
+                _assert_registry_ids_consistent(
+                    overlay=overlay_obj,
+                    manifest=manifest,
+                    live_id=load_registry_id(cfg),
+                )
                 can_activate = True
             except InvalidInputError as exc:
                 can_activate = False
@@ -1159,15 +1395,16 @@ def restore_snapshot(
             if staging.exists():
                 shutil.rmtree(staging)
             _mkdir_secure(staging)
-            _append_journal(cfg, {"step": "staging_begin", "reason": activate_error})
+            _append_journal(
+                cfg, {"step": "staging_begin", "reason": activate_error}, key=auth_key
+            )
             if fault_hook is not None:
                 fault_hook("boundary:restore_staging")
-            # Clear only staging; leave live trees untouched / offline.
             _restore_files_into(
                 files_root,
                 manifest,
                 dest_data_dir=staging,
-                domains=manifest.get("domains") or BACKUP_DOMAINS,
+                domains=domains,
                 fault_hook=fault_hook,
             )
             _write_state(
@@ -1175,11 +1412,15 @@ def restore_snapshot(
                 reconciliation_required=True,
                 reason=activate_error or "reconciliation_required",
                 staging_dir=str(staging),
+                generation_id=generation_id,
                 recovery_point_sequences=manifest.get("recovery_point_sequences"),
             )
-            # Remove activation seal if any — fail closed.
             recovery_activation_path(cfg).unlink(missing_ok=True)
-            _append_journal(cfg, {"step": "staging_complete", "reconciliation_required": True})
+            _append_journal(
+                cfg,
+                {"step": "staging_complete", "reconciliation_required": True},
+                key=auth_key,
+            )
             if fault_hook is not None:
                 fault_hook("boundary:restore_offline")
             return {
@@ -1188,13 +1429,13 @@ def restore_snapshot(
                 "reason": activate_error,
                 "staging_dir": str(staging),
                 "activated": False,
+                "generation_id": generation_id,
             }
 
         assert overlay_obj is not None and anchor_obj is not None and auth_key is not None
 
-        # In-place replace of authoritative domains (not recovery/, not DB).
-        _append_journal(cfg, {"step": "replace_begin"})
-        for domain in ("registry", "evidence", "trust", "approvals", "config", "policy_store", "archive"):
+        _append_journal(cfg, {"step": "replace_begin"}, key=auth_key)
+        for domain in domains:
             if domain == "registry":
                 target = cfg.registry_dir
             elif domain == "evidence":
@@ -1209,10 +1450,8 @@ def restore_snapshot(
                 target = cfg.archive_dir
             else:
                 target = None
-            domains = manifest.get("domains") or BACKUP_DOMAINS
-            if target is not None and target.exists() and domain in domains:
+            if target is not None and target.exists():
                 if domain == "evidence":
-                    # Preserve nothing under evidence; live overlay already saved.
                     _clear_tree_files(target)
                 elif domain in {"trust", "approvals", "policy_store", "archive"}:
                     _clear_tree_files(target)
@@ -1228,26 +1467,59 @@ def restore_snapshot(
             files_root,
             manifest,
             dest_data_dir=cfg.data_dir,
-            domains=manifest.get("domains") or BACKUP_DOMAINS,
+            domains=domains,
             fault_hook=fault_hook,
         )
-        _append_journal(cfg, {"step": "files_restored"})
+        _stamp_restore_generation(
+            cfg,
+            generation_id=generation_id,
+            registry_id=overlay_obj.registry_id,
+            control_sequence=anchor_obj.control_sequence,
+            key=auth_key,
+            domains=domains,
+        )
+        _append_journal(cfg, {"step": "files_restored"}, key=auth_key)
         if fault_hook is not None:
             fault_hook("boundary:restore_files")
 
-        # Apply current overlay (revocations/deletions) BEFORE activation.
+        try:
+            evidence_mod.load_verified_tombstones(cfg)
+        except InvalidInputError as exc:
+            _write_state(
+                cfg,
+                reconciliation_required=True,
+                reason=f"restored tombstones.mac does not verify under custody key: {exc}",
+                generation_id=generation_id,
+            )
+            recovery_activation_path(cfg).unlink(missing_ok=True)
+            return {
+                "status": "reconciliation_required",
+                "reconciliation_required": True,
+                "reason": str(exc),
+                "activated": False,
+                "generation_id": generation_id,
+            }
+
         overlay_result = _apply_overlay(cfg, conn, overlay_obj, key=auth_key)
-        _append_journal(cfg, {"step": "overlay_applied", "result": overlay_result})
+        _append_journal(cfg, {"step": "overlay_applied", "result": overlay_result}, key=auth_key)
         if fault_hook is not None:
             fault_hook("boundary:overlay_applied")
 
         rebuild = _rebuild_projections(cfg, conn)
-        _append_journal(cfg, {"step": "projections_rebuilt", "result": rebuild})
+        _append_journal(cfg, {"step": "projections_rebuilt", "result": rebuild}, key=auth_key)
         if fault_hook is not None:
             fault_hook("boundary:rebuild_done")
 
-        _write_activation_seal(cfg, overlay=overlay_obj, anchor=anchor_obj, key=auth_key)
-        _append_journal(cfg, {"step": "activate_complete"})
+        _write_activation_seal(
+            cfg,
+            generation_id=generation_id,
+            overlay=overlay_obj,
+            anchor=anchor_obj,
+            key=auth_key,
+        )
+        _append_journal(
+            cfg, {"step": "activate_complete", "generation_id": generation_id}, key=auth_key
+        )
         if fault_hook is not None:
             fault_hook("boundary:restore_complete")
 
@@ -1259,6 +1531,7 @@ def restore_snapshot(
             "rebuild": rebuild,
             "recovery_point_sequences": manifest.get("recovery_point_sequences"),
             "registry_id": overlay_obj.registry_id,
+            "generation_id": generation_id,
         }
 
 
@@ -1272,12 +1545,13 @@ def resume_or_rollback_restore(
     """Resume an interrupted restore or roll back to offline staging (C8)."""
     with _backup_lease(cfg, conn, holder):
         lease_mod.assert_single_writer()
+        try:
+            key: bytes | None = _resolve_auth_key(cfg, allow_create=False)
+        except InvalidInputError:
+            key = None
         journal = recovery_journal_path(cfg)
         if not journal.is_file():
             return {"status": "noop", "reconciliation_required": is_reconciliation_required(cfg)}
-        lines = [json.loads(ln) for ln in journal.read_text(encoding="utf-8").splitlines() if ln.strip()]
-        if lines and lines[-1].get("step") == "activate_complete":
-            return {"status": "already_complete", "reconciliation_required": False}
         if rollback:
             staging = recovery_staging_dir(cfg)
             _write_state(
@@ -1287,11 +1561,11 @@ def resume_or_rollback_restore(
                 staging_dir=str(staging) if staging.exists() else None,
             )
             recovery_activation_path(cfg).unlink(missing_ok=True)
-            _append_journal(cfg, {"step": "rollback_complete"})
+            _append_journal(cfg, {"step": "rollback_complete"}, key=key)
             return {"status": "rolled_back", "reconciliation_required": True}
         _write_state(
             cfg,
             reconciliation_required=True,
             reason="interrupted restore; resume requires verified overlay/anchor",
         )
-        return {"status": "offline", "reconciliation_required": True}
+        return {"status": "offline", "reconciliation_required": is_reconciliation_required(cfg)}

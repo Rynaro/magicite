@@ -470,16 +470,16 @@ def layout_check(cfg: Config) -> dict[str, Any]:
 def reconciliation_check(cfg: Config) -> dict[str, Any]:
     """C8: report whether restore left the instance in reconciliation_required."""
     try:
-        from magicite.core import backup as backup_mod
+        from magicite.core import recovery_gate as gate_mod
     except ImportError:
         return {
             "reconciliation_required": False,
             "status": "not_applicable",
-            "note": "backup module unavailable",
+            "note": "recovery_gate module unavailable",
             "remediation": None,
         }
-    required = backup_mod.is_reconciliation_required(cfg)
-    detail = backup_mod.reconciliation_status(cfg)
+    required = gate_mod.is_reconciliation_required(cfg)
+    detail = gate_mod.reconciliation_status(cfg)
     if required:
         return {
             "reconciliation_required": True,
@@ -487,8 +487,9 @@ def reconciliation_check(cfg: Config) -> dict[str, Any]:
             "evidence": detail,
             "note": detail.get("reason") or "reconciliation_required",
             "remediation": (
-                "Supply a verified RecoveryOverlay/1 and sequence anchor, then run "
-                "core.backup.reconcile_and_activate (or restore with overlay)."
+                "Supply a verified RecoveryOverlay/1 and SequenceAnchor, then run "
+                "core.backup.restore_snapshot(..., overlay=..., sequence_anchor=..., "
+                "custody_key=...) so a valid activation seal is written."
             ),
         }
     return {
