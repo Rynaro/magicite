@@ -738,7 +738,7 @@ def reject(
     reason: str | None = None,
     event_id: str | None = None,
 ) -> TrustDecision:
-    with lease_mod.writer_lease(holder="trust-reject"):
+    with _trust_write_leases(cfg, conn, holder="trust-reject"):
         live = live_content_digest(conn, engram_id)
         _require_expected_digest(expected=expected_digest, actual=live, label="reject")
         policy = load_policy(cfg)
@@ -777,7 +777,7 @@ def revoke(
     event_id: str | None = None,
 ) -> TrustDecision:
     """Revoke local admission. Keeps signature/audit history; does not delete mirrors."""
-    with lease_mod.writer_lease(holder="trust-revoke"):
+    with _trust_write_leases(cfg, conn, holder="trust-revoke"):
         policy = load_policy(cfg)
         prior = latest_decision_for(cfg, engram_id)
         if prior is None:
