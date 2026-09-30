@@ -203,8 +203,11 @@ class RouteOutcome:
     policy_id: str = policy_mod.POLICY_DENSE_V1
     policy_digest: str = ""
     policy_family: str = "stable"
-    #: Internal RouteDecision/1 — not yet on MCP RouteOutput (S11 forward).
+    #: Internal RouteDecision/1 — public wrappers owned by S11.
     decision: RouteDecision | None = None
+    #: Composed Plan/1 for S11 public projection (None when composition did not run
+    #: or failed before ``compose()`` returned). Carry-through only — no behaviour change.
+    plan: composition_mod.Plan | None = None
 
 
 #: docs/05 verbatim self-report instruction text (Tier-1 signal path).
@@ -290,6 +293,9 @@ class _ComposeRouteResult:
     plan_digest: str | None = None
     reason_codes: tuple[str, ...] = ()
     missing_context: tuple[str, ...] = ()
+    #: Composed Plan/1 when ``compose()`` returned (valid or invalid). None on
+    #: pre-compose failures / exceptions. Carried for S11 public projection only.
+    plan: composition_mod.Plan | None = None
 
 
 def _compose_limits(cfg: Config) -> composition_mod.CompositionLimits:
@@ -535,6 +541,7 @@ def compose_route_plan(
             reason_codes=tuple(reasons),
             missing_context=tuple(dict.fromkeys(missing)),
             plan_digest=_plan_identity_digest(plan),
+            plan=plan,
         )
 
     order_names: list[str] = []
@@ -549,6 +556,8 @@ def compose_route_plan(
                         REASON_COMPOSITION_INVALID,
                         eligibility_mod.REASON_DANGLING_DEPENDENCY,
                     ),
+                    plan=plan,
+                    plan_digest=_plan_identity_digest(plan),
                 )
             name = str(row["name"])
             id_to_name[eid] = name
@@ -562,6 +571,7 @@ def compose_route_plan(
         order_names=tuple(order_names),
         plan_confidence=confidence,
         plan_digest=_plan_identity_digest(plan),
+        plan=plan,
     )
 
 
@@ -1376,6 +1386,16 @@ def _pin_index_identity(
     )
 
 
+def pin_index_identity(
+    conn: sqlite3.Connection,
+) -> tuple[str | None, str | None, str | None, str | None, tuple[str, ...]]:
+    """Public alias of :func:`_pin_index_identity` for S11 body-load snapshot gates.
+
+    Same return shape: ``(generation_id, snapshot_id, schema_digest, tokenizer_digest, reason_codes)``.
+    """
+    return _pin_index_identity(conn)
+
+
 def route(
     cfg: Config,
     conn: sqlite3.Connection,
@@ -1635,6 +1655,7 @@ def _finalize_route(
     composition_plan: list[str] = []
     plan_confidence = 0.0
     plan_digest: str | None = None
+    composed_plan: composition_mod.Plan | None = None
     final_candidates = list(candidates)
     final_status: Literal["selected", "abstained", "error"]
     final_reasons = list(reason_codes)
@@ -1702,6 +1723,7 @@ def _finalize_route(
                 composition_plan = []
                 plan_confidence = 0.0
                 plan_digest = composed.plan_digest
+                composed_plan = composed.plan
                 final_reasons.extend(composed.reason_codes)
                 missing.extend(composed.missing_context)
             else:
@@ -1709,6 +1731,7 @@ def _finalize_route(
                 composition_plan = list(composed.order_names)
                 plan_confidence = composed.plan_confidence
                 plan_digest = composed.plan_digest
+                composed_plan = composed.plan
 
     # Deterministic propensity under a nonadaptive policy.
     propensity: dict[str, float] = {}
@@ -1790,6 +1813,7 @@ def _finalize_route(
         policy_digest=policy_digest,
         policy_family=policy_family,
         decision=route_decision,
+        plan=composed_plan,
     )
 
 

@@ -148,6 +148,8 @@ jobs:
           file: Dockerfile
           tags: magicite:verify
           load: true
+          # Refresh runtime apt security updates on every build; preserve builder cache.
+          no-cache-filters: runtime
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

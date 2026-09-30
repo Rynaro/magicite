@@ -1,0 +1,29 @@
+{
+  "probe": "stdio-generic",
+  "mcp_sdk_version": "2.0.0",
+  "steps": [
+    {
+      "step": "handshake",
+      "protocol_version": "2025-11-25",
+      "server": "name='magicite' title=None version='' description=None website_url=None icons=None"
+    },
+    {
+      "step": "tools_list",
+      "count": 16
+    },
+    {
+      "step": "register",
+      "ingested": 7
+    },
+    {
+      "step": "route",
+      "decision_id": "<opaque>",
+      "status": "selected",
+      "candidate_count": 3
+    },
+    {
+      "step": "load_skill_body",
+      "status": "ok"
+    }
+  ]
+}
