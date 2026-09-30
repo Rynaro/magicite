@@ -71,6 +71,12 @@ def _migration_already_materialized(conn: sqlite3.Connection, number: int) -> bo
         return _has_table(conn, "index_entry") and _has_table(conn, "index_fts")
     if number == 5:
         return _has_table(conn, "trust_decision") and _has_table(conn, "trust_policy_meta")
+    if number == 6:
+        return (
+            _has_table(conn, "evidence_meta")
+            and _has_table(conn, "evidence_event_projection")
+            and _has_table(conn, "evidence_tombstone_projection")
+        )
     return False
 
 

@@ -13,9 +13,9 @@ Stable contract (do not change without an explicit migration):
 - scheme: ``hmac-sha256/local-v1``
 - length: 32 bytes, mode ``0600``
 
-First-create uses ``O_CREAT|O_EXCL``. A follow-up atomic publish (tmp +
-``os.link``) is tracked on ``codex/v1-s00-key-race`` — keep that behavior if
-this module is restructured; do not regress concurrent first-create safety.
+First-create publishes atomically (tmp + ``os.link``) so concurrent
+first-creators converge on one key — keep that behavior if this module is
+restructured; do not regress concurrent first-create safety.
 
 This module never logs key material.
 """
