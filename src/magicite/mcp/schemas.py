@@ -265,7 +265,7 @@ class RouteOutput(MagiciteModel):
     operational_error: str | None = None
     fallback_identity: str | None = None
     decision_schema_version: str | None = None
-    # ── Plan/1 public projection (C5; null until router wires compose) ──
+    # ── Plan/1 public projection (C5; host_verification_report null on route) ──
     plan: PlanOut | None = None
     plan_digest: str | None = None
     host_verification_report: HostVerificationReportOut | None = None

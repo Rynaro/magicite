@@ -9,8 +9,6 @@ disclosure gate (stale_decision / missing_context without procedure bytes).
 
 from __future__ import annotations
 
-import hashlib
-import json
 from pathlib import Path
 from typing import Any
 
@@ -79,43 +77,79 @@ def _empty_body(
     )
 
 
-def _plan_digest(plan: Any) -> str | None:
-    """Stable digest of Plan/1 public fields (no procedure bodies)."""
-    if plan is None:
+def _safe_procedure_ref(ref: str | None) -> str | None:
+    """Public procedure refs must not leak absolute filesystem paths."""
+    if ref is None or ref == "":
         return None
-    payload = {
-        "status": getattr(plan, "status", None),
-        "topological_order": list(getattr(plan, "topological_order", ()) or ()),
-        "diagnostics": [
-            {
-                "code": getattr(d, "code", None),
-                "message": getattr(d, "message", None),
-                "subject_id": getattr(d, "subject_id", None),
-            }
-            for d in (getattr(plan, "diagnostics", ()) or ())
-        ],
-        "snapshot_id": getattr(plan, "snapshot_id", None),
-        "policy_id": getattr(plan, "policy_id", None),
-        "policy_digest": getattr(plan, "policy_digest", None),
-        "schema_version": getattr(plan, "schema_version", None),
-        "node_ids": [getattr(n, "engram_id", None) for n in (getattr(plan, "nodes", ()) or ())],
-        "node_digests": [
-            getattr(n, "content_digest", None) for n in (getattr(plan, "nodes", ()) or ())
-        ],
-    }
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if ref.startswith("/") or (len(ref) > 2 and ref[1] == ":"):
+        return None
+    return ref
 
 
-def _project_plan(plan: Any) -> PlanOut | None:
-    if plan is None:
+def _project_plan(
+    plan: Any,
+    *,
+    authoritative_digest: str | None,
+    disclose_nodes: bool,
+) -> PlanOut | None:
+    """Project Plan/1. Invalid/abstained composition discloses diagnostics only."""
+    if plan is None and authoritative_digest is None:
         return None
+    if plan is None:
+        return PlanOut(plan_digest=authoritative_digest, nodes=[], edges=[], topological_order=[])
+
+    # Defense: local recomputation must equal router decision.plan_digest.
+    if authoritative_digest is not None:
+        computed = router_mod._plan_identity_digest(plan)
+        if computed != authoritative_digest:
+            raise InvalidInputError(
+                "plan_digest mismatch between decision and composed Plan/1",
+                details={
+                    "reason": "plan_digest_mismatch",
+                    "decision_plan_digest": authoritative_digest,
+                    "computed_plan_digest": computed,
+                },
+                hint="re-run route; do not trust a stale plan projection",
+            )
+
+    diagnostics = [
+        PlanDiagnosticOut(
+            code=str(getattr(d, "code", "")),
+            message=str(getattr(d, "message", "")),
+            subject_id=getattr(d, "subject_id", None),
+            related_ids=list(getattr(d, "related_ids", ()) or ()),
+        )
+        for d in (getattr(plan, "diagnostics", ()) or ())
+    ]
+
+    status = getattr(plan, "status", None)
+    if not disclose_nodes or status != "valid" or not getattr(plan, "executable", False):
+        return PlanOut(
+            status=status,
+            nodes=[],
+            edges=[],
+            topological_order=[],
+            diagnostics=diagnostics,
+            plan_digest=authoritative_digest,
+            snapshot_id=getattr(plan, "snapshot_id", None),
+            policy_id=getattr(plan, "policy_id", None),
+            policy_digest=getattr(plan, "policy_digest", None),
+            executable=False if status != "valid" else getattr(plan, "executable", None),
+            schema_version=getattr(plan, "schema_version", None),
+        )
+
+    topo = list(getattr(plan, "topological_order", ()) or ())
+    by_id = {str(getattr(n, "engram_id", "")): n for n in (getattr(plan, "nodes", ()) or ())}
+    ordered_nodes = [by_id[eid] for eid in topo if eid in by_id]
+
     nodes: list[PlanNodeOut] = []
-    for node in getattr(plan, "nodes", ()) or ():
+    for node in ordered_nodes:
         risk = getattr(node, "risk", None)
         risk_out: dict[str, Any] | None
         if risk is None:
             risk_out = None
+        elif hasattr(risk, "model_dump"):
+            risk_out = risk.model_dump()
         elif hasattr(risk, "__dict__"):
             risk_out = {
                 k: getattr(risk, k)
@@ -131,7 +165,7 @@ def _project_plan(plan: Any) -> PlanOut | None:
                 engram_id=str(getattr(node, "engram_id", "")),
                 version=int(getattr(node, "version", 0) or 0),
                 content_digest=str(getattr(node, "content_digest", "") or ""),
-                procedure_ref=getattr(node, "procedure_ref", None),
+                procedure_ref=_safe_procedure_ref(getattr(node, "procedure_ref", None)),
                 required_permissions=sorted(getattr(node, "required_permissions", ()) or ()),
                 risk=risk_out,
             )
@@ -146,23 +180,13 @@ def _project_plan(plan: Any) -> PlanOut | None:
         )
         for edge in (getattr(plan, "edges", ()) or ())
     ]
-    diagnostics = [
-        PlanDiagnosticOut(
-            code=str(getattr(d, "code", "")),
-            message=str(getattr(d, "message", "")),
-            subject_id=getattr(d, "subject_id", None),
-            related_ids=list(getattr(d, "related_ids", ()) or ()),
-        )
-        for d in (getattr(plan, "diagnostics", ()) or ())
-    ]
-    digest = _plan_digest(plan)
     return PlanOut(
-        status=getattr(plan, "status", None),
+        status=status,
         nodes=nodes,
         edges=edges,
-        topological_order=list(getattr(plan, "topological_order", ()) or ()),
+        topological_order=topo,
         diagnostics=diagnostics,
-        plan_digest=digest,
+        plan_digest=authoritative_digest,
         snapshot_id=getattr(plan, "snapshot_id", None),
         policy_id=getattr(plan, "policy_id", None),
         policy_digest=getattr(plan, "policy_digest", None),
@@ -198,14 +222,29 @@ def _calibration_status(decision: router_mod.RouteDecision | None) -> str | None
 
 
 def project_route_output(outcome: router_mod.RouteOutcome) -> RouteOutput:
-    """Map ``RouteOutcome`` (+ optional Plan/1 attrs) onto the public schema."""
+    """Map ``RouteOutcome`` + Plan/1 onto the public schema.
+
+    ``decision.plan_digest`` is the sole authoritative plan digest (C4/C5).
+    """
     decision = outcome.decision
-    plan = getattr(outcome, "plan", None)
-    plan_out = _project_plan(plan)
-    plan_digest = getattr(outcome, "plan_digest", None) or (
-        plan_out.plan_digest if plan_out is not None else None
+    plan = outcome.plan
+    authoritative_digest = decision.plan_digest if decision is not None else None
+
+    # Disclose nodes only for a selected, valid, executable plan.
+    disclose_nodes = bool(
+        decision is not None
+        and decision.status == "selected"
+        and plan is not None
+        and getattr(plan, "status", None) == "valid"
+        and getattr(plan, "executable", False)
     )
-    host_report = _project_host_verification(getattr(outcome, "host_verification_report", None))
+    plan_out = _project_plan(
+        plan,
+        authoritative_digest=authoritative_digest,
+        disclose_nodes=disclose_nodes,
+    )
+    # host_verification_report: router/S08 do not produce this on the route path.
+    host_report = _project_host_verification(None)
 
     exclusions: list[ExclusionSummaryOut] = []
     if decision is not None:
@@ -223,7 +262,6 @@ def project_route_output(outcome: router_mod.RouteOutcome) -> RouteOutput:
 
     public_status: str | None = None
     if decision is not None:
-        # Wire uses selected|abstained|error; "ok" is accepted synonym for selected.
         public_status = decision.status
 
     return RouteOutput(
@@ -284,7 +322,7 @@ def project_route_output(outcome: router_mod.RouteOutcome) -> RouteOutput:
         fallback_identity=decision.fallback_identity if decision else None,
         decision_schema_version=decision.schema_version if decision else None,
         plan=plan_out,
-        plan_digest=plan_digest,
+        plan_digest=authoritative_digest,
         host_verification_report=host_report,
     )
 
