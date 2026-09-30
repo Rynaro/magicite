@@ -1,0 +1,9 @@
+{
+  "schema": "magicite/checkpoint-process-death/1",
+  "status": "PASS",
+  "child_exit_code": 23,
+  "ack_durable": true,
+  "projection_wiped_before_rebuild": true,
+  "recovered_event": true,
+  "sequence_matches_ack": true
+}

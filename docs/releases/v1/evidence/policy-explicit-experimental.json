@@ -2,11 +2,11 @@
   "artifacts": [
     {
       "path": "docs/releases/v1/evidence/test-results.json",
-      "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+      "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
     },
     {
       "path": "docs/releases/v1/evidence/pytest.txt",
-      "sha256": "f4542a6d992b5a28d86d11663a663bc4c2f180e469fc53a9d51ce257d063b991"
+      "sha256": "c430f92b0f6a6ca5c5b72af26297bfab7c6ff3c09646cdd9799f1ead3a20f6e5"
     },
     {
       "path": "src/magicite/config.py",
@@ -17,7 +17,7 @@
       "sha256": "be012fc2afddc0af0ec882b970bc8227566eefa8e5e2f217341662f3da161725"
     }
   ],
-  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
   "environment": {
     "dependency_note": "MCP and mcp-types 2.0.0 match uv.lock; remaining shared-site dependencies are recorded runtime, not claimed full-lock recreation.",
     "interpreter": "/private/tmp/s14-mcp200/bin/python",
@@ -44,7 +44,7 @@
   "review_status": "PENDING_EVIDENCE_REVIEW",
   "reviewer": null,
   "schema": "magicite/release-witness/1",
-  "scope": "Mechanical local evidence only; independently reviewed report required before treating this witness as accepted.",
-  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+  "scope": "Mechanical evidence from clean source at c0782fd; independent artifact review pending. No production/external/RC qualification.",
+  "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
   "status": "PASS"
 }

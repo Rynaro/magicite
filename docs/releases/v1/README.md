@@ -32,9 +32,9 @@ Unrun external clauses remain UNEVALUATED even when their supporting tests pass.
 Local verification uses Python 3.14.6 on macOS arm64 with MCP/mcp-types 2.0.0.
 That is not the declared Python 3.11/3.12 release matrix. Other inherited dependency
 versions are recorded; this is not claimed to be a complete lockfile recreation.
-The report identifies the exact tracked code source and discloses untracked draft
-release documents present during the run. Final integration CI and clean-tree
-verification must be recorded separately. Ten local skips are explicit: five
+The report identifies clean source c0782fd, including the final S15/S13 integration
+merge. Subsequent evidence-only commits archive those immutable results. Final PR
+CI is recorded separately. Ten local skips are explicit: five
 Docker-image checks, four unpublished-channel reservations, one optional igraph.
 
 The [trust diagnostic](evidence/trust-mirror-loss.json) demonstrates the current

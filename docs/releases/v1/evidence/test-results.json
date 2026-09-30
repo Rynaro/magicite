@@ -1,6 +1,6 @@
 {
   "checker_status": "PENDING_EVIDENCE_REVIEW",
-  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
   "environment": {
     "path": "docs/releases/v1/evidence/environment.json",
     "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
@@ -11,8 +11,8 @@
     "path": "uv.lock",
     "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
   },
-  "passed": 1024,
-  "raw_junit_sha256": "3a7bcb723bb300980ec6e10b54fa1555c7f7a04b72867dfad037a9b0b650fdb1",
+  "passed": 1031,
+  "raw_junit_sha256": "c43970975d98d33a1994ffa0885f35053b8563fcda674fadd99c9872a3144c0a",
   "results": [
     {
       "node": "tests/acceptance/test_declared_edge_weight.py::test_inhibition_is_reachable_from_register",
@@ -4139,6 +4139,34 @@
       "status": "PASS"
     },
     {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[None-candidate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[None-rc]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[True-candidate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[True-rc]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[0-candidate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[0-rc]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_rc_immutable_report_cannot_hide_dirty_source",
+      "status": "PASS"
+    },
+    {
       "node": "tests/unit/test_verify_wheel_install.py::test_resolve_wheel_relative_path_is_absolute",
       "status": "PASS"
     },
@@ -4154,11 +4182,9 @@
   "schema": "magicite/local-verification/1",
   "skip_scope": "5 local Docker-image checks, 4 unpublished channel reservations, 1 optional igraph",
   "skipped": 10,
-  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
-  "source_dirty": true,
-  "source_scope": "Tracked code/test bytes at source_commit; only new draft release documentation was untracked during this run. This is not a clean RC rehearsal or external reproduction.",
+  "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+  "source_dirty": false,
+  "source_scope": "Recorded from clean tracked and untracked worktree at c0782fd; subsequent changes only archive and annotate evidence. Not a published RC or external reproduction.",
   "tracked_code_diff": false,
-  "untracked_scope": [
-    "docs/releases/v1/"
-  ]
+  "untracked_scope": []
 }

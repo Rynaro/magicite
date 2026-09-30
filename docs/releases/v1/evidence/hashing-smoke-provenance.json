@@ -1,0 +1,35 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/evidence/hashing-smoke.json",
+      "sha256": "e6f1fbc6939f8815c8f3447e26e26d81718b1183454f274d3abf08e9fc23f90b"
+    },
+    {
+      "path": "scripts/run_benchmark_matrix.py",
+      "sha256": "dc123b8a8ae4d822cfbe6c72a6ac07b0763c9df17863e499a225bda3f1140c96"
+    },
+    {
+      "path": "src/magicite/eval/profiles.py",
+      "sha256": "76e13361251cf8798512270654b67ac73a1007d9b89a68b778673fa504af539f"
+    },
+    {
+      "path": "src/magicite/embeddings/hashing_provider.py",
+      "sha256": "5c575d462ecab8b6060d81b28a141755b945eda24cc8656e126b26463d4b5cf1"
+    }
+  ],
+  "command": "/private/tmp/s14-mcp200/bin/python scripts/run_benchmark_matrix.py --profile ci-smoke --provider hashing --envelope-mode completeness --output /private/tmp/s16-actual-smoke.json",
+  "environment": {
+    "path": "docs/releases/v1/evidence/environment.json",
+    "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
+  },
+  "exit_code": 0,
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "review_status": "PENDING_EVIDENCE_REVIEW",
+  "reviewer": null,
+  "schema": "magicite/diagnostic-provenance/1",
+  "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+  "source_dirty": false
+}

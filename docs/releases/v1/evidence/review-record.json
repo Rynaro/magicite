@@ -7,6 +7,12 @@
     "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
     "verdict": "APPROVED"
   },
+  "code_delta": {
+    "reviewer": "RAMZA /root/v1_plan",
+    "scope": "Require explicit clean candidate/RC sources;54 focused tests independently passed; actual os._exit23 checkpoint/rebuild probe independently passed.",
+    "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+    "verdict": "APPROVED"
+  },
   "evidence": {
     "reviewer": null,
     "scope": "76 criterion ledger,17 gate statuses,14 mechanical clause witnesses and trust proposal.",

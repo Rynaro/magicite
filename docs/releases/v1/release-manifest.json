@@ -1,7 +1,7 @@
 {
   "criterion_ledger": {
     "path": "docs/releases/v1/criterion-ledger.json",
-    "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+    "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
   },
   "draft_only": true,
   "external": null,
@@ -10,19 +10,19 @@
       "evidence": [
         {
           "path": "docs/releases/v1/evidence/policy-nonadaptive-default.json",
-          "sha256": "2df7dd79413f9389b92c5c4c02674900f51a020cfa9a007de592821439bfef31"
+          "sha256": "13ffe533727644bc3a1ea3bf401756125e3dd5f16ec3a25650cb964d61df8389"
         },
         {
           "path": "docs/releases/v1/evidence/policy-dream-isolation.json",
-          "sha256": "58ccaadae65788682ca7678e581865dfa8e7aa3161d3edf31892df806808531c"
+          "sha256": "fe8ae0490f8c19753310107e56d031460f9754ef699aa90cfacae6d6f320b006"
         },
         {
           "path": "docs/releases/v1/evidence/policy-explicit-experimental.json",
-          "sha256": "f7ecbd762c5e5a23e0af942ba19de563e8d3b95775761954dddc1195ce42a4dc"
+          "sha256": "8bc09574826a38970a6b8b027788a812bd8cf82c3bb5c8222532c8aa55af9a46"
         },
         {
           "path": "docs/releases/v1/evidence/policy-pinned-incumbent.json",
-          "sha256": "ac480485f10b4715dc740ae11586d5e4f89ada5afdac00b96b31ce7b2c77ab13"
+          "sha256": "2b842de3b7f22bbdef4be07c11a676bec6650cc42a2811eb43caeaeda7da4d36"
         }
       ],
       "id": "POLICY",
@@ -38,7 +38,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -57,7 +57,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -65,15 +65,15 @@
       "evidence": [
         {
           "path": "docs/releases/v1/evidence/schema-frozen-schema.json",
-          "sha256": "7f217064241d00d6a15f155ea8c071c69d6ccf0ca9e2cb2206d321ae051ed974"
+          "sha256": "a0777e1e6b0f4048d684384e4135d2f59157f0d89ff332cd6a21f798f29815eb"
         },
         {
           "path": "docs/releases/v1/evidence/schema-roundtrip-corpus.json",
-          "sha256": "8e730aa957ce29ea14c89874f6bba20ab2910e0610154f1f52b1be53f11affa4"
+          "sha256": "03c290235f08cd0e63d099b55c225fa7ed3b6b172b250362e7c37d03fb86e27d"
         },
         {
           "path": "docs/releases/v1/evidence/schema-migration-downgrade-replay.json",
-          "sha256": "d4aaaacef47a1da59ff0cabb07a97e2188cb64d06c57c16629aadbc1f67f94d7"
+          "sha256": "b1450775e0b46be9d2cc818539ec981ae8abc5ab7d461b2701a5dbaa67ec1ec0"
         }
       ],
       "id": "SCHEMA",
@@ -88,7 +88,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -107,7 +107,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         },
         {
           "path": "docs/releases/v1/evidence/trust-mirror-loss.json",
@@ -123,11 +123,11 @@
         },
         {
           "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
-          "sha256": "f342419244f3fc6b9a25ae81e8017c484ee58ca01dbf9691076c2e23784d31c5"
+          "sha256": "a1434c5914318bc8c949ac7e25d3ccfe08a1f4c5a475ccd48bed4ba19e490cc7"
         },
         {
           "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
-          "sha256": "f342419244f3fc6b9a25ae81e8017c484ee58ca01dbf9691076c2e23784d31c5"
+          "sha256": "a1434c5914318bc8c949ac7e25d3ccfe08a1f4c5a475ccd48bed4ba19e490cc7"
         }
       ]
     },
@@ -147,7 +147,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -165,7 +165,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -173,23 +173,23 @@
       "evidence": [
         {
           "path": "docs/releases/v1/evidence/privacy-data-map.json",
-          "sha256": "a599a25a1be2f3a2f763c99a4044d8da953b6da180baa317b7e8a5b39ccc756b"
+          "sha256": "0a242c4766878f6973eafc1bfc57a4c34e422e2bb9607d0a79bca26fb4b6fa00"
         },
         {
           "path": "docs/releases/v1/evidence/privacy-no-default-raw.json",
-          "sha256": "8efd4557156e5e9d70b58e685271e8afc65e469d8ab9b347396bc2cf4d8f75e3"
+          "sha256": "9a605a40fe9c760166b910e3125aaf7fe5be18dfd4ad7a8b183b9c4728a8a5ae"
         },
         {
           "path": "docs/releases/v1/evidence/privacy-historical-cleanup.json",
-          "sha256": "68bea3c5a742534214737e6456c6e4ce733af32dfe38cbf1e5d43e08ebb5a7cd"
+          "sha256": "2a6a9f85986796cf7ee064494eeb907763286f7760b161f521e58ec5f8a035b8"
         },
         {
           "path": "docs/releases/v1/evidence/privacy-checkpoint-rpo.json",
-          "sha256": "2c1fac5e4f22e132112bc8d732b8ebc5ab89434243e7530ee3fbc2923b041d0c"
+          "sha256": "6973b81ccaaaf60cfab2fe4bfb5f9f5afc9a2cfc6657fe27948aafeccf79a526"
         },
         {
           "path": "docs/releases/v1/evidence/privacy-lifecycle-tests.json",
-          "sha256": "e3f58a746b1d60bcdbcd346f002fc7c3579190fbc6ae0e73980df131822e3240"
+          "sha256": "a0c5e9352fe8dcddb20cb77c7edb833f9cf7659b3e5009236dc118aacd0dd160"
         }
       ],
       "id": "PRIVACY",
@@ -206,7 +206,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -214,11 +214,11 @@
       "evidence": [
         {
           "path": "docs/releases/v1/evidence/learning-containment.json",
-          "sha256": "cf48c85dbce9ec01808d7586d058891da2e7ddbccf68bf69c6e596d4e357d55f"
+          "sha256": "bbf025a7623ef39549b48733d81164ea48cd3b125e8be329234d10735d9538c4"
         },
         {
           "path": "docs/releases/v1/evidence/learning-fully-gated-or-unavailable.json",
-          "sha256": "34e3dfe2a08dc59fbf61031f5c7b9d376ee95b0725875a9133c097f3a4838bf6"
+          "sha256": "4c7a02c6b714bd28c4772bb1a0ee59bf2ced88dc3ba9cd5a1c1798f0a0251168"
         }
       ],
       "id": "LEARNING",
@@ -232,7 +232,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -250,7 +250,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -268,7 +268,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -286,7 +286,11 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
+        },
+        {
+          "path": "docs/releases/v1/evidence/hashing-smoke-provenance.json",
+          "sha256": "9dd795a27a94c512392fc42e48cc2d89464c7d57911c211cc6e9fdfcd9ddb23a"
         }
       ]
     },
@@ -304,7 +308,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -323,7 +327,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -341,7 +345,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -357,7 +361,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     },
@@ -375,7 +379,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         },
         {
           "path": "docs/releases/v1/evidence/trust-mirror-loss.json",
@@ -391,11 +395,11 @@
         },
         {
           "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
-          "sha256": "f342419244f3fc6b9a25ae81e8017c484ee58ca01dbf9691076c2e23784d31c5"
+          "sha256": "a1434c5914318bc8c949ac7e25d3ccfe08a1f4c5a475ccd48bed4ba19e490cc7"
         },
         {
           "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
-          "sha256": "f342419244f3fc6b9a25ae81e8017c484ee58ca01dbf9691076c2e23784d31c5"
+          "sha256": "a1434c5914318bc8c949ac7e25d3ccfe08a1f4c5a475ccd48bed4ba19e490cc7"
         }
       ]
     },
@@ -413,7 +417,7 @@
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/criterion-ledger.json",
-          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+          "sha256": "ffda1f2e521f4cd8238f30d841729d2e8e194bb3e60c8e183e1ba66f1a480406"
         }
       ]
     }
@@ -429,7 +433,7 @@
   "maintainer_signoff": null,
   "release_candidates": [],
   "schema": "magicite/release-manifest/1",
-  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
-  "source_dirty": true,
-  "source_scope": "Exact tracked code eee0fd8; untracked docs/releases/v1 were being assembled during the recorded run. Runtime/test source bytes unchanged; not a clean RC."
+  "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+  "source_dirty": false,
+  "source_scope": "Recorded from clean tracked and untracked worktree at c0782fd; subsequent changes only archive and annotate evidence. Not a published RC or external reproduction."
 }

@@ -6,14 +6,14 @@
   "criteria": [
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an identical pinned query and registry\nWHEN usage, strength and community state vary\nTHEN stable routing SHALL return the same semantic result\nVERIFY: new tests/unit/core/test_policy_boundary.py::test_stable_ignores_adaptation",
       "given": "GIVEN an identical pinned query and registry",
@@ -40,9 +40,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -67,14 +67,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN stable default configuration\nWHEN Dream runs or checkpoints historical strength\nTHEN the active stable policy digest SHALL remain unchanged\nVERIFY: new test_policy_boundary.py::test_dream_cannot_change_stable_policy",
       "given": "GIVEN stable default configuration",
@@ -101,9 +101,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -128,14 +128,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an explicit experimental policy selection\nWHEN routing completes\nTHEN the decision SHALL identify the experimental policy\nVERIFY: new test_policy_boundary.py::test_experimental_is_explicit",
       "given": "GIVEN an explicit experimental policy selection",
@@ -162,9 +162,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -189,14 +189,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a query containing a secret sentinel\nWHEN route is invoked\nTHEN persistent route events SHALL omit the raw query\nVERIFY: new test_policy_boundary.py::test_no_raw_query_logging",
       "given": "GIVEN a query containing a secret sentinel",
@@ -223,9 +223,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -250,14 +250,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a frozen manifest and local corpus\nWHEN the runner repeats with identical pins\nTHEN per-query semantic predictions SHALL match\nVERIFY: new tests/unit/eval/test_manifests.py::test_reproducible_predictions",
       "given": "GIVEN a frozen manifest and local corpus",
@@ -352,9 +352,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -379,14 +379,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a corpus with train/test overlap or duplicate query IDs\nWHEN validation runs\nTHEN the corpus SHALL be rejected\nVERIFY: new test_manifests.py::test_leakage_rejected",
       "given": "GIVEN a corpus with train/test overlap or duplicate query IDs",
@@ -481,9 +481,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -508,14 +508,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a result referencing changed labels or missing prediction bytes\nWHEN claim validation runs\nTHEN the claim SHALL fail integrity validation\nVERIFY: new test_manifests.py::test_claim_digest_failure",
       "given": "GIVEN a result referencing changed labels or missing prediction bytes",
@@ -610,9 +610,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -637,14 +637,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an independent structural corpus\nWHEN benchmark gold is loaded\nTHEN expected plans SHALL originate only from corpus annotations\nVERIFY: extend tests/integration/test_bench.py with a production-planner sentinel that rejects calls during label loading",
       "given": "GIVEN an independent structural corpus",
@@ -739,9 +739,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -766,14 +766,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN archived 0.2 and SKILL.md fixtures with prose, fences and extensions\nWHEN persist, export, writer-canonical parse/write, or the pure 0.2-to-1.0 transform runs\nTHEN preserved source bytes SHALL remain identical on the C1 identity set: imported skill_md_source.body_raw plus extra_frontmatter through persist/export; writer-canonical engram/0.2 parse-write bytes; on-disk source archives after the pure transform\nVERIFY: extend tests/integration/test_skillmd_roundtrip.py with v1 fixture corpus covering body_raw/extra_frontmatter persist-export identity, writer-canonical 0.2 parse-write identity, and untouched on-disk archives under the pure transform",
       "given": "GIVEN archived 0.2 and SKILL.md fixtures with prose, fences and extensions",
@@ -840,9 +840,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -891,14 +891,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a legacy ID and references\nWHEN the pure transform runs twice\nTHEN the stable ID SHALL remain unchanged\nVERIFY: new tests/unit/engram/test_v1_schema.py::test_identity_preserved",
       "given": "GIVEN a legacy ID and references",
@@ -965,9 +965,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -992,14 +992,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an unknown mandatory extension or invalid version range\nWHEN the artifact is validated\nTHEN validation SHALL fail closed\nVERIFY: new test_v1_schema.py::test_required_unknown_rejected",
       "given": "GIVEN an unknown mandatory extension or invalid version range",
@@ -1066,9 +1066,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1093,14 +1093,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an external asset with traversal or changed bytes\nWHEN the artifact is loaded\nTHEN asset validation SHALL reject it\nVERIFY: new test_v1_schema.py::test_asset_containment_and_digest",
       "given": "GIVEN an external asset with traversal or changed bytes",
@@ -1167,9 +1167,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1194,14 +1194,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN the shared host/artifact and exact-revision relation fixtures\nWHEN schema validation and legacy transform run\nTHEN the resulting typed relations SHALL match C1 without inferred learned-edge semantics\nVERIFY: new tests/unit/engram/test_v1_schema.py::test_shared_relation_fixtures",
       "given": "GIVEN the shared host/artifact and exact-revision relation fixtures",
@@ -1268,9 +1268,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1295,14 +1295,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a legacy snapshot and dry-run request\nWHEN migration preview runs\nTHEN all input bytes SHALL remain unchanged\nVERIFY: new tests/integration/test_migration_v1.py::test_preview_zero_write",
       "given": "GIVEN a legacy snapshot and dry-run request",
@@ -1357,9 +1357,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1410,14 +1410,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN fault injection at each file/SQL commit boundary\nWHEN migration resumes\nTHEN the final state SHALL equal one uninterrupted migration\nVERIFY: new test_migration_v1.py::test_crash_matrix",
       "given": "GIVEN fault injection at each file/SQL commit boundary",
@@ -1472,9 +1472,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1499,14 +1499,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a completed migration operation ID\nWHEN apply is retried\nTHEN the operation SHALL produce zero duplicate effects\nVERIFY: new test_migration_v1.py::test_idempotent_apply",
       "given": "GIVEN a completed migration operation ID",
@@ -1561,9 +1561,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1588,14 +1588,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a new-schema registry and matching old backup\nWHEN downgrade restoration runs\nTHEN the restored state SHALL match the supported backup manifest\nVERIFY: extend tests/integration/test_upgrade_v02.py with v1 restore and future-version rejection",
       "given": "GIVEN a new-schema registry and matching old backup",
@@ -1650,9 +1650,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1690,14 +1690,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an external file claiming authored and verified\nWHEN intake runs\nTHEN the artifact SHALL remain pending or quarantined until local admission\nVERIFY: new tests/unit/core/test_trust_intake.py::test_forged_origin",
       "given": "GIVEN an external file claiming authored and verified",
@@ -1732,9 +1732,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1759,14 +1759,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a signed bundle with altered resource or unsafe archive member\nWHEN verification runs\nTHEN the bundle SHALL be rejected before admission\nVERIFY: new test_trust_bundle.py::test_tamper_and_escape",
       "given": "GIVEN a signed bundle with altered resource or unsafe archive member",
@@ -1801,9 +1801,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1828,14 +1828,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an approved digest\nWHEN content or local policy changes\nTHEN the prior approval SHALL cease to authorize routing\nVERIFY: new test_trust_intake.py::test_digest_and_policy_binding",
       "given": "GIVEN an approved digest",
@@ -1871,9 +1871,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1898,14 +1898,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN concurrent repeated approval and a later DB rebuild\nWHEN review execution completes\nTHEN the restored trust ledger SHALL contain exactly one applied decision\nVERIFY: new tests/integration/test_trust_recovery.py::test_review_replay_rebuild",
       "given": "GIVEN concurrent repeated approval and a later DB rebuild",
@@ -1940,9 +1940,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -1967,14 +1967,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN fixtures whose only distinguishing text is raw prose or an exact error token\nWHEN candidate generation runs\nTHEN the matching artifact SHALL be retrieved\nVERIFY: new tests/unit/core/test_candidates.py::test_full_body_exact_terms",
       "given": "GIVEN fixtures whose only distinguishing text is raw prose or an exact error token",
@@ -2025,9 +2025,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2052,14 +2052,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN equal component ranks and pinned inputs\nWHEN fusion repeats\nTHEN candidate ordering SHALL be stable by ID\nVERIFY: new test_candidates.py::test_rrf_ties",
       "given": "GIVEN equal component ranks and pinned inputs",
@@ -2110,9 +2110,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2137,14 +2137,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a frontmatter-only edit or same-name model artifact change\nWHEN index validation runs\nTHEN the stale generation SHALL be rejected\nVERIFY: new tests/integration/test_index_generation.py::test_fingerprint_invalidates",
       "given": "GIVEN a frontmatter-only edit or same-name model artifact change",
@@ -2195,9 +2195,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2222,14 +2222,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a partially built generation and a failed build\nWHEN routing pins an index\nTHEN only a complete published generation SHALL be visible\nVERIFY: new test_index_generation.py::test_atomic_swap_and_rollback",
       "given": "GIVEN a partially built generation and a failed build",
@@ -2280,9 +2280,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2307,14 +2307,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a declared framework range and unknown host version\nWHEN eligibility is evaluated\nTHEN the result SHALL be context_required\nVERIFY: new tests/unit/core/test_eligibility.py::test_unknown_required_context",
       "given": "GIVEN a declared framework range and unknown host version",
@@ -2337,9 +2337,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2364,14 +2364,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN request grants exceeding server permission policy\nWHEN eligibility is evaluated\nTHEN the excess permission SHALL remain denied\nVERIFY: new test_eligibility.py::test_request_cannot_elevate",
       "given": "GIVEN request grants exceeding server permission policy",
@@ -2394,9 +2394,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2421,14 +2421,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an archived or quarantined dependency behind an eligible winner\nWHEN dependency eligibility is evaluated\nTHEN the dependency SHALL be excluded\nVERIFY: new test_eligibility.py::test_transitive_denial",
       "given": "GIVEN an archived or quarantined dependency behind an eligible winner",
@@ -2451,9 +2451,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2478,14 +2478,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN malformed ranges and unsupported mandatory capability vocabulary\nWHEN constraint validation runs\nTHEN the artifact SHALL not become eligible\nVERIFY: new test_eligibility.py::test_unsupported_constraints",
       "given": "GIVEN malformed ranges and unsupported mandatory capability vocabulary",
@@ -2508,9 +2508,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2535,14 +2535,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN consumer B requires artifact X and host artifact inventory is known-empty\nWHEN pre-ranking eligibility runs\nTHEN B SHALL remain eligible with X listed in unsatisfied_artifacts\nVERIFY: new tests/unit/core/test_eligibility.py::test_plannable_requirement_is_not_host_denial",
       "given": "GIVEN consumer B requires artifact X and host artifact inventory is known-empty",
@@ -2565,9 +2565,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2592,14 +2592,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a quarantined artifact with strongest raw score\nWHEN routing runs\nTHEN the artifact SHALL be absent from returned candidates and bodies\nVERIFY: extend tests/integration/test_route_end_to_end.py::test_eligibility_before_rerank",
       "given": "GIVEN a quarantined artifact with strongest raw score",
@@ -2630,9 +2630,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2657,14 +2657,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an unrelated query in the locked rejection set\nWHEN calibrated routing runs\nTHEN the result SHALL obey the frozen abstention decision rule\nVERIFY: new tests/unit/core/test_calibration.py::test_threshold_manifest",
       "given": "GIVEN an unrelated query in the locked rejection set",
@@ -2696,9 +2696,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2723,14 +2723,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN pinned semantic inputs\nWHEN routing repeats across rebuild\nTHEN semantic decision fields SHALL match\nVERIFY: new tests/integration/test_route_reproducibility.py::test_rebuild_determinism",
       "given": "GIVEN pinned semantic inputs",
@@ -2761,9 +2761,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2788,14 +2788,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a reranker timeout or missing required model\nWHEN routing runs\nTHEN the result SHALL identify configured fallback or explicit operational error\nVERIFY: new tests/unit/core/test_router_policy.py::test_fallback_identity",
       "given": "GIVEN a reranker timeout or missing required model",
@@ -2826,9 +2826,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2853,14 +2853,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN S10 is not installed and reviewed simple/hybrid policy artifacts exist\nWHEN activation and rollback use the expected-current API\nTHEN the active digest SHALL follow exactly the approved compare-and-swap transitions\nVERIFY: new tests/integration/test_stable_policy_activation.py::test_activation_without_learning including stale-current rejection",
       "given": "GIVEN S10 is not installed and reviewed simple/hybrid policy artifacts exist",
@@ -2891,9 +2891,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2918,14 +2918,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an eligible winner with a denied or missing required dependency\nWHEN composition runs\nTHEN the plan SHALL be invalid\nVERIFY: extend tests/unit/core/test_composition.py::test_denied_dependency_invalid",
       "given": "GIVEN an eligible winner with a denied or missing required dependency",
@@ -2944,9 +2944,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -2971,14 +2971,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a cycle or exceeded node/depth/edge limit\nWHEN composition runs\nTHEN the plan SHALL contain no executable prefix\nVERIFY: new tests/integration/test_composition_v1.py::test_cycle_and_budget",
       "given": "GIVEN a cycle or exceeded node/depth/edge limit",
@@ -2997,9 +2997,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3024,14 +3024,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN two satisfying producers with no explicit preference\nWHEN composition runs\nTHEN the result SHALL report ambiguous_provider\nVERIFY: new test_composition_v1.py::test_ambiguous_alternatives",
       "given": "GIVEN two satisfying producers with no explicit preference",
@@ -3050,9 +3050,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3077,14 +3077,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an independently authored task with a deterministic host verifier\nWHEN the evaluation harness executes the plan\nTHEN the report SHALL distinguish structural validity from verified task outcome\nVERIFY: new test_composition_v1.py::test_host_verifier_report",
       "given": "GIVEN an independently authored task with a deterministic host verifier",
@@ -3103,9 +3103,9 @@
       "reason": "The echo verifier exercises report separation, but an independently authored host-task corpus with actual paired execution evidence is unavailable.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -3126,6 +3126,9 @@
           "status": "UNEVALUATED"
         },
         {
+          "executed_nodes": [
+            "tests/integration/test_composition_v1.py::test_host_verifier_report"
+          ],
           "obligation": "Fixture separates structural validity and host outcome.",
           "status": "PASS",
           "test_node": "tests/integration/test_composition_v1.py::test_host_verifier_report",
@@ -3144,14 +3147,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN known-empty artifact inventory, B requiring artifact X and eligible A producing X\nWHEN composition selects B\nTHEN the valid plan SHALL order A before B\nVERIFY: new tests/integration/test_composition_v1.py::test_producer_satisfies_consumer with denied-host-tool paired case",
       "given": "GIVEN known-empty artifact inventory, B requiring artifact X and eligible A producing X",
@@ -3170,9 +3173,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3197,14 +3200,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN selected exact revisions with before or supersedes relationships\nWHEN the planner consumes the shared S02 fixtures\nTHEN relation behavior SHALL match C1 ordering and replacement-conflict semantics\nVERIFY: new tests/integration/test_composition_v1.py::test_shared_relation_semantics",
       "given": "GIVEN selected exact revisions with before or supersedes relationships",
@@ -3223,9 +3226,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3250,14 +3253,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a repeated event ID with identical or conflicting payload\nWHEN checkpoint retries\nTHEN the ledger SHALL enforce one immutable payload per event ID\nVERIFY: new tests/unit/core/test_evidence.py::test_event_id_idempotence",
       "given": "GIVEN a repeated event ID with identical or conflicting payload",
@@ -3284,9 +3287,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3311,14 +3314,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an acknowledged checkpoint followed by process death and index rebuild\nWHEN recovery runs\nTHEN acknowledged evidence SHALL remain available\nVERIFY: new tests/integration/test_evidence_recovery.py::test_ack_survives_rebuild",
       "given": "GIVEN an acknowledged checkpoint followed by process death and index rebuild",
@@ -3345,9 +3348,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3361,6 +3364,14 @@
             "path": "tests/integration/test_evidence_recovery.py",
             "sha256": "151349d53baf0a69421502efe7efe5cb04a74fa7d336cebce810928042a88911"
           }
+        },
+        {
+          "evidence": {
+            "path": "docs/releases/v1/evidence/checkpoint-process-death-provenance.json",
+            "sha256": "903ac8dd8b693a32ab769b8daee0b4ae7779e81c97d6a6d200267b91c12ef94a"
+          },
+          "obligation": "Actual child process exits via os._exit(23) after durable checkpoint ACK; independent parent wipes and rebuilds projections and retrieves the same event/sequence.",
+          "status": "PASS"
         }
       ],
       "test_nodes": [
@@ -3372,14 +3383,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN raw-query history and secret sentinels in inputs\nWHEN upgrade and default checkpoint/export run\nTHEN managed current evidence stores SHALL contain no raw sentinel\nVERIFY: new test_evidence_recovery.py::test_privacy_history_and_export",
       "given": "GIVEN raw-query history and secret sentinels in inputs",
@@ -3406,9 +3417,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3433,14 +3444,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN deterministic selection or delayed self-reported feedback\nWHEN the evidence is evaluated\nTHEN unsupported counterfactual efficacy SHALL remain unknown\nVERIFY: new tests/unit/core/test_evidence.py::test_provenance_and_support",
       "given": "GIVEN deterministic selection or delayed self-reported feedback",
@@ -3467,9 +3478,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3494,14 +3505,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN managed export artifacts under the ledger export directory plus an unregistered operator copy outside that directory\nWHEN privacy deletion runs\nTHEN deletion SHALL cover the C6 local-management set: purge managed export-directory artifacts plus any registered export-manifest paths; unregistered operator copies remain out of scope\nVERIFY: new tests/integration/test_evidence_recovery.py::test_deletion_covers_managed_exports_only",
       "given": "GIVEN managed export artifacts under the ledger export directory plus an unregistered operator copy outside that directory",
@@ -3528,9 +3539,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3555,14 +3566,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a default evidence export that uses fresh per-export pseudonyms\nWHEN the export artifact is written\nTHEN the export SHALL include a notice that privacy deletion cannot follow operator copies\nVERIFY: new tests/integration/test_evidence_recovery.py::test_export_carries_copy_deletion_notice",
       "given": "GIVEN a default evidence export that uses fresh per-export pseudonyms",
@@ -3589,9 +3600,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3616,14 +3627,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a shadow candidate and a pinned incumbent\nWHEN shadow scoring runs\nTHEN incumbent route results SHALL remain unchanged\nVERIFY: new tests/unit/core/test_policy_learning.py::test_shadow_isolation",
       "given": "GIVEN a shadow candidate and a pinned incumbent",
@@ -3642,9 +3653,9 @@
       "reason": "Optional S10 efficacy is held and unavailable; containment is separately mandatory and tested.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -3660,14 +3671,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN logs with zero action support for candidate decisions\nWHEN OPE runs\nTHEN the result SHALL be insufficient_support\nVERIFY: new test_policy_learning.py::test_zero_support",
       "given": "GIVEN logs with zero action support for candidate decisions",
@@ -3686,9 +3697,9 @@
       "reason": "Optional S10 efficacy is held and unavailable; containment is separately mandatory and tested.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -3704,14 +3715,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a promotion with stale approval digest\nWHEN activation is attempted\nTHEN activation SHALL be rejected\nVERIFY: new tests/integration/test_policy_promotion.py::test_stale_approval",
       "given": "GIVEN a promotion with stale approval digest",
@@ -3730,9 +3741,9 @@
       "reason": "Optional S10 efficacy is held and unavailable; containment is separately mandatory and tested.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -3748,14 +3759,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a canary crossing its frozen rollback rule\nWHEN rollback executes\nTHEN the active policy SHALL equal the pinned prior incumbent\nVERIFY: new test_policy_promotion.py::test_exact_rollback",
       "given": "GIVEN a canary crossing its frozen rollback rule",
@@ -3774,9 +3785,9 @@
       "reason": "Optional S10 efficacy is held and unavailable; containment is separately mandatory and tested.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -3792,14 +3803,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a decision whose body or trust policy changed\nWHEN load_skill_body runs\nTHEN the call SHALL return stale_decision without the body\nVERIFY: new tests/unit/mcp/test_v1_retrieval.py::test_stale_body_denied",
       "given": "GIVEN a decision whose body or trust policy changed",
@@ -3866,9 +3877,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3882,10 +3893,75 @@
             "path": "tests/unit/mcp/test_v1_retrieval.py",
             "sha256": "fbc909ff2ffdd668ae3e2c8daf235dc52bebb77a530bd403d63eba54f13e206c"
           }
+        },
+        {
+          "executed_nodes": [
+            "tests/unit/mcp/test_v1_retrieval.py::test_policy_change_after_route_denied"
+          ],
+          "name": "test_policy_change_after_route_denied",
+          "status": "PASS",
+          "test_node": "tests/unit/mcp/test_v1_retrieval.py::test_policy_change_after_route_denied",
+          "test_source": {
+            "path": "tests/unit/mcp/test_v1_retrieval.py",
+            "sha256": "fbc909ff2ffdd668ae3e2c8daf235dc52bebb77a530bd403d63eba54f13e206c"
+          }
+        },
+        {
+          "executed_nodes": [
+            "tests/unit/mcp/test_v1_retrieval.py::test_admission_change_after_route_denied"
+          ],
+          "name": "test_admission_change_after_route_denied",
+          "status": "PASS",
+          "test_node": "tests/unit/mcp/test_v1_retrieval.py::test_admission_change_after_route_denied",
+          "test_source": {
+            "path": "tests/unit/mcp/test_v1_retrieval.py",
+            "sha256": "fbc909ff2ffdd668ae3e2c8daf235dc52bebb77a530bd403d63eba54f13e206c"
+          }
+        },
+        {
+          "executed_nodes": [
+            "tests/unit/mcp/test_v1_retrieval.py::test_local_admission_withdrawn_after_route_denied"
+          ],
+          "name": "test_local_admission_withdrawn_after_route_denied",
+          "status": "PASS",
+          "test_node": "tests/unit/mcp/test_v1_retrieval.py::test_local_admission_withdrawn_after_route_denied",
+          "test_source": {
+            "path": "tests/unit/mcp/test_v1_retrieval.py",
+            "sha256": "fbc909ff2ffdd668ae3e2c8daf235dc52bebb77a530bd403d63eba54f13e206c"
+          }
+        },
+        {
+          "executed_nodes": [
+            "tests/unit/mcp/test_v1_retrieval.py::test_durable_trust_revocation_blocks_previously_routed_body"
+          ],
+          "name": "test_durable_trust_revocation_blocks_previously_routed_body",
+          "status": "PASS",
+          "test_node": "tests/unit/mcp/test_v1_retrieval.py::test_durable_trust_revocation_blocks_previously_routed_body",
+          "test_source": {
+            "path": "tests/unit/mcp/test_v1_retrieval.py",
+            "sha256": "fbc909ff2ffdd668ae3e2c8daf235dc52bebb77a530bd403d63eba54f13e206c"
+          }
+        },
+        {
+          "executed_nodes": [
+            "tests/unit/mcp/test_v1_retrieval.py::test_cas_policy_activation_blocks_previously_routed_body"
+          ],
+          "name": "test_cas_policy_activation_blocks_previously_routed_body",
+          "status": "PASS",
+          "test_node": "tests/unit/mcp/test_v1_retrieval.py::test_cas_policy_activation_blocks_previously_routed_body",
+          "test_source": {
+            "path": "tests/unit/mcp/test_v1_retrieval.py",
+            "sha256": "fbc909ff2ffdd668ae3e2c8daf235dc52bebb77a530bd403d63eba54f13e206c"
+          }
         }
       ],
       "test_nodes": [
-        "tests/unit/mcp/test_v1_retrieval.py::test_stale_body_denied"
+        "tests/unit/mcp/test_v1_retrieval.py::test_stale_body_denied",
+        "tests/unit/mcp/test_v1_retrieval.py::test_policy_change_after_route_denied",
+        "tests/unit/mcp/test_v1_retrieval.py::test_admission_change_after_route_denied",
+        "tests/unit/mcp/test_v1_retrieval.py::test_local_admission_withdrawn_after_route_denied",
+        "tests/unit/mcp/test_v1_retrieval.py::test_durable_trust_revocation_blocks_previously_routed_body",
+        "tests/unit/mcp/test_v1_retrieval.py::test_cas_policy_activation_blocks_previously_routed_body"
       ],
       "then": "THEN the call SHALL return stale_decision without the body",
       "verify": "VERIFY: new tests/unit/mcp/test_v1_retrieval.py::test_stale_body_denied",
@@ -3893,14 +3969,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a valid v1 tool response\nWHEN text and structured payloads are decoded\nTHEN both payloads SHALL represent identical data\nVERIFY: extend tests/unit/mcp/test_dispatch_call.py::test_v1_payload_parity",
       "given": "GIVEN a valid v1 tool response",
@@ -3967,9 +4043,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -3994,14 +4070,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN cancellation around durable commit followed by retry\nWHEN the client reconnects\nTHEN the durable operation SHALL have at most one effect\nVERIFY: new tests/acceptance/test_stdio_cancellation.py::test_commit_boundary",
       "given": "GIVEN cancellation around durable commit followed by retry",
@@ -4068,9 +4144,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -4095,14 +4171,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN each advertised host/SDK/protocol row\nWHEN the installed conformance probe runs\nTHEN every required probe SHALL pass with an archived transcript\nVERIFY: new tests/acceptance/test_v1_conformance.py and host evidence manifest",
       "given": "GIVEN each advertised host/SDK/protocol row",
@@ -4169,9 +4245,9 @@
       "reason": "Generic installed probes exist; no archived real Claude Code host transcript for every advertised row.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -4187,14 +4263,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN missing, old-schema, corrupt or read-only data directories\nWHEN doctor runs\nTHEN filesystem and database bytes SHALL remain unchanged\nVERIFY: extend tests/unit/obs/test_doctor.py::test_zero_write_matrix",
       "given": "GIVEN missing, old-schema, corrupt or read-only data directories",
@@ -4221,9 +4297,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -4248,14 +4324,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a verified backup of all authoritative stores\nWHEN restore and rebuild run\nTHEN all acknowledged durable records through the backup recovery point SHALL be recovered\nVERIFY: new tests/integration/test_backup_restore_v1.py::test_complete_restore",
       "given": "GIVEN a verified backup of all authoritative stores",
@@ -4282,9 +4358,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -4309,14 +4385,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a revoked artifact or privacy deletion after backup plus a valid current RecoveryOverlay and sequence anchor\nWHEN restore runs\nTHEN current revocation and deletion policy SHALL prevent reactivation\nVERIFY: new test_backup_restore_v1.py::test_policy_reapplication",
       "given": "GIVEN a revoked artifact or privacy deletion after backup plus a valid current RecoveryOverlay and sequence anchor",
@@ -4343,9 +4419,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -4370,14 +4446,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a stale writer or killed lease holder\nWHEN another process recovers\nTHEN the stale process SHALL be unable to commit\nVERIFY: extend tests/integration/test_lease_multiprocess.py with evidence/trust/policy writers",
       "given": "GIVEN a stale writer or killed lease holder",
@@ -4404,9 +4480,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -4473,14 +4549,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a clean-machine backup with absent or stale current overlay/anchor\nWHEN restore is attempted\nTHEN routing and evidence access SHALL remain disabled with reconciliation_required\nVERIFY: new tests/integration/test_backup_restore_v1.py::test_missing_stale_overlay_closed",
       "given": "GIVEN a clean-machine backup with absent or stale current overlay/anchor",
@@ -4507,9 +4583,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -4534,14 +4610,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a built wheel in a clean temporary environment outside checkout\nWHEN installation and fixture probe run\nTHEN the packaged runtime SHALL route the offline fixture\nVERIFY: new tests/acceptance/test_install_channels.py::test_clean_wheel",
       "given": "GIVEN a built wheel in a clean temporary environment outside checkout",
@@ -4555,9 +4631,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -4582,14 +4658,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a fresh install without model cache\nWHEN offline routing is attempted\nTHEN the error SHALL provide explicit model acquisition remediation\nVERIFY: new test_install_channels.py::test_missing_model",
       "given": "GIVEN a fresh install without model cache",
@@ -4603,9 +4679,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -4630,14 +4706,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN each advertised distribution channel\nWHEN the published artifact is installed\nTHEN the same conformance fixture SHALL pass\nVERIFY: new test_install_channels.py::test_channel_matrix with recorded channel versions/digests",
       "given": "GIVEN each advertised distribution channel",
@@ -4651,9 +4727,9 @@
       "reason": "Actual published channel installs are reserved and skipped; no publishing was authorized.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -4688,14 +4764,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a release manifest and fetched image/wheel\nWHEN signature/provenance/resource checks run\nTHEN every advertised artifact SHALL match its declared digest\nVERIFY: extend scripts/check_supply_chain.py and published artifact verification job",
       "given": "GIVEN a release manifest and fetched image/wheel",
@@ -4709,9 +4785,9 @@
       "reason": "Local manifest integrity tests exist, but fetched published signature/provenance/artifact verification is unrun.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -4754,14 +4830,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a declared benchmark profile\nWHEN the matrix runs\nTHEN the result SHALL identify every cache state and hardware/model fingerprint\nVERIFY: extend tests/unit/eval/test_bench_baselines.py::test_profile_manifest",
       "given": "GIVEN a declared benchmark profile",
@@ -4853,13 +4929,13 @@
         "path": "uv.lock",
         "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
       },
-      "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
+      "reason": "Actual hashing ci-smoke identifies measured cache states/hardware and hashing name/dimension, but fingerprint.model_digest is unavailable. Skeleton checks cannot substitute for the full positive model identity clause.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
-      "status": "PASS",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+      "status": "UNEVALUATED",
       "subchecks": [
         {
           "executed_nodes": [
@@ -4872,6 +4948,22 @@
             "path": "tests/unit/eval/test_bench_baselines.py",
             "sha256": "60b26d90aa855b061dc3de4e255fc417a07c9a02ce3a27e613f8e82787917b46"
           }
+        },
+        {
+          "evidence": {
+            "path": "docs/releases/v1/evidence/hashing-smoke-provenance.json",
+            "sha256": "9dd795a27a94c512392fc42e48cc2d89464c7d57911c211cc6e9fdfcd9ddb23a"
+          },
+          "obligation": "Actual declared ci-smoke matrix executes and records each cache state/hardware fields.",
+          "status": "PASS"
+        },
+        {
+          "evidence": {
+            "path": "docs/releases/v1/evidence/hashing-smoke.json",
+            "sha256": "e6f1fbc6939f8815c8f3447e26e26d81718b1183454f274d3abf08e9fc23f90b"
+          },
+          "obligation": "Positive model fingerprint: actual report model_digest is unavailable.",
+          "status": "UNEVALUATED"
         }
       ],
       "test_nodes": [
@@ -4883,14 +4975,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a claimed supported scale\nWHEN release evidence is checked\nTHEN the complete production-provider envelope SHALL satisfy its preregistered budget\nVERIFY: dedicated runner validates evaluation.md envelopes; shared CI validates completeness only",
       "given": "GIVEN a claimed supported scale",
@@ -4985,9 +5077,9 @@
       "reason": "Dedicated production-provider E6 envelope and licensed real 10k corpus were not run.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -5003,14 +5095,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a locked local or external final split\nWHEN ranking quality is assessed\nTHEN the promotion verdict SHALL follow the preregistered paired interval rule\nVERIFY: new tests/unit/eval/test_release_verdicts.py with hand-computed boundary cases",
       "given": "GIVEN a locked local or external final split",
@@ -5106,9 +5198,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -5250,14 +5342,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN an end-task usefulness claim\nWHEN claim validation runs\nTHEN the evidence SHALL include paired host-verifier outcomes\nVERIFY: new test_release_verdicts.py::test_no_structural_efficacy_substitution",
       "given": "GIVEN an end-task usefulness claim",
@@ -5353,9 +5445,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -5393,14 +5485,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN generated references and installed runtime\nWHEN drift checks run\nTHEN declared versions/schema/tool inventories SHALL match runtime\nVERIFY: extend scripts/check_generated_docs.py with snapshot fixtures",
       "given": "GIVEN generated references and installed runtime",
@@ -5423,9 +5515,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -5480,14 +5572,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a quantitative README claim without an accepted evidence manifest\nWHEN documentation CI runs\nTHEN the claim SHALL fail validation\nVERIFY: extend scripts/check_docs.py with claim-ledger fixture",
       "given": "GIVEN a quantitative README claim without an accepted evidence manifest",
@@ -5510,9 +5602,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -5560,14 +5652,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a fresh supported operator environment\nWHEN the complete tutorial is followed\nTHEN all advertised steps SHALL complete with captured output\nVERIFY: scripted tutorial smoke plus independent operator transcript",
       "given": "GIVEN a fresh supported operator environment",
@@ -5590,9 +5682,9 @@
       "reason": "Scripted clean-wheel tutorial succeeds, but the required independent operator transcript is absent.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -5601,6 +5693,9 @@
           "status": "UNEVALUATED"
         },
         {
+          "executed_nodes": [
+            "tests/acceptance/test_operator_tutorial.py::test_disposable_operator_tutorial"
+          ],
           "obligation": "Scripted operator path from a clean built wheel completes.",
           "status": "PASS",
           "test_node": "tests/acceptance/test_operator_tutorial.py::test_disposable_operator_tutorial",
@@ -5617,14 +5712,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a deprecated contract or changed support row\nWHEN docs validation runs\nTHEN the published policy SHALL identify replacement and support deadline\nVERIFY: new documentation contract fixture for S15",
       "given": "GIVEN a deprecated contract or changed support row",
@@ -5647,9 +5742,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -5688,14 +5783,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a release gate with missing evidence\nWHEN the GA validator runs\nTHEN release eligibility SHALL be false\nVERIFY: new release-manifest validation fixture with missing gate",
       "given": "GIVEN a release gate with missing evidence",
@@ -5703,7 +5798,7 @@
       "implementation_sources": [
         {
           "path": "scripts/check_release_manifest.py",
-          "sha256": "cc4796001f50f07a0841679663dc1d2167178b5b473b50f4289ca9f501a45ba1"
+          "sha256": "b48e895b561aa2c97e2f5573c6973fad6ca93ea8897cfe409b972bc4ade612e5"
         }
       ],
       "independent_checker": null,
@@ -5714,9 +5809,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -5728,7 +5823,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_all_obligations_required",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -5745,7 +5840,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_evidence_fail_closed",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -5762,7 +5857,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_gate_set_fail_closed",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         }
       ],
@@ -5777,14 +5872,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN two RC artifacts\nWHEN API/schema fingerprints are compared\nTHEN stable fingerprints SHALL match or require a fresh RC pair\nVERIFY: release gate RC-CONTRACT",
       "given": "GIVEN two RC artifacts",
@@ -5792,7 +5887,7 @@
       "implementation_sources": [
         {
           "path": "scripts/check_release_manifest.py",
-          "sha256": "cc4796001f50f07a0841679663dc1d2167178b5b473b50f4289ca9f501a45ba1"
+          "sha256": "b48e895b561aa2c97e2f5573c6973fad6ca93ea8897cfe409b972bc4ade612e5"
         }
       ],
       "independent_checker": null,
@@ -5803,9 +5898,9 @@
       "reason": "Validator compatibility fixtures pass; two independently built actual RCs and supported matrix do not exist.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -5817,7 +5912,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_distinct_rc_reports_cannot_reuse_one_build",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -5829,7 +5924,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_rc_latest_source_must_match_candidate",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -5845,7 +5940,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_rc_pair_requires_fresh_compatible_independent_builds",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -5865,14 +5960,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN external validation evidence\nWHEN independence review runs\nTHEN the evidence SHALL satisfy one reproduction or two-pilot path\nVERIFY: release gate EXTERNAL with named independent reviewer and immutable report",
       "given": "GIVEN external validation evidence",
@@ -5880,7 +5975,7 @@
       "implementation_sources": [
         {
           "path": "scripts/check_release_manifest.py",
-          "sha256": "cc4796001f50f07a0841679663dc1d2167178b5b473b50f4289ca9f501a45ba1"
+          "sha256": "b48e895b561aa2c97e2f5573c6973fad6ca93ea8897cfe409b972bc4ade612e5"
         }
       ],
       "independent_checker": null,
@@ -5891,9 +5986,9 @@
       "reason": "Validator independence fixtures pass; no independent external reproduction or two consented production pilots exist.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "UNEVALUATED",
       "subchecks": [
         {
@@ -5909,7 +6004,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_external_independence_not_agent_code_review",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -5921,7 +6016,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_two_independent_pilots_qualify",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -5940,14 +6035,14 @@
     },
     {
       "checker_status": "PENDING_EVIDENCE_REVIEW",
-      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+      "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
       "environment": {
         "path": "docs/releases/v1/evidence/environment.json",
         "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
       },
       "execution_report": {
         "path": "docs/releases/v1/evidence/test-results.json",
-        "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+        "sha256": "7b5ff1668ab34ffc932f41f39a276e269756190239c3b4c2358f60542c2b3528"
       },
       "frozen_text": "GIVEN a complete candidate release manifest\nWHEN GA eligibility is evaluated\nTHEN all nonwaivable release gates SHALL pass\nVERIFY: release gate GA-ALL",
       "given": "GIVEN a complete candidate release manifest",
@@ -5955,7 +6050,7 @@
       "implementation_sources": [
         {
           "path": "scripts/check_release_manifest.py",
-          "sha256": "cc4796001f50f07a0841679663dc1d2167178b5b473b50f4289ca9f501a45ba1"
+          "sha256": "b48e895b561aa2c97e2f5573c6973fad6ca93ea8897cfe409b972bc4ade612e5"
         }
       ],
       "independent_checker": null,
@@ -5966,9 +6061,9 @@
       "reason": "All mapped frozen mechanical obligations have executed witnesses; this does not qualify empirical or external release gates.",
       "review_record": {
         "path": "docs/releases/v1/evidence/review-record.json",
-        "sha256": "d7d186d482bce3260d3eba5928896d4cf4107f7cddb4ffaa5b9460c4911574d2"
+        "sha256": "cf84c10df433f2d6115ec4fd1805db0b12459844937b53a9a758a7484c852549"
       },
-      "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+      "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
       "status": "PASS",
       "subchecks": [
         {
@@ -5980,7 +6075,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_complete_synthetic_candidate",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -5994,7 +6089,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_explicit_maintainer_signoff_required",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -6012,7 +6107,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_hash_valid_report_contradictions_rejected",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -6025,7 +6120,7 @@
           "test_node": "tests/unit/test_release_manifest.py::test_immutable_report_requires_json_booleans",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         },
         {
@@ -6037,7 +6132,36 @@
           "test_node": "tests/unit/test_release_manifest.py::test_unevaluated_never_eligible",
           "test_source": {
             "path": "tests/unit/test_release_manifest.py",
-            "sha256": "3dee486a425fb97b4393db960a91547f57fbe99f8e4a444d9cc256394e8162f1"
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
+          }
+        },
+        {
+          "executed_nodes": [
+            "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[None-candidate]",
+            "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[None-rc]",
+            "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[True-candidate]",
+            "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[True-rc]",
+            "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[0-candidate]",
+            "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[0-rc]"
+          ],
+          "name": "test_release_sources_require_explicit_clean_boolean",
+          "status": "PASS",
+          "test_node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean",
+          "test_source": {
+            "path": "tests/unit/test_release_manifest.py",
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
+          }
+        },
+        {
+          "executed_nodes": [
+            "tests/unit/test_release_manifest.py::test_rc_immutable_report_cannot_hide_dirty_source"
+          ],
+          "name": "test_rc_immutable_report_cannot_hide_dirty_source",
+          "status": "PASS",
+          "test_node": "tests/unit/test_release_manifest.py::test_rc_immutable_report_cannot_hide_dirty_source",
+          "test_source": {
+            "path": "tests/unit/test_release_manifest.py",
+            "sha256": "c188de9d706ef8e4a051e3595e137e65f4db5108e48d681cad9a8a0b2d7d62ab"
           }
         }
       ],
@@ -6046,7 +6170,9 @@
         "tests/unit/test_release_manifest.py::test_explicit_maintainer_signoff_required",
         "tests/unit/test_release_manifest.py::test_hash_valid_report_contradictions_rejected",
         "tests/unit/test_release_manifest.py::test_immutable_report_requires_json_booleans",
-        "tests/unit/test_release_manifest.py::test_unevaluated_never_eligible"
+        "tests/unit/test_release_manifest.py::test_unevaluated_never_eligible",
+        "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean",
+        "tests/unit/test_release_manifest.py::test_rc_immutable_report_cannot_hide_dirty_source"
       ],
       "then": "THEN all nonwaivable release gates SHALL pass",
       "verify": "VERIFY: release gate GA-ALL",
@@ -6055,11 +6181,12 @@
   ],
   "schema": "magicite/criterion-ledger/1",
   "scope": "Draft integration evidence, not release authorization. PASS means the complete stated mechanical criterion only. Actual external prerequisites remain UNEVALUATED.",
-  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
-  "source_dirty": true,
-  "source_scope": "Exact tracked code eee0fd8; untracked docs/releases/v1 were being assembled during the recorded run. Runtime/test source bytes unchanged; not a clean RC.",
+  "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+  "source_dirty": false,
+  "source_scope": "Recorded from clean tracked and untracked worktree at c0782fd; subsequent changes only archive and annotate evidence. Not a published RC or external reproduction.",
   "upstream_heads": {
     "integration_base": "8634a07074dbd4a7baaab0dd5c73a7416a92781e",
+    "integration_final": "a2955ea2e1ceea4c54e3e24249788ca5b54d042a",
     "s13_ci_merge": "024f64f9b05660eaab21c54c1be1c3b953af39b0",
     "s15_reviewed_fix": "51d312fe5578ed66939a4cd0bf0fb8335acb60f4"
   }

@@ -1,0 +1,35 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/evidence/checkpoint-process-death.json",
+      "sha256": "ffe499a199951928e14485ad037fee0309b08356bd43a6de1dca7a1be891f65b"
+    },
+    {
+      "path": "docs/releases/v1/evidence/probe-checkpoint-process-death.py",
+      "sha256": "a1968469cdaeb11432383e828fb8edbd2d74192ca0c00c8dd26416ecea4f4208"
+    },
+    {
+      "path": "tests/integration/test_evidence_durability.py",
+      "sha256": "8c78b2158129f0d2bd12c517b3d153835acd06f2df0007001073f8363d56bfae"
+    },
+    {
+      "path": "src/magicite/core/evidence.py",
+      "sha256": "6447070f74d0d43fc1d01fe1087939b1c2c4465432f4a15c34705b6991dc7490"
+    }
+  ],
+  "command": "/private/tmp/s14-mcp200/bin/python docs/releases/v1/evidence/probe-checkpoint-process-death.py",
+  "environment": {
+    "path": "docs/releases/v1/evidence/environment.json",
+    "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
+  },
+  "exit_code": 0,
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "review_status": "PENDING_EVIDENCE_REVIEW",
+  "reviewer": null,
+  "schema": "magicite/diagnostic-provenance/1",
+  "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+  "source_dirty": false
+}

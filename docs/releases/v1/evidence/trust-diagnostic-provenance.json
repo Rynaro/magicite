@@ -22,12 +22,14 @@
     "path": "docs/releases/v1/evidence/environment.json",
     "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
   },
+  "exit_code": 0,
   "lock": {
     "path": "uv.lock",
     "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
   },
   "review_status": "PENDING_EVIDENCE_REVIEW",
   "reviewer": null,
-  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
-  "source_dirty": true
+  "schema": "magicite/diagnostic-provenance/1",
+  "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+  "source_dirty": false
 }
