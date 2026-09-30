@@ -21,13 +21,13 @@ import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from magicite.config import Config
 from magicite.core import router as router_mod
+from magicite.core.index_generation import TOKENIZER_ID, tokenize_words
 from magicite.embeddings import get_embedder
 from magicite.embeddings.cache import CachingEmbedder
 from magicite.eval.envelopes import compute_ga_eligibility, validate_envelope
@@ -39,6 +39,7 @@ from magicite.eval.profiles import (
 from magicite.eval.query_context import corpus_route_context
 from magicite.eval.scale import latency_percentiles_ms, path_size_gib, process_rss_gib
 from magicite.eval.unevaluated import unevaluated_catalog
+from magicite.mcp.bind_retrieval import project_route_output
 from magicite.storage import db as db_mod
 
 # Legacy defaults retained for callers that still pass --sizes.
@@ -336,7 +337,7 @@ def _timed_route(
         k=5,
         session_id=session_id,
     )
-    json.dumps(asdict(outcome), sort_keys=True, default=str)
+    project_route_output(outcome).model_dump_json()
     return time.perf_counter() - started, outcome
 
 
@@ -345,11 +346,11 @@ def _cold_process_ready(cfg: Config, db_path: Path, query: Any, provider: str) -
     program = """
 import sys, json
 from pathlib import Path
-from dataclasses import asdict
 from magicite.config import Config
 from magicite.embeddings import get_embedder
 from magicite.storage import db
 from magicite.core import router
+from magicite.mcp.bind_retrieval import project_route_output
 from magicite.eval.query_context import corpus_route_context
 root, database, query, provider = json.loads(sys.argv[1])
 cfg = Config(project_root=Path(root))
@@ -363,7 +364,7 @@ try:
         context = corpus_route_context(query.get('compatibility_context', {}))
     outcome = router.route(cfg, conn, get_embedder(cfg), query=text, route_context=context,
                            k=5, session_id='cold-ready')
-    json.dumps(asdict(outcome), sort_keys=True, default=str)
+    project_route_output(outcome).model_dump_json()
 finally:
     conn.close()
 """
@@ -457,7 +458,7 @@ def _measure_profile(
             cfg, conn, embedder, query=_query_for_index(warmup + index, queries), session_id=session_id
         )
         warm_durations.append(duration)
-        payload_tokens.append(len(json.dumps(asdict(outcome), default=str).split()))
+        payload_tokens.append(len(tokenize_words(project_route_output(outcome).model_dump_json())))
         decision = outcome.decision
         if decision is not None and (decision.truncations or decision.fallback_identity):
             truncations_fallbacks.append(
@@ -711,7 +712,7 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                             json.dumps(hashes, separators=(",", ":")).encode()
                         ).hexdigest()
                 result["fingerprint"]["embedding_dimensions"] = embedder.dim
-                result["fingerprint"]["payload_tokenizer"] = "whitespace/1"
+                result["fingerprint"]["payload_tokenizer"] = TOKENIZER_ID
                 result["cache_states"] = raw["cache_states"]
                 result["measurements"] = _flatten_measurements(raw)
                 result["measurements"]["artifact_body_bytes"] = result["corpus"]["artifact_bytes"]
