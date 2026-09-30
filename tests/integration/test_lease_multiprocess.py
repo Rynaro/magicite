@@ -282,6 +282,7 @@ def _stale_domain_writer(
     from magicite.core import approvals as approvals_mod
     from magicite.core import evidence as evidence_mod
     from magicite.core import fingerprint_key as fk
+    from magicite.core import policy_store as ps
     from magicite.core import trust as trust_mod
     from magicite.errors import BusyError
     from magicite.storage import db as db_mod
@@ -320,6 +321,8 @@ def _stale_domain_writer(
                     retention_class="operational",
                 )
                 evidence_mod.checkpoint(cfg, conn, event)
+            elif domain == "policy":
+                ps.register_evaluated(cfg, _policy_manifest("stale"), evaluation_status="pass")
             elif domain == "trust":
                 trust_mod.save_policy(cfg, trust_mod.default_policy())
             elif domain == "approvals":
@@ -452,11 +455,11 @@ def test_killed_holder_lease_reclaimed(tmp_path: Path) -> None:
 
 
 @pytest.mark.acceptance
-@pytest.mark.parametrize("domain", ["evidence", "trust", "approvals"])
+@pytest.mark.parametrize("domain", ["evidence", "trust", "approvals", "policy"])
 def test_stale_writer_cannot_commit_domain_stores(tmp_path: Path, domain: str) -> None:
     """AC-S12-04: stale/killed lease holder cannot commit via evidence/trust/approvals.
 
-    Policy-store writer is a forward for S07 (not merged on this integration base).
+    Includes the stable policy store after S07 integration.
     """
     from magicite.config import Config
     from magicite.core import fingerprint_key as fk
@@ -536,3 +539,106 @@ def test_stale_writer_cannot_commit_domain_stores(tmp_path: Path, domain: str) -
             replacement.release()
         if replacement_conn is not None:
             replacement_conn.close()
+
+
+def _policy_manifest(digest: str) -> Any:
+    from magicite.core.policy_store import PolicyManifest
+    return PolicyManifest(policy_id="dense-v1", policy_digest=digest,
+                          policy_family="stable", config_digest="config",
+                          calibration_digest=None, index_generation_id="g",
+                          snapshot_id="s", selection="cosine_similarity")
+
+
+def _policy_lock_holder(project_root: str, ready: Any, release: Any) -> None:
+    from magicite.config import Config
+    cfg = Config(project_root=Path(project_root))
+    conn = db_mod.connect(cfg.db_path)
+    try:
+        with lease.CrossProcessLease(lock_path=cfg.dream_lock_path, conn=conn,
+                                     holder="policy-blocker").acquire():
+            ready.set()
+            release.wait(timeout=15)
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("operation", ["register", "approve", "activate", "rollback"])
+def test_policy_mutators_obey_other_process_lease(tmp_path: Path, operation: str) -> None:
+    from magicite.config import Config
+    from magicite.core import policy_store as ps
+    cfg = Config(project_root=tmp_path)
+    cfg.ensure_dirs()
+    db_mod.connect(cfg.db_path).close()
+    ps.register_evaluated(cfg, _policy_manifest("a"), evaluation_status="pass")
+    approval = ps.approve(cfg, "a", actor="fixture")
+    before = ps.policy_store_path(cfg).read_bytes()
+    ctx = _spawn_context()
+    ready, release = ctx.Event(), ctx.Event()
+    child = ctx.Process(target=_policy_lock_holder, args=(str(tmp_path), ready, release))
+    child.start()
+    try:
+        assert ready.wait(timeout=10)
+        with pytest.raises(BusyError):
+            if operation == "register":
+                ps.register_evaluated(cfg, _policy_manifest("b"), evaluation_status="pass")
+            elif operation == "approve":
+                ps.approve(cfg, "a", actor="blocked")
+            elif operation == "activate":
+                ps.activate(cfg, expected_current=None, candidate_digest="a", approval_id=approval)
+            else:
+                ps.rollback(cfg, expected_current=None, prior_digest="a")
+        assert ps.policy_store_path(cfg).read_bytes() == before
+        assert not list(cfg.approvals_dir.glob("*.json"))
+    finally:
+        release.set()
+        _join_cleanly([child])
+    ps.activate(cfg, expected_current=None, candidate_digest="a", approval_id=approval)
+    assert ps.status(cfg).active_digest == "a"
+
+
+def _policy_cas_contender(project_root: str, digest: str, approval: str,
+                          ready: Any, start: Any, results: Any) -> None:
+    from magicite.config import Config
+    from magicite.core import policy_store as ps
+    from magicite.errors import InvalidInputError
+    cfg = Config(project_root=Path(project_root))
+    ready.put(digest)
+    start.wait(timeout=10)
+    try:
+        ps.activate(cfg, expected_current=None, candidate_digest=digest, approval_id=approval)
+    except (BusyError, InvalidInputError):
+        results.put((digest, "rejected"))
+    else:
+        results.put((digest, "committed"))
+
+
+def test_policy_concurrent_cas_has_one_winner(tmp_path: Path) -> None:
+    from magicite.config import Config
+    from magicite.core import policy_store as ps
+    from magicite.errors import InvalidInputError
+    cfg = Config(project_root=tmp_path)
+    approvals = {}
+    for digest in ("a", "b"):
+        ps.register_evaluated(cfg, _policy_manifest(digest), evaluation_status="pass")
+        approvals[digest] = ps.approve(cfg, digest, actor="fixture")
+    ctx = _spawn_context()
+    ready, results, start = ctx.Queue(), ctx.Queue(), ctx.Event()
+    children = [ctx.Process(target=_policy_cas_contender,
+                            args=(str(tmp_path), d, approvals[d], ready, start, results))
+                for d in approvals]
+    for child in children:
+        child.start()
+    try:
+        assert {ready.get(timeout=10), ready.get(timeout=10)} == {"a", "b"}
+        start.set()
+        outcomes = dict([results.get(timeout=10), results.get(timeout=10)])
+        assert sorted(outcomes.values()) == ["committed", "rejected"]
+        winner = next(d for d, outcome in outcomes.items() if outcome == "committed")
+        loser = next(d for d, outcome in outcomes.items() if outcome == "rejected")
+        assert ps.status(cfg).active_digest == winner
+        with pytest.raises(InvalidInputError, match="stale expected_current"):
+            ps.activate(cfg, expected_current=None, candidate_digest=loser,
+                        approval_id=approvals[loser])
+    finally:
+        start.set()
+        _join_cleanly(children)

@@ -214,6 +214,17 @@ def policy_status(project_root: str | Path) -> dict[str, Any]:
     }
 
 
+def policy_reconcile(project_root: str | Path) -> dict[str, Any]:
+    """CLI-only repair of an authenticated interrupted policy transaction."""
+    cfg = _cfg(project_root)
+    try:
+        st = policy_store_mod.reconcile(cfg)
+    except MagiciteError as exc:
+        raise _map_policy_store_error(exc) from exc
+    return {"active_digest": st.active_digest, "prior_digest": st.prior_digest,
+            "state_digest": st.state_digest}
+
+
 def policy_activate(
     project_root: str | Path,
     *,

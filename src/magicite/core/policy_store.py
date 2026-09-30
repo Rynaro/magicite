@@ -16,7 +16,8 @@ import hmac
 import json
 import os
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -181,11 +182,33 @@ def _empty_state() -> dict[str, Any]:
     }
 
 
-def _fsync_dir(directory: Path) -> None:
-    try:
-        dir_fd = os.open(str(directory), os.O_RDONLY)
-    except OSError:
+@contextmanager
+def _policy_write_leases(cfg: Config, *, holder: str) -> Iterator[None]:
+    """Serialize policy CAS across processes, reusing only this registry's fence."""
+    if lease_mod.cross_process_lease_held():
+        lease_mod.require_cross_process_scope(cfg.dream_lock_path)
+        with lease_mod.writer_lease(holder=holder):
+            _reconcile_pending_control(cfg)
+            yield
         return
+    from magicite.storage import db as db_mod
+
+    cfg.ensure_dirs()
+    conn = db_mod.connect(cfg.db_path)
+    try:
+        cross = lease_mod.CrossProcessLease(
+            lock_path=cfg.dream_lock_path, conn=conn,
+            holder=f"{holder}:{os.getpid()}:{uuid.uuid4().hex[:6]}",
+        )
+        with cross.acquire(), lease_mod.writer_lease(holder=holder):
+            _reconcile_pending_control(cfg)
+            yield
+    finally:
+        conn.close()
+
+
+def _fsync_dir(directory: Path) -> None:
+    dir_fd = os.open(str(directory), os.O_RDONLY)
     try:
         os.fsync(dir_fd)
     finally:
@@ -201,10 +224,11 @@ def _atomic_write_text(path: Path, text: str) -> None:
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
+        lease_mod.assert_cross_process_fence()
+        os.replace(tmp, path)
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
-    os.replace(tmp, path)
     _fsync_dir(path.parent)
 
 
@@ -235,6 +259,39 @@ def _save_raw(cfg: Config, state: dict[str, Any]) -> None:
     state["integrity_mac"] = _compute_mac(cfg, state)
     text = json.dumps(state, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
     _atomic_write_text(policy_store_path(cfg), text)
+
+
+def _reconcile_pending_control(cfg: Config) -> None:
+    state = _load_raw(cfg)
+    pending = state.get("pending_control")
+    if pending is None:
+        return
+    if not isinstance(pending, dict):
+        raise InvalidInputError("invalid pending policy control transaction")
+    approvals_mod.finalize_policy_control_event(cfg, pending)
+    state.pop("pending_control")
+    _save_raw(cfg, state)
+
+
+def reconcile(cfg: Config) -> PolicyStoreStatus:
+    """Explicitly finish an interrupted, authenticated policy commit under fencing."""
+    with _policy_write_leases(cfg, holder="policy-store-reconcile"):
+        return status(cfg)
+
+
+def _commit_control(
+    cfg: Config, state: dict[str, Any], *, op: str, manifest: PolicyManifest,
+    digest: str, actor: str, payload: dict[str, Any],
+) -> None:
+    prepared = approvals_mod.record_policy_control_event(
+        cfg, op=op, policy_id=manifest.policy_id, policy_digest=digest,
+        actor=actor, payload=payload, prepared=True,
+    )
+    # This MAC-bound record is the sole recovery authority. A prepared mirror
+    # by itself proves only an attempt, never an activation.
+    state["pending_control"] = prepared.to_dict()
+    _save_raw(cfg, state)
+    _reconcile_pending_control(cfg)
 
 
 def _record_from_dict(digest: str, data: Mapping[str, Any]) -> PolicyRecord:
@@ -278,7 +335,7 @@ def register_evaluated(
         evaluation_evidence=evidence,
     )
     digest = updated.policy_digest
-    with lease_mod.writer_lease(holder="policy-store-register"):
+    with _policy_write_leases(cfg, holder="policy-store-register"):
         state = _load_raw(cfg)
         records = dict(state.get("records") or {})
         existing = records.get(digest)
@@ -302,7 +359,7 @@ def register_evaluated(
 
 def approve(cfg: Config, policy_digest: str, *, actor: str) -> str:
     """Mark an evaluated artifact as reviewed/approved. Returns approval_id."""
-    with lease_mod.writer_lease(holder="policy-store-approve"):
+    with _policy_write_leases(cfg, holder="policy-store-approve"):
         state = _load_raw(cfg)
         records = dict(state.get("records") or {})
         row = records.get(policy_digest)
@@ -359,7 +416,7 @@ def activate(
     incumbent). Stale expected-current is rejected. Only reviewed+approved
     artifacts with a matching approval_id may activate.
     """
-    with lease_mod.writer_lease(holder="policy-store-activate"):
+    with _policy_write_leases(cfg, holder="policy-store-activate"):
         state = _load_raw(cfg)
         active = state.get("active_digest")
         if active != expected_current:
@@ -425,12 +482,11 @@ def activate(
             expected_current=expected_current,
             approval_id=approval_id,
         )
-        _save_raw(cfg, state)
-        approvals_mod.record_policy_control_event(
-            cfg,
+        _commit_control(
+            cfg, state,
             op="policy_activate",
-            policy_id=manifest.policy_id,
-            policy_digest=candidate_digest,
+            manifest=manifest,
+            digest=candidate_digest,
             actor="policy-store-activate",
             payload={
                 "approval_id": approval_id,
@@ -448,7 +504,7 @@ def rollback(
     prior_digest: str,
 ) -> PolicyStoreStatus:
     """Exact rollback to a previously approved incumbent (and its manifests)."""
-    with lease_mod.writer_lease(holder="policy-store-rollback"):
+    with _policy_write_leases(cfg, holder="policy-store-rollback"):
         state = _load_raw(cfg)
         active = state.get("active_digest")
         if active != expected_current:
@@ -498,12 +554,11 @@ def rollback(
             digest=prior_digest,
             expected_current=expected_current,
         )
-        _save_raw(cfg, state)
-        approvals_mod.record_policy_control_event(
-            cfg,
+        _commit_control(
+            cfg, state,
             op="policy_rollback",
-            policy_id=prior_manifest.policy_id,
-            policy_digest=prior_digest,
+            manifest=prior_manifest,
+            digest=prior_digest,
             actor="policy-store-rollback",
             payload={
                 "expected_current": expected_current,
@@ -515,6 +570,8 @@ def rollback(
 
 def status(cfg: Config) -> PolicyStoreStatus:
     state = _load_raw(cfg)
+    if state.get("pending_control") is not None:
+        raise InvalidInputError("policy control finalization pending; run magicite policy reconcile")
     records_raw = state.get("records") or {}
     records = tuple(
         _record_from_dict(digest, row) for digest, row in sorted(records_raw.items())
