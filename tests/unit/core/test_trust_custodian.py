@@ -225,3 +225,14 @@ def test_invalid_domain_payload_cannot_be_prepared(store, field, value):
             kind="trust_decision",
             payload=payload,
         )
+
+
+@pytest.mark.parametrize("name", ["journal.key", "signing.key", "authority.sqlite"])
+def test_existing_private_custody_files_cannot_be_world_readable(store, name):
+    import os
+
+    directory = store.directory
+    store.close()
+    os.chmod(directory / name, 0o644)
+    with pytest.raises(CustodianError):
+        CustodianStore.open(directory)

@@ -6,6 +6,7 @@ explicitly injected by callers rather than weakening this production boundary.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import secrets
@@ -13,6 +14,7 @@ import socket
 import stat
 import struct
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,6 +50,49 @@ def check_peer(connection: socket.socket, expected_uid: int) -> None:
         raise CustodianError("custodian peer identity mismatch")
 
 
+def _reject_acl(path: Path) -> None:
+    """Conservative deployment boundary: extended ACLs require removal/review."""
+    if sys.platform == "darwin":
+        import ctypes
+
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.acl_get_fd_np.argtypes = [ctypes.c_int, ctypes.c_int]
+        libc.acl_get_fd_np.restype = ctypes.c_void_p
+        libc.acl_to_text.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        libc.acl_to_text.restype = ctypes.c_void_p
+        libc.acl_free.argtypes = [ctypes.c_void_p]
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            ctypes.set_errno(0)
+            acl = libc.acl_get_fd_np(descriptor, 0x100)  # ACL_TYPE_EXTENDED
+            if not acl:
+                if ctypes.get_errno() == errno.ENOENT:
+                    # Darwin returns ENOENT for absent extended ACL; the open
+                    # descriptor proves that this is not an absent pathname.
+                    os.fstat(descriptor)
+                    return
+                raise CustodianError("custody ACL inspection unavailable")
+        finally:
+            os.close(descriptor)
+        text = None
+        try:
+            text = libc.acl_to_text(acl, None)
+            if not text:
+                raise CustodianError("custody ACL inspection unavailable")
+            lines = ctypes.string_at(text).decode("utf-8").splitlines()
+            if any(line.strip() and not line.startswith("!#acl") for line in lines):
+                raise CustodianError("extended custody ACL is unsupported")
+        finally:
+            if text:
+                libc.acl_free(text)
+            libc.acl_free(acl)
+    elif sys.platform.startswith("linux"):
+        if any(name.startswith("system.posix_acl_") for name in os.listxattr(path)):
+            raise CustodianError("extended custody ACL is unsupported")
+    else:
+        raise CustodianError("custody path verification unsupported")
+
+
 def protected_path(path: Path, owner_uid: int, *, directory: bool = False) -> None:
     """All ancestors must prevent the registry principal replacing authority."""
     if not path.is_absolute():
@@ -56,6 +101,7 @@ def protected_path(path: Path, owner_uid: int, *, directory: bool = False) -> No
         info = candidate.lstat()
         if stat.S_ISLNK(info.st_mode) or info.st_uid not in {0, owner_uid}:
             raise CustodianError("unprotected custody path")
+        _reject_acl(candidate)
         if info.st_mode & 0o022:
             raise CustodianError("writable custody path")
     if directory and not path.is_dir():
@@ -112,10 +158,17 @@ class CustodyProfile:
             raise CustodianError("protected custody profile unavailable") from exc
 
 
-def _read_exact(connection: socket.socket, size: int) -> bytes:
+def _read_exact(connection: socket.socket, size: int, deadline: float) -> bytes:
     chunks = bytearray()
     while len(chunks) < size:
-        chunk = connection.recv(size - len(chunks))
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CustodianError("custodian frame deadline exceeded")
+        connection.settimeout(remaining)
+        try:
+            chunk = connection.recv(size - len(chunks))
+        except TimeoutError as exc:
+            raise CustodianError("custodian frame deadline exceeded") from exc
         if not chunk:
             raise CustodianError("incomplete custodian frame")
         chunks.extend(chunk)
@@ -123,11 +176,12 @@ def _read_exact(connection: socket.socket, size: int) -> bytes:
 
 
 def receive_frame(connection: socket.socket) -> dict[str, Any]:
-    size = int.from_bytes(_read_exact(connection, 4), "big")
+    deadline = time.monotonic() + TIMEOUT
+    size = int.from_bytes(_read_exact(connection, 4, deadline), "big")
     if not 1 <= size <= MAX_FRAME:
         raise CustodianError("custodian frame exceeds limit")
     try:
-        data = json.loads(_read_exact(connection, size))
+        data = json.loads(_read_exact(connection, size, deadline))
         if not isinstance(data, dict):
             raise ValueError("object required")
         _bytes(data)
@@ -246,6 +300,8 @@ class CustodianService:
             or len(request["nonce"]) != 64
             or not isinstance(request.get("request_id"), str)
             or len(request["request_id"]) != 32
+            or not isinstance(request.get("operation"), str)
+            or not isinstance(request.get("arguments"), dict)
         ):
             raise CustodianError("invalid custody request binding")
         payload = {k: request[k] for k in fields}
@@ -262,7 +318,7 @@ class CustodianService:
             if operation not in dispatch or not isinstance(request.get("arguments"), dict):
                 raise CustodianError("unsupported custody operation")
             payload["result"] = dispatch[operation](profile.registry_id, **request["arguments"])
-        except (ValueError, TypeError, KeyError):
+        except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
             payload["error"] = "reconciliation_required"
         send_frame(connection, sign_receipt(self.store.signing_key, payload))
 
@@ -271,6 +327,11 @@ class CustodianService:
         if os.getuid() != profile.custodian_uid:
             raise CustodianError("custodian service identity mismatch")
         protected_path(self.store.directory, profile.custodian_uid, directory=True)
+        for filename in ("journal.key", "signing.key", "authority.sqlite"):
+            protected_path(self.store.directory / filename, profile.custodian_uid)
+            info = (self.store.directory / filename).lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
+                raise CustodianError("custody state must remain private")
         protected_path(profile.socket_path.parent, profile.custodian_uid, directory=True)
         # Never unlink a caller-selected preexisting path or an active service.
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:

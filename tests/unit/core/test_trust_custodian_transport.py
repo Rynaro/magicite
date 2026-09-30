@@ -171,3 +171,90 @@ def test_production_service_refuses_running_as_client_identity(tmp_path):
         assert not profile.socket_path.exists()
     finally:
         store.close()
+
+
+def test_missing_operation_is_redacted_protocol_error_not_uncaught_keyerror(tmp_path, monkeypatch):
+    from magicite.core import trust_custodian_transport as transport
+    from magicite.core.trust_custodian import CustodianStore
+
+    store = CustodianStore.create(tmp_path / "custody")
+    public = store.signing_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+    profile = CustodyProfile(
+        registry_id="r",
+        epoch=1,
+        socket_path=tmp_path / "socket",
+        custodian_uid=os.getuid(),
+        client_uid=os.getuid() + 10000,
+        public_key=public,
+    )
+    monkeypatch.setattr(transport, "check_peer", lambda *args: None)  # explicit credential double only
+    a, b = socket.socketpair()
+    try:
+        transport.send_frame(
+            b,
+            {
+                "version": "trust-custodian/1",
+                "nonce": "a" * 64,
+                "request_id": "b" * 32,
+                "registry_id": "r",
+                "epoch": 1,
+                "arguments": {},
+            },
+        )
+        with pytest.raises(CustodianError):
+            transport.CustodianService(store, profile).handle(a)
+    finally:
+        a.close()
+        b.close()
+        store.close()
+
+
+def test_total_frame_deadline_rejects_slow_trickle(monkeypatch):
+    import threading
+    import time
+
+    from magicite.core import trust_custodian_transport as transport
+
+    monkeypatch.setattr(transport, "TIMEOUT", 0.08)
+    a, b = socket.socketpair()
+
+    def trickle():
+        try:
+            b.sendall((12).to_bytes(4, "big"))
+            for byte in b'{"value": 1}':
+                b.sendall(bytes([byte]))
+                time.sleep(0.03)
+        except OSError:
+            pass
+
+    worker = threading.Thread(target=trickle)
+    worker.start()
+    try:
+        with pytest.raises(CustodianError):
+            transport.receive_frame(a)
+    finally:
+        a.close()
+        b.close()
+        worker.join()
+
+
+def test_acl_inspection_rejects_extended_grant(tmp_path):
+    import pwd
+    import subprocess
+    import sys
+
+    from magicite.core.trust_custodian_transport import _reject_acl
+
+    path = tmp_path / "profile"
+    path.write_text("{}")
+    _reject_acl(path)
+    if sys.platform == "darwin":
+        subprocess.run(
+            ["chmod", "+a", f"user:{pwd.getpwuid(os.getuid()).pw_name} allow write", str(path)], check=True
+        )
+        with pytest.raises(CustodianError):
+            _reject_acl(path)
+    elif sys.platform.startswith("linux"):
+        # The ordinary no-ACL path above is real; ACL deployment qualification
+        # requires its separate provisioned Linux job, not a fabricated grant.
+        assert "system.posix_acl_access" not in os.listxattr(path)

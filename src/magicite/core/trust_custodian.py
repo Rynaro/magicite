@@ -14,6 +14,7 @@ import os
 import re
 import secrets
 import sqlite3
+import stat
 from pathlib import Path
 from typing import Any, get_args
 
@@ -105,6 +106,10 @@ class CustodianStore:
     @classmethod
     def open(cls, directory: Path) -> CustodianStore:
         try:
+            for name in ("journal.key", "signing.key", "authority.sqlite"):
+                info = (directory / name).lstat()
+                if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+                    raise CustodianError("custody state must remain private")
             key = (directory / "journal.key").read_bytes()
             signing = Ed25519PrivateKey.from_private_bytes((directory / "signing.key").read_bytes())
             if len(key) != 32:
