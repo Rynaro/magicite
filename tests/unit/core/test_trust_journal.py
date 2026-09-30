@@ -186,3 +186,129 @@ def test_pending_exact_record_is_finished_by_new_fence(journal):
     recovered = ledger.reconcile(fence=current, assert_owned=lambda: None)
     assert recovered.policy["revision"] == 2
     assert recovered.head["pending_record_id"] is None
+
+
+def test_predicted_temporary_symlink_never_overwrites_outside_file(tmp_path):
+    store = CustodianStore.create(tmp_path / "custody")
+    store.enroll("registry-one", default_policy().to_dict(), actor="operator", reviewed=True)
+    directory = tmp_path / "registry"
+    directory.mkdir()
+    outside = tmp_path / "outside"
+    outside.write_text("untouched")
+    (directory / "head.pending").symlink_to(outside)
+    ledger = TrustJournal(directory, "registry-one", InjectedCustody(store))
+    try:
+        ledger.initialize_reviewed_genesis()
+        assert outside.read_text() == "untouched"
+        assert not ledger.head_path.is_symlink()
+    finally:
+        store.close()
+
+
+def test_journal_symlink_cannot_be_appended_through(journal, tmp_path):
+    ledger, store = journal
+    outside = tmp_path / "outside"
+    outside.write_bytes(ledger.journal_path.read_bytes())
+    ledger.journal_path.unlink()
+    ledger.journal_path.symlink_to(outside)
+    before = outside.read_bytes()
+    with pytest.raises(CustodianError):
+        commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
+    assert outside.read_bytes() == before
+
+
+def test_exact_retry_checks_lease_after_remote_preparation(journal, monkeypatch):
+    ledger, store = journal
+    commit(ledger, store, "admit", "admit", "2026-01-01T00:00:00Z")
+    payload = ledger.snapshot().decisions[-1]
+    fence = store.register_fence(
+        "registry-one",
+        predecessor=store.read_current("registry-one"),
+        attempt_id="retry",
+        holder="lease",
+        local_token=1,
+    )
+    lost = False
+    real_call = ledger.client.call
+
+    def lose_after_prepare(operation, **arguments):
+        nonlocal lost
+        result = real_call(operation, **arguments)
+        if operation == "prepare_record":
+            lost = True
+        return result
+
+    def assert_owned():
+        if lost:
+            raise CustodianError("lease lost")
+
+    monkeypatch.setattr(ledger.client, "call", lose_after_prepare)
+    with pytest.raises(CustodianError):
+        ledger.append(
+            record_id="admit", kind="trust_decision", payload=payload, fence=fence, assert_owned=assert_owned
+        )
+
+
+def test_hard_linked_journal_is_not_a_mutation_target(journal, tmp_path):
+    import os
+
+    ledger, store = journal
+    outside = tmp_path / "outside"
+    os.link(ledger.journal_path, outside)
+    before = outside.read_bytes()
+    with pytest.raises(CustodianError):
+        commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
+    assert outside.read_bytes() == before
+
+
+def test_directory_symlink_is_not_followed_for_genesis(tmp_path):
+    store = CustodianStore.create(tmp_path / "custody")
+    store.enroll("registry-one", default_policy().to_dict(), actor="operator", reviewed=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    alias = tmp_path / "registry"
+    alias.symlink_to(outside, target_is_directory=True)
+    try:
+        with pytest.raises(CustodianError):
+            TrustJournal(alias, "registry-one", InjectedCustody(store)).initialize_reviewed_genesis()
+        assert list(outside.iterdir()) == []
+    finally:
+        store.close()
+
+
+def test_append_checks_lease_after_final_remote_snapshot(journal, monkeypatch):
+    ledger, store = journal
+    changed = default_policy().to_dict()
+    changed["revision"] = 2
+    fence = store.register_fence(
+        "registry-one",
+        predecessor=store.read_current("registry-one"),
+        attempt_id="policy",
+        holder="lease",
+        local_token=1,
+    )
+    calls = 0
+    lost = False
+    original = ledger.snapshot
+
+    def snapshot_then_expire():
+        nonlocal calls, lost
+        result = original()
+        calls += 1
+        if calls == 2:
+            lost = True
+        return result
+
+    def assert_owned():
+        if lost:
+            raise CustodianError("lease lost")
+
+    monkeypatch.setattr(ledger, "snapshot", snapshot_then_expire)
+    with pytest.raises(CustodianError):
+        ledger.append(
+            record_id="policy",
+            kind="policy_snapshot",
+            payload=changed,
+            fence=fence,
+            assert_owned=assert_owned,
+        )

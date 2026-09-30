@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Callable
+import secrets
+import stat
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -30,12 +33,62 @@ class TrustSnapshot:
     records: tuple[dict[str, Any], ...]
 
 
-def _sync_directory(directory: Path) -> None:
-    descriptor = os.open(directory, os.O_RDONLY)
+@contextmanager
+def _directory_fd(path: Path, *, create: bool = False) -> Iterator[int]:
+    """Walk from root without following any attacker-controlled symlink."""
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:
-        os.fsync(descriptor)
+        for component in path.absolute().parts[1:]:
+            if component in {".", ".."}:
+                raise CustodianError("invalid journal directory")
+            try:
+                child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                os.mkdir(component, mode=0o700, dir_fd=descriptor)
+                os.fsync(descriptor)
+                child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        yield descriptor
+    except OSError as exc:
+        raise CustodianError("unsafe or unavailable journal directory") from exc
     finally:
         os.close(descriptor)
+
+
+def _read_file(directory: int, name: str) -> bytes:
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
+    with os.fdopen(descriptor, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise CustodianError("unsafe journal file")
+        return stream.read()
+
+
+def _replace_file(
+    directory: int, name: str, content: bytes, assert_owned: Callable[[], None] = lambda: None
+) -> None:
+    # Replacing a destination symlink is safe: neither it nor a hard-linked
+    # prior inode is followed or written. The source is exclusively created.
+    temporary = ".trust-" + secrets.token_hex(24)
+    descriptor = os.open(
+        temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory
+    )
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        assert_owned()
+        os.replace(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
+        os.fsync(directory)
+    finally:
+        try:
+            os.unlink(temporary, dir_fd=directory)
+        except FileNotFoundError:
+            pass
 
 
 class TrustJournal:
@@ -72,36 +125,36 @@ class TrustJournal:
             raise CustodianError("authenticated history/head mismatch")
         return head, records
 
-    def _write_head(self, head: dict[str, Any]) -> None:
-        temporary = self.head_path.with_suffix(".pending")
-        with temporary.open("wb") as stream:
-            stream.write(_bytes({key: head[key] for key in (*HEAD_FIELDS, "policy_digest")}))
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, self.head_path)
-        _sync_directory(self.directory)
+    def _write_head(self, head: dict[str, Any], assert_owned: Callable[[], None] = lambda: None) -> None:
+        with _directory_fd(self.directory) as directory:
+            _replace_file(
+                directory,
+                "head.json",
+                _bytes({key: head[key] for key in (*HEAD_FIELDS, "policy_digest")}),
+                assert_owned,
+            )
 
     def initialize_reviewed_genesis(self) -> None:
         """Explicit operator step AFTER protected enrollment; never used by reads."""
         head, records = self._remote()
         if head["head_sequence"] != 1 or records[0]["kind"] != "genesis":
             raise CustodianError("existing history requires explicit recovery")
-        if self.journal_path.exists() or self.head_path.exists():
-            raise CustodianError("local trust history already initialized")
-        self.directory.mkdir(parents=True, exist_ok=True)
-        with self.journal_path.open("xb") as stream:
-            stream.write(_bytes(records[0]) + b"\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        _sync_directory(self.directory.parent)
+        with _directory_fd(self.directory, create=True) as directory:
+            for name in ("journal.jsonl", "head.json"):
+                try:
+                    os.stat(name, dir_fd=directory, follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
+                raise CustodianError("local trust history already initialized")
+            _replace_file(directory, "journal.jsonl", _bytes(records[0]) + b"\n")
         self._write_head(head)
 
     def snapshot(self) -> TrustSnapshot:
         try:
             head, authenticated = self._remote()
-            with self.journal_path.open("rb") as stream:
-                records = [json.loads(line) for line in stream]
-            local_head = json.loads(self.head_path.read_bytes())
+            with _directory_fd(self.directory) as directory:
+                records = [json.loads(line) for line in _read_file(directory, "journal.jsonl").splitlines()]
+                local_head = json.loads(_read_file(directory, "head.json"))
             if not _match(local_head, head, (*HEAD_FIELDS, "policy_digest")):
                 raise CustodianError("local trust head does not match custody")
             if len(records) != len(authenticated) or any(
@@ -152,18 +205,23 @@ class TrustJournal:
         if record["sequence"] <= before.head["head_sequence"]:
             if not any(_equal(record, existing) for existing in before.records):
                 raise CustodianError("conflicting retry history")
+            assert_owned()
             return before
         assert_owned()
-        with self.journal_path.open("ab") as stream:
-            stream.write(_bytes(record) + b"\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        with _directory_fd(self.directory) as directory:
+            _replace_file(
+                directory,
+                "journal.jsonl",
+                b"".join(_bytes(row) + b"\n" for row in (*before.records, record)),
+                assert_owned,
+            )
         assert_owned()
         head = self.client.call("commit_record", fence=fence, expected_head=before.head, record=record)
         assert_owned()
-        self._write_head(head)
+        self._write_head(head, assert_owned)
+        result = self.snapshot()
         assert_owned()
-        return self.snapshot()
+        return result
 
     def reconcile(self, *, fence: dict[str, Any], assert_owned: Callable[[], None]) -> TrustSnapshot:
         """Explicit recovery using retained authenticated custody history only.
@@ -185,20 +243,18 @@ class TrustJournal:
             ):
                 raise CustodianError("invalid retained preparation")
             records.append(pending)
-        temporary = self.journal_path.with_suffix(".recovery")
-        self.directory.mkdir(parents=True, exist_ok=True)
-        with temporary.open("wb") as stream:
-            for record in records:
-                stream.write(_bytes(record) + b"\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-        assert_owned()
-        os.replace(temporary, self.journal_path)
-        _sync_directory(self.directory)
+        with _directory_fd(self.directory, create=True) as directory:
+            _replace_file(
+                directory,
+                "journal.jsonl",
+                b"".join(_bytes(record) + b"\n" for record in records),
+                assert_owned,
+            )
         if pending is not None:
             assert_owned()
             head = self.client.call("commit_record", fence=fence, expected_head=head, record=pending)
         assert_owned()
-        self._write_head(head)
+        self._write_head(head, assert_owned)
+        result = self.snapshot()
         assert_owned()
-        return self.snapshot()
+        return result
