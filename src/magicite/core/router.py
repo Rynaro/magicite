@@ -799,15 +799,6 @@ def _route_trust_view(
 
     origin_trusted = trust_mod.origin_trusted_for_channel(intake, admitted=admitted) or channel_trusted
 
-    if (
-        cfg.default_local_authorship_admission
-        and origin_trusted
-        and not quarantined
-        and not admitted
-        and (decision is None or decision.decision not in {"reject", "revoke", "quarantine"})
-    ):
-        admitted = True
-
     sig: bool | None = decision.signature_valid if decision is not None else None
     return trust_mod.TrustDecisionView(
         engram_id=engram_id,

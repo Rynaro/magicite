@@ -794,6 +794,7 @@ def _backup_lease(
     cfg: Config, conn: sqlite3.Connection, holder: str
 ) -> Iterator[None]:
     if lease_mod.cross_process_lease_held():
+        writer_guard.bound_journal(cfg)
         with lease_mod.writer_lease(holder=holder):
             yield
         return

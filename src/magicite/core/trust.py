@@ -90,6 +90,7 @@ def _trust_write_leases(
     not already held.
     """
     if conn is None and lease_mod.cross_process_lease_held():
+        writer_guard.bound_journal(cfg)
         with lease_mod.writer_lease(holder=holder):
             yield
         return
@@ -212,6 +213,12 @@ def load_policy(cfg: Config) -> TrustPolicy:
 def save_policy(cfg: Config, policy: TrustPolicy) -> TrustPolicy:
     with _trust_write_leases(cfg, None, holder="trust-policy"):
         journal, cross, fence = writer_guard.bound_journal(cfg)
+        current = TrustPolicy.from_dict(journal.snapshot().policy)
+        if policy.to_dict() == current.to_dict():
+            cross.assert_owned()
+            return current
+        if policy.revision != current.revision + 1:
+            raise CustodianError("stale trust policy revision")
         journal.append(
             record_id="policy-" + uuid.uuid4().hex,
             kind="policy_snapshot",
@@ -226,44 +233,44 @@ def save_policy(cfg: Config, policy: TrustPolicy) -> TrustPolicy:
 def pin_trust_root(cfg: Config, *, public_key_bytes: bytes, revoke: bool = False) -> TrustPolicy:
     """Add or update a pinned public key under a new policy revision."""
     fp = public_key_fingerprint(public_key_bytes)
-    current = load_policy(cfg)
-    roots = [r for r in current.roots if r.fingerprint != fp]
-    roots.append(TrustRoot(fingerprint=fp, public_key_bytes=public_key_bytes, revoked=revoke))
-    updated = TrustPolicy(
-        policy_id=current.policy_id,
-        revision=current.revision + 1,
-        roots=tuple(sorted(roots, key=lambda r: r.fingerprint)),
-        scanner_revision=current.scanner_revision,
-    )
-    return save_policy(cfg, updated)
-
+    with _trust_write_leases(cfg, None, holder="trust-root-policy"):
+        current = load_policy(cfg)
+        roots = [r for r in current.roots if r.fingerprint != fp]
+        roots.append(TrustRoot(fingerprint=fp, public_key_bytes=public_key_bytes, revoked=revoke))
+        updated = TrustPolicy(
+            policy_id=current.policy_id,
+            revision=current.revision + 1,
+            roots=tuple(sorted(roots, key=lambda r: r.fingerprint)),
+            scanner_revision=current.scanner_revision,
+        )
+        return save_policy(cfg, updated)
 
 def revoke_trust_root(cfg: Config, *, fingerprint: str) -> TrustPolicy:
-    current = load_policy(cfg)
-    found = False
-    roots: list[TrustRoot] = []
-    for root in current.roots:
-        if root.fingerprint == fingerprint:
-            found = True
-            roots.append(
-                TrustRoot(
-                    fingerprint=root.fingerprint,
-                    public_key_bytes=root.public_key_bytes,
-                    revoked=True,
+    with _trust_write_leases(cfg, None, holder="trust-root-policy"):
+        current = load_policy(cfg)
+        found = False
+        roots: list[TrustRoot] = []
+        for root in current.roots:
+            if root.fingerprint == fingerprint:
+                found = True
+                roots.append(
+                    TrustRoot(
+                        fingerprint=root.fingerprint,
+                        public_key_bytes=root.public_key_bytes,
+                        revoked=True,
+                    )
                 )
-            )
-        else:
-            roots.append(root)
-    if not found:
-        raise NotFoundError(f"no trust root with fingerprint {fingerprint!r}")
-    updated = TrustPolicy(
-        policy_id=current.policy_id,
-        revision=current.revision + 1,
-        roots=tuple(roots),
-        scanner_revision=current.scanner_revision,
-    )
-    return save_policy(cfg, updated)
-
+            else:
+                roots.append(root)
+        if not found:
+            raise NotFoundError(f"no trust root with fingerprint {fingerprint!r}")
+        updated = TrustPolicy(
+            policy_id=current.policy_id,
+            revision=current.revision + 1,
+            roots=tuple(roots),
+            scanner_revision=current.scanner_revision,
+        )
+        return save_policy(cfg, updated)
 
 @dataclass(frozen=True, slots=True)
 class TrustDecision:

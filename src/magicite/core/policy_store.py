@@ -187,6 +187,7 @@ def _empty_state() -> dict[str, Any]:
 def _policy_write_leases(cfg: Config, *, holder: str) -> Iterator[None]:
     """Serialize policy CAS across processes, reusing only this registry's fence."""
     if lease_mod.cross_process_lease_held():
+        writer_guard.bound_journal(cfg)
         lease_mod.require_cross_process_scope(cfg.dream_lock_path)
         with lease_mod.writer_lease(holder=holder):
             _reconcile_pending_control(cfg)

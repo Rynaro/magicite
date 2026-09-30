@@ -10,7 +10,7 @@ import pytest
 
 from magicite.config import Config
 from magicite.core import trust, writer_guard
-from magicite.core.trust_custodian import CustodianStore
+from magicite.core.trust_custodian import CustodianError, CustodianStore
 from magicite.core.trust_journal import TrustJournal
 from magicite.storage import db
 
@@ -117,3 +117,135 @@ def test_real_register_review_revoke_flow_uses_custody(enrolled):
     )
     assert revoke.decision == "revoke"
     assert not registry.trust_view_for(cfg, connection, engram_id=row["id"]).admitted
+
+
+@pytest.mark.parametrize("drift", ["policy", "content"])
+def test_router_never_restores_invalid_authenticated_admission(enrolled, drift):
+    from magicite.core import router
+
+    cfg, connection, _ = enrolled
+    trust.persist_decision(cfg, connection, decision("admit", "admit"))
+    # Minimal SQLite row is sufficient for the actual route/body trust helper.
+    digest = "b" * 64 if drift == "content" else "a" * 64
+    row = connection.execute(
+        "SELECT 'subject' AS id, ? AS content_sha256, 'verified' AS verification_status, "
+        "'active' AS status, 'authored' AS origin",
+        (digest,),
+    ).fetchone()
+    policy = (
+        trust.default_policy()
+        if drift == "content"
+        else trust.TrustPolicy(policy_id=trust.default_policy().policy_id, revision=2, roots=())
+    )
+    view = router._route_trust_view(
+        cfg, row, cached_decision=decision("admit", "admit"), cached_policy=policy
+    )
+    assert not view.admitted
+
+
+@pytest.mark.parametrize("restriction", ["policy", "root_revocation"])
+def test_actual_route_and_body_deny_after_authenticated_policy_change(enrolled, restriction):
+    import shutil
+
+    from magicite.core import registry, router
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.mcp import bind_retrieval
+    from magicite.mcp.registry import ToolContext
+    from magicite.mcp.schemas import LoadSkillBodyInput
+
+    cfg, connection, _ = enrolled
+    root_fingerprint = None
+    if restriction == "root_revocation":
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+        from magicite.core.bundles import public_key_fingerprint
+
+        public = Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        trust.pin_trust_root(cfg, public_key_bytes=public)
+        root_fingerprint = public_key_fingerprint(public)
+    fixtures = Path(__file__).resolve().parents[2] / "fixtures/toy-registry/engrams"
+    for source in fixtures.glob("*.egr.md"):
+        shutil.copy(source, cfg.registry_dir / source.name)
+    embedder = get_embedder(dim=256)
+    registry.register(cfg, connection, embedder, path=".magicite/engrams")
+    for row in connection.execute("SELECT id,content_sha256 FROM engram").fetchall():
+        registry.review_approve(
+            cfg, connection, engram_id=row["id"], expected_digest=row["content_sha256"], actor="operator"
+        )
+    name = "proton-ge-proton-downgrade"
+    row = connection.execute("SELECT content_sha256 FROM engram WHERE name=?", (name,)).fetchone()
+    params = LoadSkillBodyInput(
+        name=name,
+        level="L2",
+        expected_content_digest=row["content_sha256"],
+        expected_policy_digest=bind_retrieval._active_policy_digest(cfg),
+    )
+    ctx = ToolContext(cfg=cfg, conn=connection, embedder=embedder)
+    assert bind_retrieval.load_skill_body(ctx, params).status == "ok"
+    if root_fingerprint is not None:
+        trust.revoke_trust_root(cfg, fingerprint=root_fingerprint)
+    else:
+        trust.save_policy(cfg, trust.TrustPolicy(policy_id="restricted", revision=2, roots=()))
+    body = bind_retrieval.load_skill_body(ctx, params)
+    assert body.status != "ok"
+    assert not body.procedure
+    routed = router.route(cfg, connection, embedder, query="rollback proton for a steam game", k=5)
+    assert not routed.candidates
+
+
+def test_stale_root_pin_cannot_undo_interleaved_acknowledged_revocation(enrolled, monkeypatch):
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    from magicite.core.bundles import public_key_fingerprint
+
+    cfg, _, _ = enrolled
+    key_a = Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    key_b = Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    trust.pin_trust_root(cfg, public_key_bytes=key_a)
+    original = trust.save_policy
+    inside = False
+
+    def revoke_between_read_and_save(cfg, policy):
+        nonlocal inside
+        if not inside:
+            inside = True
+            trust.revoke_trust_root(cfg, fingerprint=public_key_fingerprint(key_a))
+        return original(cfg, policy)
+
+    monkeypatch.setattr(trust, "save_policy", revoke_between_read_and_save)
+    try:
+        trust.pin_trust_root(cfg, public_key_bytes=key_b)
+    except (CustodianError, ValueError):
+        pass  # A stale pin is allowed to abort; acknowledged revocation is not.
+    assert next(
+        root for root in trust.load_policy(cfg).roots if root.fingerprint == public_key_fingerprint(key_a)
+    ).revoked
+
+
+@pytest.mark.parametrize("domain", ["backup", "evidence", "policy", "trust"])
+def test_nested_domain_rejects_unenrolled_or_foreign_outer_lease(tmp_path, domain):
+    from magicite.core import backup, evidence, policy_store
+    from magicite.errors import BusyError
+    from magicite.storage.lease import CrossProcessLease
+
+    cfg = Config(project_root=tmp_path / "a")
+    other = Config(project_root=tmp_path / "b")
+    cfg.ensure_dirs()
+    other.ensure_dirs()
+    first, second = db.connect(cfg.db_path), db.connect(other.db_path)
+    guards = {
+        "backup": lambda: backup._backup_lease(other, second, "test"),
+        "evidence": lambda: evidence._evidence_write_guard(other, second, "test"),
+        "policy": lambda: policy_store._policy_write_leases(other, holder="test"),
+        "trust": lambda: trust._trust_write_leases(other, None, holder="test"),
+    }
+    try:
+        with CrossProcessLease(lock_path=cfg.dream_lock_path, conn=first).acquire():
+            with pytest.raises((BusyError, CustodianError)):
+                with guards[domain]():
+                    pytest.fail("foreign bare lease reached protected mutation scope")
+    finally:
+        first.close()
+        second.close()

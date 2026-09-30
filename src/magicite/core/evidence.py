@@ -1093,7 +1093,8 @@ def _evidence_write_guard(
         _ensure_tombstone_mac(cfg, root)
         _repurge_tombstoned_payloads(cfg, root)
 
-    if lease_mod._CROSS_PROCESS_LEASE.get() is not None:  # noqa: SLF001
+    if lease_mod.cross_process_lease_held():
+        writer_guard.bound_journal(cfg)
         with writer_lease(holder):
             _enter()
             yield
