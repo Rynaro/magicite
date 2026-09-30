@@ -13,11 +13,25 @@ RecoveryOverlay / sequence-anchor reconciliation (C8):
 - Overlay/anchor authenticity is HMAC-bound (domain-separated subkey of the
   local fingerprint key, or an operator-supplied custody key). Forgeable
   on-disk flags alone never lift ``reconciliation_required``.
+- Anti-shrink (C8): every ``backup/1`` manifest and HMAC activation seal binds
+  the known set of revocation decision ids and privacy-deletion (tombstone)
+  ids. Preserve/activate refuses with ``live_overlay_shrunk`` when the live
+  (or activating) overlay lacks any id present in the last valid seal, the
+  backup being restored, or a caller-supplied overlay.
 
 Secrets (``runtime/fingerprint.key`` and other key material) are excluded
 unless the operator supplies an encrypted-custody path. Without the HMAC key
 on a clean machine, tombstone MAC verification and overlay authentication
 fail closed — never silently re-key and orphan tombstone MACs.
+
+Limits / residual (do not claim solved here):
+- A trust revoke created *after* the last activation seal / backup and deleted
+  from ``trust/decisions/`` before restore is indistinguishable from never
+  existing. The same attacker can already un-revoke live routing without any
+  restore because S04's trust decision ledger has no authentication /
+  anti-shrink (no sequence + HMAC chain analogous to S09 ``tombstones.mac``).
+  That is an S04 follow-up; this module only refuses shrink relative to ids
+  already sealed into a prior backup or activation seal.
 """
 
 from __future__ import annotations
@@ -757,6 +771,7 @@ def _write_activation_seal(
     anchor: SequenceAnchor,
     key: bytes,
 ) -> None:
+    revokes, deletions = _overlay_known_sets(overlay)
     body = gate_mod.sign_activation_seal(
         generation_id=generation_id,
         registry_id=overlay.registry_id,
@@ -765,6 +780,8 @@ def _write_activation_seal(
         anchor_mac=anchor.mac,
         activated_at=_now(),
         key=key,
+        known_revocation_ids=revokes,
+        known_deletion_ids=deletions,
     )
     _write_json_durable(recovery_activation_path(cfg), body)
     # Advisory state only — gate clearance is seal+markers, not this file.
@@ -824,6 +841,92 @@ def _domain_sequences(cfg: Config) -> dict[str, int]:
     }
 
 
+def _is_recovery_control_rel(rel: str) -> bool:
+    """True for restore-generation markers / recovery/ control paths.
+
+    These must never enter a backup archive — restoring stale markers onto a
+    clean data dir would falsely trip reconciliation_required. Do **not**
+    match arbitrary ``state.json`` basenames (policy_store uses that name).
+    """
+    parts = Path(rel).parts
+    if parts and parts[0] == _RECOVERY_DIRNAME:
+        return True
+    name = Path(rel).name
+    return name in {gate_mod.DOMAIN_MARKER_NAME, gate_mod.RUNTIME_MARKER_NAME}
+
+
+def _revocation_ids_from_records(records: Iterable[dict[str, Any]]) -> frozenset[str]:
+    return frozenset(str(r.get("decision_id") or "") for r in records if r.get("decision_id"))
+
+
+def _deletion_ids_from_records(records: Iterable[dict[str, Any]]) -> frozenset[str]:
+    ids: set[str] = set()
+    for rec in records:
+        tid = str(rec.get("tombstone_id") or "")
+        if tid:
+            ids.add(tid)
+            continue
+        eid = str(rec.get("target_event_id") or "")
+        if eid:
+            ids.add(eid)
+    return frozenset(ids)
+
+
+def _overlay_known_sets(overlay: RecoveryOverlay) -> tuple[frozenset[str], frozenset[str]]:
+    return (
+        _revocation_ids_from_records(overlay.revocation_records),
+        _deletion_ids_from_records(overlay.deletion_records),
+    )
+
+
+def _collect_live_known_sets(cfg: Config) -> tuple[frozenset[str], frozenset[str]]:
+    """Best-effort live id sets for backup manifests (fail closed on corrupt reads)."""
+    revokes: set[str] = set()
+    deletions: set[str] = set()
+    try:
+        for d in trust_mod.list_decisions(cfg):
+            if d.decision == "revoke" and d.decision_id:
+                revokes.add(d.decision_id)
+    except trust_mod.TrustLedgerCorruptError:
+        pass
+    try:
+        for row in evidence_mod.load_verified_tombstones(cfg):
+            tid = str(row.get("tombstone_id") or "") or str(row.get("target_event_id") or "")
+            if tid:
+                deletions.add(tid)
+    except InvalidInputError:
+        pass
+    return frozenset(revokes), frozenset(deletions)
+
+
+def _known_sets_from_manifest(manifest: dict[str, Any]) -> tuple[frozenset[str], frozenset[str]]:
+    return (
+        frozenset(str(x) for x in (manifest.get("known_revocation_ids") or []) if x),
+        frozenset(str(x) for x in (manifest.get("known_deletion_ids") or []) if x),
+    )
+
+
+def _assert_overlay_covers_known_ids(
+    overlay: RecoveryOverlay,
+    *,
+    expected_revokes: frozenset[str],
+    expected_deletions: frozenset[str],
+) -> None:
+    have_r, have_d = _overlay_known_sets(overlay)
+    missing_r = expected_revokes - have_r
+    missing_d = expected_deletions - have_d
+    if missing_r or missing_d:
+        raise InvalidInputError(
+            "live_overlay_shrunk: refusing preserve/activate",
+            details={
+                "reason_code": "live_overlay_shrunk",
+                "missing_revocation_ids": sorted(missing_r),
+                "missing_deletion_ids": sorted(missing_d),
+                "reconciliation_required": True,
+            },
+        )
+
+
 def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
     """Yield ``(archive_relative_path, source_path)`` for a domain."""
     if domain == "registry":
@@ -833,7 +936,10 @@ def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
             if _is_symlink(path) or not path.is_file():
                 continue
             rel = _rel_under(cfg.registry_dir, path)
-            yield f"registry/{rel}", path
+            archive_rel = f"registry/{rel}"
+            if _is_recovery_control_rel(archive_rel):
+                continue
+            yield archive_rel, path
         return
     if domain == "evidence":
         root = evidence_mod.evidence_dir(cfg)
@@ -843,7 +949,7 @@ def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
             if not path.is_file() or _is_symlink(path):
                 continue
             rel = _rel_under(cfg.data_dir, path)
-            if _is_secret_rel(rel):
+            if _is_secret_rel(rel) or _is_recovery_control_rel(rel):
                 continue
             yield rel, path
         return
@@ -854,6 +960,8 @@ def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
         for path in sorted(root.rglob("*")):
             if path.is_file() and not _is_symlink(path):
                 rel = _rel_under(cfg.data_dir, path)
+                if _is_recovery_control_rel(rel):
+                    continue
                 yield rel, path
         return
     if domain == "approvals":
@@ -861,6 +969,8 @@ def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
             return
         for path in sorted(cfg.approvals_dir.glob("*.json")):
             if path.is_file() and not _is_symlink(path):
+                if _is_recovery_control_rel(path.name):
+                    continue
                 yield f"approvals/{path.name}", path
         return
     if domain == "config":
@@ -870,6 +980,7 @@ def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
         rid = cfg.runtime_dir / "registry.id"
         if rid.is_file() and not _is_symlink(rid):
             yield "runtime/registry.id", rid
+        # Explicitly skip RUNTIME_MARKER_NAME / DOMAIN_MARKER_NAME.
         return
     if domain == "policy_store":
         root = policy_store_dir(cfg)
@@ -878,6 +989,8 @@ def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
         for path in sorted(root.rglob("*")):
             if path.is_file() and not _is_symlink(path):
                 rel = _rel_under(cfg.data_dir, path)
+                if _is_recovery_control_rel(rel):
+                    continue
                 yield rel, path
         return
     if domain == "archive":
@@ -886,7 +999,10 @@ def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
         for path in sorted(cfg.archive_dir.rglob("*")):
             if path.is_file() and not _is_symlink(path):
                 rel = _rel_under(cfg.archive_dir, path)
-                yield f"archive/{rel}", path
+                archive_rel = f"archive/{rel}"
+                if _is_recovery_control_rel(archive_rel):
+                    continue
+                yield archive_rel, path
         return
     raise InvalidInputError(f"unknown backup domain {domain!r}")
 
@@ -962,6 +1078,9 @@ def create_snapshot(
                 custody_note = str(custody)
 
         entries.sort(key=lambda e: e["path"])
+        known_revokes, known_deletions = _collect_live_known_sets(cfg)
+        known_revocation_ids = sorted(known_revokes)
+        known_deletion_ids = sorted(known_deletions)
         manifest = {
             "manifest_kind": BACKUP_MANIFEST_KIND,
             "schema_version": 1,
@@ -972,6 +1091,16 @@ def create_snapshot(
             "max_known_schema_version_at_backup": MAX_KNOWN_SCHEMA_VERSION,
             "secrets_excluded": not include_secrets,
             "fingerprint_key_custody": custody_note,
+            "known_revocation_ids": known_revocation_ids,
+            "known_deletion_ids": known_deletion_ids,
+            "known_revocation_count": len(known_revocation_ids),
+            "known_deletion_count": len(known_deletion_ids),
+            "known_revocation_digest": _sha256_bytes(
+                ",".join(known_revocation_ids).encode("utf-8")
+            ),
+            "known_deletion_digest": _sha256_bytes(
+                ",".join(known_deletion_ids).encode("utf-8")
+            ),
             "files": entries,
             "notes": {
                 "sqlite_projection": "rebuildable; restore file domains then rebuild",
@@ -983,6 +1112,11 @@ def create_snapshot(
                 "policy_store": (
                     "opaque file-level copy when present; semantic verification forward "
                     "for S07 merge"
+                ),
+                "anti_shrink": (
+                    "known_revocation_ids / known_deletion_ids are authenticated via "
+                    "manifest sha256; preserve/activate refuses live_overlay_shrunk "
+                    "when the live overlay lacks any bound id"
                 ),
             },
         }
@@ -1311,9 +1445,24 @@ def restore_snapshot(
 
         preserve_error: str | None = None
         preserved_overlay: RecoveryOverlay | None = None
+        manifest_revokes, manifest_deletions = _known_sets_from_manifest(manifest)
+        seal_revokes, seal_deletions = gate_mod.last_activation_known_sets(cfg)
+        caller_revokes: frozenset[str] = frozenset()
+        caller_deletions: frozenset[str] = frozenset()
+        if caller_overlay is not None:
+            caller_revokes, caller_deletions = _overlay_known_sets(caller_overlay)
+        expected_revokes = manifest_revokes | seal_revokes | caller_revokes
+        expected_deletions = manifest_deletions | seal_deletions | caller_deletions
+
         if preserve_live_overlay and auth_key is not None:
             try:
                 preserved_overlay, _preserved_anchor = _preserve_live_overlay(cfg, key=auth_key)
+                if preserved_overlay is not None:
+                    _assert_overlay_covers_known_ids(
+                        preserved_overlay,
+                        expected_revokes=expected_revokes,
+                        expected_deletions=expected_deletions,
+                    )
                 _append_journal(cfg, {"step": "live_overlay_preserved"}, key=auth_key)
             except InvalidInputError as exc:
                 preserve_error = str(exc)
@@ -1347,6 +1496,13 @@ def restore_snapshot(
                     overlay_obj = preserved_overlay
 
                 assert overlay_obj is not None
+
+                # Final activating overlay must still cover seal ∪ backup ∪ caller.
+                _assert_overlay_covers_known_ids(
+                    overlay_obj,
+                    expected_revokes=expected_revokes,
+                    expected_deletions=expected_deletions,
+                )
 
                 min_seq = overlay_obj.control_sequence
                 if preserved_overlay is not None:

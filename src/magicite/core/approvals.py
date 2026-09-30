@@ -480,9 +480,14 @@ def record_policy_control_event(
     of prior policy governance. Mirror-only (no DB conn required on the
     policy-store hot path); ``reload_from_mirror`` will rehydrate into the
     operational ``approval`` table on sync.
+
+    When a CrossProcessLease is held, assert the fencing token before the
+    mirror write — governed control-state is a durable mutation and must not
+    commit under a stolen fence (AC-S12-04; consistent with ``_persist``).
     """
     if op not in {"policy_activate", "policy_rollback"}:
         raise ValueError(f"unsupported policy control op {op!r}")
+    assert_cross_process_fence()
     at = _now()
     body = {
         "policy_id": policy_id,

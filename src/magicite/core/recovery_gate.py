@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -228,7 +229,7 @@ def is_reconciliation_required(cfg: Config) -> bool:
 
 
 def assert_routing_allowed(cfg: Config) -> None:
-    """Serve-path gate for route() — wire after S07 merges (C9)."""
+    """Serve-path gate for ``router.route`` — cheap no-op when no markers."""
     if is_reconciliation_required(cfg):
         raise InvalidInputError(
             "routing disabled: reconciliation_required",
@@ -271,7 +272,12 @@ def sign_activation_seal(
     anchor_mac: str,
     activated_at: str,
     key: bytes,
+    known_revocation_ids: Iterable[str] = (),
+    known_deletion_ids: Iterable[str] = (),
 ) -> dict[str, Any]:
+    """HMAC activation seal. Binds anti-shrink id sets into the authenticated body."""
+    revokes = sorted({str(x) for x in known_revocation_ids if x})
+    deletions = sorted({str(x) for x in known_deletion_ids if x})
     body = {
         "kind": ACTIVATION_SEAL_KIND,
         "generation_id": generation_id,
@@ -280,6 +286,34 @@ def sign_activation_seal(
         "overlay_digest": overlay_digest,
         "anchor_mac": anchor_mac,
         "activated_at": activated_at,
+        "known_revocation_ids": revokes,
+        "known_deletion_ids": deletions,
+        "known_revocation_count": len(revokes),
+        "known_deletion_count": len(deletions),
+        "known_revocation_digest": _sha256_hex(",".join(revokes).encode("utf-8")),
+        "known_deletion_digest": _sha256_hex(",".join(deletions).encode("utf-8")),
     }
     body["mac"] = _mac_hex(key, _SEAL_MAC_LABEL, _canonical_json(body).encode("utf-8"))
     return body
+
+
+def _sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def last_activation_known_sets(cfg: Config) -> tuple[frozenset[str], frozenset[str]]:
+    """Return (revocation_ids, deletion_ids) from the last *MAC-valid* seal when keyed.
+
+    Missing seal, missing key, or invalid MAC → empty sets (no historical
+    knowledge to enforce). Callers union this with backup-manifest / overlay sets.
+    """
+    path = recovery_activation_path(cfg)
+    body = _read_json(path)
+    if body is None:
+        return frozenset(), frozenset()
+    key = _try_load_key(cfg)
+    if key is None or not _verify_activation_seal_body(body, key=key):
+        return frozenset(), frozenset()
+    revokes = frozenset(str(x) for x in (body.get("known_revocation_ids") or []) if x)
+    deletions = frozenset(str(x) for x in (body.get("known_deletion_ids") or []) if x)
+    return revokes, deletions
