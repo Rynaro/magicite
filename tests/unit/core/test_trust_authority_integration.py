@@ -249,3 +249,53 @@ def test_nested_domain_rejects_unenrolled_or_foreign_outer_lease(tmp_path, domai
     finally:
         first.close()
         second.close()
+
+
+def test_revoked_signer_is_denied_with_matching_current_policy_before_commit(enrolled):
+    import shutil
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    from magicite.core import registry, router
+    from magicite.core.bundles import public_key_fingerprint
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.errors import InvalidInputError
+
+    cfg, connection, _ = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    shutil.copy(fixture, cfg.registry_dir / "sample.egr.md")
+    registry.register(cfg, connection, get_embedder(dim=256), path=".magicite/engrams")
+    public = Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    policy = trust.pin_trust_root(cfg, public_key_bytes=public, revoke=True)
+    row = connection.execute("SELECT * FROM engram").fetchone()
+    value = trust.TrustDecision(
+        decision_id="invalid-signer-admit",
+        engram_id=row["id"],
+        content_digest=row["content_sha256"],
+        decision="admit",
+        source_channel="bundle_import",
+        policy_id=policy.policy_id,
+        policy_revision=policy.revision,
+        policy_digest=policy.digest(),
+        actor="operator",
+        timestamp="2026-09-30T00:00:00Z",
+        signer_fingerprint=public_key_fingerprint(public),
+        signature_valid=True,
+    )
+    assert not router._route_trust_view(cfg, row, cached_decision=value, cached_policy=policy).admitted
+    before = trust.authenticated_snapshot(cfg).head
+    with pytest.raises(InvalidInputError):
+        trust.approve(
+            cfg,
+            connection,
+            engram_id=row["id"],
+            expected_digest=row["content_sha256"],
+            actor="operator",
+            source_channel="bundle_import",
+            signature_valid=True,
+            signer_fingerprint=public_key_fingerprint(public),
+        )
+    after = trust.authenticated_snapshot(cfg).head
+    assert after["head_sequence"] == before["head_sequence"]
+    assert after["head_mac"] == before["head_mac"]

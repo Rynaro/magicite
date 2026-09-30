@@ -774,16 +774,13 @@ def _route_trust_view(
         decision is not None and decision.decision == "quarantine"
     )
 
-    admitted = False
-    if decision is not None and decision.decision == "admit":
-        if decision.content_digest == content_digest:
-            try:
-                policy = cached_policy
-                admitted = (
-                    decision.policy_digest == policy.digest() and decision.policy_revision == policy.revision
-                )
-            except InvalidInputError:
-                admitted = False
+    try:
+        resource_digest = (trust_mod.compute_resource_digest_at(cfg, relpath=str(row["path"]))
+                           if "path" in row.keys() else None)
+        admitted = trust_mod.decision_valid_under_policy(
+            decision, cached_policy, content_digest=content_digest, resource_digest=resource_digest)
+    except InvalidInputError:
+        admitted = False
 
     if origin in ("authored", "sharpened") or (
         decision is not None and decision.source_channel in ("local_authored", "local_register")

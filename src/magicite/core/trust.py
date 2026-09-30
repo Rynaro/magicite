@@ -686,6 +686,9 @@ def approve(
             resource_digest=bound_resource,
             event_id=event_id,
         )
+        if not decision_valid_under_policy(decision, policy, content_digest=live,
+                                           resource_digest=bound_resource):
+            raise InvalidInputError("admission conflicts with current authenticated trust policy")
         persist_decision(cfg, conn, decision)
 
         if not admission_still_valid(
@@ -779,6 +782,22 @@ def revoke(
         return decision
 
 
+def decision_valid_under_policy(
+    decision: TrustDecision | None, policy: TrustPolicy, *, content_digest: str,
+    resource_digest: str | None = None,
+) -> bool:
+    """Shared admission predicate for writes, routing, and body disclosure."""
+    if decision is None or decision.decision != "admit" or decision.content_digest != content_digest:
+        return False
+    if decision.resource_digest is not None:
+        check = assets_manifest_digest({}) if resource_digest is None else resource_digest
+        if decision.resource_digest != check:
+            return False
+    if decision.policy_digest != policy.digest() or decision.policy_revision != policy.revision:
+        return False
+    return not any(root.fingerprint == decision.signer_fingerprint and root.revoked for root in policy.roots)
+
+
 def admission_still_valid(
     cfg: Config,
     *,
@@ -793,32 +812,15 @@ def admission_still_valid(
     (or an unbound decision) can remain valid — callers that bind real assets
     must pass the live resource digest (C10).
     """
-    empty_resource = assets_manifest_digest({})
     try:
         snapshot = _snapshot or authenticated_snapshot(cfg)
         value = snapshot.latest_by_engram.get(engram_id)
         decision = TrustDecision.from_dict(value) if value is not None else None
-    except TrustLedgerCorruptError:
-        return False
-    if decision is None or decision.decision != "admit":
-        return False
-    if decision.content_digest != content_digest:
-        return False
-    if decision.resource_digest is not None:
-        check = empty_resource if resource_digest is None else resource_digest
-        if decision.resource_digest != check:
-            return False
-    try:
         policy = TrustPolicy.from_dict(snapshot.policy)
-    except InvalidInputError:
+        return decision_valid_under_policy(decision, policy, content_digest=content_digest,
+                                           resource_digest=resource_digest)
+    except (TrustLedgerCorruptError, InvalidInputError):
         return False
-    if decision.policy_digest != policy.digest() or decision.policy_revision != policy.revision:
-        return False
-    if decision.signer_fingerprint:
-        for root in policy.roots:
-            if root.fingerprint == decision.signer_fingerprint and root.revoked:
-                return False
-    return True
 
 
 def origin_trusted_for_channel(channel: SourceChannel, *, admitted: bool) -> bool:
