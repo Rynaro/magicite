@@ -28,7 +28,6 @@ has, and it is exactly what a clean break would have produced.
 from __future__ import annotations
 
 import os
-import re
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
@@ -409,7 +408,9 @@ def _coerce(field_name: str, raw: Any) -> Any:
         if isinstance(raw, (list, tuple)):
             return tuple(str(p).strip() for p in raw if str(p).strip())
         if isinstance(raw, str):
-            return tuple(p.strip() for p in re.split(r"[:;,]", raw) if p.strip())
+            # Use os.pathsep so Windows drive letters (C:\...) are not split on ':'.
+            # Commas are never separators — TOML lists cover multi-value config files.
+            return tuple(p.strip() for p in raw.split(os.pathsep) if p.strip())
         return ()
     if not isinstance(raw, str):
         return raw

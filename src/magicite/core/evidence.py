@@ -29,12 +29,15 @@ they MUST NOT carry raw query, context text, secrets, or absolute paths.
 
 Managed export artifacts live under ``evidence/exports/``. Additional write
 roots may be declared via ``Config.evidence_export_roots`` /
-``MAGICITE_EVIDENCE_EXPORT_ROOTS``. Destinations outside allowed roots are
-refused. Registered export files (exact paths + sha256/size/inode) are
-HMAC-authenticated with the local fingerprint key so privacy deletion cannot
-follow a poisoned registry. Unregistered operator copies remain out of scope
-(AC-S09-05); every export manifest carries a notice that deletion cannot
-follow such copies (AC-S09-06).
+``MAGICITE_EVIDENCE_EXPORT_ROOTS`` (``os.pathsep``-separated). Roots that
+overlap the data dir / evidence ledger / control trees are refused; only
+``evidence/exports/`` is allowed inside the data dir. Destinations outside
+allowed roots are refused. Registered export files (exact paths +
+sha256/size/inode) are HMAC-authenticated with a domain-separated subkey
+of the local fingerprint key so privacy deletion cannot follow a poisoned
+registry. Unregistered operator copies remain out of scope (AC-S09-05);
+every export manifest carries a notice that deletion cannot follow such
+copies (AC-S09-06).
 
 Backup handling (C6): backups are documented separately. Backup expiry
 and restore-time tombstone replay belong to S12 — operators must replay
@@ -123,6 +126,10 @@ _INDEX_FILENAME = "event_index.json"
 _OPEN_SEGMENT_NAME = "open.events.jsonl"
 _OPEN_MANIFEST_NAME = "open.manifest.json"
 _REGISTERED_EXPORTS_FILENAME = "registered_exports.json"
+_PURGE_COMPLETE_FILENAME = "purge_complete.marker"
+_REGISTRY_MAC_LABEL = b"magicite/export-registry/v1"
+_REGISTRY_MAC_SCHEME = "hmac-sha256/export-registry-v1"
+_REGISTRY_MAC_VERSION_PREFIX = b"v1|"
 
 EXPORT_COPY_DELETION_NOTICE = (
     "Privacy deletion covers the managed evidence/exports directory and any "
@@ -1475,12 +1482,74 @@ def _event_has_live_payload(root: Path, event_id: str) -> bool:
     return False
 
 
+def _tombstone_generation(root: Path) -> str:
+    path = root / _TOMBSTONES_FILENAME
+    if not path.is_file():
+        return "empty"
+    st = path.stat()
+    return f"{st.st_mtime_ns}:{st.st_size}:{st.st_ino}"
+
+
+def _purge_is_complete(root: Path) -> bool:
+    marker = root / _PURGE_COMPLETE_FILENAME
+    if not marker.is_file():
+        return False
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return bool(data.get("purge_complete")) and str(data.get("generation")) == _tombstone_generation(
+        root
+    )
+
+
+def _mark_purge_complete(root: Path) -> None:
+    _atomic_write_json(
+        root / _PURGE_COMPLETE_FILENAME,
+        {
+            "purge_complete": True,
+            "generation": _tombstone_generation(root),
+            "updated_at": _now(),
+        },
+    )
+
+
+def _invalidate_purge_complete(root: Path) -> None:
+    try:
+        (root / _PURGE_COMPLETE_FILENAME).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _pending_tombstone_payload_ids(root: Path) -> set[str]:
+    """Single segment scan: tombstoned event ids that still have live payloads."""
+    tombstoned = {
+        str(row.get("target_event_id") or "")
+        for row in _load_tombstone_rows(root)
+        if row.get("target_event_id")
+    }
+    if not tombstoned:
+        return set()
+    pending: set[str] = set()
+    for row in _iter_segment_records(root):
+        eid = _record_event_id(row)
+        if eid in tombstoned and not row.get("deleted") and row.get("event"):
+            pending.add(eid)
+    return pending
+
+
 def _repurge_tombstoned_payloads(root: Path) -> None:
-    """Resume physical purge for any tombstoned event that still has a payload."""
-    for row in _load_tombstone_rows(root):
-        eid = str(row.get("target_event_id") or "")
-        if eid and _event_has_live_payload(root, eid):
-            _physically_purge_event_from_segments(root, eid)
+    """Resume physical purge for tombstoned events that still have payloads.
+
+    One segment scan per guard entry. Skipped entirely when a persisted
+    ``purge_complete`` marker matches the current tombstone generation.
+    """
+    if _purge_is_complete(root):
+        return
+    pending = _pending_tombstone_payload_ids(root)
+    for eid in pending:
+        _physically_purge_event_from_segments(root, eid)
+    _mark_purge_complete(root)
 
 
 def _load_tombstone_rows(root: Path) -> list[dict[str, Any]]:
@@ -1498,15 +1567,192 @@ def _load_tombstone_rows(root: Path) -> list[dict[str, Any]]:
     return out
 
 
+def _managed_exports_root(root: Path) -> Path:
+    return (root / "exports").resolve()
+
+
+def _path_equals_or_under(path: Path, ancestor: Path) -> bool:
+    try:
+        path.resolve().relative_to(ancestor.resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def _paths_overlap(a: Path, b: Path) -> bool:
+    """True if a equals b, a is inside b, or b is inside a."""
+    try:
+        ar, br = a.resolve(), b.resolve()
+    except OSError:
+        return False
+    if ar == br:
+        return True
+    try:
+        ar.relative_to(br)
+        return True
+    except ValueError:
+        pass
+    try:
+        br.relative_to(ar)
+        return True
+    except ValueError:
+        pass
+    return False
+
+
+def _protected_control_paths(cfg: Config, root: Path) -> list[Path]:
+    """Magicite control / ledger locations that must never be export roots."""
+    paths = [
+        cfg.data_dir,
+        root,  # evidence/
+        cfg.registry_dir,
+        cfg.approvals_dir,
+        cfg.runtime_dir,
+        cfg.archive_dir,
+        cfg.data_dir / "trust",
+        cfg.data_dir / "migrations",
+    ]
+    return [p.resolve() for p in paths]
+
+
+def _validate_configured_export_roots(cfg: Config, root: Path) -> None:
+    """Reject configured roots that equal/contain/are-inside protected dirs.
+
+    The managed ``evidence/exports/`` subtree is the sole exception under the
+    data dir. Fail closed with :class:`InvalidInputError`.
+    """
+    managed = _managed_exports_root(root)
+    protected = _protected_control_paths(cfg, root)
+    for raw in getattr(cfg, "evidence_export_roots", ()) or ():
+        p = Path(str(raw)).expanduser()
+        if not p.is_absolute():
+            p = (cfg.project_root / p).resolve()
+        else:
+            p = p.resolve()
+        # Allowed: managed exports root or anything strictly under it.
+        if p == managed or _path_equals_or_under(p, managed):
+            continue
+        for ctrl in protected:
+            if _paths_overlap(p, ctrl):
+                raise InvalidInputError(
+                    "refusing evidence export root that overlaps protected control paths",
+                    details={
+                        "export_root": str(p),
+                        "protected": str(ctrl),
+                        "hint": (
+                            "set MAGICITE_EVIDENCE_EXPORT_ROOTS to directories outside "
+                            "the data dir; only evidence/exports/ is allowed inside it"
+                        ),
+                    },
+                )
+
+
+def _is_hard_denied_purge_path(cfg: Config, root: Path, path: Path) -> bool:
+    """Hard-deny unlink of ledger authority / control files regardless of roots."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return True
+    managed = _managed_exports_root(root)
+    if resolved == managed or _path_equals_or_under(resolved, managed):
+        return False
+
+    # Anything else under evidence/ is protected (segments, manifests, meta, …).
+    if _path_equals_or_under(resolved, root.resolve()):
+        return True
+
+    explicit = [
+        cfg.db_path,
+        Path(str(cfg.db_path) + "-wal"),
+        Path(str(cfg.db_path) + "-shm"),
+        fingerprint_key_mod.fingerprint_key_path(cfg),
+        root / _REGISTERED_EXPORTS_FILENAME,
+        root / _META_FILENAME,
+        root / _INDEX_FILENAME,
+        root / _TOMBSTONES_FILENAME,
+        root / _PURGE_COMPLETE_FILENAME,
+        cfg.dream_lock_path,
+    ]
+    for f in explicit:
+        try:
+            if resolved == f.resolve():
+                return True
+        except OSError:
+            continue
+
+    for ctrl in (
+        cfg.registry_dir,
+        cfg.approvals_dir,
+        cfg.runtime_dir,
+        cfg.archive_dir,
+        cfg.data_dir / "trust",
+        cfg.data_dir / "migrations",
+    ):
+        if _path_equals_or_under(resolved, ctrl.resolve()):
+            return True
+    return False
+
+
+def _safe_unlink_verified(path: Path, *, expected_dev: int, expected_ino: int) -> None:
+    """Unlink via directory fd after O_NOFOLLOW verify (TOCTOU hardening).
+
+    Residual: on platforms without ``O_NOFOLLOW`` / ``dir_fd`` support we fall
+    back to ``os.unlink`` after a final ``lstat`` inode check.
+    """
+    parent = path.parent
+    name = path.name
+    use_dir_fd = hasattr(os, "O_DIRECTORY") and hasattr(os, "unlink")
+    if not use_dir_fd:
+        st = os.lstat(path)
+        if st.st_dev != expected_dev or st.st_ino != expected_ino:
+            raise OSError("inode changed before unlink")
+        os.unlink(path)
+        return
+
+    dir_fd = os.open(str(parent), os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        flags = os.O_RDONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            fd = os.open(name, flags, dir_fd=dir_fd)
+        except TypeError:
+            # dir_fd unsupported
+            st = os.lstat(path)
+            if st.st_dev != expected_dev or st.st_ino != expected_ino:
+                raise OSError("inode changed before unlink") from None
+            os.unlink(path)
+            return
+        try:
+            st = os.fstat(fd)
+            if st.st_dev != expected_dev or st.st_ino != expected_ino:
+                raise OSError("inode changed before unlink")
+            if not stat.S_ISREG(st.st_mode):
+                raise OSError("not a regular file at unlink time")
+        finally:
+            os.close(fd)
+        try:
+            os.unlink(name, dir_fd=dir_fd)
+        except TypeError:
+            st = os.lstat(path)
+            if st.st_dev != expected_dev or st.st_ino != expected_ino:
+                raise OSError("inode changed before unlink") from None
+            os.unlink(path)
+    finally:
+        os.close(dir_fd)
+
+
 def _purge_managed_and_registered_exports(
     cfg: Config, root: Path
 ) -> dict[str, Any]:
-    """AC-S09-05 + Round-3: allowlisted, file-level, MAC-authenticated purge.
+    """AC-S09-05 + Round-3/4: allowlisted, file-level, MAC-authenticated purge.
 
     Returns a report ``{purged: [...], skipped: [...]}``. Never follows
-    symlinks; never rmtree's directories; never unlinks outside allowed roots.
+    symlinks; never rmtree's directories; never unlinks outside allowed roots
+    or under hard-denied protected locations.
     """
     report: dict[str, Any] = {"purged": [], "skipped": []}
+    _validate_configured_export_roots(cfg, root)
     registry = _load_export_registry(cfg, root, required=False)
     if registry is None:
         return report
@@ -1522,13 +1768,21 @@ def _purge_managed_and_registered_exports(
             report["skipped"].append({"reason": "missing_path", "entry": entry})
             continue
         target = Path(raw)
-        # Containment check on the recorded path string/resolve — fail closed
-        # for anything outside allowed roots (poisoned registry).
         try:
             resolved_for_check = target.resolve()
         except OSError as exc:
             report["skipped"].append(
                 {"path": raw, "reason": f"resolve_failed:{exc}"}
+            )
+            remaining_files.append(entry)
+            continue
+        if _is_hard_denied_purge_path(cfg, root, resolved_for_check):
+            report["skipped"].append(
+                {
+                    "path": raw,
+                    "reason": "protected_path_denied",
+                    "detail": "path is under ledger/control locations",
+                }
             )
             remaining_files.append(entry)
             continue
@@ -1540,7 +1794,6 @@ def _purge_managed_and_registered_exports(
         try:
             st = os.lstat(target)
         except FileNotFoundError:
-            # Already gone — drop from registry.
             report["purged"].append({"path": raw, "status": "already_absent"})
             continue
         except OSError as exc:
@@ -1595,15 +1848,23 @@ def _purge_managed_and_registered_exports(
             )
             remaining_files.append(entry)
             continue
+        # Re-check hard-deny after verify (defense in depth).
+        if _is_hard_denied_purge_path(cfg, root, target):
+            report["skipped"].append(
+                {"path": raw, "reason": "protected_path_denied"}
+            )
+            remaining_files.append(entry)
+            continue
         try:
-            os.unlink(target)
+            _safe_unlink_verified(
+                target, expected_dev=expected_dev, expected_ino=expected_ino
+            )
         except OSError as exc:
             report["skipped"].append({"path": raw, "reason": f"unlink_failed:{exc}"})
             remaining_files.append(entry)
             continue
         report["purged"].append({"path": raw, "status": "unlinked"})
 
-    # rmdir only empty dirs magicite recorded as created, inside allowed roots.
     remaining_dirs: list[dict[str, Any]] = []
     for entry in list(registry.get("dirs") or []):
         if not isinstance(entry, dict) or not entry.get("created_by_magicite"):
@@ -1615,6 +1876,9 @@ def _purge_managed_and_registered_exports(
         try:
             resolved = dpath.resolve()
         except OSError:
+            remaining_dirs.append(entry)
+            continue
+        if _is_hard_denied_purge_path(cfg, root, resolved):
             remaining_dirs.append(entry)
             continue
         if not _path_is_under_allowed_roots(resolved, roots):
@@ -1642,7 +1906,8 @@ def _purge_managed_and_registered_exports(
 
 
 def _allowed_export_roots(cfg: Config, root: Path) -> list[Path]:
-    roots = [(root / "exports").resolve()]
+    _validate_configured_export_roots(cfg, root)
+    roots = [_managed_exports_root(root)]
     for raw in getattr(cfg, "evidence_export_roots", ()) or ():
         p = Path(str(raw)).expanduser()
         if not p.is_absolute():
@@ -1658,7 +1923,6 @@ def _path_is_under_allowed_roots(path: Path, roots: list[Path]) -> bool:
         resolved = path.resolve()
     except OSError:
         return False
-    # Reject any path component that still looks like traversal after resolve.
     if ".." in resolved.parts:
         return False
     for root in roots:
@@ -1672,13 +1936,11 @@ def _path_is_under_allowed_roots(path: Path, roots: list[Path]) -> bool:
 
 def _assert_export_destination_allowed(cfg: Config, root: Path, export_dir: Path) -> Path:
     """Refuse symlinks and destinations outside allowed roots (fail closed)."""
-    # Refuse if the destination itself is a symlink (before mkdir).
     if export_dir.exists() and export_dir.is_symlink():
         raise InvalidInputError(
             "refusing symlinked export directory",
             details={"export_dir": str(export_dir)},
         )
-    # Also refuse if any existing ancestor is a symlink to escape roots.
     cursor = export_dir
     for _ in range(64):
         if cursor.exists() and cursor.is_symlink():
@@ -1695,6 +1957,13 @@ def _assert_export_destination_allowed(cfg: Config, root: Path, export_dir: Path
         resolved = (cfg.project_root / resolved).resolve()
     else:
         resolved = resolved.resolve()
+    if _is_hard_denied_purge_path(cfg, root, resolved) and not _path_equals_or_under(
+        resolved, _managed_exports_root(root)
+    ):
+        raise InvalidInputError(
+            "export destination is under protected control paths",
+            details={"export_dir": str(resolved)},
+        )
     roots = _allowed_export_roots(cfg, root)
     if not _path_is_under_allowed_roots(resolved, roots):
         raise InvalidInputError(
@@ -1726,7 +1995,20 @@ def _file_fingerprint(path: Path) -> dict[str, Any]:
     }
 
 
+def _registry_mac_key(cfg: Config) -> bytes:
+    master = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
+    return hmac.new(master, _REGISTRY_MAC_LABEL, hashlib.sha256).digest()
+
+
 def _registry_mac(cfg: Config, body: dict[str, Any]) -> str:
+    key = _registry_mac_key(cfg)
+    payload = {k: v for k, v in body.items() if k != "mac"}
+    message = _REGISTRY_MAC_VERSION_PREFIX + _canonical_json(payload).encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+
+def _legacy_registry_mac(cfg: Config, body: dict[str, Any]) -> str:
+    """Pre-Round-4 MAC (raw fingerprint key, no domain separation)."""
     key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
     payload = {k: v for k, v in body.items() if k != "mac"}
     return hmac.new(
@@ -1753,17 +2035,27 @@ def _load_export_registry(
         raise InvalidInputError("registered_exports.json must be a JSON object")
     expected = _registry_mac(cfg, registry)
     actual = str(registry.get("mac") or "")
-    if not actual or not hmac.compare_digest(expected, actual):
+    if actual and hmac.compare_digest(expected, actual):
+        return registry
+    # Fail closed on legacy scheme — require re-registration (no silent accept).
+    if actual and hmac.compare_digest(_legacy_registry_mac(cfg, registry), actual):
         raise InvalidInputError(
-            "registered_exports.json HMAC verification failed",
-            details={"hint": "registry may be tampered or from another key epoch"},
+            "registered_exports.json uses legacy MAC; registry needs re-registration",
+            details={
+                "mac_scheme_required": _REGISTRY_MAC_SCHEME,
+                "hint": "delete registered_exports.json and re-export under the current scheme",
+            },
         )
-    return registry
+    raise InvalidInputError(
+        "registered_exports.json HMAC verification failed",
+        details={"hint": "registry may be tampered or from another key epoch"},
+    )
 
 
 def _save_export_registry(cfg: Config, root: Path, registry: dict[str, Any]) -> None:
     body = dict(registry)
     body.setdefault("kind", "EvidenceExportRegistry/1")
+    body["mac_scheme"] = _REGISTRY_MAC_SCHEME
     body["mac"] = _registry_mac(cfg, body)
     _atomic_write_json(root / _REGISTERED_EXPORTS_FILENAME, body)
 
@@ -1776,6 +2068,7 @@ def _register_export_files(
     created_dirs: list[Path] | None = None,
 ) -> None:
     """Register exact files magicite wrote (never directories), under the lease."""
+    _validate_configured_export_roots(cfg, root)
     registry = _load_export_registry(cfg, root, required=False) or {
         "kind": "EvidenceExportRegistry/1",
         "exports": [],
@@ -1785,8 +2078,16 @@ def _register_export_files(
     by_path = {e.get("path"): i for i, e in enumerate(entries) if isinstance(e, dict)}
     for fpath in files:
         fp = _file_fingerprint(fpath)
+        resolved = Path(fp["path"])
+        if _is_hard_denied_purge_path(cfg, root, resolved) and not _path_equals_or_under(
+            resolved, _managed_exports_root(root)
+        ):
+            raise InvalidInputError(
+                "refusing to register protected path as export file",
+                details={"path": fp["path"]},
+            )
         if not _path_is_under_allowed_roots(
-            Path(fp["path"]), _allowed_export_roots(cfg, root)
+            resolved, _allowed_export_roots(cfg, root)
         ):
             raise InvalidInputError(
                 "refusing to register export file outside allowed roots",
@@ -1802,21 +2103,22 @@ def _register_export_files(
     dirs = list(registry.get("dirs") or [])
     dir_paths = {d.get("path") for d in dirs if isinstance(d, dict)}
     for d in created_dirs or ():
-        resolved = str(d.resolve())
-        if resolved not in dir_paths:
-            if not _path_is_under_allowed_roots(d.resolve(), _allowed_export_roots(cfg, root)):
+        dir_resolved = d.resolve()
+        dir_key = str(dir_resolved)
+        if dir_key not in dir_paths:
+            if not _path_is_under_allowed_roots(dir_resolved, _allowed_export_roots(cfg, root)):
                 raise InvalidInputError(
                     "refusing to register export dir outside allowed roots",
-                    details={"path": resolved},
+                    details={"path": dir_key},
                 )
             dirs.append(
                 {
-                    "path": resolved,
+                    "path": dir_key,
                     "created_by_magicite": True,
                     "exported_at": _now(),
                 }
             )
-            dir_paths.add(resolved)
+            dir_paths.add(dir_key)
     registry["dirs"] = dirs
     registry["updated_at"] = _now()
     _save_export_registry(cfg, root, registry)
@@ -1843,6 +2145,7 @@ def _delete_event_locked(
     if _is_tombstoned(root, event_id):
         _physically_purge_event_from_segments(root, event_id)
         purge_report = _purge_managed_and_registered_exports(cfg, root)
+        _mark_purge_complete(root)
         for row in _load_tombstone_rows(root):
             if row.get("target_event_id") == event_id:
                 return {**row, "export_purge_skipped": purge_report.get("skipped", [])}
@@ -1872,6 +2175,7 @@ def _delete_event_locked(
     }
     # (a) Durable hide first.
     _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
+    _invalidate_purge_complete(root)
     _maybe_fault("after_tombstone")
 
     # (b) Physical purge (idempotent / resumable).
@@ -1903,6 +2207,7 @@ def _delete_event_locked(
     )
     conn.execute("DELETE FROM evidence_event_projection WHERE event_id = ?", (event_id,))
     purge_report = _purge_managed_and_registered_exports(cfg, root)
+    _mark_purge_complete(root)
     return {
         **tombstone,
         "export_purge_skipped": purge_report.get("skipped", []),
@@ -2159,6 +2464,7 @@ def apply_privacy_overlay(
                     "actor": record.get("actor") or "privacy_overlay",
                 }
                 _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
+                _invalidate_purge_complete(root)
                 _physically_purge_event_from_segments(root, event_id)
                 _rewrite_derived_caches(root)
             applied += 1
