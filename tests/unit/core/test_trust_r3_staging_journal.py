@@ -152,8 +152,12 @@ def test_partial_publish_exception_removes_published_members(
 
     def flaky_replace(src: Any, dst: Any) -> None:
         dst_s = str(dst)
-        # Only fail final registry publishes — journal writes stay under staging.
-        if registry_mod._IMPORT_STAGING_DIRNAME not in Path(dst_s).parts:
+        dst_parts = Path(dst_s).parts
+        # Journal writes stay under staging; quarantine moves must succeed.
+        if (
+            registry_mod._IMPORT_STAGING_DIRNAME not in dst_parts
+            and "quarantine" not in dst_parts
+        ):
             calls.append(dst_s)
             if len(calls) >= 2:
                 raise OSError("injected publish failure")
@@ -172,7 +176,7 @@ def test_partial_publish_exception_removes_published_members(
 def test_incomplete_publish_journal_rolled_back_on_sync(
     cfg, db_conn, embedder
 ) -> None:
-    """Simulate SIGKILL: incomplete journal + one published member left behind."""
+    """Simulate SIGKILL: authenticated incomplete journal + published member."""
     rel = "skills/orphaned.egr.md"
     payload = _lint_valid_egr(name="orphaned-pub", eid="egr_0faded01").encode()
     digest = sha256_hex(payload)
@@ -180,28 +184,39 @@ def test_incomplete_publish_journal_rolled_back_on_sync(
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(payload)
 
-    job = cfg.registry_dir / registry_mod._IMPORT_STAGING_DIRNAME / "killed-job"
+    job_id = "killed-job"
+    job = cfg.registry_dir / registry_mod._IMPORT_STAGING_DIRNAME / job_id
     job.mkdir(parents=True, exist_ok=True)
-    journal = {
-        "schema": "BundlePublishJournal/1",
-        "bundle_id": "deadbeef",
-        "complete": False,
-        "members": [
-            {
-                "path": rel,
-                "sha256": digest,
-                "size": len(payload),
-                "pre_existing": False,
-            }
-        ],
-    }
+    journal = registry_mod._sign_publish_journal(
+        cfg,
+        {
+            "schema": "BundlePublishJournal/1",
+            "bundle_id": "deadbeef",
+            "complete": False,
+            "members": [
+                {
+                    "path": rel,
+                    "sha256": digest,
+                    "size": len(payload),
+                    "pre_existing": False,
+                }
+            ],
+            "pre_existing_paths": [],
+            "aborted_engram_ids": ["egr_0faded01"],
+        },
+    )
     journal_path = job / registry_mod._PUBLISH_JOURNAL_NAME
-    journal_path.write_text(json.dumps(journal), encoding="utf-8")
+    journal_path.write_text(
+        json.dumps(journal, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     registry_mod.sync(cfg, db_conn, embedder)
 
     assert not dest.exists()
     assert not job.exists()
+    q = cfg.data_dir / "quarantine" / "import-rollback" / job_id / rel
+    assert q.is_file()
+    assert q.read_bytes() == payload
     assert db_conn.execute(
         "SELECT id FROM engram WHERE id = ?", ("egr_0faded01",)
     ).fetchone() is None
