@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from magicite.config import Config
+from magicite.core import writer_guard
 from magicite.engram.model import Engram
 from magicite.engram.parser import EngramParseError, load_artifact_file, parse_file
 from magicite.engram.transform import TransformDiagnostic, transform_0_2_to_1_0
@@ -447,9 +448,7 @@ def _invoke_fault(hook: FaultHook | None, boundary: str) -> None:
 
 
 def _cross_process_lease(cfg: Config, conn: sqlite3.Connection, holder: str) -> Any:
-    return lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path,
-        conn=conn,
+    return writer_guard.registry_writer_lease(cfg, conn,
         holder=holder,
     )
 

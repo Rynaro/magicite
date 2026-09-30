@@ -41,6 +41,7 @@ from typing import Any
 
 from magicite.config import Config
 from magicite.core import fitness as fitness_mod
+from magicite.core import writer_guard
 from magicite.core.decay_math import effective_value
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
@@ -171,9 +172,7 @@ def apply_local_admission(
     asserts G2). ``admit=True`` → ``verified``; ``admit=False`` → ``pending``.
     Returns the new verification_status.
     """
-    row = conn.execute(
-        "SELECT verification_status FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()
+    row = conn.execute("SELECT verification_status FROM engram WHERE id = ?", (engram_id,)).fetchone()
     if row is None:
         raise NotFoundError(f"no engram {engram_id!r}")
     new_status: VerificationStatus = "verified" if admit else "pending"
@@ -219,9 +218,7 @@ def _recent_valences(conn: sqlite3.Connection, engram_id: str, *, limit: int = 5
         "AND captured_at IS NOT NULL ORDER BY captured_at DESC LIMIT ?",
         (engram_id, limit),
     ).fetchall()
-    return tuple(
-        float(r["capture_valence"]) for r in reversed(rows) if r["capture_valence"] is not None
-    )
+    return tuple(float(r["capture_valence"]) for r in reversed(rows) if r["capture_valence"] is not None)
 
 
 def gather_evidence(conn: sqlite3.Connection, cfg: Config, engram_row: sqlite3.Row) -> fitness_mod.Evidence:
@@ -402,9 +399,7 @@ def execute_sharpen(
     from magicite.core import registry as registry_mod
 
     project_root = cfg.project_root.resolve()
-    row = conn.execute(
-        "SELECT path, verification_status FROM engram WHERE name = ?", (name,)
-    ).fetchone()
+    row = conn.execute("SELECT path, verification_status FROM engram WHERE name = ?", (name,)).fetchone()
     if row is None:
         raise NotFoundError(f"no engram named {name!r}")
     file_path = project_root / str(row["path"])
@@ -472,8 +467,8 @@ def execute_sharpen(
     # writer of durable engram state and must not interleave with a
     # running Dream cycle -- the cross-process lease, not just G2's
     # in-process one.
-    cross_lease = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path, conn=conn, holder=f"sharpen:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+    cross_lease = writer_guard.registry_writer_lease(
+        cfg, conn, holder=f"sharpen:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
     with cross_lease.acquire(), lease_mod.writer_lease(holder="sharpen"):
         # NOT `parsed.frontmatter_doc`: that round-trip carrier's own

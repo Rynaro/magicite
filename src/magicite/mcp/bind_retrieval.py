@@ -482,11 +482,13 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
         return _refuse_stale(row["name"], params.level, codes=["stale_decision", "content_digest_drift"])
 
     try:
-        decisions = {}
-        prior = trust_mod.latest_decision_for(ctx.cfg, engram_id)
-        if prior is not None:
-            decisions[engram_id] = prior
-        trust_view = router_mod._route_trust_view(ctx.cfg, row, cached_decision=decisions.get(engram_id))
+        disclosure_snapshot = trust_mod.authenticated_snapshot(ctx.cfg)
+        decisions = {key: trust_mod.TrustDecision.from_dict(value)
+                     for key, value in disclosure_snapshot.latest_by_engram.items()}
+        trust_policy = trust_mod.TrustPolicy.from_dict(disclosure_snapshot.policy)
+        trust_view = router_mod._route_trust_view(
+            ctx.cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy
+        )
     except trust_mod.TrustLedgerCorruptError:
         return _refuse_stale(row["name"], params.level, codes=["stale_decision", "trust_unavailable"])
     except InvalidInputError:
@@ -606,6 +608,12 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
     truncated = next_offset < total_bytes
 
     exec_present = bool(body.exec_blocks) and params.level == "L3"
+
+    try:
+        if trust_mod.authenticated_snapshot(ctx.cfg).head != disclosure_snapshot.head:
+            return _refuse_stale(row["name"], params.level, codes=["stale_decision", "trust_head_drift"])
+    except trust_mod.TrustLedgerCorruptError:
+        return _refuse_stale(row["name"], params.level, codes=["stale_decision", "trust_unavailable"])
 
     return LoadSkillBodyOutput(
         name=row["name"],

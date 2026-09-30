@@ -58,6 +58,7 @@ from magicite.core import fingerprint_key as fingerprint_key_mod
 from magicite.core import recovery_gate as gate_mod
 from magicite.core import registry as registry_mod
 from magicite.core import trust as trust_mod
+from magicite.core import writer_guard
 from magicite.errors import InvalidInputError
 from magicite.storage import lease as lease_mod
 from magicite.storage.migrations.registry import (
@@ -796,9 +797,7 @@ def _backup_lease(
         with lease_mod.writer_lease(holder=holder):
             yield
         return
-    cross = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path,
-        conn=conn,
+    cross = writer_guard.registry_writer_lease(cfg, conn,
         holder=holder,
     )
     with cross.acquire(), lease_mod.writer_lease(holder=holder):
@@ -814,7 +813,7 @@ def _domain_sequences(cfg: Config) -> dict[str, int]:
             evidence_seq = int(_read_json(meta_path).get("last_sequence") or 0)
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             evidence_seq = 0
-    trust_seq = len(list(trust_mod.list_decisions(cfg))) if trust_mod.trust_dir(cfg).is_dir() else 0
+    trust_seq = int(trust_mod.authenticated_snapshot(cfg).head["head_sequence"])
     approvals_seq = 0
     if cfg.approvals_dir.is_dir():
         for path in cfg.approvals_dir.glob("*.json"):
@@ -1302,19 +1301,15 @@ def _apply_overlay(
         expected_registry_id=overlay.registry_id,
         minimum_sequence=None,
     )
-    applied_revokes = 0
+    # The privacy overlay MAC cannot authorize or resequence trust history.
+    snapshot = trust_mod.authenticated_snapshot(cfg)
+    authenticated = {record["decision_id"]: record for record in snapshot.decisions}
     for record in overlay.revocation_records:
-        engram_id = str(record.get("engram_id") or "")
-        if not engram_id:
-            continue
-        latest = trust_mod.latest_decision_for(cfg, engram_id)
-        if latest is not None and latest.decision == "revoke":
-            continue
-        decision = trust_mod.TrustDecision.from_dict(record)
-        trust_mod.ensure_trust_dirs(cfg)
-        trust_mod._write_decision_mirror(cfg, decision)  # noqa: SLF001
-        trust_mod._upsert_decision_row(conn, decision)  # noqa: SLF001
-        applied_revokes += 1
+        decision_id = record.get("decision_id")
+        if decision_id not in authenticated or authenticated[decision_id] != record:
+            raise InvalidInputError("recovery overlay trust record lacks authenticated custody history")
+    applied_revokes = sum(value["decision"] == "revoke" for value in snapshot.latest_by_engram.values())
+
     return {"privacy": privacy_result, "revokes_applied": applied_revokes}
 
 
@@ -1661,6 +1656,8 @@ def restore_snapshot(
                 "generation_id": generation_id,
             }
 
+        trust_journal, trust_lease, trust_fence = writer_guard.bound_journal(cfg)
+        trust_journal.reconcile(fence=trust_fence, assert_owned=trust_lease.assert_owned)
         overlay_result = _apply_overlay(cfg, conn, overlay_obj, key=auth_key)
         _append_journal(cfg, {"step": "overlay_applied", "result": overlay_result}, key=auth_key)
         if fault_hook is not None:

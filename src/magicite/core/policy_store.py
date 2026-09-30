@@ -25,6 +25,7 @@ from typing import Any, Literal
 from magicite.config import Config
 from magicite.core import approvals as approvals_mod
 from magicite.core import fingerprint_key as fingerprint_key_mod
+from magicite.core import writer_guard
 from magicite.errors import InvalidInputError, NotFoundError
 from magicite.storage import lease as lease_mod
 
@@ -196,8 +197,7 @@ def _policy_write_leases(cfg: Config, *, holder: str) -> Iterator[None]:
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
-        cross = lease_mod.CrossProcessLease(
-            lock_path=cfg.dream_lock_path, conn=conn,
+        cross = writer_guard.registry_writer_lease(cfg, conn,
             holder=f"{holder}:{os.getpid()}:{uuid.uuid4().hex[:6]}",
         )
         with cross.acquire(), lease_mod.writer_lease(holder=holder):

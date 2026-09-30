@@ -49,6 +49,7 @@ from magicite.core import communities as communities_mod
 from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import lifecycle as lifecycle_mod
 from magicite.core import trust as trust_mod
+from magicite.core import writer_guard
 from magicite.embeddings.base import Embedder, contraindication_model_name
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
@@ -757,9 +758,7 @@ def _cross_process_lease(
     acquires the same cross-process lease Dream does, first -- one real,
     OS-and-DB-backed single-writer guarantee, not two independently
     partial ones."""
-    return lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path,
-        conn=conn,
+    return writer_guard.registry_writer_lease(cfg, conn,
         holder=f"{holder_prefix}:{os.getpid()}:{uuid.uuid4().hex[:6]}",
     )
 

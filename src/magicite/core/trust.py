@@ -23,7 +23,10 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from magicite.config import Config
+from magicite.core import writer_guard
 from magicite.core.bundles import TrustRoot, public_key_fingerprint
+from magicite.core.trust_custodian import CustodianError
+from magicite.core.trust_journal import TrustSnapshot
 from magicite.engram.digests import assets_manifest_digest, canonical_json_bytes, sha256_hex
 from magicite.errors import InvalidInputError, NotFoundError
 from magicite.storage import lease as lease_mod
@@ -100,9 +103,9 @@ def _trust_write_leases(
         active = db_mod.connect(cfg.db_path)
         owns_conn = True
     try:
-        cross = lease_mod.CrossProcessLease(
-            lock_path=cfg.dream_lock_path,
-            conn=active,
+        cross = writer_guard.registry_writer_lease(
+            cfg,
+            active,
             holder=f"{holder}:{os.getpid()}:{uuid.uuid4().hex[:6]}",
         )
         with cross.acquire(), lease_mod.writer_lease(holder=holder):
@@ -195,36 +198,28 @@ def default_policy() -> TrustPolicy:
     return TrustPolicy(policy_id=DEFAULT_POLICY_ID, revision=1, roots=())
 
 
-def load_policy(cfg: Config) -> TrustPolicy:
-    path = trust_policy_path(cfg)
-    if not path.is_file():
-        return default_policy()
+def authenticated_snapshot(cfg: Config) -> TrustSnapshot:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise InvalidInputError(f"corrupt trust policy at {path}: {exc}") from exc
-    if not isinstance(data, dict):
-        raise InvalidInputError("trust policy root must be an object")
-    return TrustPolicy.from_dict(data)
+        return writer_guard.journal_for(cfg).snapshot()
+    except CustodianError as exc:
+        raise TrustLedgerCorruptError("trust custody unavailable; reconciliation required") from exc
+
+
+def load_policy(cfg: Config) -> TrustPolicy:
+    return TrustPolicy.from_dict(authenticated_snapshot(cfg).policy)
 
 
 def save_policy(cfg: Config, policy: TrustPolicy) -> TrustPolicy:
-    ensure_trust_dirs(cfg)
-    path = trust_policy_path(cfg)
-    tmp = path.with_name(path.name + ".tmp")
-    content = json.dumps(policy.to_dict(), indent=2, sort_keys=True) + "\n"
     with _trust_write_leases(cfg, None, holder="trust-policy"):
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write(content)
-                fh.flush()
-                os.fsync(fh.fileno())
-        except BaseException:
-            tmp.unlink(missing_ok=True)
-            raise
-        os.replace(tmp, path)
-        _fsync_dir(path)
+        journal, cross, fence = writer_guard.bound_journal(cfg)
+        journal.append(
+            record_id="policy-" + uuid.uuid4().hex,
+            kind="policy_snapshot",
+            payload=policy.to_dict(),
+            fence=fence,
+            assert_owned=cross.assert_owned,
+        )
+        cross.assert_owned()
     return policy
 
 
@@ -399,23 +394,6 @@ def _load_decision_file(path: Path) -> TrustDecision:
         ) from exc
 
 
-def _write_decision_mirror(cfg: Config, decision: TrustDecision) -> None:
-    ensure_trust_dirs(cfg)
-    path = _decision_mirror_path(cfg, decision.decision_id)
-    tmp = path.with_name(path.name + ".tmp")
-    content = json.dumps(decision.to_dict(), indent=2, sort_keys=True) + "\n"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
-            fh.write(content)
-            fh.flush()
-            os.fsync(fh.fileno())
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
-    os.replace(tmp, path)
-    _fsync_dir(path)
-
 
 def _upsert_decision_row(conn: sqlite3.Connection, decision: TrustDecision) -> None:
     """Best-effort DB cache. No-op if migration 004 tables are absent."""
@@ -453,11 +431,7 @@ def _upsert_decision_row(conn: sqlite3.Connection, decision: TrustDecision) -> N
                 decision.decision,
                 decision.source_channel,
                 decision.signer_fingerprint,
-                (
-                    None
-                    if decision.signature_valid is None
-                    else (1 if decision.signature_valid else 0)
-                ),
+                (None if decision.signature_valid is None else (1 if decision.signature_valid else 0)),
                 decision.policy_id,
                 decision.policy_revision,
                 decision.policy_digest,
@@ -478,43 +452,38 @@ def persist_decision(
     conn: sqlite3.Connection | None,
     decision: TrustDecision,
 ) -> TrustDecision:
-    """File wins first (durable outside DB), then optional DB cache row.
-
-    Acquires CrossProcessLease + ``writer_lease`` (both re-entrant) so off-path
-    callers are fenced and nested ``review_*`` callers do not deadlock (C0).
-    """
+    """Custody commits immutable history before the optional SQLite projection."""
     with _trust_write_leases(cfg, conn, holder="trust-persist"):
-        _write_decision_mirror(cfg, decision)
+        journal, cross, fence = writer_guard.bound_journal(cfg)
+        journal.append(
+            record_id=decision.decision_id,
+            kind="trust_decision",
+            payload=decision.to_dict(),
+            fence=fence,
+            assert_owned=cross.assert_owned,
+        )
+        cross.assert_owned()
         if conn is not None:
             _upsert_decision_row(conn, decision)
+        cross.assert_owned()
     return decision
 
 
 def list_decisions(cfg: Config) -> list[TrustDecision]:
-    """Load every decision mirror. Corrupt files fail closed (C10)."""
-    ensure_trust_dirs(cfg)
-    out: list[TrustDecision] = []
-    for path in sorted(trust_decisions_dir(cfg).glob("*.json")):
-        out.append(_load_decision_file(path))
-    return out
+    return [TrustDecision.from_dict(value) for value in authenticated_snapshot(cfg).decisions]
 
 
 def get_decision(cfg: Config, decision_id: str) -> TrustDecision | None:
-    path = _decision_mirror_path(cfg, decision_id)
-    if not path.is_file():
-        return None
-    return _load_decision_file(path)
+    return next((decision for decision in list_decisions(cfg) if decision.decision_id == decision_id), None)
 
 
 def latest_decision_for(cfg: Config, engram_id: str) -> TrustDecision | None:
-    matches = [d for d in list_decisions(cfg) if d.engram_id == engram_id]
-    if not matches:
-        return None
-    return max(matches, key=lambda d: (d.timestamp, d.decision_id))
+    value = authenticated_snapshot(cfg).latest_by_engram.get(engram_id)
+    return TrustDecision.from_dict(value) if value is not None else None
 
 
 def reload_from_mirror(cfg: Config, conn: sqlite3.Connection) -> int:
-    """Repopulate ``trust_decision`` cache from JSON mirrors after DB rebuild."""
+    """Rebuild the SQLite projection from authenticated sequence history."""
     count = 0
     for decision in list_decisions(cfg):
         _upsert_decision_row(conn, decision)
@@ -534,9 +503,7 @@ def _require_expected_digest(*, expected: str | None, actual: str, label: str) -
 
 def live_content_digest(conn: sqlite3.Connection, engram_id: str) -> str:
     """Authoritative on-disk content digest from the durable engram row."""
-    row = conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()
+    row = conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (engram_id,)).fetchone()
     if row is None:
         raise InvalidInputError(
             f"no staged subject for engram {engram_id!r}",
@@ -712,8 +679,7 @@ def approve(
             resource_digest=bound_resource,
             event_id=event_id,
         )
-        _write_decision_mirror(cfg, decision)
-        _upsert_decision_row(conn, decision)
+        persist_decision(cfg, conn, decision)
 
         if not admission_still_valid(
             cfg,
@@ -761,8 +727,7 @@ def reject(
             resource_digest=prior.resource_digest if prior else live_resource_digest(cfg, conn, engram_id),
             event_id=event_id,
         )
-        _write_decision_mirror(cfg, decision)
-        _upsert_decision_row(conn, decision)
+        persist_decision(cfg, conn, decision)
         return decision
 
 
@@ -803,8 +768,7 @@ def revoke(
             resource_digest=prior.resource_digest,
             event_id=event_id,
         )
-        _write_decision_mirror(cfg, decision)
-        _upsert_decision_row(conn, decision)
+        persist_decision(cfg, conn, decision)
         return decision
 
 
@@ -814,6 +778,7 @@ def admission_still_valid(
     engram_id: str,
     content_digest: str,
     resource_digest: str | None = None,
+    _snapshot: TrustSnapshot | None = None,
 ) -> bool:
     """True iff the latest decision admits these digests under the *current* policy.
 
@@ -823,7 +788,9 @@ def admission_still_valid(
     """
     empty_resource = assets_manifest_digest({})
     try:
-        decision = latest_decision_for(cfg, engram_id)
+        snapshot = _snapshot or authenticated_snapshot(cfg)
+        value = snapshot.latest_by_engram.get(engram_id)
+        decision = TrustDecision.from_dict(value) if value is not None else None
     except TrustLedgerCorruptError:
         return False
     if decision is None or decision.decision != "admit":
@@ -835,7 +802,7 @@ def admission_still_valid(
         if decision.resource_digest != check:
             return False
     try:
-        policy = load_policy(cfg)
+        policy = TrustPolicy.from_dict(snapshot.policy)
     except InvalidInputError:
         return False
     if decision.policy_digest != policy.digest() or decision.policy_revision != policy.revision:
@@ -869,12 +836,15 @@ def project_trust_view(
     Corrupt ledgers fail closed: ``admitted=False`` (finding 2).
     """
     try:
-        decision = latest_decision_for(cfg, engram_id)
+        snapshot = authenticated_snapshot(cfg)
+        value = snapshot.latest_by_engram.get(engram_id)
+        decision = TrustDecision.from_dict(value) if value is not None else None
         admitted = admission_still_valid(
             cfg,
             engram_id=engram_id,
             content_digest=content_digest,
             resource_digest=resource_digest,
+            _snapshot=snapshot,
         )
     except TrustLedgerCorruptError:
         decision = None

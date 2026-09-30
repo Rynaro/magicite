@@ -19,6 +19,7 @@ from magicite.core import evidence as evidence_mod
 from magicite.core import policy_store as policy_store_mod
 from magicite.core import recovery_gate as gate_mod
 from magicite.core import registry as registry_mod
+from magicite.core import writer_guard
 from magicite.errors import InvalidInputError, MagiciteError, NotFoundError
 from magicite.obs import doctor as doctor_mod
 from magicite.storage import authorizer as authorizer_mod
@@ -478,15 +479,13 @@ def evidence_route_checkpoint(project_root: str | Path, *, request: Any, event_i
     from magicite.errors import IdempotencyKeyConflictError
     from magicite.mcp import bind_retrieval
     from magicite.mcp.schemas import RouteInput
-    from magicite.storage import lease
 
     params = RouteInput.model_validate(request)
     bind_retrieval.validate_route_version(params)
     cfg = _cfg(project_root)
     conn = authorizer_mod.writer_connection(cfg.db_path)
     try:
-        with lease.CrossProcessLease(
-            lock_path=cfg.dream_lock_path, conn=conn, holder="cli-route-checkpoint"
+        with writer_guard.registry_writer_lease(cfg, conn, holder="cli-route-checkpoint"
         ).acquire():
             key = fingerprint_key.load_or_create_fingerprint_key(cfg)
             canonical = json.dumps(params.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))

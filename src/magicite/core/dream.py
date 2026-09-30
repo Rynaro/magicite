@@ -61,6 +61,7 @@ from magicite.core import decay as decay_mod
 from magicite.core import distill as distill_mod
 from magicite.core import plasticity as plasticity_mod
 from magicite.core import routing_policy as policy_mod
+from magicite.core import writer_guard
 from magicite.engram import ids as ids_mod
 from magicite.engram import parser as parser_mod
 from magicite.engram import writer as writer_mod
@@ -750,8 +751,8 @@ def run_checkpoint_only(cfg: Config, conn: sqlite3.Connection) -> CheckpointStat
     interleave writes to the same files)."""
     cfg.ensure_dirs()
     project_root = cfg.project_root.resolve()
-    cross_lease = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path, conn=conn, holder=f"checkpoint:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+    cross_lease = writer_guard.registry_writer_lease(
+        cfg, conn, holder=f"checkpoint:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
     with cross_lease.acquire():
         with lease_mod.writer_lease(holder="checkpoint"):
@@ -803,8 +804,8 @@ def archive_engram(
     # independent writer of durable engram state and must not interleave
     # with a running Dream cycle either -- the cross-process lease, not
     # just G2's in-process one.
-    cross_lease = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path, conn=conn, holder=f"archive-tool:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+    cross_lease = writer_guard.registry_writer_lease(
+        cfg, conn, holder=f"archive-tool:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
     with cross_lease.acquire():
         with lease_mod.writer_lease(holder="archive-tool"):
@@ -1007,8 +1008,8 @@ def run(
     cfg.ensure_dirs()
     project_root = cfg.project_root.resolve()
     digest_before = policy_mod.active_stable_policy_digest(cfg)
-    cross_lease = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path, conn=conn, holder=f"dream:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+    cross_lease = writer_guard.registry_writer_lease(
+        cfg, conn, holder=f"dream:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
 
     with cross_lease.acquire():
