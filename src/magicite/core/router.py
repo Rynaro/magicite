@@ -1386,6 +1386,16 @@ def _pin_index_identity(
     )
 
 
+def pin_index_identity(
+    conn: sqlite3.Connection,
+) -> tuple[str | None, str | None, str | None, str | None, tuple[str, ...]]:
+    """Public alias of :func:`_pin_index_identity` for S11 body-load snapshot gates.
+
+    Same return shape: ``(generation_id, snapshot_id, schema_digest, tokenizer_digest, reason_codes)``.
+    """
+    return _pin_index_identity(conn)
+
+
 def route(
     cfg: Config,
     conn: sqlite3.Connection,

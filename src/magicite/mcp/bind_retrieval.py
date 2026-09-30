@@ -10,7 +10,7 @@ disclosure gate (stale_decision / missing_context without procedure bytes).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from magicite.core import eligibility as eligibility_mod
 from magicite.core import policy_store as policy_store_mod
@@ -26,7 +26,6 @@ from magicite.mcp.schemas import (
     Candidate,
     ConfidenceOut,
     ExclusionSummaryOut,
-    HostVerificationReportOut,
     LoadSkillBodyInput,
     LoadSkillBodyOutput,
     PlanDiagnosticOut,
@@ -123,9 +122,16 @@ def _project_plan(
     ]
 
     status = getattr(plan, "status", None)
-    if not disclose_nodes or status != "valid" or not getattr(plan, "executable", False):
+    if not disclose_nodes:
+        # B5: never project status=valid / executable=True when nodes are withheld
+        # (e.g. dangling-after-valid-compose abstention that still carries Plan).
+        projected_status: Literal["valid", "invalid"] | None
+        if status == "valid":
+            projected_status = "invalid"
+        else:
+            projected_status = status
         return PlanOut(
-            status=status,
+            status=projected_status,
             nodes=[],
             edges=[],
             topological_order=[],
@@ -134,7 +140,7 @@ def _project_plan(
             snapshot_id=getattr(plan, "snapshot_id", None),
             policy_id=getattr(plan, "policy_id", None),
             policy_digest=getattr(plan, "policy_digest", None),
-            executable=False if status != "valid" else getattr(plan, "executable", None),
+            executable=False,
             schema_version=getattr(plan, "schema_version", None),
         )
 
@@ -195,22 +201,6 @@ def _project_plan(
     )
 
 
-def _project_host_verification(report: Any) -> HostVerificationReportOut | None:
-    if report is None:
-        return None
-    return HostVerificationReportOut(
-        structural_validity=getattr(report, "structural_validity", None),
-        verified_task_outcome=getattr(report, "verified_task_outcome", None),
-        plan_snapshot_id=getattr(report, "plan_snapshot_id", None),
-        verifier_type=getattr(report, "verifier_type", None),
-        verifier_id=getattr(report, "verifier_id", None),
-        verifier_version=getattr(report, "verifier_version", None),
-        verifier_artifact_digest=getattr(report, "verifier_artifact_digest", None),
-        schema_version=getattr(report, "schema_version", None),
-        details=getattr(report, "details", None),
-    )
-
-
 def _calibration_status(decision: router_mod.RouteDecision | None) -> str | None:
     if decision is None:
         return None
@@ -225,6 +215,8 @@ def project_route_output(outcome: router_mod.RouteOutcome) -> RouteOutput:
     """Map ``RouteOutcome`` + Plan/1 onto the public schema.
 
     ``decision.plan_digest`` is the sole authoritative plan digest (C4/C5).
+    ``host_verification_report`` stays null — router/S08 do not produce it on
+    the route path (HostVerificationReport/1 lives in evaluation fixtures).
     """
     decision = outcome.decision
     plan = outcome.plan
@@ -243,8 +235,6 @@ def project_route_output(outcome: router_mod.RouteOutcome) -> RouteOutput:
         authoritative_digest=authoritative_digest,
         disclose_nodes=disclose_nodes,
     )
-    # host_verification_report: router/S08 do not produce this on the route path.
-    host_report = _project_host_verification(None)
 
     exclusions: list[ExclusionSummaryOut] = []
     if decision is not None:
@@ -323,7 +313,7 @@ def project_route_output(outcome: router_mod.RouteOutcome) -> RouteOutput:
         decision_schema_version=decision.schema_version if decision else None,
         plan=plan_out,
         plan_digest=authoritative_digest,
-        host_verification_report=host_report,
+        host_verification_report=None,
     )
 
 
@@ -344,21 +334,10 @@ def _active_policy_digest(cfg: Any) -> str | None:
     return policy_mod.compute_policy_digest(policy_mod.resolve_policy_id(cfg), cfg)
 
 
-def _active_snapshot_id(cfg: Any, conn: Any) -> str | None:
-    """Best-effort current index snapshot id; None when unpublished."""
-    try:
-        from magicite.core import index_generation as ig_mod
-
-        store = getattr(ig_mod, "GenerationStore", None)
-        if store is None:
-            return None
-        # Prefer a published-generation helper if present; otherwise leave None.
-        get_active = getattr(ig_mod, "active_snapshot_id", None)
-        if callable(get_active):
-            return get_active(cfg, conn)
-    except Exception:
-        return None
-    return None
+def _current_snapshot_id(conn: Any) -> str | None:
+    """Resolve the live index snapshot the same way the router pins it (C10)."""
+    _gen_id, snap_id, _schema_d, _tok_d, _reasons = router_mod.pin_index_identity(conn)
+    return snap_id
 
 
 def _server_policy(cfg: Any, policy_digest: str) -> ServerPermissionPolicy:
@@ -450,14 +429,20 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
     live_digest = str(row["content_sha256"] or "")
 
     # C2/C10: old clients that omit digests get missing_context — never a silent bypass.
+    missing: list[str] = []
     if not params.expected_content_digest:
+        missing.append("expected_content_digest")
+    if not params.expected_policy_digest:
+        missing.append("expected_policy_digest")
+    if missing or not params.expected_policy_digest:
         return _empty_body(
             name=row["name"],
             level=params.level,
             status="missing_context",
-            missing_context=["expected_content_digest"],
+            missing_context=missing,
             reason_codes=["missing_context"],
         )
+    expected_policy_digest: str = params.expected_policy_digest
 
     if live_digest != params.expected_content_digest:
         return _refuse_stale(row["name"], params.level, codes=["stale_decision", "content_digest_drift"])
@@ -485,25 +470,27 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
             codes=["stale_decision", "not_admitted"],
         )
 
-    if params.expected_policy_digest is not None:
-        active_policy = _active_policy_digest(ctx.cfg)
-        if active_policy != params.expected_policy_digest:
-            return _refuse_stale(
-                row["name"], params.level, codes=["stale_decision", "policy_digest_drift"]
-            )
+    active_policy = _active_policy_digest(ctx.cfg)
+    if active_policy != expected_policy_digest:
+        return _refuse_stale(
+            row["name"], params.level, codes=["stale_decision", "policy_digest_drift"]
+        )
 
     if params.expected_snapshot_id is not None:
-        current_snapshot = _active_snapshot_id(ctx.cfg, ctx.conn)
-        if current_snapshot != params.expected_snapshot_id:
+        current_snapshot = _current_snapshot_id(ctx.conn)
+        # Fail closed when the pin cannot be resolved or digests diverge (C10).
+        if current_snapshot is None or current_snapshot != params.expected_snapshot_id:
             return _refuse_stale(
-                row["name"], params.level, codes=["stale_decision", "snapshot_drift"]
+                row["name"],
+                params.level,
+                codes=["stale_decision", "snapshot_drift"],
             )
 
     # C2 body-path digest gate (S06) plus trust lifecycle — refuse on digest/trust
     # denials. Compatibility-only context_required does not block disclosure of an
     # already digest-bound decision (caller already passed route eligibility).
     route_ctx = CoreRouteContext()
-    policy_digest = params.expected_policy_digest or (_active_policy_digest(ctx.cfg) or "")
+    policy_digest = expected_policy_digest
     server_policy = _server_policy(ctx.cfg, policy_digest)
     file_path = Path(ctx.cfg.project_root) / row["path"]
     elig_subject: eligibility_mod.EligibilitySubject

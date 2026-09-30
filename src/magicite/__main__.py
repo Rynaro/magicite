@@ -138,6 +138,7 @@ def doctor_cmd(project_root: str) -> None:
     if not report["healthy"]:
         for warning in report["warnings"]:
             click.echo(f"WARNING: {warning}", err=True)
+        raise SystemExit(1)
 
 
 @cli.command(name="fetch-model")

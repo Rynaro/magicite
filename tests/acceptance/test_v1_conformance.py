@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ pytestmark = pytest.mark.acceptance
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "protocol-v1"
 HOST_MANIFEST = FIXTURES / "host-support-manifest.json"
+OPAQUE_ID = "<opaque>"
 
 
 def test_host_support_manifest_pins_exact_versions() -> None:
@@ -28,7 +30,7 @@ def test_host_support_manifest_pins_exact_versions() -> None:
         assert "transcript" in row
 
 
-def test_conformance_probe_offline_fixture_route_and_body(project_root) -> None:
+def test_conformance_probe_offline_fixture_route_and_body(project_root, tmp_path: Path) -> None:
     """Every required probe for the generic stdio host must pass."""
     import importlib.metadata as md
 
@@ -131,11 +133,23 @@ def test_conformance_probe_offline_fixture_route_and_body(project_root) -> None:
 
     asyncio.run(_run())
 
-    out_dir = FIXTURES / "transcripts"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "stdio-generic.json").write_text(
-        json.dumps(transcript, indent=2, default=str) + "\n", encoding="utf-8"
-    )
+    live_path = tmp_path / "stdio-generic.json"
+    live_path.write_text(json.dumps(transcript, indent=2, default=str) + "\n", encoding="utf-8")
+    golden = json.loads((FIXTURES / "transcripts" / "stdio-generic.json").read_text(encoding="utf-8"))
+    live = json.loads(live_path.read_text(encoding="utf-8"))
+    assert live["probe"] == golden["probe"]
+    assert _stable_steps(live["steps"]) == _stable_steps(golden["steps"])
+
+
+def _stable_steps(steps: list[dict]) -> list[dict]:
+    """Drop fields that legitimately vary per run (opaque ids, server repr)."""
+    stable = []
+    for step in steps:
+        row = {k: v for k, v in step.items() if k != "server"}
+        if "decision_id" in row:
+            row["decision_id"] = OPAQUE_ID
+        stable.append(row)
+    return stable
 
 
 def test_v1_conformance_schema_snapshots_exist() -> None:
@@ -144,8 +158,12 @@ def test_v1_conformance_schema_snapshots_exist() -> None:
 
     snap_path = FIXTURES / "tool-manifest.snapshot.json"
     current = {"tools": manifest()}
-    if not snap_path.is_file():
+    if os.environ.get("MAGICITE_UPDATE_SNAPSHOTS") == "1":
         snap_path.write_text(json.dumps(current, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    assert snap_path.is_file(), (
+        "tool-manifest.snapshot.json is missing; regenerate deliberately with "
+        "MAGICITE_UPDATE_SNAPSHOTS=1 and review the diff"
+    )
     pinned = json.loads(snap_path.read_text(encoding="utf-8"))
     # Names and risk metadata must remain stable; schemas may grow additively.
     assert {t["name"] for t in pinned["tools"]} == {t["name"] for t in current["tools"]}

@@ -236,7 +236,7 @@ class RouteOutput(MagiciteModel):
     unresolved_context: list[str] = Field(default_factory=list)
     # ── RouteDecision/1 public projection (C4) ──────────────────────────
     decision_id: str | None = None
-    status: Literal["selected", "abstained", "error", "ok"] | None = None
+    status: Literal["selected", "abstained", "error"] | None = None
     selected_ids: list[str] = Field(default_factory=list)
     exclusions: list[ExclusionSummaryOut] = Field(default_factory=list)
     score_components: dict[str, dict[str, float]] = Field(default_factory=dict)
@@ -281,7 +281,8 @@ class LoadSkillBodyInput(MagiciteModel):
     cursor: int = Field(default=0, ge=0)
     #: Opaque id from a prior route (optional; digests are authoritative).
     decision_id: str | None = None
-    #: Required for disclosure (C10). Omission → missing_context, no body.
+    #: Both digests are required for disclosure (C10). Omission → missing_context,
+    #: no body; mismatch with the live value → stale_decision, no body.
     expected_content_digest: str | None = None
     expected_policy_digest: str | None = None
     expected_snapshot_id: str | None = None

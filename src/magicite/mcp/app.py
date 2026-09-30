@@ -472,7 +472,14 @@ def dispatch_call(
                 "AND args_sha256 = ? AND state = 'pending'",
                 (tool_name, request_id, args_hash),
             )
-        logger.error("tool_internal_error", tool=tool_name, error=str(exc))
+        from magicite.mcp.redact import redact_absolute_paths
+
+        logger.error(
+            "tool_internal_error",
+            tool=tool_name,
+            error_type=type(exc).__name__,
+            error=redact_absolute_paths(str(exc)),
+        )
         return _error_result(MagiciteError(f"internal error in {tool_name}: {exc}"))
 
     payload = result.model_dump(mode="json")

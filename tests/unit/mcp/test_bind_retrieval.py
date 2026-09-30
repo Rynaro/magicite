@@ -5,15 +5,22 @@ S11: RouteDecision/1 + Plan/1 projection + C10 body disclosure gate.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
+
+import pytest
 
 from magicite.core import eligibility as eligibility_mod
 from magicite.core import registry as registry_mod
 from magicite.core import router as router_mod
 from magicite.core import routing_policy as policy_mod
+from magicite.core.index_generation import IndexCatalog, IndexFingerprint, model_artifact_digest
+from magicite.errors import InvalidInputError
 from magicite.mcp import bind_retrieval
+from magicite.mcp.app import _error_result
 from magicite.mcp.registry import ToolContext
 from magicite.mcp.schemas import LoadSkillBodyInput, RouteContext, RouteInput
+from magicite.storage import lease as lease_mod
 
 
 def _digest_for(conn, name: str) -> str:
@@ -22,6 +29,12 @@ def _digest_for(conn, name: str) -> str:
     ).fetchone()
     assert row is not None
     return str(row["content_sha256"])
+
+
+def _policy_digest(cfg) -> str:
+    digest = bind_retrieval._active_policy_digest(cfg)
+    assert digest
+    return digest
 
 
 def test_route_tool_returns_composition_plan_via_adapter(cfg, db_conn, embedder) -> None:
@@ -104,6 +117,8 @@ def test_composition_invalid_abstain_projects_no_nodes(cfg, db_conn, embedder) -
         assert out.plan.nodes == []
         assert out.plan.edges == []
         assert out.plan.topological_order == []
+        assert out.plan.executable is False
+        assert out.plan.status != "valid"
 
 
 def test_route_tool_hard_excludes_via_context(cfg, db_conn, embedder) -> None:
@@ -139,6 +154,7 @@ def test_load_skill_body_l2_via_adapter(cfg, db_conn, embedder) -> None:
             name="proton-ge-proton-downgrade",
             level="L2",
             expected_content_digest=digest,
+            expected_policy_digest=_policy_digest(cfg),
         ),
     )
     assert out.status == "ok"
@@ -157,6 +173,7 @@ def test_load_skill_body_cursor_round_trip(cfg, db_conn, embedder) -> None:
             level="L2",
             max_bytes=100000,
             expected_content_digest=digest,
+            expected_policy_digest=_policy_digest(cfg),
         ),
     )
     expected = full.procedure + full.pitfalls
@@ -171,6 +188,7 @@ def test_load_skill_body_cursor_round_trip(cfg, db_conn, embedder) -> None:
                 max_bytes=23,
                 cursor=cursor,
                 expected_content_digest=digest,
+                expected_policy_digest=_policy_digest(cfg),
             ),
         )
         chunks.append(page.procedure + page.pitfalls)
@@ -190,3 +208,148 @@ def test_load_skill_body_missing_digest_is_missing_context(cfg, db_conn, embedde
     assert out.status == "missing_context"
     assert out.procedure == ""
     assert "expected_content_digest" in out.missing_context
+    assert "expected_policy_digest" in out.missing_context
+
+
+def test_load_skill_body_missing_policy_digest_is_missing_context(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    out = bind_retrieval.load_skill_body(
+        ctx,
+        LoadSkillBodyInput(
+            name="proton-ge-proton-downgrade",
+            level="L2",
+            expected_content_digest=_digest_for(db_conn, "proton-ge-proton-downgrade"),
+        ),
+    )
+    assert out.status == "missing_context"
+    assert out.missing_context == ["expected_policy_digest"]
+    assert out.procedure == ""
+    assert out.pitfalls == ""
+
+
+def _routed_body_input(ctx, **overrides) -> LoadSkillBodyInput:
+    routed = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=5))
+    top = routed.candidates[0]
+    fields = {
+        "name": top.name,
+        "level": "L2",
+        "expected_content_digest": routed.selected_content_digests[top.id],
+        "expected_policy_digest": routed.policy_digest,
+        "expected_snapshot_id": routed.snapshot_id,
+    }
+    fields.update(overrides)
+    return LoadSkillBodyInput(**fields)
+
+
+def _publish_generation(db_conn, embedder, snapshot_id: str) -> None:
+    catalog = IndexCatalog(db_conn)
+    fp = IndexFingerprint(
+        provider="hashing",
+        model_artifact_digest=model_artifact_digest(
+            model_name=embedder.model_name, dim=embedder.dim
+        ),
+        dimension=embedder.dim,
+        model_revision="test",
+    )
+    with lease_mod.writer_lease(holder="s11-snapshot-gate"):
+        gid = catalog.begin(snapshot_id=snapshot_id, fingerprint=fp, model_name=embedder.model_name)
+        catalog.complete(gid, [])
+        catalog.publish(gid)
+
+
+def test_load_skill_body_matching_snapshot_ok(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    _publish_generation(db_conn, embedder, "snap-s11-a")
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    params = _routed_body_input(ctx)
+    assert params.expected_snapshot_id == "snap-s11-a"
+    out = bind_retrieval.load_skill_body(ctx, params)
+    assert out.status == "ok"
+    assert out.procedure
+
+
+def test_load_skill_body_snapshot_drift_is_stale(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    _publish_generation(db_conn, embedder, "snap-s11-a")
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    params = _routed_body_input(ctx)
+    _publish_generation(db_conn, embedder, "snap-s11-b")
+
+    out = bind_retrieval.load_skill_body(ctx, params)
+    assert out.status == "stale_decision"
+    assert "snapshot_drift" in out.reason_codes
+    assert out.procedure == ""
+    assert out.pitfalls == ""
+
+
+def test_load_skill_body_unresolvable_snapshot_is_stale(
+    cfg, db_conn, embedder, monkeypatch
+) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    _publish_generation(db_conn, embedder, "snap-s11-a")
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    params = _routed_body_input(ctx)
+    assert params.expected_snapshot_id == "snap-s11-a"
+    monkeypatch.setattr(
+        router_mod, "pin_index_identity", lambda conn: (None, None, None, None, ())
+    )
+    out = bind_retrieval.load_skill_body(ctx, params)
+    assert out.status == "stale_decision"
+    assert "snapshot_drift" in out.reason_codes
+    assert out.procedure == ""
+
+
+def test_withheld_valid_plan_is_not_advertised_executable(cfg, db_conn, embedder) -> None:
+    """B5: a valid Plan carried on an abstained route never projects valid/executable."""
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    outcome = router_mod.route(
+        cfg, db_conn, embedder, query="rollback proton for a steam game", k=5
+    )
+    assert outcome.plan is not None and outcome.plan.status == "valid"
+    assert outcome.decision is not None
+    plan_out = bind_retrieval._project_plan(
+        outcome.plan,
+        authoritative_digest=outcome.decision.plan_digest,
+        disclose_nodes=False,
+    )
+    assert plan_out is not None
+    assert plan_out.status != "valid"
+    assert plan_out.executable is False
+    assert plan_out.nodes == []
+    assert plan_out.edges == []
+    assert plan_out.topological_order == []
+    assert plan_out.plan_digest == outcome.decision.plan_digest
+
+
+def test_plan_digest_mismatch_fails_closed(cfg, db_conn, embedder) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    outcome = router_mod.route(
+        cfg, db_conn, embedder, query="rollback proton for a steam game", k=5
+    )
+    assert outcome.plan is not None
+    with pytest.raises(InvalidInputError) as excinfo:
+        bind_retrieval._project_plan(
+            outcome.plan, authoritative_digest="0" * 64, disclose_nodes=True
+        )
+    assert excinfo.value.details["reason"] == "plan_digest_mismatch"
+    envelope = _error_result(excinfo.value).structured_content
+    assert "nodes" not in json.dumps(envelope)
+    assert "/Users/" not in json.dumps(envelope)
+
+
+def test_composition_error_projects_no_plan(cfg, db_conn, embedder, monkeypatch) -> None:
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("compose exploded")
+
+    monkeypatch.setattr(router_mod.composition_mod, "compose", _boom)
+    ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
+    out = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=5))
+    assert out.status == "abstained"
+    assert "composition_error" in out.reason_codes
+    assert out.plan is None
+    assert out.plan_digest is None
+    assert out.candidates == []
+    assert out.composition_plan == []

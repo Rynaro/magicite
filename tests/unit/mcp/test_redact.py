@@ -44,5 +44,15 @@ def test_redact_error_payload_nested() -> None:
         "details": {"nested": {"path": "/var/lib/magicite/x"}},
     }
     out = redact_error_payload(payload)
-    assert "/tmp/" not in out["message"] or "<redacted-path>" in out["message"]
+    assert out["message"] == "failed under <redacted-path>"
     assert out["details"]["nested"]["path"] == "<redacted-path>"
+
+
+def test_error_result_redacts_raw_query() -> None:
+    err = InvalidInputError(
+        "bad route",
+        details={"query": "rollback proton for my secret project", "reason": "x"},
+    )
+    envelope = _error_result(err).structured_content
+    assert envelope["details"]["query"] == "<redacted>"
+    assert "secret project" not in json_dumps(envelope)

@@ -19,9 +19,9 @@ def test_doctor_cli_reports_reconciliation_field(project_root: Path) -> None:
         ["doctor", "--project-root", str(project_root)],
         env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"},
     )
-    assert result.exit_code == 0, result.output
     report = json.loads(result.stdout)
-    assert report["kind"] == "doctor/1" or "reconciliation_required" in report
+    assert result.exit_code == (0 if report["healthy"] else 1), result.output
+    assert report["kind"] == "doctor/1"
     assert "reconciliation_required" in report
 
 
