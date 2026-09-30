@@ -107,3 +107,62 @@ def test_plan_confidence_reports_the_unresolved_share(cfg, db_conn, embedder) ->
 
     assert outcome.candidates[0].name == "proton-ge-proton-downgrade"
     assert outcome.plan_confidence == 0.5
+
+
+def test_eligibility_before_rerank(cfg, db_conn, embedder) -> None:
+    """AC-S07-01: GIVEN a quarantined artifact with strongest raw score
+    WHEN routing runs
+    THEN the artifact SHALL be absent from returned candidates and bodies.
+    """
+    from magicite.storage import ephemeral as ephemeral_mod
+
+    # Winner-shaped quarantine target + weaker healthy competitor.
+    now = datetime.now(UTC).isoformat()
+    db_conn.execute(
+        """
+        INSERT INTO engram (
+          id, name, path, spec_version, version, origin, verification_status, status,
+          intent_does, intent_use_when, storage_strength, s_decayed_at, excitability,
+          identity_sha256, content_sha256, body_sha256, file_mtime_ns, created_at, updated_at
+        ) VALUES
+        ('egr_quarantined', 'quarantined-top', 'quarantined-top.egr.md', 'engram/0.2', 1,
+         'authored', 'quarantined', 'nascent', 'does', 'use_when', 0.0, ?, 0.05,
+         'egr_quarantined', 'egr_quarantined', 'egr_quarantined', 0, ?, ?),
+        ('egr_healthy', 'healthy-skill', 'healthy-skill.egr.md', 'engram/0.2', 1,
+         'authored', 'verified', 'nascent', 'does', 'use_when', 0.0, ?, 0.05,
+         'egr_healthy', 'egr_healthy', 'egr_healthy', 0, ?, ?)
+        """,
+        (now, now, now, now, now, now),
+    )
+    query = "quarantine eligibility probe unique tokens xyzzy"
+    # Strongest raw score for the quarantined row.
+    ephemeral_mod.upsert_embedding(
+        db_conn,
+        engram_id="egr_quarantined",
+        model_name=embedder.model_name,
+        dim=embedder.dim,
+        vec=embedder.embed(query),
+        source_sha256="egr_quarantined",
+    )
+    ephemeral_mod.upsert_embedding(
+        db_conn,
+        engram_id="egr_healthy",
+        model_name=embedder.model_name,
+        dim=embedder.dim,
+        vec=embedder.embed("unrelated healthy skill text"),
+        source_sha256="egr_healthy",
+    )
+
+    outcome = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
+    ids = [c.id for c in outcome.candidates]
+    names = [c.name for c in outcome.candidates]
+    body_refs = [c.body_ref for c in outcome.candidates]
+    assert "egr_quarantined" not in ids
+    assert "quarantined-top" not in names
+    assert "quarantined-top.egr.md" not in body_refs
+    assert outcome.decision is not None
+    excluded_ids = {e.engram_id for e in outcome.decision.exclusions}
+    assert "egr_quarantined" in excluded_ids
+    # Bodies of excluded artifacts must not appear in the returned slate.
+    for c in outcome.candidates:
+        assert c.id != "egr_quarantined"
