@@ -1,0 +1,33 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/evidence/trust-mirror-loss.json",
+      "sha256": "f4f8132743360a1235ec0977c8019bc296cc3a51baacc47d46777334c4a3110b"
+    },
+    {
+      "path": "docs/releases/v1/evidence/reproduce-trust-mirror-loss.py",
+      "sha256": "ef800dbb9aa296ec68a6cc132d38a7e79dbbac3e4cd2231bfa530516dc95115b"
+    },
+    {
+      "path": "tests/integration/test_trust_recovery.py",
+      "sha256": "533d6339ee2db6fd0270fc6c199aa8ff0877d3dceb99765ffdf933aaeab79bbe"
+    },
+    {
+      "path": "src/magicite/core/trust.py",
+      "sha256": "42f4c8f6d4eb3624badf7a331452a418cf08b645f3fc7b9b9dcb48e2aba71727"
+    }
+  ],
+  "command": "/private/tmp/s14-mcp200/bin/python docs/releases/v1/evidence/reproduce-trust-mirror-loss.py",
+  "environment": {
+    "path": "docs/releases/v1/evidence/environment.json",
+    "sha256": "0cb77fcd160f0967ce00e2ae9498ebef5466ada926e04d106e4ccf5ad62357cd"
+  },
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "review_status": "PENDING_EVIDENCE_REVIEW",
+  "reviewer": null,
+  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+  "source_dirty": true
+}

@@ -1,0 +1,67 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/evidence/test-results.json",
+      "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+    },
+    {
+      "path": "docs/releases/v1/evidence/pytest.txt",
+      "sha256": "f4542a6d992b5a28d86d11663a663bc4c2f180e469fc53a9d51ce257d063b991"
+    },
+    {
+      "path": "docs/operations.md",
+      "sha256": "b149a2acb54dc370cf76e859d444fc84cba3e126857e46e6cd0e91c551634d0b"
+    },
+    {
+      "path": "docs/operator-tutorial.md",
+      "sha256": "7cb8752cf42227634e2fe466bb703cf1a368d80e3b248aabe2e4f268171e01a2"
+    },
+    {
+      "path": "tests/integration/test_evidence_durability.py",
+      "sha256": "8c78b2158129f0d2bd12c517b3d153835acd06f2df0007001073f8363d56bfae"
+    },
+    {
+      "path": "tests/integration/test_evidence_recovery.py",
+      "sha256": "151349d53baf0a69421502efe7efe5cb04a74fa7d336cebce810928042a88911"
+    }
+  ],
+  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+  "environment": {
+    "dependency_note": "MCP and mcp-types 2.0.0 match uv.lock; remaining shared-site dependencies are recorded runtime, not claimed full-lock recreation.",
+    "interpreter": "/private/tmp/s14-mcp200/bin/python",
+    "packages": {
+      "magicite": "0.3.1",
+      "mcp": "2.0.0",
+      "mcp-types": "2.0.0",
+      "pytest": "9.1.1"
+    },
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "provider": "hashing fixtures except explicit isolated install/model checks",
+    "python": "3.14.6"
+  },
+  "executed_nodes": [
+    "tests/integration/test_evidence_durability.py::test_checkpoint_conflict_duplicate_event_id_fails_closed",
+    "tests/integration/test_evidence_durability.py::test_checkpoint_retry_after_index_before_meta_contiguous",
+    "tests/integration/test_evidence_durability.py::test_checkpoint_retry_after_segment_fsync_zero_duplicates",
+    "tests/integration/test_evidence_durability.py::test_delete_physically_removes_payload_bytes",
+    "tests/integration/test_evidence_durability.py::test_enqueue_never_raises_with_unreadable_key_dir",
+    "tests/integration/test_evidence_durability.py::test_multiprocess_concurrent_checkpoint_unique_sequences",
+    "tests/integration/test_evidence_durability.py::test_rebuild_restores_index_and_load_event",
+    "tests/integration/test_evidence_durability.py::test_torn_line_keeps_complete_lines",
+    "tests/integration/test_evidence_durability.py::test_two_exports_are_unlinkable",
+    "tests/integration/test_evidence_recovery.py::test_ack_survives_rebuild"
+  ],
+  "gate": "PRIVACY",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "obligation": "checkpoint-rpo",
+  "producer": "Vivi /root/v1_release_evidence",
+  "review_status": "PENDING_EVIDENCE_REVIEW",
+  "reviewer": null,
+  "schema": "magicite/release-witness/1",
+  "scope": "Mechanical local evidence only; independently reviewed report required before treating this witness as accepted.",
+  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+  "status": "PASS"
+}

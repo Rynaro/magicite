@@ -1,0 +1,9 @@
+{
+  "schema": "magicite/trust-mirror-diagnostic/1",
+  "admitted_before_revoke": true,
+  "admitted_after_revoke": false,
+  "admitted_after_revoke_mirror_deleted": true,
+  "live_trust_view_admitted_after_loss": true,
+  "status": "FAIL",
+  "scope": "Disposable registry; existing trust domain unchanged"
+}

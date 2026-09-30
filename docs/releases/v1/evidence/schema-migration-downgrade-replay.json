@@ -1,0 +1,71 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/evidence/test-results.json",
+      "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+    },
+    {
+      "path": "docs/releases/v1/evidence/pytest.txt",
+      "sha256": "f4542a6d992b5a28d86d11663a663bc4c2f180e469fc53a9d51ce257d063b991"
+    },
+    {
+      "path": "src/magicite/core/migration.py",
+      "sha256": "adaf3bac573aa4b4c304e93016ad85727efb97201e0c68a36f2f91cec2c1fdc9"
+    },
+    {
+      "path": "tests/integration/test_migration_v1.py",
+      "sha256": "b50b58da8af7388916b8dfdea765e66e89936e81b87a8b03fdc7d91b6148af0e"
+    },
+    {
+      "path": "tests/integration/test_upgrade_v02.py",
+      "sha256": "deb48c0fbbcc50d9794855d6838011373b4504cfd2db2db1eaf3655b7e585e48"
+    }
+  ],
+  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+  "environment": {
+    "dependency_note": "MCP and mcp-types 2.0.0 match uv.lock; remaining shared-site dependencies are recorded runtime, not claimed full-lock recreation.",
+    "interpreter": "/private/tmp/s14-mcp200/bin/python",
+    "packages": {
+      "magicite": "0.3.1",
+      "mcp": "2.0.0",
+      "mcp-types": "2.0.0",
+      "pytest": "9.1.1"
+    },
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "provider": "hashing fixtures except explicit isolated install/model checks",
+    "python": "3.14.6"
+  },
+  "executed_nodes": [
+    "tests/integration/test_migration_v1.py::test_backup_source_dest_digest_match",
+    "tests/integration/test_migration_v1.py::test_concurrent_apply_busy",
+    "tests/integration/test_migration_v1.py::test_crash_matrix",
+    "tests/integration/test_migration_v1.py::test_idempotent_apply",
+    "tests/integration/test_migration_v1.py::test_lease_loss_mid_artifact_fencing",
+    "tests/integration/test_migration_v1.py::test_mkdir_secure_fsyncs_parent",
+    "tests/integration/test_migration_v1.py::test_mkdir_secure_nested_parents_mode_and_fsync",
+    "tests/integration/test_migration_v1.py::test_partial_backup_resume_rebuilds",
+    "tests/integration/test_migration_v1.py::test_preview_nonexistent_data_dir_creates_nothing",
+    "tests/integration/test_migration_v1.py::test_preview_sees_uncheckpointed_wal_without_data_dir_writes",
+    "tests/integration/test_migration_v1.py::test_preview_wal_copy_fails_closed_when_never_stable",
+    "tests/integration/test_migration_v1.py::test_preview_wal_copy_retries_or_fails_on_checkpoint_tear",
+    "tests/integration/test_migration_v1.py::test_preview_zero_write_no_wal_shm",
+    "tests/integration/test_migration_v1.py::test_restore_rejects_path_traversal",
+    "tests/integration/test_migration_v1.py::test_unsupported_future_schema_fails_closed",
+    "tests/integration/test_upgrade_v02.py::test_future_backup_manifest_rejected",
+    "tests/integration/test_upgrade_v02.py::test_v02_database_upgrades_without_losing_durable_rows",
+    "tests/integration/test_upgrade_v02.py::test_v1_restore_matches_backup_manifest"
+  ],
+  "gate": "SCHEMA",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "obligation": "migration-downgrade-replay",
+  "producer": "Vivi /root/v1_release_evidence",
+  "review_status": "PENDING_EVIDENCE_REVIEW",
+  "reviewer": null,
+  "schema": "magicite/release-witness/1",
+  "scope": "Mechanical local evidence only; independently reviewed report required before treating this witness as accepted.",
+  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+  "status": "PASS"
+}

@@ -1,0 +1,13 @@
+{
+  "dependency_note": "MCP and mcp-types 2.0.0 match uv.lock; remaining shared-site dependencies are recorded runtime, not claimed full-lock recreation.",
+  "interpreter": "/private/tmp/s14-mcp200/bin/python",
+  "packages": {
+    "magicite": "0.3.1",
+    "mcp": "2.0.0",
+    "mcp-types": "2.0.0",
+    "pytest": "9.1.1"
+  },
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "provider": "hashing fixtures except explicit isolated install/model checks",
+  "python": "3.14.6"
+}

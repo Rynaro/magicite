@@ -1,0 +1,61 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/evidence/test-results.json",
+      "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+    },
+    {
+      "path": "docs/releases/v1/evidence/pytest.txt",
+      "sha256": "f4542a6d992b5a28d86d11663a663bc4c2f180e469fc53a9d51ce257d063b991"
+    },
+    {
+      "path": "src/magicite/engram/schema/engram-1.0.schema.json",
+      "sha256": "70d1105277acc985921c55eae6bb97131c97a9721c04807c79f2c3601b4a78bf"
+    },
+    {
+      "path": "tests/unit/engram/test_v1_schema.py",
+      "sha256": "9cfa1162c1492d1f8e36b976c94e0a307cc2fc8252f012a7247671ee7c6194a4"
+    }
+  ],
+  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+  "environment": {
+    "dependency_note": "MCP and mcp-types 2.0.0 match uv.lock; remaining shared-site dependencies are recorded runtime, not claimed full-lock recreation.",
+    "interpreter": "/private/tmp/s14-mcp200/bin/python",
+    "packages": {
+      "magicite": "0.3.1",
+      "mcp": "2.0.0",
+      "mcp-types": "2.0.0",
+      "pytest": "9.1.1"
+    },
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "provider": "hashing fixtures except explicit isolated install/model checks",
+    "python": "3.14.6"
+  },
+  "executed_nodes": [
+    "tests/unit/engram/test_v1_schema.py::test_asset_containment_and_digest",
+    "tests/unit/engram/test_v1_schema.py::test_declared_depends_on_pins_to_relations_requires",
+    "tests/unit/engram/test_v1_schema.py::test_identity_preserved",
+    "tests/unit/engram/test_v1_schema.py::test_metadata_and_asset_digests_are_stable",
+    "tests/unit/engram/test_v1_schema.py::test_render_as_refuses_v1_to_v02_downgrade",
+    "tests/unit/engram/test_v1_schema.py::test_render_frontmatter_v1_is_pure_for_body_digest",
+    "tests/unit/engram/test_v1_schema.py::test_required_unknown_rejected",
+    "tests/unit/engram/test_v1_schema.py::test_routing_body_digest_is_lf_normalized_and_distinct_from_ids",
+    "tests/unit/engram/test_v1_schema.py::test_shared_relation_fixtures",
+    "tests/unit/engram/test_v1_schema.py::test_v1_roundtrip_render_preserves_procedure_raw",
+    "tests/unit/engram/test_v1_schema.py::test_validate_frontmatter_rejects_traversal_asset_key",
+    "tests/unit/engram/test_v1_schema.py::test_version_constraint_rejects_wildcard_and_or"
+  ],
+  "gate": "SCHEMA",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "obligation": "frozen-schema",
+  "producer": "Vivi /root/v1_release_evidence",
+  "review_status": "PENDING_EVIDENCE_REVIEW",
+  "reviewer": null,
+  "schema": "magicite/release-witness/1",
+  "scope": "Mechanical local evidence only; independently reviewed report required before treating this witness as accepted.",
+  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+  "status": "PASS"
+}

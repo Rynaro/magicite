@@ -1,0 +1,57 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/evidence/test-results.json",
+      "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+    },
+    {
+      "path": "docs/releases/v1/evidence/pytest.txt",
+      "sha256": "f4542a6d992b5a28d86d11663a663bc4c2f180e469fc53a9d51ce257d063b991"
+    },
+    {
+      "path": "docs/releases/v1/privacy-data-map.md",
+      "sha256": "729383b1560c885d9eca312d4d7353ae0ca2758ab9c0a23cc5132c213904d279"
+    },
+    {
+      "path": "src/magicite/core/evidence.py",
+      "sha256": "6447070f74d0d43fc1d01fe1087939b1c2c4465432f4a15c34705b6991dc7490"
+    },
+    {
+      "path": "tests/unit/core/test_evidence.py",
+      "sha256": "d1fb89c9dd568b1283be1c3ef4b32de3ba210878eef57224297a133da252361d"
+    }
+  ],
+  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+  "environment": {
+    "dependency_note": "MCP and mcp-types 2.0.0 match uv.lock; remaining shared-site dependencies are recorded runtime, not claimed full-lock recreation.",
+    "interpreter": "/private/tmp/s14-mcp200/bin/python",
+    "packages": {
+      "magicite": "0.3.1",
+      "mcp": "2.0.0",
+      "mcp-types": "2.0.0",
+      "pytest": "9.1.1"
+    },
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "provider": "hashing fixtures except explicit isolated install/model checks",
+    "python": "3.14.6"
+  },
+  "executed_nodes": [
+    "tests/unit/core/test_evidence.py::test_enqueue_receipt_never_persists_raw_query",
+    "tests/unit/core/test_evidence.py::test_event_id_idempotence",
+    "tests/unit/core/test_evidence.py::test_provenance_and_support",
+    "tests/unit/core/test_evidence.py::test_refuse_raw_query_in_durable_event"
+  ],
+  "gate": "PRIVACY",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "obligation": "data-map",
+  "producer": "Vivi /root/v1_release_evidence",
+  "review_status": "PENDING_EVIDENCE_REVIEW",
+  "reviewer": null,
+  "schema": "magicite/release-witness/1",
+  "scope": "Mechanical local evidence only; independently reviewed report required before treating this witness as accepted.",
+  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+  "status": "PASS"
+}

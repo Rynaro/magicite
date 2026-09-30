@@ -1,0 +1,435 @@
+{
+  "criterion_ledger": {
+    "path": "docs/releases/v1/criterion-ledger.json",
+    "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+  },
+  "draft_only": true,
+  "external": null,
+  "gates": [
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/evidence/policy-nonadaptive-default.json",
+          "sha256": "2df7dd79413f9389b92c5c4c02674900f51a020cfa9a007de592821439bfef31"
+        },
+        {
+          "path": "docs/releases/v1/evidence/policy-dream-isolation.json",
+          "sha256": "58ccaadae65788682ca7678e581865dfa8e7aa3161d3edf31892df806808531c"
+        },
+        {
+          "path": "docs/releases/v1/evidence/policy-explicit-experimental.json",
+          "sha256": "f7ecbd762c5e5a23e0af942ba19de563e8d3b95775761954dddc1195ce42a4dc"
+        },
+        {
+          "path": "docs/releases/v1/evidence/policy-pinned-incumbent.json",
+          "sha256": "ac480485f10b4715dc740ae11586d5e4f89ada5afdac00b96b31ce7b2c77ab13"
+        }
+      ],
+      "id": "POLICY",
+      "obligations": [
+        "nonadaptive-default",
+        "dream-isolation",
+        "explicit-experimental",
+        "pinned-incumbent"
+      ],
+      "reason": "Nonadaptive default, Dream isolation, explicit experimental selection and dense-v1 incumbent have executable witnesses.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "EVIDENCE",
+      "obligations": [
+        "manifested-predictions",
+        "independent-labels",
+        "claim-ci",
+        "negative-history"
+      ],
+      "reason": "Integrity and claim CI fixtures pass and negative history is retained, but independent final label provenance and a complete new-run chain are absent.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/evidence/schema-frozen-schema.json",
+          "sha256": "7f217064241d00d6a15f155ea8c071c69d6ccf0ca9e2cb2206d321ae051ed974"
+        },
+        {
+          "path": "docs/releases/v1/evidence/schema-roundtrip-corpus.json",
+          "sha256": "8e730aa957ce29ea14c89874f6bba20ab2910e0610154f1f52b1be53f11affa4"
+        },
+        {
+          "path": "docs/releases/v1/evidence/schema-migration-downgrade-replay.json",
+          "sha256": "d4aaaacef47a1da59ff0cabb07a97e2188cb64d06c57c16629aadbc1f67f94d7"
+        }
+      ],
+      "id": "SCHEMA",
+      "obligations": [
+        "frozen-schema",
+        "roundtrip-corpus",
+        "migration-downgrade-replay"
+      ],
+      "reason": "Frozen schema, A01 roundtrip identity, migration/replay and complete-backup downgrade witnesses are available.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "TRUST",
+      "obligations": [
+        "offline-tamper",
+        "local-review-revocation",
+        "server-origin",
+        "adversarial-corpus"
+      ],
+      "reason": "Known live revocation mirror deletion can reinstate earlier admission; hardening remains a human decision.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "FAIL",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        },
+        {
+          "path": "docs/releases/v1/evidence/trust-mirror-loss.json",
+          "sha256": "f4f8132743360a1235ec0977c8019bc296cc3a51baacc47d46777334c4a3110b"
+        },
+        {
+          "path": "docs/releases/v1/evidence/reproduce-trust-mirror-loss.py",
+          "sha256": "ef800dbb9aa296ec68a6cc132d38a7e79dbbac3e4cd2231bfa530516dc95115b"
+        },
+        {
+          "path": "docs/releases/v1/trust-ledger-proposal.md",
+          "sha256": "29757f177ad5e50ecdb8f49901c115f78fd17e14b969ba8c740cb4daa6d81f6e"
+        },
+        {
+          "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
+          "sha256": "f342419244f3fc6b9a25ae81e8017c484ee58ca01dbf9691076c2e23784d31c5"
+        },
+        {
+          "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
+          "sha256": "f342419244f3fc6b9a25ae81e8017c484ee58ca01dbf9691076c2e23784d31c5"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "ROUTING",
+      "obligations": [
+        "full-content-indexes",
+        "eligibility",
+        "explanations",
+        "calibrated-abstention",
+        "e3-quality"
+      ],
+      "reason": "Index/eligibility/explanation mechanics exist; official final split, paired E3 quality and empirical abstention bounds are unrun.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "COMPOSITION",
+      "obligations": [
+        "independent-structural-corpus",
+        "actual-host-outcomes",
+        "safe-invalid-plan"
+      ],
+      "reason": "Structural fixtures and bounded safe invalid plans exist; independently authored actual host-task execution evidence is unavailable.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/evidence/privacy-data-map.json",
+          "sha256": "a599a25a1be2f3a2f763c99a4044d8da953b6da180baa317b7e8a5b39ccc756b"
+        },
+        {
+          "path": "docs/releases/v1/evidence/privacy-no-default-raw.json",
+          "sha256": "8efd4557156e5e9d70b58e685271e8afc65e469d8ab9b347396bc2cf4d8f75e3"
+        },
+        {
+          "path": "docs/releases/v1/evidence/privacy-historical-cleanup.json",
+          "sha256": "68bea3c5a742534214737e6456c6e4ce733af32dfe38cbf1e5d43e08ebb5a7cd"
+        },
+        {
+          "path": "docs/releases/v1/evidence/privacy-checkpoint-rpo.json",
+          "sha256": "2c1fac5e4f22e132112bc8d732b8ebc5ab89434243e7530ee3fbc2923b041d0c"
+        },
+        {
+          "path": "docs/releases/v1/evidence/privacy-lifecycle-tests.json",
+          "sha256": "e3f58a746b1d60bcdbcd346f002fc7c3579190fbc6ae0e73980df131822e3240"
+        }
+      ],
+      "id": "PRIVACY",
+      "obligations": [
+        "data-map",
+        "no-default-raw",
+        "historical-cleanup",
+        "checkpoint-rpo",
+        "lifecycle-tests"
+      ],
+      "reason": "Data map, default minimization, historical cleanup, checkpoint RPO and export/delete/retention/restore witnesses are available.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/evidence/learning-containment.json",
+          "sha256": "cf48c85dbce9ec01808d7586d058891da2e7ddbccf68bf69c6e596d4e357d55f"
+        },
+        {
+          "path": "docs/releases/v1/evidence/learning-fully-gated-or-unavailable.json",
+          "sha256": "34e3dfe2a08dc59fbf61031f5c7b9d376ee95b0725875a9133c097f3a4838bf6"
+        }
+      ],
+      "id": "LEARNING",
+      "obligations": [
+        "containment",
+        "fully-gated-or-unavailable"
+      ],
+      "reason": "Stable containment is mandatory and tested; optional S10 efficacy explicitly held/unavailable.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "PROTOCOL",
+      "obligations": [
+        "schemas",
+        "retry-cancel-errors",
+        "advertised-transcripts"
+      ],
+      "reason": "Generic probes exist; advertised real Claude Code version/protocol transcript remains absent.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "RELIABILITY",
+      "obligations": [
+        "all-store-kill-replay-fencing",
+        "backup-restore-upgrade-matrix",
+        "zero-write-doctor"
+      ],
+      "reason": "Local kill/replay/fencing/backup/restore/doctor tests pass; complete advertised OS/channel/published-upgrade/store matrix has not run.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "PERFORMANCE",
+      "obligations": [
+        "dedicated-e6",
+        "production-model",
+        "supported-scale"
+      ],
+      "reason": "No dedicated production E6 budgets or licensed real 10k corpus evidence; hashing completeness is not performance qualification.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "DISTRIBUTION",
+      "obligations": [
+        "published-installs",
+        "supply-chain",
+        "testpypi-rehearsal"
+      ],
+      "reason": "Published channel installs, fetched signatures/checksums/SBOM/provenance and TestPyPI rehearsal are unrun; no publishing authority.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "DOCS",
+      "obligations": [
+        "generated-reference-claims",
+        "tested-operator-path",
+        "redirects",
+        "support-security-governance"
+      ],
+      "reason": "Generated/claims/support checks and scripted tutorial pass; required independent operator transcript remains absent.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "RC-CONTRACT",
+      "obligations": [
+        "two-independent-rcs",
+        "stable-fingerprints",
+        "passing-matrix"
+      ],
+      "reason": "No two independently built RCs across the declared supported matrix; validator fixtures are not RC artifacts.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "EXTERNAL",
+      "obligations": [
+        "independent-reproduction-or-two-pilots"
+      ],
+      "reason": "No independent external reproduction or two external production pilots; agent review is not product validation.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "SECURITY",
+      "obligations": [
+        "threat-model",
+        "bounded-fuzz-adversarial",
+        "critical-resolved"
+      ],
+      "reason": "Known trust-history integrity weakness remains unresolved; bounded fuzz and complete security evidence are also missing.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "FAIL",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        },
+        {
+          "path": "docs/releases/v1/evidence/trust-mirror-loss.json",
+          "sha256": "f4f8132743360a1235ec0977c8019bc296cc3a51baacc47d46777334c4a3110b"
+        },
+        {
+          "path": "docs/releases/v1/evidence/reproduce-trust-mirror-loss.py",
+          "sha256": "ef800dbb9aa296ec68a6cc132d38a7e79dbbac3e4cd2231bfa530516dc95115b"
+        },
+        {
+          "path": "docs/releases/v1/trust-ledger-proposal.md",
+          "sha256": "29757f177ad5e50ecdb8f49901c115f78fd17e14b969ba8c740cb4daa6d81f6e"
+        },
+        {
+          "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
+          "sha256": "f342419244f3fc6b9a25ae81e8017c484ee58ca01dbf9691076c2e23784d31c5"
+        },
+        {
+          "path": "docs/releases/v1/evidence/trust-diagnostic-provenance.json",
+          "sha256": "f342419244f3fc6b9a25ae81e8017c484ee58ca01dbf9691076c2e23784d31c5"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "GA-ALL",
+      "obligations": [
+        "all-required-gates",
+        "maintainer-signoff",
+        "fetched-artifacts"
+      ],
+      "reason": "Required gates do not all pass; maintainer release sign-off and fetched published artifact checks are absent.",
+      "review_status": "PENDING_EVIDENCE_REVIEW",
+      "status": "FAIL",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/criterion-ledger.json",
+          "sha256": "b91d5e6ea9c85ea9ece676823bbe8654333c4b8cda6ec9c8ac229e82c22b4950"
+        }
+      ]
+    }
+  ],
+  "held_decisions": [
+    "Trust ledger proposal/custody",
+    "MCP surface amendment (16 tools remain)",
+    "Optional S10",
+    "Publishing",
+    "Worktree deletion",
+    "Shared venv resync"
+  ],
+  "maintainer_signoff": null,
+  "release_candidates": [],
+  "schema": "magicite/release-manifest/1",
+  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+  "source_dirty": true,
+  "source_scope": "Exact tracked code eee0fd8; untracked docs/releases/v1 were being assembled during the recorded run. Runtime/test source bytes unchanged; not a clean RC."
+}

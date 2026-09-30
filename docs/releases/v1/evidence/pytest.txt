@@ -1,0 +1,27 @@
+.sssss.........ssss..................................................... [  6%]
+........................................................................ [ 13%]
+........................................................................ [ 20%]
+....................................s................................... [ 27%]
+........................................................................ [ 34%]
+........................................................................ [ 41%]
+........................................................................ [ 48%]
+........................................................................ [ 55%]
+........................................................................ [ 62%]
+........................................................................ [ 69%]
+........................................................................ [ 76%]
+........................................................................ [ 83%]
+........................................................................ [ 90%]
+........................................................................ [ 97%]
+..........................                                               [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/acceptance/test_docker_smoke.py:184: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec §7.2 VG-9)
+SKIPPED [1] tests/acceptance/test_docker_smoke.py:200: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec §7.2 VG-9)
+SKIPPED [1] tests/acceptance/test_docker_smoke.py:222: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec §7.2 VG-9)
+SKIPPED [1] tests/acceptance/test_docker_smoke.py:256: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec §7.2 VG-9)
+SKIPPED [1] tests/acceptance/test_docker_smoke.py:284: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec §7.2 VG-9)
+SKIPPED [1] tests/acceptance/test_install_channels.py:272: channel pip-pypi (pypi) reserved/unevaluated until S13-published-channels (after S11/S15); version/digest unset
+SKIPPED [1] tests/acceptance/test_install_channels.py:272: channel pipx (pipx) reserved/unevaluated until S13-published-channels (after S11/S15); version/digest unset
+SKIPPED [1] tests/acceptance/test_install_channels.py:272: channel uvx (uvx) reserved/unevaluated until S13-published-channels (after S11/S15); version/digest unset
+SKIPPED [1] tests/acceptance/test_install_channels.py:272: channel oci-digest (oci) reserved/unevaluated until S13-published-channels (after S11/S15); version/digest unset
+SKIPPED [1] tests/unit/core/test_communities.py:96: could not import 'igraph': No module named 'igraph'
+1024 passed, 10 skipped in 128.50s (0:02:08)

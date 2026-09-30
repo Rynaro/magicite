@@ -1,0 +1,112 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/evidence/test-results.json",
+      "sha256": "30dd8db3ef5c2759821faf5cf255a89c23d24766c29e03e33bd8dbc638879f1d"
+    },
+    {
+      "path": "docs/releases/v1/evidence/pytest.txt",
+      "sha256": "f4542a6d992b5a28d86d11663a663bc4c2f180e469fc53a9d51ce257d063b991"
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/amendments/A02-c6-export-deletion-scope.md",
+      "sha256": "daee4e0b984038275615f9d309439bc2281804f709e2223a3619734bf5ba6a47"
+    },
+    {
+      "path": "tests/integration/test_backup_restore_v1.py",
+      "sha256": "360cbd5fcfa94627efd1169cbcd5e5d91ad8e21ddf78f64ba9829f0ff8e2c955"
+    },
+    {
+      "path": "tests/integration/test_evidence_recovery.py",
+      "sha256": "151349d53baf0a69421502efe7efe5cb04a74fa7d336cebce810928042a88911"
+    },
+    {
+      "path": "tests/unit/core/test_evidence_atlas_fixes.py",
+      "sha256": "aeaab2eb3dfa67b8f56fb28697a8bf129af50dcedfa3ad4a11b5873f0e8916db"
+    },
+    {
+      "path": "tests/unit/core/test_evidence_round3_export_registry.py",
+      "sha256": "90a63af65540fe65669cf943292395934e2ebbe1893cf7cbb414efed4708b9a9"
+    },
+    {
+      "path": "tests/unit/core/test_evidence_round6_authority.py",
+      "sha256": "a8f4dd049ece137a3edd40d813bd77724c4851d0aeedf45adc077592a426fef8"
+    }
+  ],
+  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-final-full-suite.xml",
+  "environment": {
+    "dependency_note": "MCP and mcp-types 2.0.0 match uv.lock; remaining shared-site dependencies are recorded runtime, not claimed full-lock recreation.",
+    "interpreter": "/private/tmp/s14-mcp200/bin/python",
+    "packages": {
+      "magicite": "0.3.1",
+      "mcp": "2.0.0",
+      "mcp-types": "2.0.0",
+      "pytest": "9.1.1"
+    },
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "provider": "hashing fixtures except explicit isolated install/model checks",
+    "python": "3.14.6"
+  },
+  "executed_nodes": [
+    "tests/integration/test_backup_restore_v1.py::test_backup_excludes_restore_generation_markers",
+    "tests/integration/test_backup_restore_v1.py::test_complete_restore",
+    "tests/integration/test_backup_restore_v1.py::test_custody_key_install_no_rekey",
+    "tests/integration/test_backup_restore_v1.py::test_deleted_privacy_tombstone_refuses_preserve",
+    "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_refuses_preserve",
+    "tests/integration/test_backup_restore_v1.py::test_missing_stale_overlay_closed",
+    "tests/integration/test_backup_restore_v1.py::test_poison_live_overlay_refuses_preserve",
+    "tests/integration/test_backup_restore_v1.py::test_policy_reapplication",
+    "tests/integration/test_backup_restore_v1.py::test_registry_id_mismatch_rejected",
+    "tests/integration/test_backup_restore_v1.py::test_restore_preserves_live_database_fence_and_immediate_writer[False]",
+    "tests/integration/test_backup_restore_v1.py::test_restore_preserves_live_database_fence_and_immediate_writer[True]",
+    "tests/integration/test_backup_restore_v1.py::test_restore_preserves_live_database_fence_and_immediate_writer[registry/./skill-graph.db]",
+    "tests/integration/test_backup_restore_v1.py::test_restore_preserves_live_database_fence_and_immediate_writer[registry/SKILL-GRAPH.DB]",
+    "tests/integration/test_backup_restore_v1.py::test_route_refused_while_reconciliation_required",
+    "tests/integration/test_backup_restore_v1.py::test_snapshot_refuses_corrupt_tombstones",
+    "tests/integration/test_backup_restore_v1.py::test_tamper_recovery_control_plane_stays_closed",
+    "tests/integration/test_evidence_recovery.py::test_ack_survives_rebuild",
+    "tests/integration/test_evidence_recovery.py::test_deletion_covers_managed_exports_only",
+    "tests/integration/test_evidence_recovery.py::test_export_carries_copy_deletion_notice",
+    "tests/integration/test_evidence_recovery.py::test_migration_slot_six_applied",
+    "tests/integration/test_evidence_recovery.py::test_privacy_history_and_export",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_checkpoint_crash_between_index_and_meta",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_checkpoint_crash_between_segment_and_index",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_checkpoint_no_duplicate_sequence_after_meta_rewind",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_checkpoint_replayed_after_index_meta_wipe",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_delete_physically_erases_payload_sentinel",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_enqueue_never_calls_fingerprint_key_disk",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_enqueue_with_failing_file_io_does_not_raise",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_export_rehmac_consistent_within_unlinkable_across",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_obs_events_redacts_raw_query_field",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_rebuild_fails_closed_on_conflicting_duplicate_digest",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_rebuild_restores_index_so_load_event_works",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_segment_rotation_seals_and_opens_new",
+    "tests/unit/core/test_evidence_atlas_fixes.py::test_torn_tail_preserves_complete_lines",
+    "tests/unit/core/test_evidence_round3_export_registry.py::test_checkpoint_after_tombstone_crash_completes_physical_purge",
+    "tests/unit/core/test_evidence_round3_export_registry.py::test_corrupt_registered_exports_fails_closed_on_delete",
+    "tests/unit/core/test_evidence_round3_export_registry.py::test_export_outside_allowed_roots_is_refused",
+    "tests/unit/core/test_evidence_round3_export_registry.py::test_poisoned_registry_outside_roots_leaves_victim_untouched",
+    "tests/unit/core/test_evidence_round3_export_registry.py::test_registry_entry_with_changed_bytes_is_not_deleted",
+    "tests/unit/core/test_evidence_round3_export_registry.py::test_registry_never_rmtrees_directory_entries",
+    "tests/unit/core/test_evidence_round3_export_registry.py::test_symlinked_export_dir_is_refused",
+    "tests/unit/core/test_evidence_round3_export_registry.py::test_valid_managed_export_files_are_deleted",
+    "tests/unit/core/test_evidence_round6_authority.py::test_corrupt_stub_in_sealed_segment_never_returns_live",
+    "tests/unit/core/test_evidence_round6_authority.py::test_forged_meta_retention_ignored_uses_config",
+    "tests/unit/core/test_evidence_round6_authority.py::test_mac_valid_marker_with_pending_payload_still_purges",
+    "tests/unit/core/test_evidence_round6_authority.py::test_migrate_tombstone_mac_refused_when_already_initialized",
+    "tests/unit/core/test_evidence_round6_authority.py::test_missing_mac_after_truncate_fails_closed_not_healed"
+  ],
+  "gate": "PRIVACY",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "obligation": "lifecycle-tests",
+  "producer": "Vivi /root/v1_release_evidence",
+  "review_status": "PENDING_EVIDENCE_REVIEW",
+  "reviewer": null,
+  "schema": "magicite/release-witness/1",
+  "scope": "Mechanical local evidence only; independently reviewed report required before treating this witness as accepted.",
+  "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+  "status": "PASS"
+}
