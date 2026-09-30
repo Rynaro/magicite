@@ -153,3 +153,39 @@ def test_v1_payload_parity(cfg, embedder) -> None:
     finally:
         state.conn.close()
         state.writer_conn.close()
+
+
+def test_provider_exception_text_never_reaches_logs_or_wire(cfg, monkeypatch) -> None:
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from magicite.errors import MagiciteError
+
+    state = app_mod.build_state(cfg)
+    captured = []
+    monkeypatch.setattr(
+        app_mod,
+        "logger",
+        SimpleNamespace(
+            warning=lambda *args, **kwargs: captured.append((args, kwargs)),
+            error=lambda *args, **kwargs: captured.append((args, kwargs)),
+        ),
+    )
+    from magicite.mcp.registry import TOOL_REGISTRY
+
+    original = TOOL_REGISTRY["introspect"]
+    try:
+        for exception_type in (MagiciteError, RuntimeError):
+
+            def fail(ctx, params, exception_type=exception_type):
+                raise exception_type("provider echoed secret-canary-query")
+
+            monkeypatch.setitem(TOOL_REGISTRY, "introspect", replace(original, handler=fail))
+            result = app_mod.dispatch_call(state, "introspect", {})
+            assert result.is_error
+            assert "secret-canary-query" not in str(result)
+        assert captured
+        assert "secret-canary-query" not in str(captured)
+    finally:
+        state.conn.close()
+        state.writer_conn.close()

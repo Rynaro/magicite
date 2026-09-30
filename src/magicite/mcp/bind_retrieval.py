@@ -92,6 +92,8 @@ def _project_plan(
     disclose_nodes: bool,
 ) -> PlanOut | None:
     """Project Plan/1. Invalid/abstained composition discloses diagnostics only."""
+    if not disclose_nodes:
+        authoritative_digest = None
     if plan is None and authoritative_digest is None:
         return None
     if plan is None:
@@ -139,7 +141,7 @@ def _project_plan(
             plan_digest=authoritative_digest,
             snapshot_id=getattr(plan, "snapshot_id", None),
             policy_id=getattr(plan, "policy_id", None),
-            policy_digest=getattr(plan, "policy_digest", None),
+            policy_digest=None,
             executable=False,
             schema_version=getattr(plan, "schema_version", None),
         )
@@ -230,6 +232,8 @@ def project_route_output(outcome: router_mod.RouteOutcome) -> RouteOutput:
         and getattr(plan, "status", None) == "valid"
         and getattr(plan, "executable", False)
     )
+    if not disclose_nodes:
+        authoritative_digest = None
     plan_out = _project_plan(
         plan,
         authoritative_digest=authoritative_digest,
@@ -495,8 +499,10 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
     file_path = Path(ctx.cfg.project_root) / row["path"]
     elig_subject: eligibility_mod.EligibilitySubject
     try:
-        artifact, _doc = parser_mod.parse_artifact_file(
-            file_path,
+        raw_text = file_path.read_text(encoding="utf-8")
+        artifact, _doc = parser_mod.parse_artifact(
+            raw_text,
+            relpath=str(row["path"]),
             registry_root=Path(ctx.cfg.project_root),
             admit=False,
             require_asset_files=False,
@@ -510,8 +516,14 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
                 id=engram_id, version=int(getattr(artifact, "version", 1) or 1)
             )
     except Exception:
-        # Legacy 0.2 / non-v1 artifacts: digests + trust still gate disclosure.
-        elig_subject = eligibility_mod.EligibilitySubject(id=engram_id, version=1)
+        return _refuse_stale(row["name"], params.level, codes=["stale_decision", "body_unavailable"])
+
+    # Bind disclosure to the same bytes parsed above, including a concurrent edit
+    # after the trust view was captured. Never reopen the path for rendering.
+    if artifact.content_sha256 != params.expected_content_digest:
+        return _refuse_stale(
+            row["name"], params.level, codes=["stale_decision", "content_digest_drift"]
+        )
 
     elig = eligibility_mod.evaluate_eligibility(
         elig_subject,
@@ -533,11 +545,15 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
     if hard_denials:
         return _refuse_stale(row["name"], params.level, codes=list(elig.reason_codes))
 
-    parsed = parser_mod.parse_file(file_path, registry_root=Path(ctx.cfg.project_root))
-    body = parsed.engram.body
-
+    body = artifact.body
+    _, body_text = parser_mod.split_frontmatter(raw_text)
+    # Preserve original prose order instead of reconstructing only numbered steps.
+    # Keep executable blocks out of L2, as in the legacy body adapter.
+    procedure_text = "\n".join(
+        parser_mod._split_sections(parser_mod._EXEC_BLOCK_RE.sub("", body_text)).get("procedure", [])
+    )
     sections: list[tuple[str, str]] = [
-        ("procedure", _render_steps(body.procedure)),
+        ("procedure", procedure_text),
         ("pitfalls", _render_pitfalls(body.pitfalls)),
     ]
     if params.level == "L3":

@@ -42,7 +42,7 @@ def redact_absolute_paths(value: str) -> str:
     return _ABS_PATH_RE.sub("<redacted-path>", value)
 
 
-def redact_error_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def redact_error_payload(payload: dict[str, Any], *, strict: bool = False) -> dict[str, Any]:
     """Deep-copy an error envelope, scrubbing paths and secret/privacy keys."""
     sensitive = _sensitive_keys()
 
@@ -71,6 +71,9 @@ def redact_error_payload(payload: dict[str, Any]) -> dict[str, Any]:
                     return "<redacted-path>"
                 if key_hint in privacy_sensitive_argument_keys():
                     return "<redacted>"
+            if strict and key_hint != "code":
+                scrubbed = redact_absolute_paths(node)
+                return scrubbed if scrubbed == "<redacted-path>" else "<redacted>"
             return redact_absolute_paths(node)
         return node
 

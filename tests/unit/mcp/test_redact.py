@@ -56,3 +56,18 @@ def test_error_result_redacts_raw_query() -> None:
     envelope = _error_result(err).structured_content
     assert envelope["details"]["query"] == "<redacted>"
     assert "secret project" not in json_dumps(envelope)
+
+
+def test_error_envelope_drops_untrusted_free_text() -> None:
+    from magicite.errors import MagiciteError
+
+    canary = "secret-canary-query"
+    out = _error_result(
+        MagiciteError(
+            f"provider rejected query: {canary}",
+            hint=canary,
+            details={"diagnostic": canary},
+        )
+    )
+    assert canary not in json_dumps(out.structured_content)
+    assert canary not in out.content[0].text

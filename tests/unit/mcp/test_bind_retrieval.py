@@ -108,6 +108,8 @@ def test_composition_invalid_abstain_projects_no_nodes(cfg, db_conn, embedder) -
     out = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=5))
 
     assert out.status == "abstained"
+    assert out.plan_digest is None
+    assert out.plan is None or out.plan.plan_digest is None
     assert router_mod.REASON_COMPOSITION_INVALID in out.reason_codes
     assert eligibility_mod.REASON_DANGLING_DEPENDENCY in out.reason_codes
     assert out.candidates == []
@@ -319,7 +321,7 @@ def test_withheld_valid_plan_is_not_advertised_executable(cfg, db_conn, embedder
     assert plan_out.nodes == []
     assert plan_out.edges == []
     assert plan_out.topological_order == []
-    assert plan_out.plan_digest == outcome.decision.plan_digest
+    assert plan_out.plan_digest is None
 
 
 def test_plan_digest_mismatch_fails_closed(cfg, db_conn, embedder) -> None:
