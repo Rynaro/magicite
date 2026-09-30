@@ -49,7 +49,8 @@ from magicite.core import communities as communities_mod
 from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import lifecycle as lifecycle_mod
 from magicite.core import trust as trust_mod
-from magicite.core import writer_guard
+from magicite.core import trust_artifacts, writer_guard
+from magicite.core.trust_custodian import CustodianError
 from magicite.embeddings.base import Embedder, contraindication_model_name
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
@@ -535,6 +536,13 @@ def _ingest_one(
                 [],
             )
 
+    if cfg is not None:
+        try:
+            trust_artifacts.require_bound_artifact(cfg, cfg.project_root / engram.path)
+        except (CustodianError, OSError, parser_mod.EngramParseError):
+            return (None, ValidationError(path=engram.path,
+                    message="authenticated enrollment artifact required"), False, [])
+
     result = lint_mod.lint(engram, profile=profile)  # type: ignore[arg-type]
     if profile == "strict" and not result.ok:
         msg = "; ".join(f"{i.rule}: {i.message}" for i in result.errors)
@@ -712,7 +720,14 @@ def _ingest_skillmd_one(
         )
 
     # spec §5.3 step 6: write before step 7 (index).
-    writer_mod.write_engram(target_path, engram)
+    if cfg is not None:
+        trust_artifacts.publish_new_artifact(
+            cfg, target_path, writer_mod.render_document(engram, None).encode(), actor=actor
+        )
+        artifact, _doc = parser_mod.load_artifact_file(target_path, registry_root=project_root)
+        engram = _artifact_to_engram(artifact, intake_channel="skillmd_import")
+    else:
+        writer_mod.write_engram(target_path, engram)
 
     entry, verr, _skipped, dangling = _ingest_one(
         conn,
@@ -816,17 +831,14 @@ def register(
                 outcome.validation_errors.append(ValidationError(path=str(file_path), message=str(exc)))
                 continue
 
-            # C10 staging: external intake is copied into the registry root so
-            # rebuild/sync cannot drop the quarantined/pending bytes.
-            if not inside:
-                staged = cfg.registry_dir / f"{engram.frontmatter.name}.egr.md"
-                staged.parent.mkdir(parents=True, exist_ok=True)
-                staged.write_bytes(file_path.read_bytes())
-                engram.path = str(staged.resolve().relative_to(project_root))
-                try:
-                    engram.file_mtime_ns = staged.stat().st_mtime_ns
-                except OSError:
-                    pass
+            target = file_path if inside else cfg.registry_dir / f"{engram.frontmatter.name}.egr.md"
+            try:
+                trust_artifacts.publish_new_artifact(cfg, target, file_path.read_bytes(), actor="register")
+                artifact, _doc = parser_mod.load_artifact_file(target, registry_root=project_root)
+                engram = _artifact_to_engram(artifact, intake_channel=channel)
+            except (CustodianError, parser_mod.EngramParseError) as exc:
+                outcome.validation_errors.append(ValidationError(path=str(file_path), message=str(exc)))
+                continue
 
             entry, verr, skipped, dangling = _ingest_one(
                 conn,

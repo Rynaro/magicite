@@ -176,3 +176,90 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
         if not isinstance(path, str) or path.startswith("/") or ".." in path.split("/"):
             raise CustodianError("invalid transform resource path")
         AssetDescriptor.model_validate(value)
+
+
+def publish_new_artifact(
+    cfg: Any, target: Any, source: bytes, *, actor: str, source_signature: dict[str, Any] | None = None
+) -> None:
+    """Publish new intake through non-authorizing, exact-byte journal lineage.
+
+    Existing unmarked identities require explicit reviewed legacy migration.
+    This helper never runs from sync or silently retargets an old approval.
+    """
+    from pathlib import Path
+
+    from magicite.core.trust_journal import _directory_fd, _read_file, _replace_file
+    from magicite.core.writer_guard import bound_journal
+
+    journal, held, fence = bound_journal(cfg)
+    snapshot = journal.snapshot()
+    target = Path(target)
+    target.resolve().relative_to(cfg.registry_dir.resolve())
+    artifact, _ = parser.parse_artifact(source.decode(), relpath=str(target), admit=True)
+    try:
+        require_enrollment_marker(artifact, journal.registry_id)
+        marked = True
+    except CustodianError:
+        marked = False
+    if artifact.id in snapshot.latest_by_engram and not marked:
+        raise CustodianError("existing identity requires reviewed enrollment migration")
+    if marked and any(
+        record["kind"] == "artifact_transform"
+        and record["payload"]["engram_id"] == artifact.id
+        and record["payload"]["target_digest"] == hashlib.sha256(source).hexdigest()
+        for record in snapshot.records
+    ):
+        held.assert_owned()
+        with _directory_fd(target.parent, create=True) as directory:
+            try:
+                current = _read_file(directory, target.name)
+            except FileNotFoundError:
+                current = None
+            if current != source:
+                _replace_file(directory, target.name, source, held.assert_owned)
+        held.assert_owned()
+        return
+    transformed = mark_artifact(
+        source,
+        registry_id=journal.registry_id,
+        relpath=str(target),
+        actor=actor,
+        source_signature=source_signature,
+    )
+    held.assert_owned()
+    source_digest = hashlib.sha256(source).hexdigest()
+    with _directory_fd(cfg.data_dir / "trust" / "sources", create=True) as directory:
+        try:
+            prior = _read_file(directory, source_digest)
+        except FileNotFoundError:
+            _replace_file(directory, source_digest, source, held.assert_owned)
+        else:
+            if prior != source:
+                raise CustodianError("source archive digest mismatch")
+    journal.append(
+        record_id="transform-" + hashlib.sha256(_bytes(transformed.lineage)).hexdigest(),
+        kind="artifact_transform",
+        payload=transformed.lineage,
+        fence=fence,
+        assert_owned=held.assert_owned,
+    )
+    with _directory_fd(target.parent, create=True) as directory:
+        _replace_file(directory, target.name, transformed.target, held.assert_owned)
+    held.assert_owned()
+
+
+def require_bound_artifact(cfg: Any, path: Any) -> Any:
+    """Sync/read guard: marker alone never establishes authenticated lineage."""
+    from magicite.core.writer_guard import journal_for
+
+    artifact, _ = parser.load_artifact_file(path, registry_root=cfg.project_root)
+    snapshot = journal_for(cfg).snapshot()
+    require_enrollment_marker(artifact, snapshot.head["registry_id"])
+    if not any(
+        record["kind"] == "artifact_transform"
+        and record["payload"]["engram_id"] == artifact.id
+        and record["payload"]["target_digest"] == artifact.content_sha256
+        for record in snapshot.records
+    ):
+        raise CustodianError("artifact has no authenticated transformed content identity")
+    return artifact

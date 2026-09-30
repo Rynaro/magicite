@@ -299,3 +299,66 @@ def test_revoked_signer_is_denied_with_matching_current_policy_before_commit(enr
     after = trust.authenticated_snapshot(cfg).head
     assert after["head_sequence"] == before["head_sequence"]
     assert after["head_mac"] == before["head_mac"]
+
+
+def test_register_publishes_bound_marker_and_preserves_source(enrolled):
+    import shutil
+
+    from magicite.core import registry, trust_artifacts
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.engram import parser
+
+    cfg, conn, store = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    target = cfg.registry_dir / "sample.egr.md"
+    shutil.copy(fixture, target)
+    source = target.read_bytes()
+    outcome = registry.register(cfg, conn, get_embedder(dim=256), path=".magicite/engrams")
+    assert outcome.ingested == 1
+    artifact, _ = parser.load_artifact_file(target, registry_root=cfg.project_root)
+    trust_artifacts.require_enrollment_marker(artifact, "r")
+    import hashlib
+
+    archive = cfg.data_dir / "trust/sources" / hashlib.sha256(source).hexdigest()
+    assert archive.read_bytes() == source
+    lineage = [r for r in store.committed_records("r") if r["kind"] == "artifact_transform"]
+    assert len(lineage) == 1
+    assert lineage[0]["payload"]["target_digest"] == hashlib.sha256(target.read_bytes()).hexdigest()
+    assert lineage[0]["payload"]["grants_admission"] is False
+    assert not registry.trust_view_for(cfg, conn, engram_id=artifact.id).admitted
+
+
+def test_sync_never_transforms_or_admits_unmarked_artifact(enrolled):
+    import shutil
+
+    from magicite.core import registry
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, store = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    target = cfg.registry_dir / "sample.egr.md"
+    shutil.copy(fixture, target)
+    source = target.read_bytes()
+    outcome = registry.sync(cfg, conn, get_embedder(dim=256))
+    assert outcome.validation_errors
+    assert target.read_bytes() == source
+    assert conn.execute("SELECT count(*) FROM engram").fetchone()[0] == 0
+    assert len(store.committed_records("r")) == 1
+
+
+def test_skill_import_marks_target_before_indexing(enrolled):
+    from magicite.core import registry, trust_artifacts
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, store = enrolled
+    fixture = (
+        Path(__file__).resolve().parents[2] / "fixtures/toy-registry/skills/wine-dxvk-cache-clear/SKILL.md"
+    )
+    intake = cfg.project_root / "SKILL.md"
+    intake.write_bytes(fixture.read_bytes())
+    outcome = registry.register(cfg, conn, get_embedder(dim=256), path=str(intake))
+    assert outcome.ingested == 1, outcome.validation_errors
+    row = conn.execute("SELECT path,content_sha256 FROM engram").fetchone()
+    artifact = trust_artifacts.require_bound_artifact(cfg, cfg.project_root / row["path"])
+    assert artifact.content_sha256 == row["content_sha256"]
+    assert store.committed_records("r")[1]["kind"] == "artifact_transform"
