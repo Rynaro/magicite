@@ -1,0 +1,63 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/evidence/test-results.json",
+      "sha256": "3f167526c8fffd3618d98b3dd6b00129d09ce5bb332d2d77c2abbb496d0b219e"
+    },
+    {
+      "path": "docs/releases/v1/evidence/pytest.txt",
+      "sha256": "c430f92b0f6a6ca5c5b72af26297bfab7c6ff3c09646cdd9799f1ead3a20f6e5"
+    },
+    {
+      "path": "docs/decisions/001-stable-dense-v1-incumbent.md",
+      "sha256": "8e7b914141d08ee713fe2b7fa1e741cc7ef07cef893460d5f5136b5fd1e3ed08"
+    },
+    {
+      "path": "src/magicite/core/policy_store.py",
+      "sha256": "f35c5f9688795543f45bc3db31a03b4707bf3bae9600e7a43e158ca79450f9a7"
+    },
+    {
+      "path": "tests/integration/test_stable_policy_activation.py",
+      "sha256": "bd36e848934723f154f88f8edefa97c5be5bc7d3c65df7f789f527a412d5f34c"
+    },
+    {
+      "path": "tests/unit/core/test_policy_boundary.py",
+      "sha256": "be012fc2afddc0af0ec882b970bc8227566eefa8e5e2f217341662f3da161725"
+    }
+  ],
+  "command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/s16-clean-full-suite.xml",
+  "environment": {
+    "dependency_note": "MCP and mcp-types 2.0.0 match uv.lock; remaining shared-site dependencies are recorded runtime, not claimed full-lock recreation.",
+    "interpreter": "/private/tmp/s14-mcp200/bin/python",
+    "packages": {
+      "magicite": "0.3.1",
+      "mcp": "2.0.0",
+      "mcp-types": "2.0.0",
+      "pytest": "9.1.1"
+    },
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "provider": "hashing fixtures except explicit isolated install/model checks",
+    "python": "3.14.6"
+  },
+  "executed_nodes": [
+    "tests/integration/test_stable_policy_activation.py::test_activation_without_learning",
+    "tests/unit/core/test_policy_boundary.py::test_dream_cannot_change_stable_policy",
+    "tests/unit/core/test_policy_boundary.py::test_experimental_is_explicit",
+    "tests/unit/core/test_policy_boundary.py::test_no_raw_query_logging",
+    "tests/unit/core/test_policy_boundary.py::test_stable_ignores_adaptation"
+  ],
+  "gate": "POLICY",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "obligation": "pinned-incumbent",
+  "producer": "Vivi /root/v1_release_evidence",
+  "review_status": "APPROVED",
+  "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+  "reviewer": "RAMZA /root/v1_plan",
+  "schema": "magicite/release-witness/1",
+  "scope": "Accepted local mechanical evidence at 52f7bba54eaf9e94acd6408ddaaa93fd144b5183 against clean tested source c0782fd5ea477857b7fe6e7a967a9bbf85808620; no production,external or RC qualification.",
+  "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+  "status": "PASS"
+}

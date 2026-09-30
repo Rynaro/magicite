@@ -1,0 +1,1 @@
+generated version/schema/MCP/CLI/config reference matches installed runtime
