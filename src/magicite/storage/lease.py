@@ -101,6 +101,16 @@ def cross_process_lease_held() -> bool:
     return _CROSS_PROCESS_LEASE.get() is not None
 
 
+def require_cross_process_scope(lock_path: str | Path) -> None:
+    """Require the bound fence to belong to this registry and remain owned."""
+    current = _CROSS_PROCESS_LEASE.get()
+    if not isinstance(current, CrossProcessLease):
+        raise BusyError("cross-process writer lease is required")
+    if Path(current.lock_path).resolve() != Path(lock_path).resolve():
+        raise BusyError("bound writer lease belongs to a different registry")
+    current.assert_owned()
+
+
 def acquire_writer_lease(holder: str = "writer") -> None:
     """Fail-fast, non-blocking acquire (spec §2.6 step 1: "fail fast if held").
 

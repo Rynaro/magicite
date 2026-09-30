@@ -54,12 +54,13 @@ import os
 import sqlite3
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from magicite.config import Config
+from magicite.errors import InvalidInputError
 from magicite.storage.lease import assert_cross_process_fence
 
 AUTONOMOUS_ACTOR = "autonomous-mode"
@@ -219,10 +220,16 @@ def _write_mirror(cfg: Config, record: ApprovalRecord) -> None:
             fh.write(content)
             fh.flush()
             os.fsync(fh.fileno())
+        assert_cross_process_fence()
+        os.replace(tmp_path, path)
+        directory_fd = os.open(str(path.parent), os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     except BaseException:
         tmp_path.unlink(missing_ok=True)
         raise
-    os.replace(tmp_path, path)
 
 
 def _upsert_row(conn: sqlite3.Connection, record: ApprovalRecord) -> None:
@@ -472,6 +479,7 @@ def record_policy_control_event(
     policy_digest: str,
     actor: str,
     payload: dict[str, Any] | None = None,
+    prepared: bool = False,
 ) -> ApprovalRecord:
     """Write a durable governed control-state mirror for policy activate/rollback.
 
@@ -499,7 +507,7 @@ def record_policy_control_event(
         op=op,
         target_name=policy_id,
         payload=body,
-        state="succeeded",
+        state="approved" if prepared else "succeeded",
         proposed_by=actor,
         proposed_at=at,
         decided_by=actor,
@@ -512,13 +520,43 @@ def record_policy_control_event(
                 actor=actor,
                 at=at,
                 from_state=None,
-                to_state="succeeded",
+                to_state="approved" if prepared else "succeeded",
                 reason="policy_store_control",
             ),
         ),
     )
     _write_mirror(cfg, record)
     return record
+
+
+def finalize_policy_control_event(cfg: Config, expected: dict[str, Any]) -> None:
+    """Finish a prepared mirror using the MAC-authenticated policy transaction.
+
+    The caller supplies the committed state's record, never mirror-only authority.
+    Missing or conflicting mirrors fail closed instead of inventing approval.
+    """
+    path = _mirror_path(cfg, str(expected["id"]))
+    try:
+        current = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise InvalidInputError("pending policy control mirror is unavailable") from exc
+    stable = set(expected) - {"state", "audit_log"}
+    if (not isinstance(current, dict)
+            or any(current.get(key) != expected[key] for key in stable)
+            or current.get("state") not in {"approved", "succeeded"}):
+        raise InvalidInputError("pending policy control mirror conflicts with committed state")
+    if current["state"] == "succeeded":
+        return
+    record = ApprovalRecord(
+        **{key: value for key, value in expected.items() if key != "audit_log"},
+        audit_log=tuple(ApprovalAuditEvent.from_dict(e) for e in expected["audit_log"]),
+    )
+    event = ApprovalAuditEvent(
+        sequence=len(record.audit_log) + 1, operation=record.op,
+        actor="policy-store-reconcile", at=_now(), from_state="approved",
+        to_state="succeeded", reason="authenticated_policy_commit",
+    )
+    _write_mirror(cfg, replace(record, state="succeeded", audit_log=(*record.audit_log, event)))
 
 
 def reload_from_mirror(cfg: Config, conn: sqlite3.Connection) -> int:
