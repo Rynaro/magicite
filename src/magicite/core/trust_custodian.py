@@ -11,10 +11,11 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
@@ -49,7 +50,7 @@ def _match(left: dict[str, Any], right: dict[str, Any], fields: tuple[str, ...])
     return all(key in left and key in right and _equal(left[key], right[key]) for key in fields)
 
 
-def _identifier(value: str) -> None:
+def _identifier(value: Any) -> None:
     if not isinstance(value, str) or not value or len(value) > 256:
         raise CustodianError("invalid authority identifier")
 
@@ -94,6 +95,11 @@ class CustodianStore:
             os.fsync(fd)
         finally:
             os.close(fd)
+        parent_fd = os.open(directory.parent, os.O_RDONLY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
         return cls(directory, conn, key, signing)
 
     @classmethod
@@ -236,15 +242,56 @@ class CustodianStore:
     @staticmethod
     def _validate_payload(kind: str, payload: dict[str, Any]) -> None:
         # Reuse the existing frozen domain parsers, with no file reads/defaults.
-        from magicite.core.trust import TrustDecision, TrustPolicy
+        from magicite.core.trust import DecisionKind, SourceChannel, TrustDecision, TrustPolicy
 
         if not isinstance(payload, dict):
             raise CustodianError("invalid record payload")
         _bytes(payload)
         try:
             if kind == "policy_snapshot":
+                if payload.get("schema") != "TrustPolicy/1":
+                    raise CustodianError("invalid policy schema")
+                _identifier(payload.get("policy_id"))
+                if type(payload.get("revision")) is not int or payload["revision"] < 1:
+                    raise CustodianError("invalid policy revision")
+                if not isinstance(payload.get("roots"), list):
+                    raise CustodianError("invalid policy roots")
+                for root in payload["roots"]:
+                    if (
+                        type(root.get("revoked")) is not bool
+                        or len(bytes.fromhex(root["public_key_hex"])) != 32
+                    ):
+                        raise CustodianError("invalid policy root")
                 parsed = TrustPolicy.from_dict(payload).to_dict()
             elif kind == "trust_decision":
+                if payload.get("schema") != "TrustDecision/1":
+                    raise CustodianError("invalid decision schema")
+                if payload.get("decision") not in get_args(DecisionKind) or payload.get(
+                    "source_channel"
+                ) not in get_args(SourceChannel):
+                    raise CustodianError("invalid decision domain")
+                for name in (
+                    "decision_id",
+                    "engram_id",
+                    "policy_id",
+                    "actor",
+                    "timestamp",
+                    "scanner_revision",
+                ):
+                    _identifier(payload.get(name))
+                if type(payload.get("policy_revision")) is not int or payload["policy_revision"] < 1:
+                    raise CustodianError("invalid decision policy revision")
+                for name in ("content_digest", "policy_digest", "resource_digest", "signer_fingerprint"):
+                    value = payload.get(name)
+                    if value is None and name in {"resource_digest", "signer_fingerprint"}:
+                        continue
+                    if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+                        raise CustodianError("invalid decision digest")
+                if (
+                    payload.get("signature_valid") is not None
+                    and type(payload["signature_valid"]) is not bool
+                ):
+                    raise CustodianError("invalid signature status")
                 parsed = TrustDecision.from_dict(payload).to_dict()
             else:
                 raise CustodianError("unsupported record kind")
@@ -265,6 +312,8 @@ class CustodianStore:
     ) -> dict[str, Any]:
         _identifier(record_id)
         self._validate_payload(kind, payload)
+        if kind == "trust_decision" and record_id != payload["decision_id"]:
+            raise CustodianError("decision identity must equal immutable journal identity")
         with self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
             state = self._load(registry)

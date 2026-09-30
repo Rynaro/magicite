@@ -141,3 +141,87 @@ def test_prepared_history_survives_store_restart(store):
         assert reopened.prepared_record("registry-one") == record
     finally:
         reopened.close()
+
+
+def test_old_admission_cannot_be_resequenced_under_new_wrapper_after_revoke(store):
+    from magicite.core.trust import TrustDecision
+
+    policy = default_policy()
+    fence = register(store)
+
+    def decision(identity, action):
+        return TrustDecision(
+            decision_id=identity,
+            engram_id="subject",
+            content_digest="a" * 64,
+            decision=action,
+            source_channel="local_authored",
+            policy_id=policy.policy_id,
+            policy_revision=policy.revision,
+            policy_digest=policy.digest(),
+            actor="operator",
+            timestamp="2026-09-30T00:00:00Z",
+        ).to_dict()
+
+    admit = decision("admit-one", "admit")
+    for payload in (admit, decision("revoke-one", "revoke")):
+        before = store.read_current("registry-one")
+        record = store.prepare_record(
+            "registry-one",
+            fence=fence,
+            expected_head=before,
+            record_id=payload["decision_id"],
+            kind="trust_decision",
+            payload=payload,
+        )
+        store.commit_record("registry-one", fence=fence, expected_head=before, record=record)
+    before = store.read_current("registry-one")
+    with pytest.raises(CustodianError):
+        store.prepare_record(
+            "registry-one",
+            fence=fence,
+            expected_head=before,
+            record_id="replayed-admission",
+            kind="trust_decision",
+            payload=admit,
+        )
+    assert store.read_current("registry-one") == before
+    assert store.committed_records("registry-one")[-1]["payload"]["decision"] == "revoke"
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("decision", "not-a-decision"),
+        ("content_digest", "not-a-digest"),
+        ("source_channel", "untrusted-guess"),
+        ("policy_revision", True),
+    ],
+)
+def test_invalid_domain_payload_cannot_be_prepared(store, field, value):
+    from magicite.core.trust import TrustDecision
+
+    policy = default_policy()
+    payload = TrustDecision(
+        decision_id="d",
+        engram_id="subject",
+        content_digest="a" * 64,
+        decision="admit",
+        source_channel="local_authored",
+        policy_id=policy.policy_id,
+        policy_revision=policy.revision,
+        policy_digest=policy.digest(),
+        actor="operator",
+        timestamp="2026-09-30T00:00:00Z",
+    ).to_dict()
+    payload[field] = value
+    fence = register(store)
+    with pytest.raises(CustodianError):
+        store.prepare_record(
+            "registry-one",
+            fence=fence,
+            expected_head=store.read_current("registry-one"),
+            record_id="d",
+            kind="trust_decision",
+            payload=payload,
+        )
