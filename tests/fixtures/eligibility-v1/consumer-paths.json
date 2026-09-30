@@ -1,0 +1,127 @@
+{
+  "schema": "magicite/eligibility-v1-consumer-fixtures/1",
+  "description": "Same artifact projected through route, dependency, and body eligibility paths (C2 / S06). Trust views are fixture-backed until S04.",
+  "trust_decision_view": {
+    "projection_of": "TrustDecision/1 (C10)",
+    "required_fields": [
+      "engram_id",
+      "content_digest",
+      "quarantined",
+      "lifecycle_status",
+      "origin_trusted",
+      "signature_valid",
+      "admitted"
+    ],
+    "admitted_owner": "S04 local review / trust policy — never inferred from signature alone",
+    "signature_alone_never_routable": true,
+    "s04_handoff": "S04 maps TrustDecision/1 → TrustDecisionView; eligibility consumes only the projection. Imported signature_valid=true with admitted=false or origin_trusted=false MUST stay ineligible."
+  },
+  "c10_body_split": {
+    "s06_owns": "path=body requires expected_content_digest == trust.content_digest (stale_digest)",
+    "s11_owns": [
+      "offline bundle/manifest signature verify",
+      "revocation overlay at disclosure",
+      "stale_decision on snapshot/policy drift after route",
+      "refusing procedure bytes on deny"
+    ]
+  },
+  "server_policy": {
+    "allowed_permissions": ["perm.read", "perm.write-project"],
+    "allowed_tools": ["protontricks", "shell"],
+    "policy_digest": "policy-fixture-v1",
+    "max_filesystem": "write-project",
+    "max_subprocess": "declared-tools",
+    "max_network": "optional",
+    "max_secrets": "redacted"
+  },
+  "artifact": {
+    "id": "egr_a1b2c3d4",
+    "compatibility": {
+      "os": ["linux"],
+      "frameworks": {
+        "django": { "scheme": "semver", "range": ">=4.2.0,<5.0.0" }
+      },
+      "hosts": [
+        { "id": "cursor", "version": { "scheme": "semver", "range": ">=0.40.0,<1.0.0" } }
+      ]
+    },
+    "capabilities": {
+      "requires": [
+        {
+          "kind": "host",
+          "id": "host.fs.read-project",
+          "version": { "scheme": "semver", "range": ">=1.0.0" }
+        },
+        {
+          "kind": "artifact",
+          "id": "artifact.wine-prefix",
+          "version": { "scheme": "semver", "range": ">=1.0.0" }
+        }
+      ]
+    },
+    "risk": {
+      "filesystem": "read-project",
+      "subprocess": { "mode": "declared-tools", "tools": ["protontricks"] },
+      "network": { "mode": "none", "destinations": [] },
+      "secrets": "none"
+    },
+    "required_permissions": ["perm.read"]
+  },
+  "paths": {
+    "route": {
+      "context": {
+        "platform": "linux",
+        "frameworks": { "django": "4.2.1" },
+        "host": { "id": "cursor", "version": "0.45.0" },
+        "capabilities": { "host.fs.read-project": "1.0.0" },
+        "permission_grants": ["perm.read"],
+        "allowed_tools": ["protontricks"],
+        "artifact_inventory": []
+      },
+      "trust": {
+        "engram_id": "egr_a1b2c3d4",
+        "content_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "lifecycle_status": "promoted",
+        "quarantined": false,
+        "origin_trusted": true,
+        "signature_valid": null,
+        "admitted": true
+      },
+      "expect": {
+        "eligible": true,
+        "unsatisfied_artifacts": ["artifact.wine-prefix"],
+        "reason_codes": []
+      }
+    },
+    "dependency": {
+      "note": "trust_denied on a required dep → ineligible on dependency path (AC-S06-03).",
+      "subject_id": "egr_d0000001",
+      "trust_denied": {
+        "engram_id": "egr_d0000001",
+        "content_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "lifecycle_status": "archived",
+        "quarantined": false,
+        "origin_trusted": true,
+        "signature_valid": null,
+        "admitted": false
+      },
+      "expect": {
+        "eligible": false,
+        "reason_codes_any_of": ["lifecycle_blocked"]
+      }
+    },
+    "body": {
+      "note": "path=body requires expected_content_digest matching trust.content_digest.",
+      "expected_content_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expect_ok": {
+        "eligible": true,
+        "unsatisfied_artifacts": ["artifact.wine-prefix"]
+      },
+      "expect_stale": {
+        "expected_content_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "eligible": false,
+        "reason_codes": ["stale_digest"]
+      }
+    }
+  }
+}
