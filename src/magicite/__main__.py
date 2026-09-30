@@ -680,5 +680,10 @@ def backup_status_cmd(project_root: str, backup_path: str | None) -> None:
         _die_magicite(exc)
 
 
+from magicite.core.custody_admin import custody_cli  # noqa: E402
+
+cli.add_command(custody_cli)
+
+
 if __name__ == "__main__":
     cli()
