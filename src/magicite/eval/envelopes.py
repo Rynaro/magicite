@@ -153,6 +153,14 @@ def measurement_provenance_errors(result: dict[str, Any], profile: BenchmarkProf
 
     if fingerprint.get("payload_tokenizer") != TOKENIZER_ID:
         errors.append("payload tokenizer must identify the implemented lexical tokenizer")
+    payload_contract = {
+        "payload_unit": "lexical-word-tokens",
+        "payload_surface": "RouteOutput/1 JSON",
+        "payload_aggregation": "max-measured-responses",
+    }
+    for key, expected in payload_contract.items():
+        if fingerprint.get(key) != expected:
+            errors.append(f"missing or unsupported {key}")
     for key in ("model_digest", "dependency_lock_sha256"):
         value = fingerprint.get(key)
         if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value) or value == "0" * 64:
@@ -357,6 +365,9 @@ def compute_ga_eligibility(
                     "dependency_lock_sha256",
                     "runner_label",
                     "payload_tokenizer",
+                    "payload_unit",
+                    "payload_surface",
+                    "payload_aggregation",
                     "platform",
                     "machine",
                     "processor",

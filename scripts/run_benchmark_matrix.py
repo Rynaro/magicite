@@ -712,7 +712,12 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                             json.dumps(hashes, separators=(",", ":")).encode()
                         ).hexdigest()
                 result["fingerprint"]["embedding_dimensions"] = embedder.dim
-                result["fingerprint"]["payload_tokenizer"] = TOKENIZER_ID
+                result["fingerprint"].update(
+                    payload_tokenizer=TOKENIZER_ID,
+                    payload_unit="lexical-word-tokens",
+                    payload_surface="RouteOutput/1 JSON",
+                    payload_aggregation="max-measured-responses",
+                )
                 result["cache_states"] = raw["cache_states"]
                 result["measurements"] = _flatten_measurements(raw)
                 result["measurements"]["artifact_body_bytes"] = result["corpus"]["artifact_bytes"]

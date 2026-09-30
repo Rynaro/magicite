@@ -105,3 +105,6 @@ bound. Operator harness outputs remain UNEVALUATED, including nested verdicts.
 by `fingerprint.payload_tokenizer` (`TOKENIZER_ID`). This is a reproducible
 word-token payload measure, not BPE tokens or a host context-capacity claim.
 Missing or mixed tokenizer identities cannot qualify a support evidence bundle.
+The payload surface is serialized public `RouteOutput/1` JSON; the summary is
+the maximum across measured responses. Unit, surface and aggregation are
+explicit fingerprint fields and must match across combined evidence.

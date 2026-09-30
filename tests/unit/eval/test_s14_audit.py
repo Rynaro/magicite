@@ -228,7 +228,12 @@ def test_ga_requires_both_matching_complete_evidence_strata():
     )
     from magicite.core.index_generation import TOKENIZER_ID
 
-    result["fingerprint"]["payload_tokenizer"] = TOKENIZER_ID
+    result["fingerprint"].update(
+        payload_tokenizer=TOKENIZER_ID,
+        payload_unit="lexical-word-tokens",
+        payload_surface="RouteOutput/1 JSON",
+        payload_aggregation="max-measured-responses",
+    )
     result["status"] = "measured"
     for state in result["cache_states"].values():
         state.update(measured=True, latency_ms=1)
@@ -288,6 +293,9 @@ def test_ga_requires_both_matching_complete_evidence_strata():
     synthetic["fingerprint"]["payload_tokenizer"] = "different-tokenizer"
     assert compute_ga_eligibility(**args)[0] is False
     synthetic["fingerprint"]["payload_tokenizer"] = tokenizer
+    synthetic["fingerprint"]["payload_surface"] = "internal-dataclass"
+    assert compute_ga_eligibility(**args)[0] is False
+    synthetic["fingerprint"]["payload_surface"] = "RouteOutput/1 JSON"
     synthetic["profile"]["profile_id"] = "small-100"
     assert compute_ga_eligibility(**args)[0] is False
     synthetic["profile"]["profile_id"] = "supported-10k"
