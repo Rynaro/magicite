@@ -122,3 +122,33 @@ def test_explicit_factory_adapter_binds_real_custodian_generation(tmp_path, monk
     finally:
         store.close()
         connection.close()
+
+
+def test_nested_direct_try_cannot_refresh_outer_custody_attempt(tmp_path, monkeypatch):
+    from magicite.core import writer_guard
+    from magicite.core.trust import default_policy
+    from magicite.core.trust_custodian import CustodianStore
+
+    cfg = Config(project_root=tmp_path)
+    cfg.ensure_dirs()
+    connection = db.connect(cfg.db_path)
+    store = CustodianStore.create(tmp_path / "custody")
+    store.enroll("r", default_policy().to_dict(), actor="operator", reviewed=True)
+
+    class Adapter:
+        def call(self, operation, **arguments):
+            return getattr(store, operation)("r", **arguments)
+
+    monkeypatch.setattr(writer_guard, "resolve_custody", lambda cfg: ("r", Adapter()))
+    try:
+        with writer_guard.registry_writer_lease(cfg, connection).acquire():
+            _, outer, first = writer_guard.bound_journal(cfg)
+            attempt = outer.custody.attempt_id
+            with pytest.raises(BusyError):
+                writer_guard.registry_writer_lease(cfg, connection).try_acquire()
+            assert outer.custody.attempt_id == attempt
+            assert writer_guard.bound_journal(cfg)[2] == first
+            outer.assert_owned()
+    finally:
+        store.close()
+        connection.close()

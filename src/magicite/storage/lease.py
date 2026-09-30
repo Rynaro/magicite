@@ -355,6 +355,8 @@ class CrossProcessLease:
         another holder is live; returns a :class:`LeaseAcquireResult`
         (``stolen=True`` iff a dead holder's expired lease was reclaimed).
         """
+        if self._held or _CROSS_PROCESS_LEASE.get() is not None:
+            raise BusyError("direct nested lease acquisition cannot refresh custody")
         if self.custody is not None:
             self.custody.capture()
         if not self._try_flock():
