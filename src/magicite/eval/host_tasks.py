@@ -7,6 +7,7 @@ substituted for verified end-task pass rates.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -26,6 +27,7 @@ class HostTaskArmResult:
     verifier_id: str
     verifier_artifact_digest: str
     details: str = ""
+    seed: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -36,14 +38,15 @@ class HostTaskArmResult:
             "verifier_id": self.verifier_id,
             "verifier_artifact_digest": self.verifier_artifact_digest,
             "details": self.details,
+            "seed": self.seed,
         }
 
     @property
     def scored_pass(self) -> float | None:
-        """Intention-to-test: unevaluated/timeout stay null (not silent remove)."""
+        """Executed failures/timeouts count zero; unrun tasks block evaluation."""
         if self.outcome == "pass":
             return 1.0
-        if self.outcome == "fail":
+        if self.outcome in {"fail", "timeout"}:
             return 0.0
         return None
 
@@ -59,13 +62,11 @@ class PairedHostTaskReport:
         return {
             "arms": [a.to_dict() for a in self.arms],
             "usefulness_delta_interval": (
-                None
-                if self.usefulness_delta_interval is None
-                else self.usefulness_delta_interval.to_dict()
+                None if self.usefulness_delta_interval is None else self.usefulness_delta_interval.to_dict()
             ),
             "usefulness_status": self.usefulness_status,
             "evidence_class": self.evidence_class,
-            "has_paired_host_verifier_outcomes": True,
+            "has_paired_host_verifier_outcomes": self.usefulness_delta_interval is not None,
         }
 
 
@@ -93,6 +94,26 @@ def paired_usefulness_delta(
     seed: int = 0,
 ) -> BootstrapInterval | None:
     """Paired group bootstrap of treatment−control pass-rate delta."""
+    # Require exact task/seed pairing across all three preregistered arms.
+    paired: dict[tuple[str, int], dict[str, HostTaskArmResult]] = {}
+    for row in arms:
+        key = (row.task_id, row.seed)
+        task = paired.setdefault(key, {})
+        if row.arm in task or row.scored_pass is None:
+            return None
+        task[row.arm] = row
+    for task in paired.values():
+        if set(task) != {"no_skill", "selected_skill", "composed_plan"}:
+            return None
+        if len({row.group_id for row in task.values()}) != 1:
+            return None
+        if len({(row.verifier_id, row.verifier_artifact_digest) for row in task.values()}) != 1:
+            return None
+        if any(
+            not row.verifier_id or not re.fullmatch(r"[0-9a-f]{64}", row.verifier_artifact_digest)
+            for row in task.values()
+        ):
+            return None
     treatment_rates = _pass_rate_by_group(arms, treatment)
     control_rates = _pass_rate_by_group(arms, control)
     shared = sorted(set(treatment_rates) & set(control_rates))

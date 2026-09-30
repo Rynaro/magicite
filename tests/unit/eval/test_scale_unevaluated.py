@@ -135,9 +135,7 @@ def test_unevaluated_catalog_has_operator_commands() -> None:
                 for tok in tokens[4:]:
                     if tok.startswith("--"):
                         flag = tok.split("=")[0]
-                        assert flag in help_text, (
-                            f"{item['item_id']}: flag {flag} missing from {sub} --help"
-                        )
+                        assert flag in help_text, f"{item['item_id']}: flag {flag} missing from {sub} --help"
             elif tokens[0] == "python" and tokens[1].endswith("run_benchmark_matrix.py"):
                 script = ROOT / tokens[1]
                 if not script.is_file():
@@ -156,9 +154,7 @@ def test_unevaluated_catalog_has_operator_commands() -> None:
                 for tok in tokens[2:]:
                     if tok.startswith("--"):
                         flag = tok.split("=")[0]
-                        assert flag in help_text, (
-                            f"{item['item_id']}: flag {flag} missing from matrix --help"
-                        )
+                        assert flag in help_text, f"{item['item_id']}: flag {flag} missing from matrix --help"
             else:
                 pytest.fail(f"{item['item_id']}: unresolvable operator command {part!r}")
 
@@ -380,7 +376,7 @@ def test_run_host_tasks_offline_e2e(tmp_path: Path) -> None:
 def test_run_host_tasks_demotes_nested_pass(tmp_path: Path) -> None:
     rows = []
     for i in range(40):
-        for arm, outcome in (("no_skill", "fail"), ("composed_plan", "pass")):
+        for arm, outcome in (("no_skill", "fail"), ("selected_skill", "fail"), ("composed_plan", "pass")):
             rows.append(
                 {
                     "task_id": f"t{i}",
@@ -400,7 +396,7 @@ def test_run_host_tasks_demotes_nested_pass(tmp_path: Path) -> None:
             "--corpus",
             str(corpus),
             "--arms",
-            "no_skill,composed_plan",
+            "no_skill,selected_skill,composed_plan",
             "--n-resamples",
             "200",
             "--seed",
@@ -415,9 +411,7 @@ def test_run_host_tasks_demotes_nested_pass(tmp_path: Path) -> None:
     assert payload["usefulness_status"] == "unevaluated"
 
 
-def test_run_abstention_gate_demotes_nested_pass(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_abstention_gate_demotes_nested_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from magicite.eval import operator_cli
     from magicite.eval.verdicts import Verdict
 
@@ -511,9 +505,7 @@ def _experiment_with(tmp_path: Path, **overrides: Any) -> Path:
     ],
     ids=["unsealed-final", "corpus-digest-mismatch"],
 )
-def test_cli_refuses_unsealed_or_mismatched_experiment(
-    tmp_path: Path, overrides: dict[str, Any]
-) -> None:
+def test_cli_refuses_unsealed_or_mismatched_experiment(tmp_path: Path, overrides: dict[str, Any]) -> None:
     exp = _experiment_with(tmp_path, **overrides)
     rc = eval_main.main(
         [
@@ -630,6 +622,13 @@ def test_matrix_synthetic_vs_manifest_corpus(tmp_path: Path) -> None:
     assert completed.returncode == 0, completed.stderr
     syn = json.loads(syn_out.read_text(encoding="utf-8"))
     assert syn["corpus"]["kind"] == "synthetic"
+    assert syn["corpus"]["actual_artifacts"] is True
+    assert len(syn["corpus"]["artifact_inventory_sha256"]) == 64
+    assert syn["measured_queries"] == 8
+    assert syn["warmup_queries"] == 2
+    assert syn["process_id"] > 0
+    assert len(syn["repetition_results"]) == 1
+    assert len(syn["measurements"]["warm_durations_s"]) == 8
     assert syn["corpus"]["ga_eligible"] is False
 
     man_out = tmp_path / "man.json"
@@ -655,16 +654,11 @@ def test_matrix_synthetic_vs_manifest_corpus(tmp_path: Path) -> None:
         text=True,
         check=False,
     )
-    assert completed2.returncode == 0, completed2.stderr + completed2.stdout
+    assert completed2.returncode == 2
     man = json.loads(man_out.read_text(encoding="utf-8"))
-    assert man["corpus"]["kind"] == "manifest"
-    assert man["corpus"]["content_identity_sha256"]
-    assert man["corpus"]["n_candidates"] >= 1
-    assert man["measurements"]["size"] == man["corpus"]["n_candidates"]
+    assert man["status"] == "unavailable"
+    assert "role=skill" in man["error"]
     assert man["corpus"]["ga_eligible"] is False
-    reasons = " ".join(man["corpus"]["ga_ineligible_reasons"])
-    assert "production" in reasons
-    assert "fixture" in reasons
     assert syn["corpus"]["ga_ineligible_reasons"]
 
 
@@ -684,7 +678,7 @@ _GA_OK: dict[str, Any] = {
 def test_ga_eligibility_requires_every_condition() -> None:
     from magicite.eval.envelopes import compute_ga_eligibility
 
-    assert compute_ga_eligibility(**_GA_OK) == (True, [])
+    assert compute_ga_eligibility(**_GA_OK)[0] is False  # Assertions alone are not evidence.
 
     failing: list[dict[str, Any]] = [
         {"provider": "hashing"},
@@ -746,9 +740,7 @@ def test_structural_report_forbids_efficacy_claim() -> None:
         "corpus_id": "toy",
         "cases": [{"id": "c1", "accepted_orders": [["a"]]}],
     }
-    report = evaluate_composition_corpus(
-        corpus, {"c1": _plan(status="valid", order=("a",), executable=True)}
-    )
+    report = evaluate_composition_corpus(corpus, {"c1": _plan(status="valid", order=("a",), executable=True)})
     assert report.evidence_class == "structural"
     assert report.to_dict()["structural_efficacy_claim_allowed"] is False
     assert report.n_pass == 1

@@ -7,6 +7,8 @@ provider timings must never be treated as production FastEmbed evidence.
 
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -80,8 +82,13 @@ def _budget_field_errors(
     value = measurements.get(measured_key)
     if value is None:
         return [f"budget check missing measurement {measured_key!r}"]
-    if not isinstance(value, (int, float)):
-        return [f"measurement {measured_key!r} must be numeric"]
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value < 0
+    ):
+        return [f"measurement {measured_key!r} must be finite, nonnegative numeric"]
     if float(value) > float(limit):
         return [f"{measured_key}={value}{unit} exceeds budget {limit}{unit}"]
     return []
@@ -90,6 +97,8 @@ def _budget_field_errors(
 def budget_errors(result: dict[str, Any], profile: BenchmarkProfile) -> list[str]:
     """Dedicated-runner gate against preregistered E6 envelopes."""
     errors = completeness_errors(result)
+    if (result.get("profile") or {}).get("profile_id") != profile.profile_id:
+        errors.append("profile does not match preregistered envelope")
     fingerprint = result.get("fingerprint") or {}
     provider = fingerprint.get("provider")
     if provider != "production":
@@ -103,6 +112,7 @@ def budget_errors(result: dict[str, Any], profile: BenchmarkProfile) -> list[str
     if not isinstance(measurements, dict):
         return errors
 
+    errors.extend(measurement_provenance_errors(result, profile))
     budget = profile.budget
     checks = (
         ("warm_route_p95_ms", "warm_route_p95_ms", "ms"),
@@ -126,6 +136,113 @@ def budget_errors(result: dict[str, Any], profile: BenchmarkProfile) -> list[str
     return errors
 
 
+def _finite_nonnegative(value: Any) -> bool:
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(value)
+        and value >= 0
+    )
+
+
+def measurement_provenance_errors(result: dict[str, Any], profile: BenchmarkProfile) -> list[str]:
+    """Reject placeholders: a declared parameter is not a measured observation."""
+    errors: list[str] = []
+    fingerprint = result.get("fingerprint") or {}
+    for key in ("model_digest", "dependency_lock_sha256"):
+        value = fingerprint.get(key)
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value) or value == "0" * 64:
+            errors.append(f"fingerprint.{key} must identify actual artifacts")
+    for name, state in (result.get("cache_states") or {}).items():
+        if not isinstance(state, dict) or state.get("measured") is not True:
+            errors.append(f"cache state {name} has not been measured")
+        elif not _finite_nonnegative(state.get("latency_ms")):
+            errors.append(f"cache state {name} has invalid timing")
+    measurements = result.get("measurements") or {}
+    for key in ("payload_tokens", "warm_route_p50_ms"):
+        value = measurements.get(key)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value < 0
+        ):
+            errors.append(f"missing or invalid measurement {key}")
+    rates = measurements.get("cache_hit_rates")
+    if (
+        not isinstance(rates, dict)
+        or not rates
+        or any(
+            isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= 1
+            for v in rates.values()
+        )
+    ):
+        errors.append("cache hit rates must be measured numeric fractions")
+    repetitions = result.get("repetition_results")
+    if not isinstance(repetitions, list) or len(repetitions) < profile.repetitions:
+        errors.append("missing clean-process repetitions")
+    else:
+        pids = set()
+        for repetition in repetitions:
+            if not isinstance(repetition, dict):
+                errors.append("invalid repetition record")
+                continue
+            pid = repetition.get("process_id")
+            if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
+                errors.append("invalid process identity")
+            else:
+                pids.add(pid)
+            for field, minimum in (
+                ("measured_queries", profile.measured_queries_min),
+                ("warmup_queries", profile.warmup_queries),
+            ):
+                count = repetition.get(field)
+                if isinstance(count, bool) or not isinstance(count, int) or count < minimum:
+                    errors.append(f"insufficient or invalid {field}")
+            observations = (repetition.get("measurements") or {}).get("warm_durations_s")
+            if (
+                not isinstance(observations, list)
+                or len(observations) != repetition.get("measured_queries")
+                or not all(_finite_nonnegative(value) for value in observations)
+            ):
+                errors.append("measured count must match finite recorded observations")
+            rep_measurements = repetition.get("measurements") or {}
+            if (
+                isinstance(observations, list)
+                and observations
+                and all(_finite_nonnegative(value) for value in observations)
+            ):
+                from magicite.eval.scale import latency_percentiles_ms
+
+                percentiles = latency_percentiles_ms(observations)
+                for percentile in ("p50", "p95", "p99"):
+                    if rep_measurements.get(f"warm_route_{percentile}_ms") != percentiles[f"{percentile}_ms"]:
+                        errors.append("reported percentiles differ from recorded observations")
+            for key in (
+                "warm_route_p95_ms",
+                "warm_route_p99_ms",
+                "process_rss_gib",
+                "index_gib",
+                "cold_ready_s",
+                "index_build_s",
+                "index_build_peak_rss_gib",
+            ):
+                errors.extend(
+                    _budget_field_errors(
+                        budget=profile.budget,
+                        measurements=rep_measurements,
+                        field_name=key,
+                        measured_key=key,
+                        unit="",
+                    )
+                )
+            if repetition.get("status") != "measured":
+                errors.append("incomplete repetition")
+        if None in pids or len(pids) != len(repetitions):
+            errors.append("repetitions must use distinct clean processes")
+    return errors
+
+
 def validate_envelope(
     result: dict[str, Any],
     profile: BenchmarkProfile,
@@ -134,15 +251,11 @@ def validate_envelope(
 ) -> EnvelopeCheck:
     if mode == "completeness":
         errors = completeness_errors(result)
-        notes = (
-            "shared CI validates completeness only; dedicated runner owns budgets",
-        )
+        notes = ("shared CI validates completeness only; dedicated runner owns budgets",)
         return EnvelopeCheck(mode=mode, ok=not errors, errors=tuple(errors), notes=notes)
     if mode == "budget":
         errors = budget_errors(result, profile)
-        notes = (
-            "dedicated runner validates evaluation.md E6 envelopes for production provider",
-        )
+        notes = ("dedicated runner validates evaluation.md E6 envelopes for production provider",)
         return EnvelopeCheck(mode=mode, ok=not errors, errors=tuple(errors), notes=notes)
     raise ValueError(f"unknown envelope mode {mode!r}")
 
@@ -168,6 +281,8 @@ def compute_ga_eligibility(
     corpus_license: str | None,
     n_candidates: int | None,
     profile_corpus_artifacts: int,
+    measured_result: dict[str, Any] | None = None,
+    support_runs: list[dict[str, Any]] | None = None,
 ) -> tuple[bool, list[str]]:
     """Decide whether a matrix run may claim GA support evidence.
 
@@ -209,8 +324,82 @@ def compute_ga_eligibility(
     if n_candidates is None:
         reasons.append("n_candidates missing")
     elif n_candidates < profile_corpus_artifacts:
-        reasons.append(
-            f"n_candidates={n_candidates} < profile corpus size {profile_corpus_artifacts}"
-        )
+        reasons.append(f"n_candidates={n_candidates} < profile corpus size {profile_corpus_artifacts}")
 
+    # Caller assertions and filesystem location are not provenance. Require
+    # actual validated E6 observations and both preregistered corpus strata.
+    from magicite.eval.profiles import get_profile
+
+    runs = list(support_runs or [])
+    if measured_result is not None:
+        runs.append(measured_result)
+    if not runs:
+        reasons.append("missing measured evidence; budget_ok assertion is insufficient")
+    kinds = set()
+    evidence_pins: tuple[Any, ...] | None = None
+    for run in runs:
+        try:
+            profile = get_profile(run["profile"]["profile_id"])
+            if not profile.budget.ga_support_claim or profile.corpus_artifacts != profile_corpus_artifacts:
+                reasons.append("support run profile does not match the claimed supported scale")
+                continue
+            fingerprint = run.get("fingerprint") or {}
+            pins = tuple(
+                fingerprint.get(key)
+                for key in (
+                    "provider",
+                    "model_name",
+                    "model_digest",
+                    "dependency_lock_sha256",
+                    "runner_label",
+                    "platform",
+                    "machine",
+                    "processor",
+                    "os_release",
+                )
+            )
+            if evidence_pins is not None and pins != evidence_pins:
+                reasons.append("support runs have mismatched model, dependency or runner pins")
+                continue
+            evidence_pins = pins
+            errors = budget_errors(run, profile)
+            if errors or run.get("status") != "measured":
+                reasons.append("support run does not satisfy measured E6 envelope")
+                continue
+            corpus = run.get("corpus") or {}
+            kind = corpus.get("kind")
+            count = corpus.get("n_candidates")
+            if isinstance(count, bool) or not isinstance(count, int) or count < profile_corpus_artifacts:
+                reasons.append("support run inventory is smaller than claimed scale")
+                continue
+            if corpus.get("actual_artifacts") is not True or not re.fullmatch(
+                r"[0-9a-f]{64}", corpus.get("artifact_inventory_sha256", "")
+            ):
+                reasons.append("missing verified full artifact inventory")
+                continue
+            if kind == "manifest":
+                if any(
+                    not re.fullmatch(r"[0-9a-f]{64}", corpus.get(key, ""))
+                    for key in ("manifest_sha256", "content_identity_sha256")
+                ):
+                    reasons.append("missing bound corpus manifest or label identity")
+                    continue
+                identity = " ".join(
+                    str(corpus.get(key) or "") for key in ("corpus_id", "license", "dataset_revision")
+                ).lower()
+                if "fixture" in identity or "tiny" in identity or not corpus.get("license"):
+                    reasons.append("fixture or unlicensed corpus cannot qualify by relocation")
+                    continue
+                if (
+                    corpus.get("actual_artifacts") is not True
+                    or not re.fullmatch(r"[0-9a-f]{64}", corpus.get("artifact_inventory_sha256", ""))
+                    or corpus.get("n_candidates", 0) < profile_corpus_artifacts
+                ):
+                    reasons.append("missing verified full artifact inventory")
+                    continue
+            kinds.add(kind)
+        except (KeyError, TypeError, ValueError):
+            reasons.append("invalid support run")
+    if not {"manifest", "synthetic"} <= kinds:
+        reasons.append("both licensed real and synthetic measured E6 runs are required")
     return (len(reasons) == 0, reasons)

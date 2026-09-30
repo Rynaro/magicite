@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-import sys
+import shutil
 import tarfile
 import tempfile
 from datetime import UTC, datetime
@@ -52,21 +52,25 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-_OPERATOR_HARNESS_REASON = (
-    "operator harness output is not release evidence; retain frozen incumbent"
-)
+_OPERATOR_HARNESS_REASON = "operator harness output is not release evidence; retain frozen incumbent"
 
 
 def _demote_pass(verdict: dict[str, Any]) -> dict[str, Any]:
     """Rewrite a gate ``pass`` to ``unevaluated``; the computed status stays under a non-verdict key."""
-    if verdict.get("status") != "pass":
-        return verdict
-    return {
-        **verdict,
-        "status": "unevaluated",
-        "harness_computed_status": "pass",
-        "reason": _OPERATOR_HARNESS_REASON,
-    }
+
+    def walk(value: Any) -> Any:
+        if isinstance(value, list):
+            return [walk(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        result = {key: walk(item) for key, item in value.items()}
+        if result.get("status") == "pass":
+            result.update(
+                status="unevaluated", harness_computed_status="pass", reason=_OPERATOR_HARNESS_REASON
+            )
+        return result
+
+    return walk(verdict)
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -100,15 +104,32 @@ def _safe_extract(tar: tarfile.TarFile, dest: Path) -> None:
         name = member.name
         if not (member.isfile() or member.isdir()):
             raise ValueError(f"archive member {name!r} is not a regular file or directory")
-        if name.startswith(("/", "\\")) or Path(name).is_absolute() or ".." in Path(name).parts:
+        if "\\" in name or name.startswith("/") or Path(name).is_absolute() or ".." in Path(name).parts:
             raise ValueError(f"archive member {name!r} escapes the extraction directory")
         target = (root / name).resolve()
         if target != root and root not in target.parents:
             raise ValueError(f"archive member {name!r} escapes the extraction directory")
-    if sys.version_info >= (3, 12):
-        tar.extractall(root, members=members, filter="data")
-    else:
-        tar.extractall(root, members=members)  # noqa: S202 — members validated above
+    # Extract manually into the caller's private empty staging directory. Never
+    # ask tarfile to recreate archive-controlled links or overwrite live paths.
+    if any(root.iterdir()):
+        raise ValueError("archive staging directory must be empty")
+    seen: set[str] = set()
+    for member in members:
+        name = member.name
+        if name in seen or ":" in name or "\\" in name:
+            raise ValueError("duplicate or nonportable archive name")
+        seen.add(name)
+    for member in members:
+        target = root / member.name
+        if member.isdir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        source = tar.extractfile(member)
+        if source is None:
+            raise ValueError("archive member has no file data")
+        with source, target.open("xb") as output:
+            shutil.copyfileobj(source, output)
 
 
 def cmd_acquire_skillret(
@@ -128,9 +149,7 @@ def cmd_acquire_skillret(
         raise FileNotFoundError(f"archive not found: {archive}")
     actual = sha256_path(archive)
     if actual != expected_sha256.lower():
-        raise ValueError(
-            f"archive sha256 mismatch: expected {expected_sha256.lower()}, got {actual}"
-        )
+        raise ValueError(f"archive sha256 mismatch: expected {expected_sha256.lower()}, got {actual}")
     record = record_external_download(
         archive_path=archive,
         license_name=license_name,
@@ -143,23 +162,55 @@ def cmd_acquire_skillret(
     try:
         if not corpus_source.is_file():
             if not tarfile.is_tarfile(archive):
-                raise FileNotFoundError(
-                    f"corpus json {corpus_json} not found and archive is not a tar"
-                )
+                raise FileNotFoundError(f"corpus json {corpus_json} not found and archive is not a tar")
             tmp_hold = tempfile.TemporaryDirectory()
             with tarfile.open(archive, "r:*") as tar:
                 _safe_extract(tar, Path(tmp_hold.name))
             matches = list(Path(tmp_hold.name).rglob(corpus_json.name))
             if not matches:
-                raise FileNotFoundError(
-                    f"corpus json {corpus_json.name!r} not found in archive {archive}"
-                )
+                raise FileNotFoundError(f"corpus json {corpus_json.name!r} not found in archive {archive}")
             corpus_source = matches[0]
 
         corpus, errors = verify_acquired_corpus_manifest(corpus_source)
         if errors or corpus is None:
             raise ValueError("acquired corpus invalid: " + "; ".join(errors or ["unknown"]))
-        payload = corpus.to_dict()
+        # Preserve digest-verified inventory beside the emitted manifest. The
+        # temporary extraction is never the durable source of advertised refs.
+        prepared: list[tuple[Path, bytes]] = []
+        source_root = corpus_source.parent.resolve()
+        destination_root = output.parent.resolve()
+        seen: set[str] = set()
+        for ref in corpus.artifacts:
+            relative = Path(ref.path)
+            if relative.is_absolute() or ".." in relative.parts or "\\" in ref.path:
+                raise ValueError("unsafe artifact inventory path")
+            source = (source_root / relative).resolve()
+            target = (destination_root / relative).resolve()
+            if (
+                not source.is_relative_to(source_root)
+                or not target.is_relative_to(destination_root)
+                or target == output.resolve()
+                or ref.path in seen
+            ):
+                raise ValueError("escaping or colliding artifact inventory path")
+            seen.add(ref.path)
+            content = source.read_bytes()
+            import hashlib
+
+            if hashlib.sha256(content).hexdigest() != ref.sha256 or (
+                ref.byte_length is not None and len(content) != ref.byte_length
+            ):
+                raise ValueError("artifact digest/length mismatch")
+            if target.exists() and target.read_bytes() != content:
+                raise ValueError("artifact destination already contains different bytes")
+            prepared.append((target, content))
+        for target, content in prepared:
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with target.open("xb") as stream:
+                    stream.write(content)
+        # Preserve the exact pinned query JSON representation (e.g. integer labels).
+        payload = json.loads(corpus_source.read_text(encoding="utf-8"))
         payload["acquisition"] = record.to_dict()
         payload["evidence_status"] = "UNEVALUATED"
         _write_json(output, payload)
@@ -214,9 +265,7 @@ def cmd_run_retrieval(
         1.0 if expected != "__none__" and hit_at_k(ranked, expected, 1) else 0.0
         for ranked, expected in per_query
     ]
-    group_ids = [
-        next(x.group_id for x in corpus.queries if x.query_id == p.query_id) for p in predictions
-    ]
+    group_ids = [next(x.group_id for x in corpus.queries if x.query_id == p.query_id) for p in predictions]
     bootstrap = paired_bootstrap_ci(
         group_ids,
         hit_scores,
@@ -466,6 +515,7 @@ def cmd_run_host_tasks(
                 verifier_id=str(item["verifier_id"]),
                 verifier_artifact_digest=str(item["verifier_artifact_digest"]),
                 details=str(item.get("details") or ""),
+                seed=int(item.get("seed", 0)),
             )
         )
     if not rows:

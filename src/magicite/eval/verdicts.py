@@ -7,6 +7,7 @@ reviewed activation / ``retain_simple_incumbent_evidence``.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -77,8 +78,7 @@ def _status_from_ci(
             gate=gate,
             status="inconclusive",
             reason=(
-                f"insufficient independent groups ({interval.n_groups} < {min_groups}); "
-                "keep frozen incumbent"
+                f"insufficient independent groups ({interval.n_groups} < {min_groups}); keep frozen incumbent"
             ),
             details=interval.to_dict(),
         )
@@ -128,8 +128,7 @@ def improvement_verdict(
         min_groups=min_groups,
         gate="improvement_hit_at_1",
         pass_reason=(
-            f"lower CI {interval.low:.6f} > 0 and point "
-            f"{interval.point_estimate:.6f} >= {point_min}"
+            f"lower CI {interval.low:.6f} > 0 and point {interval.point_estimate:.6f} >= {point_min}"
         ),
         fail_reason=f"upper CI {interval.high:.6f} <= 0 (no improvement)",
     )
@@ -172,85 +171,57 @@ def holm_critical_slice_family(
     margin: float = DEFAULT_CRITICAL_SLICE_MARGIN,
     family_alpha: float = 0.05,
     min_groups: int = MIN_EMPIRICAL_SLICE_GROUPS,
+    inferiority_p_values: dict[str, float] | None = None,
 ) -> Verdict:
-    """Apply Holm correction across critical-slice inferiority tests.
+    """Holm step-down over preregistered inferiority p-values plus E3 CI gate.
 
-    **Conservative approximation (documented, evaluation.md E3):** callers
-    supply percentile bootstrap intervals already computed at the family
-    alpha (default 95% CI ⇒ α=0.05). This function does **not** re-bootstrap
-    each ordered hypothesis at the Holm-adjusted ``alpha_i = α/(m−i+1)``.
-    Instead it orders slices by ascending lower bound, treats
-    ``low < -margin`` as a raw reject at family α, and fails the family on
-    any contiguous prefix of such rejects (Holm step-down stop rule over
-    the ordered raw rejects).
-
-    Relative to proper per-rank re-bootstrapping at ``alpha_i`` (which widens
-    CIs for later ranks), this approximation is **conservative on FAIL**: a
-    family-α reject that would have cleared a looser Holm-adjusted CI can
-    still count as failure here. It never turns a true FAIL into PASS by
-    widening intervals. Operators who need exact per-rank α must recompute
-    intervals via ``paired_bootstrap_ci(..., alpha=holm_alpha_i)`` and feed
-    those intervals in explicitly.
+    CI endpoints cannot recover hypothesis p-values. Callers without the
+    preregistered test's p-values receive inconclusive, never a Holm PASS.
     """
-    if not slice_intervals:
-        return Verdict(
-            gate="critical_slice_holm",
-            status="inconclusive",
-            reason="no critical slices supplied",
-            details={"n_slices": 0},
+    gate = "critical_slice_holm"
+    names = [name for name, _ in slice_intervals]
+    if not names or len(set(names)) != len(names):
+        return Verdict(gate, "inconclusive", "missing or duplicate critical slices", {})
+    if any(
+        i.n_groups < min_groups or not all(math.isfinite(v) for v in (i.low, i.high, i.point_estimate))
+        for _, i in slice_intervals
+    ):
+        return Verdict(gate, "inconclusive", "underpowered or nonfinite critical slice", {})
+    if (
+        inferiority_p_values is None
+        or set(inferiority_p_values) != set(names)
+        or any(
+            isinstance(p, bool) or not math.isfinite(p) or not 0 <= p <= 1
+            for p in inferiority_p_values.values()
         )
-
-    underpowered = [
-        name for name, interval in slice_intervals if interval.n_groups < min_groups
-    ]
-    if underpowered:
-        return Verdict(
-            gate="critical_slice_holm",
-            status="inconclusive",
-            reason=f"insufficient groups on slices: {underpowered}",
-            details={"underpowered": underpowered, "min_groups": min_groups},
-        )
-
-    # Order by ascending lower bound (worst first) for Holm step-down.
-    ordered = sorted(slice_intervals, key=lambda item: item[1].low)
+    ):
+        return Verdict(gate, "inconclusive", "missing or invalid preregistered p-values", {})
+    if not 0 < family_alpha < 1:
+        raise ValueError("family_alpha must be in (0, 1)")
+    ordered = sorted(inferiority_p_values.items(), key=lambda item: (item[1], item[0]))
     thresholds = holm_adjust_alphas(len(ordered), alpha=family_alpha)
     failures: list[dict[str, Any]] = []
-    for rank, ((name, interval), threshold) in enumerate(zip(ordered, thresholds, strict=True), start=1):
-        # Raw inferiority signal at family alpha; Holm stops at first non-reject.
-        raw_reject = interval.low < -margin
-        if not raw_reject:
-            break
-        # Rank-1 must clear the strictest threshold conceptually; with
-        # precomputed family-alpha CIs we record the Holm rank and fail
-        # the family when any ordered raw rejection exists (conservative
-        # relative to re-bootstrapping at each adjusted alpha).
-        failures.append(
-            {
-                "slice": name,
-                "rank": rank,
-                "holm_alpha": threshold,
-                "low": interval.low,
-                "margin": margin,
-            }
-        )
-
+    adjusted: dict[str, float] = {}
+    running = 0.0
+    stopped = False
+    for rank, ((name, p_value), threshold) in enumerate(zip(ordered, thresholds, strict=True), 1):
+        running = max(running, (len(ordered) - rank + 1) * p_value)
+        adjusted[name] = min(1.0, running)
+        if not stopped and p_value <= threshold:
+            failures.append({"slice": name, "rank": rank, "p_value": p_value, "holm_alpha": threshold})
+        else:
+            stopped = True
+    details = {
+        "failures": failures,
+        "thresholds": thresholds,
+        "adjusted_p_values": adjusted,
+        "n_slices": len(names),
+    }
     if failures:
-        return Verdict(
-            gate="critical_slice_holm",
-            status="fail",
-            reason="Holm-corrected critical-slice inferiority detected",
-            details={"failures": failures, "thresholds": thresholds},
-        )
-    return Verdict(
-        gate="critical_slice_holm",
-        status="pass",
-        reason="all critical slices clear -0.05 lower bound under Holm ordering",
-        details={
-            "n_slices": len(ordered),
-            "thresholds": thresholds,
-            "ordered_lows": [{name: interval.low} for name, interval in ordered],
-        },
-    )
+        return Verdict(gate, "fail", "Holm-corrected inferiority detected", details)
+    if any(interval.low < -margin for _, interval in slice_intervals):
+        return Verdict(gate, "inconclusive", "critical-slice lower-bound gate not met", details)
+    return Verdict(gate, "pass", "all critical-slice CI and Holm gates met", details)
 
 
 def abstention_verdict(
@@ -269,10 +240,7 @@ def abstention_verdict(
         return Verdict(
             gate="abstention",
             status="inconclusive",
-            reason=(
-                f"insufficient abstention sample "
-                f"(answerable={n_answerable}, no_match={n_no_match})"
-            ),
+            reason=(f"insufficient abstention sample (answerable={n_answerable}, no_match={n_no_match})"),
             details={
                 "n_answerable": n_answerable,
                 "n_no_match": n_no_match,

@@ -27,10 +27,39 @@ Commands below match `python -m magicite.eval --help` / `scripts/run_benchmark_m
 
 ## Holm critical-slice note
 
-`holm_critical_slice_family` uses family-α percentile CIs with a conservative ordered-reject approximation (does not re-bootstrap at each Holm `alpha_i`). This never turns FAIL into PASS by widening intervals. See `magicite.eval.verdicts.holm_critical_slice_family` docstring.
 
 ## Docs forwards for S15
 
 - Surface this table in operator docs with copy-paste commands.
 - Link claims gates so docs cannot cite UNEVALUATED items as PASS.
 - Document that hashing provider timings are not production FastEmbed evidence.
+
+S14 audited execution contract: every non-smoke profile defaults to 1,000
+measured queries after 50 warmups in three distinct child processes. Result
+records contain actual process IDs, counts, per-run latency observations and
+between-run extrema. Cold-ready timing includes a fresh serving subprocess
+through first serialized route, with an already acquired offline model.
+Synthetic skills are full admissible bodies indexed through the registry path.
+
+Real corpora use `CorpusManifest.artifacts` entries with `role: skill` pointing
+to `.egr.md` files relative to the manifest. The runner verifies every declared
+artifact's SHA-256/length and contained path, admits it with the existing parser,
+and imports the complete inventory (including unlabeled distractors). Labels
+must resolve to artifact IDs or names. Admission is an explicit, isolated
+benchmark review; it does not transfer trust to a user's registry. Query-only
+manifests are insufficient and return unavailable, never invented skill bodies.
+
+A single run cannot establish the 10k support envelope. Supply a second
+production result with `--support-run artifacts/other-stratum.json` to validate
+both real licensed and synthetic strata. Both require complete actual E6
+measurements, genuine model artifact hashes, and every budget. Missing data,
+nonfinite numbers, placeholders, relocated fixtures and failed repetitions
+remain ineligible. Hashing runs establish functional completeness only.
+
+Holm correction requires preregistered inferiority p-values; the API orders
+those p-values and applies exact step-down thresholds and adjusted p-values.
+CI endpoints alone return inconclusive. Every slice must independently clear
+its frozen lower-bound and group-count gate. Host usefulness requires all three
+arms paired by task and seed; executed timeouts count zero and missing/unrun
+arms block evaluation. False-selection uses the one-sided 95% Wilson upper
+bound. Operator harness outputs remain UNEVALUATED, including nested verdicts.

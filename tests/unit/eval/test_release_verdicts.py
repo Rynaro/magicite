@@ -103,7 +103,7 @@ def test_holm_critical_slice_family_detects_ordered_failure() -> None:
         ("lang", _interval(point=0.0, low=-0.01, high=0.02)),
         ("rare", _interval(point=-0.1, low=-0.2, high=-0.08)),
     ]
-    verdict = holm_critical_slice_family(slices)
+    verdict = holm_critical_slice_family(slices, inferiority_p_values={"lang": 0.8, "rare": 0.001})
     assert verdict.status == "fail"
     assert verdict.details["failures"][0]["slice"] == "rare"
 
@@ -113,7 +113,9 @@ def test_holm_critical_slice_family_passes_when_all_clear() -> None:
         ("lang", _interval(point=0.0, low=-0.01, high=0.02)),
         ("rare", _interval(point=0.01, low=-0.02, high=0.04)),
     ]
-    assert holm_critical_slice_family(slices).status == "pass"
+    assert (
+        holm_critical_slice_family(slices, inferiority_p_values={"lang": 0.8, "rare": 0.9}).status == "pass"
+    )
 
 
 def test_abstention_wilson_gates() -> None:
@@ -150,9 +152,7 @@ def test_usefulness_requires_lower_bound_gt_zero() -> None:
 
 def test_overall_promotion_unevaluated_keeps_incumbent() -> None:
     ni = noninferiority_verdict(_interval(point=0.0, low=-0.01, high=0.02))
-    slices = holm_critical_slice_family(
-        [("lang", _interval(point=0.0, low=-0.01, high=0.02))]
-    )
+    slices = holm_critical_slice_family([("lang", _interval(point=0.0, low=-0.01, high=0.02))])
     abst = abstention_verdict(
         coverage_wilson_low=0.85,
         false_selection_wilson_high=0.03,
@@ -241,6 +241,6 @@ def test_paired_host_tasks_report_never_marks_structural() -> None:
     # Underpowered by design → inconclusive/unevaluated, never fabricated pass.
     report = evaluate_paired_host_tasks(arms, n_resamples=50, seed=0, min_groups=30)
     assert report.evidence_class == "host-task"
-    assert report.to_dict()["has_paired_host_verifier_outcomes"] is True
+    assert report.to_dict()["has_paired_host_verifier_outcomes"] is False
     assert report.usefulness_status in {"inconclusive", "unevaluated", "fail"}
     assert report.usefulness_status != "pass"
