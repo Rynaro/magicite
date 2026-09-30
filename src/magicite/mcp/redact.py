@@ -71,7 +71,7 @@ def redact_error_payload(payload: dict[str, Any], *, strict: bool = False) -> di
                     return "<redacted-path>"
                 if key_hint in privacy_sensitive_argument_keys():
                     return "<redacted>"
-            if strict and key_hint != "code":
+            if strict:
                 scrubbed = redact_absolute_paths(node)
                 return scrubbed if scrubbed == "<redacted-path>" else "<redacted>"
             return redact_absolute_paths(node)

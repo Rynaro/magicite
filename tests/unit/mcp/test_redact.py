@@ -71,3 +71,15 @@ def test_error_envelope_drops_untrusted_free_text() -> None:
     )
     assert canary not in json_dumps(out.structured_content)
     assert canary not in out.content[0].text
+
+
+def test_error_code_is_trusted_only_at_envelope_root() -> None:
+    canary = "private-provider-text"
+    result = _error_result(
+        InvalidInputError(
+            canary,
+            details={"code": canary, "nested": [{"code": canary}]},
+        )
+    )
+    assert result.structured_content["code"] == "invalid_input"
+    assert canary not in json_dumps(result.structured_content)

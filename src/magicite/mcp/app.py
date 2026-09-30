@@ -177,6 +177,7 @@ def _error_result(error: MagiciteError, *, internal: bool = False) -> CallToolRe
     from magicite.mcp.redact import redact_error_payload
 
     envelope = redact_error_payload(error.to_dict(), strict=True)
+    envelope["code"] = error.code.value
     # Exception strings and hints are untrusted: providers can echo prompts or secrets.
     envelope["message"] = (
         "internal error" if internal else f"tool request failed ({error.code.value})"
