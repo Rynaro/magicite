@@ -281,3 +281,17 @@ def test_distinct_rc_reports_cannot_reuse_one_build(candidate, tmp_path):
     right["build_artifact"] = left["build_artifact"]
     bind_report(tmp_path, right, "magicite/rc-build-report/1")
     assert not validator.validate(candidate, tmp_path)["eligible"]
+
+
+@pytest.mark.parametrize("target", ["signoff", "external"])
+def test_immutable_report_requires_json_booleans(candidate, tmp_path, target):
+    row = candidate["maintainer_signoff"] if target == "signoff" else candidate["external"]["reports"][0]
+    ref = row["artifact"]
+    payload = json.loads((tmp_path / ref["path"]).read_text())
+    if target == "signoff":
+        payload["approved"] = 1
+    else:
+        payload["independent"] = 1
+        payload["checks"] = dict.fromkeys(payload["checks"], 1)
+    row["artifact"] = artifact(tmp_path, ref["path"], payload)
+    assert not validator.validate(candidate, tmp_path)["eligible"]

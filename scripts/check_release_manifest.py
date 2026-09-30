@@ -150,7 +150,12 @@ def _bound_report(row: dict[str, Any], root: Path, schema: str, keys: tuple[str,
     if not isinstance(report, dict) or report.get("schema") != schema:
         raise ValueError("unsupported immutable report schema")
     for key in keys:
-        if key not in row or key not in report or report[key] != row[key]:
+        if (
+            key not in row
+            or key not in report
+            or json.dumps(report[key], sort_keys=True, allow_nan=False)
+            != json.dumps(row[key], sort_keys=True, allow_nan=False)
+        ):
             raise ValueError(f"immutable report contradicts or omits {key}")
 
 
