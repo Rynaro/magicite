@@ -158,11 +158,12 @@ def test_layout_check_flags_the_legacy_directory(tmp_path: Path) -> None:
     assert any("data layout" in w for w in report["warnings"])
 
 
-def _tree_fingerprint(root: Path) -> dict[str, tuple[int, int, str]]:
-    """Hash every file under root: size, mtime_ns, sha256. Detects creates too."""
+def _tree_fingerprint(root: Path) -> dict[str, tuple[int, int, int, str]]:
+    """Hash every file under root: mode, size, mtime_ns, sha256. Detects creates too."""
     import hashlib
+    import stat as stat_mod
 
-    out: dict[str, tuple[int, int, str]] = {}
+    out: dict[str, tuple[int, int, int, str]] = {}
     if not root.exists():
         return out
     for path in sorted(root.rglob("*")):
@@ -171,13 +172,14 @@ def _tree_fingerprint(root: Path) -> dict[str, tuple[int, int, str]]:
         rel = path.relative_to(root).as_posix()
         data = path.read_bytes()
         st = path.stat()
-        out[rel] = (st.st_size, st.st_mtime_ns, hashlib.sha256(data).hexdigest())
-    # Also record directory names so mkdir would show up via new empty dirs... 
-    # empty dirs: encode as dir markers
+        mode = stat_mod.S_IMODE(st.st_mode)
+        out[rel] = (mode, st.st_size, st.st_mtime_ns, hashlib.sha256(data).hexdigest())
     for path in sorted(root.rglob("*")):
         if path.is_dir():
             rel = path.relative_to(root).as_posix() + "/"
-            out.setdefault(rel, (0, path.stat().st_mtime_ns, "dir"))
+            st = path.stat()
+            mode = stat_mod.S_IMODE(st.st_mode)
+            out.setdefault(rel, (mode, 0, st.st_mtime_ns, "dir"))
     return out
 
 

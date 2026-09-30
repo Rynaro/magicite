@@ -10,6 +10,8 @@ cross-process guard.
 from __future__ import annotations
 
 import multiprocessing as mp
+import os
+import signal
 import time
 from pathlib import Path
 from typing import Any
@@ -275,7 +277,7 @@ def _stale_domain_writer(
     attempt_write: Any,
     results: Any,
 ) -> None:
-    """Hold a fenced lease via try_acquire (no heartbeat), then attempt a domain write."""
+    """Hold a fenced lease via try_acquire, then attempt a REAL domain write."""
     from magicite.config import Config
     from magicite.core import approvals as approvals_mod
     from magicite.core import evidence as evidence_mod
@@ -300,8 +302,7 @@ def _stale_domain_writer(
             results.put({"domain": domain, "status": "timeout"})
             return
         try:
-            # Fence check first (same as schema_meta stale writer).
-            candidate.assert_owned()
+            # Real domain APIs (not bare assert_owned) — context var is set by try_acquire.
             if domain == "evidence":
                 event = evidence_mod.EvidenceEvent(
                     event_id="ev_stale_fence",
@@ -318,15 +319,11 @@ def _stale_domain_writer(
                     source_tier=0,
                     retention_class="operational",
                 )
-                # Without context-var lease, checkpoint acquires anew → BusyError
-                # once replacement holds the row; assert_owned already failed above
-                # when fenced, so this is defense-in-depth if assert is skipped.
                 evidence_mod.checkpoint(cfg, conn, event)
             elif domain == "trust":
                 trust_mod.save_policy(cfg, trust_mod.default_policy())
             elif domain == "approvals":
                 with lease.writer_lease(holder="stale-approvals"):
-                    lease.assert_single_writer()
                     approvals_mod.propose(
                         conn,
                         cfg,
@@ -345,6 +342,81 @@ def _stale_domain_writer(
     finally:
         candidate.release()
         conn.close()
+
+
+def _killed_holder(db_path: str, lock_path: str, token_path: str) -> None:
+    """Acquire DB lease, write fencing token to a file, then spin until SIGKILL."""
+    from magicite.storage import db as db_mod
+    from magicite.storage import lease
+
+    conn = db_mod.connect(db_path)
+    candidate = lease.CrossProcessLease(
+        lock_path=lock_path,
+        conn=conn,
+        holder="kill-holder",
+        ttl_s=0.4,
+    )
+    acquired = candidate.try_acquire()
+    Path(token_path).write_text(str(acquired.fencing_token), encoding="utf-8")
+    while True:
+        time.sleep(0.05)
+
+
+@pytest.mark.acceptance
+def test_killed_holder_lease_reclaimed(tmp_path: Path) -> None:
+    """B6: SIGKILL a lease holder; after TTL the replacement reclaims the fence.
+
+    Uses a file token (not mp.Queue) so SIGKILL cannot strand the resource
+    tracker. Domain-writer fencing after reclaim is covered by
+    ``test_stale_writer_cannot_commit_domain_stores``.
+    """
+    db_path = tmp_path / "kill.db"
+    token_path = tmp_path / "token.txt"
+    seed = db_mod.connect(db_path)
+    seed.close()
+
+    ctx = _spawn_context()
+    holder = ctx.Process(
+        target=_killed_holder,
+        args=(str(db_path), str(tmp_path / "kill.lock"), str(token_path)),
+    )
+    holder.start()
+    replacement_conn = None
+    replacement = None
+    try:
+        for _ in range(100):
+            if token_path.is_file() and token_path.stat().st_size > 0:
+                break
+            time.sleep(0.05)
+        else:
+            raise AssertionError("holder never published fencing token")
+        token = int(token_path.read_text(encoding="utf-8"))
+        assert holder.pid is not None
+        os.kill(holder.pid, signal.SIGKILL)
+        holder.join(timeout=5)
+        assert not holder.is_alive()
+        time.sleep(0.55)
+        replacement_conn = db_mod.connect(db_path)
+        replacement = lease.CrossProcessLease(
+            lock_path=tmp_path / "repl.lock",
+            conn=replacement_conn,
+            holder="replacement",
+            ttl_s=5.0,
+        )
+        result = replacement.try_acquire()
+        assert result.fencing_token == token + 1
+        assert result.stolen is True
+    finally:
+        if holder.is_alive():
+            try:
+                os.kill(holder.pid, signal.SIGKILL)  # type: ignore[arg-type]
+            except OSError:
+                pass
+            holder.join(timeout=5)
+        if replacement is not None:
+            replacement.release()
+        if replacement_conn is not None:
+            replacement_conn.close()
 
 
 @pytest.mark.acceptance
