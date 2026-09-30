@@ -154,12 +154,18 @@ def writer_lease(holder: str = "writer") -> Iterator[None]:
 
 def assert_single_writer() -> None:
     """G2: every public ``storage.durable`` write function -- and
-    ``engram.writer.atomic_write()`` -- calls this first."""
+    ``engram.writer.atomic_write()`` -- calls this first.
+
+    S12 backup/restore and evidence/trust domain writers also call this under
+    :class:`CrossProcessLease` so a stale/killed holder cannot commit after
+    fencing-token loss (AC-S12-04).
+    """
     if _DEPTH.get() <= 0:
         raise WriterLeaseError(
             "durable write attempted without holding the writer lease",
             hint="durable writes must happen inside register()/sync()/export()/"
-            "checkpoint(), which acquire the writer lease before writing",
+            "checkpoint()/backup.create_snapshot()/backup.restore_snapshot(), "
+            "which acquire the writer lease before writing",
         )
     cross_process = _CROSS_PROCESS_LEASE.get()
     if cross_process is not None:
