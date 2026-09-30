@@ -53,28 +53,56 @@ fully self-contained on either; both apply to the experimental path):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
-from dataclasses import dataclass, field
+import uuid
+from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import lru_cache
+from typing import Any, Literal
 
 import numpy as np
 
 from magicite.config import Config
 from magicite.core import activation as activation_mod
+from magicite.core import calibration as calibration_mod
 from magicite.core import composition as composition_mod
 from magicite.core import edge_weight as edge_weight_mod
+from magicite.core import eligibility as eligibility_mod
 from magicite.core import fingerprint_key as fingerprint_key_mod
+from magicite.core import registry as registry_mod
 from magicite.core import routing_policy as policy_mod
 from magicite.core import session as session_mod
+from magicite.core import trust as trust_mod
+from magicite.core.context import RouteContext, ServerPermissionPolicy
 from magicite.core.decay_math import effective_value
+from magicite.embeddings import reranker as reranker_mod
 from magicite.embeddings.base import Embedder, contraindication_model_name
 from magicite.engram.model import ROUTABLE_STATUSES
+from magicite.errors import InvalidInputError
 from magicite.storage import ephemeral as ephemeral_mod
 
 INTENT_TRUNCATE = 200
 CONTRAINDICATION_VIEW_SCHEMA = "magicite-contraindication-view/1"
+ROUTE_DECISION_SCHEMA = "RouteDecision/1"
+EXPLANATION_VERSION = "RouteExplanation/1"
+
+#: Default server permission ceiling when the caller does not supply one.
+#: Unconstrained subjects (no required permissions/tools) remain eligible;
+#: constrained subjects still fail closed against this ceiling.
+DEFAULT_SERVER_POLICY = ServerPermissionPolicy(
+    allowed_permissions=frozenset(),
+    allowed_tools=frozenset(),
+    policy_digest="magicite-default-server-policy/1",
+    max_filesystem="write-project",
+    max_subprocess="declared-tools",
+    max_network="required",
+    max_secrets="raw",
+)
 
 #: spec §3.3 step 4: positive-weight edge types fed to the activation
 #: graph. ``inhibits`` is deliberately excluded -- it is applied as a
@@ -95,6 +123,54 @@ class Candidate:
     body_ref: str
     signal_tier_0: bool = True
     diagnostics: dict[str, float] = field(default_factory=dict)
+    content_digest: str | None = None
+
+
+@dataclass(frozen=True)
+class Confidence:
+    value: float | None
+    calibration_id: str | None
+
+
+@dataclass(frozen=True)
+class ExclusionSummary:
+    engram_id: str
+    reason_codes: tuple[str, ...]
+
+
+@dataclass
+class RouteDecision:
+    """RouteDecision/1 (contracts.md C4). Internal; S11 owns public wrappers."""
+
+    decision_id: str
+    status: Literal["selected", "abstained", "error"]
+    selected_ids: tuple[str, ...]
+    candidates: list[Candidate]
+    exclusions: tuple[ExclusionSummary, ...]
+    score_components: dict[str, dict[str, float]]
+    confidence: Confidence
+    reason_codes: tuple[str, ...]
+    missing_context: tuple[str, ...]
+    truncations: dict[str, int]
+    policy_id: str
+    policy_digest: str
+    policy_family: str
+    config_digest: str
+    calibration_digest: str | None
+    query_fingerprint: str
+    registry_digest: str | None = None
+    schema_digest: str | None = None
+    model_digest: str | None = None
+    tokenizer_digest: str | None = None
+    index_generation_id: str | None = None
+    snapshot_id: str | None = None
+    selected_content_digests: dict[str, str] = field(default_factory=dict)
+    selection_mechanism: str = "dense-v1"
+    propensity: dict[str, float] = field(default_factory=dict)
+    explanation_version: str = EXPLANATION_VERSION
+    fallback_identity: str | None = None
+    operational_error: str | None = None
+    schema_version: str = ROUTE_DECISION_SCHEMA
 
 
 @dataclass
@@ -109,6 +185,8 @@ class RouteOutcome:
     policy_id: str = policy_mod.POLICY_DENSE_V1
     policy_digest: str = ""
     policy_family: str = "stable"
+    #: Internal RouteDecision/1 — not yet on MCP RouteOutput (S11 forward).
+    decision: RouteDecision | None = None
 
 
 #: docs/05 verbatim self-report instruction text (Tier-1 signal path).
@@ -119,24 +197,358 @@ ROUTE_INSTRUCTIONS = (
 )
 
 
+class RerankerOperationalError(InvalidInputError):
+    """Typed operational failure distinct from selection-quality abstention."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str,
+        fallback_identity: str | None = None,
+    ) -> None:
+        super().__init__(message, details={"operational_code": code, "fallback_identity": fallback_identity})
+        self.operational_code = code
+        self.fallback_identity = fallback_identity
+
+
 def _fetch_candidates(conn: sqlite3.Connection, model_name: str) -> list[sqlite3.Row]:
-    """spec §3.3 step 2's ``routable`` filter, plus everything later steps
-    need (excitability, retrieval strength) in one query."""
+    """Load embedded candidates for eligibility-then-score (C2 / C4).
+
+    Includes ``quarantined`` verification rows so S06 can exclude them before
+    scoring (AC-S07-01). Pending/other statuses stay out of the hot pool.
+    """
     placeholders = ",".join("?" for _ in ROUTABLE_STATUSES)
     return conn.execute(
         f"""
         SELECT e.id, e.name, e.intent_does, e.intent_use_when, e.status, e.exposure_count,
-               e.path, e.excitability, e.intent_not_when, e.identity_sha256,
+               e.path, e.excitability, e.intent_not_when, e.identity_sha256, e.content_sha256,
+               e.version, e.verification_status, e.origin,
                x.vec, x.dim, nx.vec AS contraindication_vec,
                COALESCE(r.r, 0.0) AS retrieval_strength, r.r_decayed_at AS retrieval_decayed_at
         FROM engram e
         JOIN eph_embedding x ON x.engram_id = e.id AND x.model = ?
         LEFT JOIN eph_embedding nx ON nx.engram_id = e.id AND nx.model = ?
         LEFT JOIN eph_retrieval r ON r.engram_id = e.id
-        WHERE e.status IN ({placeholders}) AND e.verification_status = 'verified'
+        WHERE e.status IN ({placeholders})
+          AND e.verification_status IN ('verified', 'quarantined')
         """,
         (model_name, contraindication_model_name(model_name), *ROUTABLE_STATUSES),
     ).fetchall()
+
+
+def expand_composition(
+    conn: sqlite3.Connection,
+    winner_id: str,
+    winner_name: str,
+    *,
+    max_depth: int,
+    max_size: int,
+    declared_edge_strength: float,
+) -> composition_mod.CompositionPlan:
+    """Composition seam for S08: swap this body for ``compose()`` later.
+
+    Invalid plans from a future ``compose()`` must abstain; today's
+    ``expand()`` always returns a plan (cycle-broken if needed).
+    """
+    return composition_mod.expand(
+        conn,
+        winner_id,
+        winner_name,
+        max_depth=max_depth,
+        max_size=max_size,
+        declared_edge_strength=declared_edge_strength,
+    )
+
+
+def _trust_decisions_by_engram(cfg: Config) -> dict[str, trust_mod.TrustDecision]:
+    """Load the trust ledger once per route (latest decision per engram)."""
+    latest: dict[str, trust_mod.TrustDecision] = {}
+    try:
+        for decision in trust_mod.list_decisions(cfg):
+            prior = latest.get(decision.engram_id)
+            if prior is None or (decision.timestamp, decision.decision_id) > (
+                prior.timestamp,
+                prior.decision_id,
+            ):
+                latest[decision.engram_id] = decision
+    except trust_mod.TrustLedgerCorruptError:
+        # Fail closed: callers treat a corrupt ledger as deny-all via full path.
+        raise
+    return latest
+
+
+def _route_context_is_unconstrained(route_context: RouteContext) -> bool:
+    return (
+        not route_context.languages
+        and not route_context.frameworks
+        and not route_context.package_managers
+        and route_context.platform is None
+        and route_context.host is None
+        and route_context.capabilities is None
+        and route_context.permission_grants is None
+        and route_context.allowed_tools is None
+        and route_context.artifact_inventory is None
+        and not route_context.excluded_engram_ids
+    )
+
+
+def _effective_trust_view(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    *,
+    engram_id: str,
+    cached_decision: trust_mod.TrustDecision | None | object = ...,
+) -> trust_mod.TrustDecisionView:
+    """``trust_view_for`` plus C2 default local policy for verified authorship.
+
+    Local ``origin_trusted`` artifacts without an explicit reject/revoke/
+    quarantine decision are treated as admitted for routing so authored
+    registries remain routable without a separate ledger admit row. Imports
+    still require digest-bound admission (``admitted`` stays False).
+    """
+    view = registry_mod.trust_view_for(cfg, conn, engram_id=engram_id)
+    if view.admitted or view.quarantined or not view.origin_trusted:
+        return view
+    if cached_decision is ...:
+        try:
+            decision = trust_mod.latest_decision_for(cfg, engram_id)
+        except trust_mod.TrustLedgerCorruptError:
+            return view
+    else:
+        decision = cached_decision  # type: ignore[assignment]
+    if decision is not None and decision.decision in {"reject", "revoke", "quarantine"}:
+        return view
+    return replace(view, admitted=True)
+
+
+def _evaluate_route_eligibility(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    rows: Sequence[sqlite3.Row],
+    *,
+    route_context: RouteContext,
+    server_policy: ServerPermissionPolicy,
+) -> tuple[list[sqlite3.Row], list[ExclusionSummary], list[str]]:
+    """Run S06 eligibility before scoring/rerank. Exceptions → deny.
+
+    Hot-path optimization (AC-011): unconstrained authored+verified rows with
+    no adverse trust decision skip per-row ledger/file I/O. Quarantined rows
+    are excluded from ``verification_status`` alone. Constrained contexts and
+    imports still take the full evaluator path (fail closed).
+    """
+    eligible_rows: list[sqlite3.Row] = []
+    exclusions: list[ExclusionSummary] = []
+    missing_context: list[str] = []
+    unconstrained = _route_context_is_unconstrained(route_context)
+    try:
+        decisions = _trust_decisions_by_engram(cfg)
+        ledger_corrupt = False
+    except trust_mod.TrustLedgerCorruptError:
+        decisions = {}
+        ledger_corrupt = True
+
+    for row in rows:
+        engram_id = str(row["id"])
+        verification = str(row["verification_status"]) if "verification_status" in row.keys() else ""
+        origin = str(row["origin"]) if "origin" in row.keys() else ""
+
+        if verification == "quarantined":
+            exclusions.append(
+                ExclusionSummary(
+                    engram_id=engram_id,
+                    reason_codes=(eligibility_mod.REASON_QUARANTINED,),
+                )
+            )
+            continue
+
+        decision = decisions.get(engram_id)
+        if decision is not None and decision.decision in {"reject", "revoke", "quarantine"}:
+            code = (
+                eligibility_mod.REASON_QUARANTINED
+                if decision.decision == "quarantine"
+                else eligibility_mod.REASON_UNTRUSTED_ORIGIN
+            )
+            exclusions.append(ExclusionSummary(engram_id=engram_id, reason_codes=(code,)))
+            continue
+
+        # Fast path: default local policy for unconstrained authored+verified.
+        if (
+            unconstrained
+            and not ledger_corrupt
+            and verification == "verified"
+            and origin in {"authored", "sharpened"}
+            and (decision is None or decision.decision == "admit")
+        ):
+            eligible_rows.append(row)
+            continue
+
+        subject = eligibility_mod.EligibilitySubject(
+            id=engram_id,
+            version=int(row["version"]) if "version" in row.keys() else 1,
+            assets_valid=True,
+        )
+        try:
+            if ledger_corrupt:
+                exclusions.append(
+                    ExclusionSummary(
+                        engram_id=engram_id,
+                        reason_codes=(eligibility_mod.REASON_UNTRUSTED_ORIGIN,),
+                    )
+                )
+                continue
+            trust = _effective_trust_view(
+                cfg, conn, engram_id=engram_id, cached_decision=decision
+            )
+            result = eligibility_mod.evaluate_eligibility(
+                subject, route_context, trust, server_policy, path="route"
+            )
+        except Exception:
+            exclusions.append(
+                ExclusionSummary(
+                    engram_id=engram_id,
+                    reason_codes=(eligibility_mod.REASON_CONFLICT, "eligibility_evaluator_error"),
+                )
+            )
+            continue
+        if not result.eligible:
+            exclusions.append(
+                ExclusionSummary(engram_id=engram_id, reason_codes=tuple(result.reason_codes))
+            )
+            if result.context_required:
+                missing_context.extend(result.missing_fields)
+            continue
+        eligible_rows.append(row)
+    return eligible_rows, exclusions, missing_context
+
+
+def _bound_exclusions(
+    exclusions: Sequence[ExclusionSummary], *, limit: int
+) -> tuple[ExclusionSummary, ...]:
+    if limit < 1:
+        return ()
+    ordered = sorted(exclusions, key=lambda e: e.engram_id)
+    return tuple(ordered[:limit])
+
+
+def _apply_optional_reranker(
+    cfg: Config,
+    *,
+    query: str,
+    ranked_ids: list[str],
+    scores_by_id: dict[str, float],
+) -> tuple[list[str], str | None, str | None]:
+    """Optional reranker with timeout / missing-model fallback (AC-S07-04).
+
+    Returns ``(ordered_ids, fallback_identity|None, operational_error|None)``.
+    Selection-quality abstention is separate — this only handles ops failures.
+    """
+    provider = (cfg.reranker_provider or "").strip()
+    if not provider:
+        return ranked_ids, None, None
+
+    fallback = (cfg.reranker_fallback or "").strip() or None
+
+    try:
+        reranker = reranker_mod.get_reranker(provider)
+    except ValueError:
+        if cfg.reranker_required:
+            if fallback:
+                return ranked_ids, fallback, None
+            return ranked_ids, None, "reranker_model_missing"
+        return ranked_ids, None, None
+
+    # Lightweight slate objects satisfying the reranker protocol.
+    slate = [
+        type("RerankCand", (), {"id": nid, "fused_score": scores_by_id.get(nid, 0.0)})()
+        for nid in ranked_ids[: reranker_mod.DEFAULT_RERANK_LIMIT]
+    ]
+
+    def _call() -> Sequence[Any]:
+        return reranker.rerank(
+            query,
+            slate,
+            token_budget=2048,
+            timeout_s=float(cfg.reranker_timeout_s),
+        )
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(_call)
+            reranked = future.result(timeout=float(cfg.reranker_timeout_s))
+    except FuturesTimeout:
+        if fallback:
+            return ranked_ids, fallback, None
+        if cfg.reranker_required:
+            return ranked_ids, None, "reranker_timeout"
+        return ranked_ids, fallback, None
+    except Exception:
+        if fallback:
+            return ranked_ids, fallback, None
+        if cfg.reranker_required:
+            return ranked_ids, None, "reranker_failure"
+        return ranked_ids, None, None
+
+    new_order: list[str] = []
+    for c in reranked:
+        nid = getattr(c, "id", None)
+        if isinstance(nid, str) and nid in scores_by_id:
+            new_order.append(nid)
+    # Preserve any ids the reranker dropped, in prior order.
+    seen = set(new_order)
+    for nid in ranked_ids:
+        if nid not in seen:
+            new_order.append(nid)
+    return new_order, None, None
+
+
+def semantic_decision_fields(decision: RouteDecision) -> dict[str, Any]:
+    """Equality-relevant RouteDecision fields (excludes opaque ids/timings)."""
+    return {
+        "status": decision.status,
+        "selected_ids": list(decision.selected_ids),
+        "candidate_ids": [c.id for c in decision.candidates],
+        "candidate_scores": [c.score for c in decision.candidates],
+        "exclusions": [
+            {"engram_id": e.engram_id, "reason_codes": list(e.reason_codes)}
+            for e in decision.exclusions
+        ],
+        "score_components": decision.score_components,
+        "confidence": {
+            "value": decision.confidence.value,
+            "calibration_id": decision.confidence.calibration_id,
+        },
+        "reason_codes": list(decision.reason_codes),
+        "missing_context": list(decision.missing_context),
+        "truncations": dict(decision.truncations),
+        "policy_id": decision.policy_id,
+        "policy_digest": decision.policy_digest,
+        "policy_family": decision.policy_family,
+        "config_digest": decision.config_digest,
+        "calibration_digest": decision.calibration_digest,
+        "query_fingerprint": decision.query_fingerprint,
+        "registry_digest": decision.registry_digest,
+        "schema_digest": decision.schema_digest,
+        "model_digest": decision.model_digest,
+        "index_generation_id": decision.index_generation_id,
+        "snapshot_id": decision.snapshot_id,
+        "selected_content_digests": dict(decision.selected_content_digests),
+        "selection_mechanism": decision.selection_mechanism,
+        "propensity": dict(decision.propensity),
+        "explanation_version": decision.explanation_version,
+        "fallback_identity": decision.fallback_identity,
+        "operational_error": decision.operational_error,
+        "schema_version": decision.schema_version,
+    }
+
+
+def _registry_digest(conn: sqlite3.Connection) -> str:
+    rows = conn.execute(
+        "SELECT id, content_sha256 FROM engram ORDER BY id"
+    ).fetchall()
+    payload = [{"id": r["id"], "content_sha256": r["content_sha256"]} for r in rows]
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _fetch_activation_edges(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -358,31 +770,64 @@ def route(
     context: dict | None = None,
     k: int = 5,
     session_id: str | None = None,
+    route_context: RouteContext | None = None,
+    server_policy: ServerPermissionPolicy | None = None,
 ) -> RouteOutcome:
     # core/session.py (M3): the one session-resolution rule every
     # session-participating tool follows (spec §3.3) -- mint/reuse/expire,
     # in one place, instead of route() rolling its own uuid4() + upsert.
     sid = session_mod.resolve_id(cfg, conn, session_id)
     policy_id = policy_mod.resolve_policy_id(cfg)
-    digest = policy_mod.compute_policy_digest(policy_id, cfg)
+    config_digest = policy_mod.compute_config_digest(cfg)
+    cal = calibration_mod.load_calibration(
+        cfg,
+        expected_config_digest=config_digest,
+    )
+    # Policy digest must include calibration when compatible evidence exists.
+    cal_digest = cal.digest if cal is not None else None
+    if cal is not None and cal.policy_id != policy_id:
+        calibration_mod.clear_calibration(cfg)
+        cal = None
+        cal_digest = None
+    digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=cal_digest)
+    if cal is not None and cal.policy_digest != digest:
+        # Stale calibration vs current policy semantics — clear, never report
+        # stale probabilities.
+        calibration_mod.clear_calibration(cfg)
+        cal = None
+        cal_digest = None
+        digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=None)
     family = policy_mod.policy_family(policy_id)
 
     qvec = embedder.embed(query)
     rows = _fetch_candidates(conn, embedder.model_name)
     registry_size = conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"]
+    rctx = route_context if route_context is not None else RouteContext()
+    spolicy = server_policy if server_policy is not None else DEFAULT_SERVER_POLICY
 
     if not rows:
-        return RouteOutcome(
+        return _finalize_route(
+            cfg,
+            conn,
+            query=query,
+            k=k,
             candidates=[],
-            composition_plan=[],
-            plan_confidence=0.0,
-            instructions=ROUTE_INSTRUCTIONS,
+            unresolved_context=_echo_all_context(context),
             session_id=sid,
             registry_size=registry_size,
-            unresolved_context=_echo_all_context(context),
             policy_id=policy_id,
             policy_digest=digest,
             policy_family=family,
+            config_digest=config_digest,
+            calibration=cal,
+            exclusions=(),
+            missing_context=[],
+            reason_codes=("no_candidates",),
+            status="abstained",
+            selection_mechanism=policy_id,
+            score_components={},
+            truncations={},
+            model_digest=embedder.model_name,
         )
 
     if policy_id == policy_mod.POLICY_DENSE_V1:
@@ -399,6 +844,10 @@ def route(
             policy_id=policy_id,
             policy_digest=digest,
             policy_family=family,
+            config_digest=config_digest,
+            calibration=cal,
+            route_context=rctx,
+            server_policy=spolicy,
         )
     else:
         outcome = _route_adaptive_blend_v1(
@@ -415,6 +864,10 @@ def route(
             policy_id=policy_id,
             policy_digest=digest,
             policy_family=family,
+            config_digest=config_digest,
+            calibration=cal,
+            route_context=rctx,
+            server_policy=spolicy,
         )
     return outcome
 
@@ -457,43 +910,156 @@ def _finalize_route(
     policy_id: str,
     policy_digest: str,
     policy_family: str,
+    config_digest: str = "",
+    calibration: calibration_mod.CalibrationArtifact | None = None,
+    exclusions: tuple[ExclusionSummary, ...] = (),
+    missing_context: list[str] | None = None,
+    reason_codes: tuple[str, ...] = (),
+    status: Literal["selected", "abstained", "error"] | None = None,
+    selection_mechanism: str = "dense-v1",
+    score_components: dict[str, dict[str, float]] | None = None,
+    truncations: dict[str, int] | None = None,
+    model_digest: str | None = None,
+    fallback_identity: str | None = None,
+    operational_error: str | None = None,
+    index_generation_id: str | None = None,
+    snapshot_id: str | None = None,
 ) -> RouteOutcome:
+    key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
+    query_fp = fingerprint_key_mod.query_fingerprint(query, key=key)
+    cfg_digest = config_digest or policy_mod.compute_config_digest(cfg)
+    missing = list(missing_context or [])
+    missing.extend(unresolved_context)
+
     composition_plan: list[str] = []
     plan_confidence = 0.0
-    if candidates:
-        winner = candidates[0]
-        plan = composition_mod.expand(
-            conn,
-            winner.id,
-            winner.name,
-            max_depth=cfg.plan_max_depth,
-            max_size=cfg.plan_max_size,
-            declared_edge_strength=cfg.declared_edge_strength,
-        )
-        composition_plan = plan.order
-        plan_confidence = composition_mod.plan_confidence(plan)
+    final_candidates = list(candidates)
+    final_status: Literal["selected", "abstained", "error"]
+    final_reasons = list(reason_codes)
+    confidence = Confidence(value=None, calibration_id=None)
+    cal_digest = calibration.digest if calibration is not None else None
+
+    if operational_error and not fallback_identity:
+        final_status = "error"
+        final_candidates = []
+        final_reasons = list(dict.fromkeys([*final_reasons, operational_error, "operational_error"]))
+    else:
+        # Calibrated abstention (selection quality — not operational errors).
+        if (
+            cfg.abstention_enabled
+            and calibration is not None
+            and final_candidates
+            and not operational_error
+        ):
+            top_score = final_candidates[0].score
+            margin = calibration_mod.score_margin([c.score for c in final_candidates])
+            abstention = calibration_mod.decide_abstention(
+                query_fingerprint=query_fp,
+                top_score=top_score,
+                margin=margin,
+                artifact=calibration,
+                expected_policy_digest=policy_digest,
+                expected_config_digest=cfg_digest,
+            )
+            if not abstention.calibrated:
+                confidence = Confidence(value=None, calibration_id=None)
+                cal_digest = None
+                final_reasons.extend(abstention.reason_codes)
+            elif abstention.abstain:
+                final_candidates = []
+                final_reasons.extend(abstention.reason_codes)
+            else:
+                confidence = Confidence(
+                    value=abstention.confidence_value,
+                    calibration_id=abstention.calibration_id,
+                )
+                cal_digest = abstention.calibration_digest
+
+        if status is not None and not final_candidates and status == "abstained":
+            final_status = "abstained"
+        elif not final_candidates:
+            final_status = "error" if operational_error and not fallback_identity else "abstained"
+            if "no_eligible_candidate" not in final_reasons and not operational_error:
+                final_reasons.append("no_eligible_candidate")
+        else:
+            final_status = "selected"
+            winner = final_candidates[0]
+            plan = expand_composition(
+                conn,
+                winner.id,
+                winner.name,
+                max_depth=cfg.plan_max_depth,
+                max_size=cfg.plan_max_size,
+                declared_edge_strength=cfg.declared_edge_strength,
+            )
+            composition_plan = plan.order
+            plan_confidence = composition_mod.plan_confidence(plan)
+
+    # Deterministic propensity under a nonadaptive policy.
+    propensity: dict[str, float] = {}
+    if final_status == "selected" and final_candidates:
+        for c in final_candidates:
+            propensity[c.id] = 1.0 if c.id == final_candidates[0].id else 0.0
+    elif final_status == "abstained":
+        propensity["__abstain__"] = 1.0
+
+    selected_ids = tuple(c.id for c in final_candidates[:1]) if final_status == "selected" else ()
+    selected_digests = {
+        c.id: (c.content_digest or "")
+        for c in final_candidates
+        if c.content_digest
+    }
+
+    route_decision = RouteDecision(
+        decision_id=f"rd_{uuid.uuid4().hex[:16]}",
+        status=final_status,
+        selected_ids=selected_ids,
+        candidates=final_candidates,
+        exclusions=exclusions,
+        score_components=score_components or {},
+        confidence=confidence,
+        reason_codes=tuple(dict.fromkeys(final_reasons)),
+        missing_context=tuple(dict.fromkeys(missing)),
+        truncations=truncations or {},
+        policy_id=policy_id,
+        policy_digest=policy_digest,
+        policy_family=policy_family,
+        config_digest=cfg_digest,
+        calibration_digest=cal_digest,
+        query_fingerprint=query_fp,
+        registry_digest=_registry_digest(conn),
+        model_digest=model_digest,
+        index_generation_id=index_generation_id,
+        snapshot_id=snapshot_id,
+        selected_content_digests=selected_digests,
+        selection_mechanism=fallback_identity or selection_mechanism,
+        propensity=propensity,
+        fallback_identity=fallback_identity,
+        operational_error=operational_error,
+    )
 
     # step 11: Tier-C bookkeeping ONLY -- R and S are never touched here (Principle 1).
-    for c in candidates:
+    # Hot path stays free of checkpoint/fsync work (S09 receipt hook point is forward).
+    for c in final_candidates:
         ephemeral_mod.bump_route_bookkeeping(conn, c.id)
     ephemeral_mod.append_event(
         conn,
         session_id=session_id,
         tool="route",
         signal_tier=0,
-        engram_id=candidates[0].id if candidates else None,
+        engram_id=final_candidates[0].id if final_candidates else None,
         payload=_route_event_payload(
             cfg,
             query=query,
             k=k,
-            candidates=candidates,
+            candidates=final_candidates,
             policy_id=policy_id,
             policy_digest=policy_digest,
         ),
     )
 
     return RouteOutcome(
-        candidates=candidates,
+        candidates=final_candidates,
         composition_plan=composition_plan,
         plan_confidence=plan_confidence,
         instructions=ROUTE_INSTRUCTIONS,
@@ -503,6 +1069,7 @@ def _finalize_route(
         policy_id=policy_id,
         policy_digest=policy_digest,
         policy_family=policy_family,
+        decision=route_decision,
     )
 
 
@@ -520,13 +1087,48 @@ def _route_dense_v1(
     policy_id: str,
     policy_digest: str,
     policy_family: str,
+    config_digest: str,
+    calibration: calibration_mod.CalibrationArtifact | None,
+    route_context: RouteContext,
+    server_policy: ServerPermissionPolicy,
 ) -> RouteOutcome:
-    """Nonadaptive incumbent: cosine similarity, stable-ID ties."""
-    _ = embedder  # eligibility/embedder identity wiring lands in S05/S07
+    """Nonadaptive incumbent: eligibility → cosine → optional rerank → abstain."""
+    eligible_rows, exclusions, missing_ctx = _evaluate_route_eligibility(
+        cfg,
+        conn,
+        rows,
+        route_context=route_context,
+        server_policy=server_policy,
+    )
+    bound_exclusions = _bound_exclusions(exclusions, limit=cfg.max_exclusion_summaries)
+
+    if not eligible_rows:
+        return _finalize_route(
+            cfg,
+            conn,
+            query=query,
+            k=k,
+            candidates=[],
+            unresolved_context=[],
+            session_id=session_id,
+            registry_size=registry_size,
+            policy_id=policy_id,
+            policy_digest=policy_digest,
+            policy_family=policy_family,
+            config_digest=config_digest,
+            calibration=calibration,
+            exclusions=bound_exclusions,
+            missing_context=missing_ctx,
+            reason_codes=("no_eligible_candidate",),
+            status="abstained",
+            selection_mechanism=policy_id,
+            model_digest=embedder.model_name,
+        )
+
     node_ids: list[str] = []
     row_by_id: dict[str, sqlite3.Row] = {}
     cosine_list: list[float] = []
-    for row in rows:
+    for row in eligible_rows:
         vec = np.frombuffer(row["vec"], dtype=np.float32)
         node_ids.append(row["id"])
         row_by_id[row["id"]] = row
@@ -534,8 +1136,19 @@ def _route_dense_v1(
     cosine = np.array(cosine_list, dtype=np.float64)
     scores_by_id = {nid: float(cosine[i]) for i, nid in enumerate(node_ids)}
     ranked = sorted(node_ids, key=lambda nid: (-scores_by_id[nid], nid))
-    top_ids = ranked[:k]
 
+    # Bounded refill: eligibility already filtered the pool; take up to
+    # k + refill_limit then truncate so drops never silently shrink below k
+    # when more eligible rows remain.
+    refill_n = max(k, min(len(ranked), k + int(cfg.candidate_refill_limit)))
+    pool = ranked[:refill_n]
+
+    ordered, fallback_identity, operational_error = _apply_optional_reranker(
+        cfg, query=query, ranked_ids=pool, scores_by_id=scores_by_id
+    )
+    top_ids = ordered[:k]
+
+    score_components: dict[str, dict[str, float]] = {}
     candidates = [
         Candidate(
             rank=i + 1,
@@ -547,6 +1160,9 @@ def _route_dense_v1(
             status=row_by_id[nid]["status"],
             exposure_count=row_by_id[nid]["exposure_count"],
             body_ref=row_by_id[nid]["path"],
+            content_digest=str(row_by_id[nid]["content_sha256"])
+            if "content_sha256" in row_by_id[nid].keys()
+            else None,
             diagnostics={
                 "similarity": round(float(scores_by_id[nid]), 6),
                 "final": round(float(scores_by_id[nid]), 6),
@@ -554,6 +1170,13 @@ def _route_dense_v1(
         )
         for i, nid in enumerate(top_ids)
     ]
+    for c in candidates:
+        score_components[c.id] = dict(c.diagnostics)
+
+    truncations: dict[str, int] = {}
+    if len(ranked) > refill_n:
+        truncations["eligible_pool"] = len(ranked) - refill_n
+
     return _finalize_route(
         cfg,
         conn,
@@ -566,6 +1189,16 @@ def _route_dense_v1(
         policy_id=policy_id,
         policy_digest=policy_digest,
         policy_family=policy_family,
+        config_digest=config_digest,
+        calibration=calibration,
+        exclusions=bound_exclusions,
+        missing_context=missing_ctx,
+        selection_mechanism=policy_id,
+        score_components=score_components,
+        truncations=truncations,
+        model_digest=embedder.model_name,
+        fallback_identity=fallback_identity,
+        operational_error=operational_error,
     )
 
 
@@ -584,9 +1217,45 @@ def _route_adaptive_blend_v1(
     policy_id: str,
     policy_digest: str,
     policy_family: str,
+    config_digest: str,
+    calibration: calibration_mod.CalibrationArtifact | None,
+    route_context: RouteContext,
+    server_policy: ServerPermissionPolicy,
 ) -> RouteOutcome:
     """Legacy adaptive blend — explicit experimental policy only."""
+    eligible_rows, exclusions, missing_ctx = _evaluate_route_eligibility(
+        cfg,
+        conn,
+        rows,
+        route_context=route_context,
+        server_policy=server_policy,
+    )
+    bound_exclusions = _bound_exclusions(exclusions, limit=cfg.max_exclusion_summaries)
+    if not eligible_rows:
+        return _finalize_route(
+            cfg,
+            conn,
+            query=query,
+            k=k,
+            candidates=[],
+            unresolved_context=_echo_all_context(context),
+            session_id=session_id,
+            registry_size=registry_size,
+            policy_id=policy_id,
+            policy_digest=policy_digest,
+            policy_family=policy_family,
+            config_digest=config_digest,
+            calibration=calibration,
+            exclusions=bound_exclusions,
+            missing_context=missing_ctx,
+            reason_codes=("no_eligible_candidate",),
+            status="abstained",
+            selection_mechanism=policy_id,
+            model_digest=embedder.model_name,
+        )
+
     now = datetime.now(UTC).isoformat()
+    rows = eligible_rows
 
     # step 1-2: cosine seeds, over every routable+verified+embedded engram.
     node_ids: list[str] = []
@@ -724,6 +1393,9 @@ def _route_adaptive_blend_v1(
             status=row_by_id[nid]["status"],
             exposure_count=row_by_id[nid]["exposure_count"],
             body_ref=row_by_id[nid]["path"],
+            content_digest=str(row_by_id[nid]["content_sha256"])
+            if "content_sha256" in row_by_id[nid].keys()
+            else None,
             diagnostics={
                 "activation": round(float(activation_contribution[row_index]), 6),
                 "similarity": round(float(similarity_contribution[row_index]), 6),
@@ -751,6 +1423,12 @@ def _route_adaptive_blend_v1(
         policy_id=policy_id,
         policy_digest=policy_digest,
         policy_family=policy_family,
+        config_digest=config_digest,
+        calibration=calibration,
+        exclusions=bound_exclusions,
+        missing_context=missing_ctx,
+        selection_mechanism=policy_id,
+        model_digest=embedder.model_name,
     )
 
 
