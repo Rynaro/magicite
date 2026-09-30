@@ -264,8 +264,102 @@ def _semantic_signature(outcome: router_mod.RouteOutcome) -> dict[str, Any]:
     }
 
 
-def _query_for_index(index: int) -> str:
+def _query_for_index(index: int, queries: list[str] | None = None) -> str:
+    if queries:
+        return queries[index % len(queries)]
     return QUERY_TEMPLATES[index % len(QUERY_TEMPLATES)] + f" [{index}]"
+
+
+def _build_registry_from_corpus_manifest(
+    conn: sqlite3.Connection,
+    *,
+    corpus_manifest_path: Path,
+    model_name: str,
+    dim: int,
+    embedder: Any,
+) -> tuple[dict[str, Any], list[str]]:
+    """Load/validate CorpusManifest and build a measurable registry from it.
+
+    Candidate IDs come from relevance / accepted plans / negatives. Query
+    texts from the locked corpus drive measurement (no raw runtime capture).
+    """
+    from magicite.eval.external import verify_acquired_corpus_manifest
+    from magicite.eval.runner import candidates_for_corpus
+
+    corpus, errors = verify_acquired_corpus_manifest(corpus_manifest_path)
+    if errors or corpus is None:
+        raise ValueError("invalid --corpus-manifest: " + "; ".join(errors or ["unknown"]))
+    candidate_ids = candidates_for_corpus(corpus)
+    if not candidate_ids:
+        raise ValueError("--corpus-manifest has no candidate ids in relevance/plans/negatives")
+    query_texts = [q.query_text for q in corpus.queries if q.query_text.strip()]
+    if not query_texts:
+        raise ValueError("--corpus-manifest has no query texts")
+
+    now = _now()
+    # Stable synthetic ids for names that are not already egr_* shaped.
+    ids: list[str] = []
+    names: list[str] = []
+    for index, cand in enumerate(candidate_ids):
+        names.append(cand)
+        ids.append(cand if cand.startswith("egr_") else f"egr_c{index:05d}")
+
+    conn.executemany(
+        """
+        INSERT INTO engram (
+          id, name, path, spec_version, version, origin, verification_status, status,
+          intent_does, intent_use_when, storage_strength, s_decayed_at, excitability,
+          identity_sha256, content_sha256, body_sha256, file_mtime_ns, created_at, updated_at
+        ) VALUES (?,?,?,?,?,?,?,?, ?,?, 0.0, ?, 0.05, ?,?,?, 0, ?, ?)
+        """,
+        [
+            (
+                engram_id,
+                name,
+                f"{name}.egr.md",
+                "engram/0.2",
+                1,
+                "authored",
+                "verified",
+                "nascent",
+                f"does {name}",
+                f"use when {name}",
+                now,
+                engram_id,
+                engram_id,
+                engram_id,
+                now,
+                now,
+            )
+            for engram_id, name in zip(ids, names, strict=True)
+        ],
+    )
+    for engram_id, name in zip(ids, names, strict=True):
+        vec = embedder.embed(f"skill {name}")
+        ephemeral_mod.upsert_embedding(
+            conn,
+            engram_id=engram_id,
+            model_name=model_name,
+            dim=dim,
+            vec=np.asarray(vec, dtype=np.float32),
+            source_sha256=engram_id,
+        )
+    conn.executemany(
+        "INSERT INTO engram_community (engram_id, community_id, algo, computed_at) "
+        "VALUES (?,?,?,?)",
+        [(engram_id, 0, "label_propagation", now) for engram_id in ids],
+    )
+    conn.commit()
+    meta = {
+        "kind": "manifest",
+        "path": str(corpus_manifest_path),
+        "content_identity_sha256": corpus.content_identity_sha256,
+        "corpus_id": corpus.corpus_id,
+        "n_candidates": len(ids),
+        "n_queries": len(query_texts),
+        "ga_eligible": True,  # still subject to production budget + UNEVALUATED catalog
+    }
+    return meta, query_texts
 
 
 def _timed_route(
@@ -297,6 +391,7 @@ def _measure_profile(
     calls: int,
     warmup: int,
     db_path: Path,
+    queries: list[str] | None = None,
 ) -> dict[str, Any]:
     session_id = f"benchmark-{size}"
     cache_states: dict[str, Any] = {
@@ -313,7 +408,7 @@ def _measure_profile(
 
     # Cold process / cold model / cold index: cleared caches, first route.
     cold_s, cold_outcome = _timed_route(
-        cfg, conn, embedder, query=_query_for_index(0), session_id=session_id
+        cfg, conn, embedder, query=_query_for_index(0, queries), session_id=session_id
     )
     cold_ms = round(cold_s * 1000.0, 3)
     cache_states["cold_process"] = {
@@ -337,10 +432,10 @@ def _measure_profile(
 
     router_mod._cached_route_index.cache_clear()
     _, uncached_outcome = _timed_route(
-        cfg, conn, embedder, query=_query_for_index(0), session_id=session_id
+        cfg, conn, embedder, query=_query_for_index(0, queries), session_id=session_id
     )
     _, cached_outcome = _timed_route(
-        cfg, conn, embedder, query=_query_for_index(0), session_id=session_id
+        cfg, conn, embedder, query=_query_for_index(0, queries), session_id=session_id
     )
     semantic_equal = _semantic_signature(uncached_outcome) == _semantic_signature(cached_outcome)
     if not semantic_equal:
@@ -351,17 +446,23 @@ def _measure_profile(
     for index in range(calls):
         router_mod._cached_route_index.cache_clear()
         duration, _ = _timed_route(
-            cfg, conn, embedder, query=_query_for_index(index), session_id=session_id
+            cfg, conn, embedder, query=_query_for_index(index, queries), session_id=session_id
         )
         miss_durations.append(duration)
 
     # Warm index: warmup then measured warm routes (rotated queries).
     router_mod._cached_route_index.cache_clear()
     for index in range(warmup):
-        _timed_route(cfg, conn, embedder, query=_query_for_index(index), session_id=session_id)
+        _timed_route(
+            cfg, conn, embedder, query=_query_for_index(index, queries), session_id=session_id
+        )
     warm_durations = [
         _timed_route(
-            cfg, conn, embedder, query=_query_for_index(warmup + index), session_id=session_id
+            cfg,
+            conn,
+            embedder,
+            query=_query_for_index(warmup + index, queries),
+            session_id=session_id,
         )[0]
         for index in range(calls)
     ]
@@ -374,7 +475,7 @@ def _measure_profile(
     }
 
     # Hot query cache: repeated identical query.
-    hot_query = _query_for_index(0)
+    hot_query = _query_for_index(0, queries)
     for _ in range(max(1, warmup)):
         _timed_route(cfg, conn, embedder, query=hot_query, session_id=session_id)
     hot_durations = [
@@ -479,15 +580,29 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     result["legacy_measurements"] = []
     result["unevaluated"] = unevaluated_catalog()
 
-    # Real licensed corpus absence stays UNEVALUATED (do not invent PASS).
-    if args.corpus_manifest is None and profile.budget.ga_support_claim:
-        # already in catalog; ensure status remains unevaluated for GA claim
-        result["ga_support_claim_status"] = "UNEVALUATED"
-        result["ga_support_claim_reason"] = (
-            "synthetic-only run; real licensed 10k corpus required for GA support claim"
-        )
-    elif args.corpus_manifest is not None and not args.corpus_manifest.is_file():
-        raise FileNotFoundError(f"corpus manifest not found: {args.corpus_manifest}")
+    # Corpus provenance: synthetic runs are never GA-eligible.
+    if args.corpus_manifest is None:
+        result["corpus"] = {
+            "kind": "synthetic",
+            "ga_eligible": False,
+            "path": None,
+            "content_identity_sha256": None,
+        }
+        if profile.budget.ga_support_claim:
+            result["ga_support_claim_status"] = "UNEVALUATED"
+            result["ga_support_claim_reason"] = (
+                "synthetic-only run (corpus.kind=synthetic); real licensed 10k "
+                "corpus required for GA support claim"
+            )
+    else:
+        if not args.corpus_manifest.is_file():
+            raise FileNotFoundError(f"corpus manifest not found: {args.corpus_manifest}")
+        result["corpus"] = {
+            "kind": "manifest",
+            "ga_eligible": True,
+            "path": str(args.corpus_manifest),
+            "content_identity_sha256": None,  # filled after load
+        }
 
     try:
         with tempfile.TemporaryDirectory(prefix="magicite-benchmark-") as temp_dir:
@@ -510,14 +625,26 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             build_started = time.perf_counter()
             rss_before = process_rss_gib()
             conn = db_mod.connect(db_path)
+            measure_queries: list[str] | None = None
             try:
-                _build_synthetic_registry(
-                    conn,
-                    model_name=embedder.model_name,
-                    dim=embedder.dim,
-                    n=size,
-                    seed=1234,
-                )
+                if args.corpus_manifest is not None:
+                    corpus_meta, measure_queries = _build_registry_from_corpus_manifest(
+                        conn,
+                        corpus_manifest_path=args.corpus_manifest,
+                        model_name=embedder.model_name,
+                        dim=embedder.dim,
+                        embedder=embedder,
+                    )
+                    result["corpus"].update(corpus_meta)
+                    size = int(corpus_meta["n_candidates"])
+                else:
+                    _build_synthetic_registry(
+                        conn,
+                        model_name=embedder.model_name,
+                        dim=embedder.dim,
+                        n=size,
+                        seed=1234,
+                    )
                 build_s = time.perf_counter() - build_started
                 raw = _measure_profile(
                     cfg,
@@ -527,6 +654,7 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                     calls=calls,
                     warmup=warmup,
                     db_path=db_path,
+                    queries=measure_queries,
                 )
                 raw["index_build_s"] = round(build_s, 6)
                 raw["index_build_peak_rss_gib"] = round(

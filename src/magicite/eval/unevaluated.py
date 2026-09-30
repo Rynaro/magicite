@@ -4,6 +4,10 @@ External corpora, production-provider dedicated-runner budgets, and hybrid
 paired comparisons that cannot be obtained offline in this sandbox are
 recorded here with the exact operator command. Never emit fabricated
 PASS/metric numbers for these items.
+
+Commands listed here MUST match ``python -m magicite.eval`` subparser flags
+(or ``scripts/run_benchmark_matrix.py`` flags) exactly — see
+``tests/unit/eval/test_scale_unevaluated.py``.
 """
 
 from __future__ import annotations
@@ -44,10 +48,13 @@ UNEVALUATED_CATALOG: tuple[UnevaluatedItem, ...] = (
         operator_command=(
             "python -m magicite.eval acquire-skillret "
             "--archive /path/to/skillret-official.tar.gz "
+            "--expected-sha256 <ARCHIVE_SHA256> "
             "--license <LICENSE> --revision <GIT_OR_RELEASE_SHA> "
+            "--corpus-json /path/to/corpus_manifest.json "
+            "--output artifacts/skillret-acquired-corpus.json "
             "&& python -m magicite.eval run-retrieval "
             "--experiment docs/evaluation/v1/preregistration-template.json "
-            "--corpus <acquired-corpus-manifest.json> "
+            "--corpus artifacts/skillret-acquired-corpus.json "
             "--split final --provider production --output artifacts/skillret-final/"
         ),
         manifest_or_digest=(
@@ -61,7 +68,10 @@ UNEVALUATED_CATALOG: tuple[UnevaluatedItem, ...] = (
         gate="PERFORMANCE",
         reason=(
             "A 10k support claim requires both synthetic 10k and a real licensed "
-            "10k corpus (evaluation.md E6); real corpus is not available offline here"
+            "10k corpus (evaluation.md E6); real corpus is not available offline here. "
+            "When --corpus-manifest is supplied the matrix builds/measures that corpus "
+            "and labels corpus.kind=manifest; synthetic-only runs are corpus.kind=synthetic "
+            "and never GA-eligible."
         ),
         operator_command=(
             "python scripts/run_benchmark_matrix.py "
@@ -72,7 +82,8 @@ UNEVALUATED_CATALOG: tuple[UnevaluatedItem, ...] = (
         ),
         manifest_or_digest=(
             "CorpusManifest/1 content_identity_sha256 for the licensed 10k corpus "
-            "+ ResultManifest/1 digests from the dedicated-runner output"
+            "+ magicite-benchmark-profile-result/1 with corpus.kind=manifest "
+            "(synthetic runs set corpus.kind=synthetic and ga_eligible=false)"
         ),
     ),
     UnevaluatedItem(
@@ -105,13 +116,13 @@ UNEVALUATED_CATALOG: tuple[UnevaluatedItem, ...] = (
             "python -m magicite.eval run-paired-policies "
             "--incumbent dense-v1 --candidate hybrid-rrf-v1 "
             "--experiment docs/evaluation/v1/preregistration-template.json "
-            "--corpus <locked-final-corpus.json> "
+            "--corpus /path/to/locked-final-corpus.json "
             "--n-resamples 10000 --seed 0 "
             "--output artifacts/hybrid-vs-dense-verdict.json"
         ),
         manifest_or_digest=(
             "ResultManifest/1 aggregates + Verdict JSON; on fail/inconclusive call "
-            "policy_store.retain_simple_incumbent_evidence(...)"
+            "policy_store.retain_simple_incumbent_evidence(...); never activate()"
         ),
     ),
     UnevaluatedItem(
@@ -125,7 +136,7 @@ UNEVALUATED_CATALOG: tuple[UnevaluatedItem, ...] = (
             "python -m magicite.eval run-abstention-gate "
             "--calibration-split calibration --final-split final "
             "--experiment docs/evaluation/v1/preregistration-template.json "
-            "--corpus <locked-corpus.json> "
+            "--corpus /path/to/locked-corpus.json "
             "--output artifacts/abstention-gate.json"
         ),
         manifest_or_digest=(

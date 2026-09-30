@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from magicite.eval.metrics import BootstrapInterval, paired_bootstrap_ci
+from magicite.eval.validate import EFFICACY_METRICS
 
 VerdictStatus = Literal["pass", "fail", "inconclusive", "unevaluated"]
 
@@ -24,7 +25,23 @@ DEFAULT_ABSTENTION_COVERAGE_LOWER = 0.80
 #: interval (evaluation.md E3); below that → insufficient evidence.
 MIN_EMPIRICAL_SLICE_GROUPS = 30
 #: Floor for overall paired promotion when no archived power plan exists.
+#: Never lowered; ``min_groups_required`` may raise it from a power plan.
 MIN_OVERALL_GROUPS_FLOOR = 30
+
+
+def min_groups_required(sample_power_plan: dict[str, Any] | None = None) -> int:
+    """Effective independent-group floor for promotion gates.
+
+    Always ``max(MIN_OVERALL_GROUPS_FLOOR, plan_minimum)``. The floor is never
+    reduced by an underspecified or smaller power-plan value.
+    """
+    plan = dict(sample_power_plan or {})
+    planned = 0
+    for key in ("min_independent_groups", "n_groups_min", "n_groups", "sample_floor"):
+        value = plan.get(key)
+        if isinstance(value, (int, float)) and int(value) > planned:
+            planned = int(value)
+    return max(MIN_OVERALL_GROUPS_FLOOR, planned)
 
 
 @dataclass(frozen=True)
@@ -158,15 +175,22 @@ def holm_critical_slice_family(
 ) -> Verdict:
     """Apply Holm correction across critical-slice inferiority tests.
 
-    Each slice is ordered by how strongly it violates the margin (most
-    negative ``low`` first). A slice "rejects noninferiority" when its
-    lower CI is below ``-margin`` at the Holm-adjusted one-sided level.
-    For the percentile-bootstrap operationalisation used here, rejection
-    means ``low < -margin`` after assigning Holm-adjusted alpha to the
-    CI construction; when intervals are precomputed at family alpha,
-    we treat ``low < -margin`` as a raw rejection and require that the
-    k-th ordered rejection also clears the Holm rank threshold by
-    counting ordered failures.
+    **Conservative approximation (documented, evaluation.md E3):** callers
+    supply percentile bootstrap intervals already computed at the family
+    alpha (default 95% CI ⇒ α=0.05). This function does **not** re-bootstrap
+    each ordered hypothesis at the Holm-adjusted ``alpha_i = α/(m−i+1)``.
+    Instead it orders slices by ascending lower bound, treats
+    ``low < -margin`` as a raw reject at family α, and fails the family on
+    any contiguous prefix of such rejects (Holm step-down stop rule over
+    the ordered raw rejects).
+
+    Relative to proper per-rank re-bootstrapping at ``alpha_i`` (which widens
+    CIs for later ranks), this approximation is **conservative on FAIL**: a
+    family-α reject that would have cleared a looser Holm-adjusted CI can
+    still count as failure here. It never turns a true FAIL into PASS by
+    widening intervals. Operators who need exact per-rank α must recompute
+    intervals via ``paired_bootstrap_ci(..., alpha=holm_alpha_i)`` and feed
+    those intervals in explicitly.
     """
     if not slice_intervals:
         return Verdict(
@@ -310,14 +334,7 @@ def reject_structural_efficacy_substitution(
     has_paired_host_verifier_outcomes: bool,
 ) -> Verdict:
     """AC-S14-04: end-task usefulness may not rest on structural corpus alone."""
-    efficacy_like = metric in {
-        "task_pass_rate",
-        "end_task_usefulness",
-        "usefulness_delta",
-        "hit_at_1",
-        "mrr",
-        "plan_f1",
-    }
+    efficacy_like = metric in EFFICACY_METRICS
     if evidence_class == "structural" and efficacy_like:
         return Verdict(
             gate="no_structural_efficacy_substitution",
@@ -438,6 +455,7 @@ __all__ = [
     "holm_adjust_alphas",
     "holm_critical_slice_family",
     "improvement_verdict",
+    "min_groups_required",
     "noninferiority_verdict",
     "overall_promotion_verdict",
     "paired_hit_at_1_interval",

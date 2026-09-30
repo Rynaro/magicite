@@ -220,6 +220,70 @@ def main(argv: list[str] | None = None) -> int:
         sp = subparsers.add_parser(name)
         sp.add_argument("path", type=Path)
 
+    acquire = subparsers.add_parser(
+        "acquire-skillret",
+        help="Record local SkillRet archive digest and write a verified CorpusManifest (offline).",
+    )
+    acquire.add_argument("--archive", type=Path, required=True)
+    acquire.add_argument("--expected-sha256", required=True)
+    acquire.add_argument("--license", dest="license_name", required=True)
+    acquire.add_argument("--revision", required=True)
+    acquire.add_argument(
+        "--corpus-json",
+        type=Path,
+        required=True,
+        help="CorpusManifest/1 JSON path (on disk, or basename found inside the archive)",
+    )
+    acquire.add_argument("--output", type=Path, required=True)
+    acquire.add_argument("--acquired-at", default=None)
+
+    retrieval = subparsers.add_parser(
+        "run-retrieval",
+        help="Run sealed-corpus predictions + ranking aggregates (offline deterministic harness).",
+    )
+    retrieval.add_argument("--experiment", type=Path, required=True)
+    retrieval.add_argument("--corpus", type=Path, required=True)
+    retrieval.add_argument("--split", required=True)
+    retrieval.add_argument("--provider", required=True, choices=("hashing", "production"))
+    retrieval.add_argument("--output", type=Path, required=True)
+    retrieval.add_argument("--policy-id", default="dense-v1")
+
+    paired = subparsers.add_parser(
+        "run-paired-policies",
+        help="Paired incumbent vs candidate Hit@1 verdicts (never activates policies).",
+    )
+    paired.add_argument("--incumbent", required=True)
+    paired.add_argument("--candidate", required=True)
+    paired.add_argument("--experiment", type=Path, required=True)
+    paired.add_argument("--corpus", type=Path, required=True)
+    paired.add_argument("--n-resamples", type=int, default=10_000)
+    paired.add_argument("--seed", type=int, default=0)
+    paired.add_argument("--output", type=Path, required=True)
+
+    abstain = subparsers.add_parser(
+        "run-abstention-gate",
+        help="Abstention Wilson/verdict gate on a sealed corpus (calibration recorded, not refit).",
+    )
+    abstain.add_argument("--calibration-split", required=True)
+    abstain.add_argument("--final-split", required=True)
+    abstain.add_argument("--experiment", type=Path, required=True)
+    abstain.add_argument("--corpus", type=Path, required=True)
+    abstain.add_argument("--output", type=Path, required=True)
+
+    host = subparsers.add_parser(
+        "run-host-tasks",
+        help="Ingest precomputed host-verifier arm JSON; Magicite does not execute host tasks.",
+    )
+    host.add_argument("--corpus", type=Path, required=True)
+    host.add_argument(
+        "--arms",
+        required=True,
+        help="Comma-separated arms, e.g. no_skill,selected_skill,composed_plan",
+    )
+    host.add_argument("--n-resamples", type=int, default=10_000)
+    host.add_argument("--seed", type=int, default=0)
+    host.add_argument("--output", type=Path, required=True)
+
     args = parser.parse_args(argv)
 
     if args.command == "validate-corpus":
@@ -230,28 +294,83 @@ def main(argv: list[str] | None = None) -> int:
         print(f"validated {len(data['cases'])} independent composition cases")
         return 0
 
-    data, load_errors = _load_json(args.path)
-    if load_errors:
-        return _print_errors(load_errors)
-    assert data is not None
+    if args.command.startswith("validate-"):
+        data, load_errors = _load_json(args.path)
+        if load_errors:
+            return _print_errors(load_errors)
+        assert data is not None
 
-    validators = {
-        "validate-experiment": validate_experiment_data,
-        "validate-corpus-manifest": validate_corpus_manifest_data,
-        "validate-prediction": validate_prediction_data,
-        "validate-result": validate_result_data,
-        "validate-claim": validate_claim_data,
-    }
-    errors = validators[args.command](data)
-    if args.command == "validate-claim":
-        # Always enforce new-run eligibility on the claim object itself
-        # (historical/structural/circular Plan F1 cannot be status=supported).
-        for error in claim_eligible_for_new_run_gate(data):
-            if error not in errors:
-                errors.append(error)
-    if errors:
-        return _print_errors(errors)
-    print(f"{args.command} ok")
+        validators = {
+            "validate-experiment": validate_experiment_data,
+            "validate-corpus-manifest": validate_corpus_manifest_data,
+            "validate-prediction": validate_prediction_data,
+            "validate-result": validate_result_data,
+            "validate-claim": validate_claim_data,
+        }
+        errors = validators[args.command](data)
+        if args.command == "validate-claim":
+            for error in claim_eligible_for_new_run_gate(data):
+                if error not in errors:
+                    errors.append(error)
+        if errors:
+            return _print_errors(errors)
+        print(f"{args.command} ok")
+        return 0
+
+    from magicite.eval import operator_cli as ops
+
+    try:
+        if args.command == "acquire-skillret":
+            result = ops.cmd_acquire_skillret(
+                archive=args.archive,
+                expected_sha256=args.expected_sha256,
+                license_name=args.license_name,
+                revision=args.revision,
+                corpus_json=args.corpus_json,
+                output=args.output,
+                acquired_at=args.acquired_at,
+            )
+        elif args.command == "run-retrieval":
+            result = ops.cmd_run_retrieval(
+                experiment_path=args.experiment,
+                corpus_path=args.corpus,
+                split=args.split,
+                provider=args.provider,
+                output=args.output,
+                policy_id=args.policy_id,
+            )
+        elif args.command == "run-paired-policies":
+            result = ops.cmd_run_paired_policies(
+                incumbent=args.incumbent,
+                candidate=args.candidate,
+                experiment_path=args.experiment,
+                corpus_path=args.corpus,
+                n_resamples=args.n_resamples,
+                seed=args.seed,
+                output=args.output,
+            )
+        elif args.command == "run-abstention-gate":
+            result = ops.cmd_run_abstention_gate(
+                calibration_split=args.calibration_split,
+                final_split=args.final_split,
+                experiment_path=args.experiment,
+                corpus_path=args.corpus,
+                output=args.output,
+            )
+        elif args.command == "run-host-tasks":
+            result = ops.cmd_run_host_tasks(
+                corpus_path=args.corpus,
+                arms=[a.strip() for a in args.arms.split(",") if a.strip()],
+                n_resamples=args.n_resamples,
+                seed=args.seed,
+                output=args.output,
+            )
+        else:
+            return _print_errors([f"unknown command {args.command!r}"])
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        return _print_errors([str(exc)])
+
+    print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
 

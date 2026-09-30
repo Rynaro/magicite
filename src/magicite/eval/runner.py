@@ -59,11 +59,11 @@ def run_predictions(
     abstain_threshold: float | None = None,
 ) -> list[Prediction]:
     """Emit one ``Prediction/1`` per corpus query under frozen pins."""
-    if corpus.content_identity_sha256 != experiment.corpus_sha256 and experiment.corpus_sha256:
-        # Soft check: experiment.corpus_sha256 pins the corpus bytes; callers
-        # may pass a pre-validated pair. Mismatch is still recorded by
-        # returning predictions only when digests align in validate paths.
-        pass
+    if experiment.corpus_sha256 and corpus.content_identity_sha256 != experiment.corpus_sha256:
+        raise ValueError(
+            "corpus content_identity_sha256 does not match experiment.corpus_sha256 "
+            f"({corpus.content_identity_sha256} != {experiment.corpus_sha256})"
+        )
     seed = int(experiment.seeds.get("prediction", experiment.seeds.get("rng", 0)))
     pool = list(candidate_ids) if candidate_ids is not None else candidates_for_corpus(corpus)
     if not pool:

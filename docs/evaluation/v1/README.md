@@ -32,8 +32,12 @@ cannot satisfy `status=supported`.
 |---|---|---|---|
 | `ci-smoke` | 100 synthetic | yes | no |
 | `small-100` / `small-1k` | 100 / 1k | opt-in dedicated | no |
-| `supported-10k` | 10k | dedicated runner | only with production provider **and** real licensed corpus |
+| `supported-10k` | 10k | dedicated runner | only with production provider **and** real licensed corpus (`corpus.kind=manifest`) |
 | `exploratory-50k` | 50k | `--opt-in-exploratory` | no until amended budget |
+
+Synthetic matrix runs always set `corpus.kind=synthetic` and `ga_eligible=false`. Supplying `--corpus-manifest` validates the CorpusManifest, builds/measures that registry, and sets `corpus.kind=manifest`.
+
+Holm critical-slice family uses a **conservative** family-α CI approximation (see `verdicts.holm_critical_slice_family`); it does not widen intervals in a way that could turn FAIL into PASS.
 
 ```bash
 # Shared CI completeness (hashing or production; no budget PASS claim)
