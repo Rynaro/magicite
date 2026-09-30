@@ -163,6 +163,8 @@ class Config:
     #: S09 / C6 retention policy (operator Config — never from meta.json).
     evidence_retention_operational_days: int = 30
     evidence_retention_audit_days: int = 90
+    #: S09 / C6 backup overlay expiry (operator Config — never from meta.json).
+    evidence_backup_expiry_days: int = 90
 
     # ── graph index build (spec §2.6 steps 8-9) ─────────────────────────
     similar_to_top_m: int = 5
@@ -403,6 +405,7 @@ _ENV_FIELD_MAP: dict[str, str] = {
     "MAGICITE_EVIDENCE_EXPORT_ROOTS": "evidence_export_roots",
     "MAGICITE_EVIDENCE_RETENTION_OPERATIONAL_DAYS": "evidence_retention_operational_days",
     "MAGICITE_EVIDENCE_RETENTION_AUDIT_DAYS": "evidence_retention_audit_days",
+    "MAGICITE_EVIDENCE_BACKUP_EXPIRY_DAYS": "evidence_backup_expiry_days",
 }
 
 _BOOL_FIELDS = {"embedding_offline", "autonomous", "commit_db", "dream_on_session_end"}

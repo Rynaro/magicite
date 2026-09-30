@@ -743,11 +743,9 @@ def _default_meta() -> dict[str, Any]:
         "last_sequence": 0,
         "open_segment_id": "00000001",
         "redaction_version": REDACTION_VERSION,
-        "backup_expiry_days": DEFAULT_BACKUP_EXPIRY_DAYS,
-        # Backups expire per backup_expiry_days; restore MUST replay
-        # tombstones via apply_privacy_overlay (S12) before evidence access.
+        # Retention / backup expiry live on Config (C6); meta must not carry them.
+        # Backups: restore MUST replay tombstones via apply_privacy_overlay (S12).
         "backup_restore_requires_privacy_overlay": True,
-        # Retention policy lives on Config (C6); meta must not carry it.
     }
 
 
@@ -983,16 +981,16 @@ def _reconcile_authority(root: Path) -> tuple[dict[str, Any], dict[str, Any], in
     )
     if need_rewrite:
         for key in (
-            "backup_expiry_days",
             "backup_restore_requires_privacy_overlay",
             "redaction_version",
             "open_segment_id",
         ):
             if key in meta:
                 derived_meta[key] = meta[key]
-        # Strip any forged retention knobs — policy lives on Config only.
+        # Strip forgeable policy knobs — retention/backup expiry live on Config.
         derived_meta.pop("retention_operational_days", None)
         derived_meta.pop("retention_audit_days", None)
+        derived_meta.pop("backup_expiry_days", None)
         derived_meta["last_sequence"] = max(
             int(derived_meta.get("last_sequence", 0)), authority_max
         )
@@ -1003,18 +1001,43 @@ def _reconcile_authority(root: Path) -> tuple[dict[str, Any], dict[str, Any], in
 
 
 
+def _next_seal_segment_id(root: Path) -> str:
+    """Allocate the next sealed segment id from existing files (not forgeable meta).
+
+    ``meta.open_segment_id`` is advisory only; sealing must never overwrite an
+    existing ``NNNNNNNN.events.jsonl``.
+    """
+    segments = root / _SEGMENTS_DIRNAME
+    max_id = 0
+    if segments.is_dir():
+        for path in segments.glob("*.events.jsonl"):
+            name = path.name
+            if name == _OPEN_SEGMENT_NAME:
+                continue
+            stem = name.replace(".events.jsonl", "")
+            if stem.isdigit():
+                max_id = max(max_id, int(stem))
+    return f"{max_id + 1:08d}"
+
+
 def _maybe_rotate_open_segment(root: Path, *, max_bytes: int | None = None) -> str:
     """Seal open segment when oversized; return current open segment_id."""
     limit = DEFAULT_SEGMENT_MAX_BYTES if max_bytes is None else max_bytes
     segments = root / _SEGMENTS_DIRNAME
     open_path = segments / _OPEN_SEGMENT_NAME
     meta = _load_meta(root)
-    segment_id = str(meta.get("open_segment_id", "00000001"))
+    # Prefer filesystem-derived id so forged meta.open_segment_id cannot
+    # overwrite an existing sealed segment.
+    segment_id = _next_seal_segment_id(root)
     if not open_path.is_file() or open_path.stat().st_size < limit:
         return segment_id
-    # Seal current open segment under a numeric name.
     sealed_name = f"{int(segment_id):08d}.events.jsonl"
     sealed_path = segments / sealed_name
+    if sealed_path.exists():
+        raise InvalidInputError(
+            "refusing to overwrite existing sealed segment during rotation",
+            details={"segment": sealed_name},
+        )
     data = open_path.read_bytes()
     _atomic_write_bytes(sealed_path, data)
     file_digest = hashlib.sha256(data).hexdigest()
@@ -1026,6 +1049,9 @@ def _maybe_rotate_open_segment(root: Path, *, max_bytes: int | None = None) -> s
             "sha256": file_digest,
             "sealed": True,
             "record_count": sum(1 for ln in data.splitlines() if ln.strip()),
+            "tombstone_mac_initialized": (root / _TOMBSTONE_MAC_FILENAME).is_file(),
+            "tombstone_digest": _tombstone_set_digest(root),
+            "tombstone_count": _tombstone_line_count(root),
             "updated_at": _now(),
         },
     )
@@ -1044,6 +1070,9 @@ def _maybe_rotate_open_segment(root: Path, *, max_bytes: int | None = None) -> s
             "record_count": 0,
             "sha256": hashlib.sha256(b"").hexdigest(),
             "sealed": False,
+            "tombstone_mac_initialized": (root / _TOMBSTONE_MAC_FILENAME).is_file(),
+            "tombstone_digest": _tombstone_set_digest(root),
+            "tombstone_count": _tombstone_line_count(root),
             "updated_at": _now(),
         },
     )
@@ -1794,8 +1823,8 @@ def _refuse_missing_tombstone_mac(root: Path) -> None:
         "tombstones.mac is missing; refusing to trust tombstone journal",
         details={
             "hint": (
-                "restore tombstones.mac from backup, or for a pre-MAC ledger with "
-                "no tombstone_mac_initialized manifests call migrate_tombstone_mac"
+                "restore tombstones.mac from backup; migrate_tombstone_mac only "
+                "initializes a completely empty ledger"
             ),
             "initialized": _any_manifest_tombstone_mac_initialized(root),
             "has_segments": _ledger_has_any_segments(root),
@@ -1807,9 +1836,8 @@ def _ensure_tombstone_mac(cfg: Config, root: Path) -> None:
     """Verify tombstone MAC. Never auto-heal a missing MAC on a non-empty ledger.
 
     Initialization is allowed only when the ledger has no segment files at all
-    (brand-new ledger). Otherwise missing MAC fails closed. Pre-MAC ledgers
-    must use :func:`migrate_tombstone_mac` which itself refuses if any segment
-    manifest already records ``tombstone_mac_initialized``.
+    (brand-new ledger). Otherwise missing MAC fails closed. ``migrate_tombstone_mac``
+    is likewise empty-ledger-only (S09 never shipped a pre-MAC segmented ledger).
     """
     path = root / _TOMBSTONES_FILENAME
     mac_path = root / _TOMBSTONE_MAC_FILENAME
@@ -1860,11 +1888,13 @@ def _ensure_tombstone_mac(cfg: Config, root: Path) -> None:
 
 
 def migrate_tombstone_mac(cfg: Config, *, confirm: bool = False) -> dict[str, Any]:
-    """Operator-only one-shot migration for pre-MAC ledgers.
+    """Operator-only MAC init for a completely empty ledger.
 
-    Refused unless ``confirm=True`` and no segment manifest already records
-    ``tombstone_mac_initialized`` (so deleting ``tombstones.mac`` cannot make
-    a truncated journal look like a fresh pre-MAC ledger).
+    S09 has never shipped a pre-MAC ledger with segments, so this refuses
+    whenever any segment file, segment manifest, event index, or tombstone
+    journal content exists — regardless of unsigned manifest flags. Clearing
+    ``tombstone_mac_initialized`` cannot authorize re-MAC of a truncated
+    journal after an incomplete delete.
     """
     if not confirm:
         raise InvalidInputError(
@@ -1876,13 +1906,38 @@ def migrate_tombstone_mac(cfg: Config, *, confirm: bool = False) -> dict[str, An
         raise InvalidInputError(
             "tombstones.mac already exists; migrate refused",
         )
-    if _any_manifest_tombstone_mac_initialized(root):
+    if _ledger_has_any_segments(root):
         raise InvalidInputError(
-            "tombstone_mac_initialized already recorded in segment manifests; migrate refused",
+            "migrate_tombstone_mac refused: segment files exist",
+            details={
+                "hint": "restore authentic tombstones.mac from backup; never re-MAC a non-empty ledger",
+            },
+        )
+    if any((root / _SEGMENTS_DIRNAME).glob("*.manifest.json")):
+        raise InvalidInputError(
+            "migrate_tombstone_mac refused: segment manifests exist",
+            details={
+                "hint": "restore authentic tombstones.mac from backup; never re-MAC a non-empty ledger",
+            },
+        )
+    index_path = root / _INDEX_FILENAME
+    if index_path.is_file():
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            index = {"events": {"_corrupt": True}}
+        if index.get("events"):
+            raise InvalidInputError(
+                "migrate_tombstone_mac refused: evidence index is non-empty",
+                details={"hint": "restore authentic tombstones.mac from backup"},
+            )
+    tomb_path = root / _TOMBSTONES_FILENAME
+    if tomb_path.is_file() and tomb_path.read_bytes().strip():
+        raise InvalidInputError(
+            "migrate_tombstone_mac refused: tombstone journal is non-empty",
             details={"hint": "restore authentic tombstones.mac from backup"},
         )
     _write_tombstone_mac(cfg, root)
-    _stamp_tombstone_digest_on_all_manifests(root, initialized=True)
     return {
         "status": "ok",
         "tombstone_digest": _tombstone_set_digest(root),
@@ -2801,8 +2856,10 @@ def apply_retention(
 
 
 def backup_expiry_days(cfg: Config) -> int:
-    meta = _load_meta(evidence_dir(cfg)) if evidence_dir(cfg).exists() else _default_meta()
-    return int(meta.get("backup_expiry_days", DEFAULT_BACKUP_EXPIRY_DAYS))
+    """Backup overlay expiry from operator Config (never from forgeable meta.json)."""
+    return int(
+        getattr(cfg, "evidence_backup_expiry_days", DEFAULT_BACKUP_EXPIRY_DAYS)
+    )
 
 
 def build_privacy_overlay(
