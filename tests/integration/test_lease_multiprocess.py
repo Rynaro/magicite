@@ -10,6 +10,8 @@ cross-process guard.
 from __future__ import annotations
 
 import multiprocessing as mp
+import os
+import signal
 import time
 from pathlib import Path
 from typing import Any
@@ -258,6 +260,275 @@ def test_ttl_overrun_fences_stale_writer(tmp_path: Path) -> None:
         assert replacement_conn.execute(
             "SELECT value FROM schema_meta WHERE key = 'stale-write'"
         ).fetchone() is None
+    finally:
+        attempt_write.set()
+        _join_cleanly([stale])
+        if replacement is not None:
+            replacement.release()
+        if replacement_conn is not None:
+            replacement_conn.close()
+
+
+def _stale_domain_writer(
+    project_root: str,
+    lock_path: str,
+    domain: str,
+    acquired: Any,
+    attempt_write: Any,
+    results: Any,
+) -> None:
+    """Hold a fenced lease via try_acquire, then attempt a REAL domain write."""
+    from magicite.config import Config
+    from magicite.core import approvals as approvals_mod
+    from magicite.core import evidence as evidence_mod
+    from magicite.core import fingerprint_key as fk
+    from magicite.core import trust as trust_mod
+    from magicite.errors import BusyError
+    from magicite.storage import db as db_mod
+    from magicite.storage import lease
+
+    cfg = Config.load(Path(project_root), env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    conn = db_mod.connect(cfg.db_path)
+    candidate = lease.CrossProcessLease(
+        lock_path=lock_path,
+        conn=conn,
+        holder=f"stale-{domain}",
+        ttl_s=0.35,
+    )
+    try:
+        lease_result = candidate.try_acquire()
+        acquired.put(lease_result.fencing_token)
+        if not attempt_write.wait(timeout=10):
+            results.put({"domain": domain, "status": "timeout"})
+            return
+        try:
+            # Real domain APIs (not bare assert_owned) — context var is set by try_acquire.
+            if domain == "evidence":
+                event = evidence_mod.EvidenceEvent(
+                    event_id="ev_stale_fence",
+                    decision_id="dec_stale_fence",
+                    event_type="decision",
+                    recorded_at="2026-09-29T12:00:00+00:00",
+                    candidate_ids=("skill_a",),
+                    chosen_action="skill_a",
+                    behavior_policy_id="dense-v1",
+                    behavior_policy_digest="digest_a",
+                    propensity=1.0,
+                    query_fingerprint="c" * 64,
+                    fingerprint_scheme=fk.FINGERPRINT_SCHEME,
+                    source_tier=0,
+                    retention_class="operational",
+                )
+                evidence_mod.checkpoint(cfg, conn, event)
+            elif domain == "trust":
+                trust_mod.save_policy(cfg, trust_mod.default_policy())
+            elif domain == "approvals":
+                with lease.writer_lease(holder="stale-approvals"):
+                    approvals_mod.propose(
+                        conn,
+                        cfg,
+                        op="nucleate",
+                        target_name="stale-target",
+                        payload={"note": "should-not-land"},
+                        proposed_by="stale",
+                    )
+            else:
+                results.put({"domain": domain, "status": "unknown-domain"})
+                return
+        except BusyError:
+            results.put({"domain": domain, "status": "fenced"})
+        else:
+            results.put({"domain": domain, "status": "committed"})
+    finally:
+        candidate.release()
+        conn.close()
+
+
+def _killed_holder(db_path: str, lock_path: str, token_path: str) -> None:
+    """Acquire DB lease, write fencing token to a file, then spin until SIGKILL."""
+    from magicite.storage import db as db_mod
+    from magicite.storage import lease
+
+    conn = db_mod.connect(db_path)
+    candidate = lease.CrossProcessLease(
+        lock_path=lock_path,
+        conn=conn,
+        holder="kill-holder",
+        ttl_s=0.4,
+    )
+    acquired = candidate.try_acquire()
+    Path(token_path).write_text(str(acquired.fencing_token), encoding="utf-8")
+    while True:
+        time.sleep(0.05)
+
+
+@pytest.mark.acceptance
+def test_killed_holder_lease_reclaimed(tmp_path: Path) -> None:
+    """B6: SIGKILL a lease holder; after TTL the replacement reclaims the fence.
+
+    Also verifies a resumed stale fencing token cannot commit through the real
+    approvals domain API (kill + stale-token resume for at least one domain).
+    """
+    from magicite.config import Config
+    from magicite.core import approvals as approvals_mod
+    from magicite.errors import BusyError
+
+    project = tmp_path / "kill-proj"
+    project.mkdir()
+    cfg = Config.load(project, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    cfg.ensure_dirs()
+    db_path = cfg.db_path
+    token_path = tmp_path / "token.txt"
+    seed = db_mod.connect(db_path)
+    seed.close()
+
+    ctx = _spawn_context()
+    holder = ctx.Process(
+        target=_killed_holder,
+        args=(str(db_path), str(tmp_path / "kill.lock"), str(token_path)),
+    )
+    holder.start()
+    replacement_conn = None
+    replacement = None
+    stale_token_ctx = None
+    try:
+        for _ in range(100):
+            if token_path.is_file() and token_path.stat().st_size > 0:
+                break
+            time.sleep(0.05)
+        else:
+            raise AssertionError("holder never published fencing token")
+        token = int(token_path.read_text(encoding="utf-8"))
+        assert holder.pid is not None
+        os.kill(holder.pid, signal.SIGKILL)
+        holder.join(timeout=5)
+        assert not holder.is_alive()
+        time.sleep(0.55)
+        replacement_conn = db_mod.connect(db_path)
+        replacement = lease.CrossProcessLease(
+            lock_path=tmp_path / "repl.lock",
+            conn=replacement_conn,
+            holder="replacement",
+            ttl_s=5.0,
+        )
+        result = replacement.try_acquire()
+        assert result.fencing_token == token + 1
+        assert result.stolen is True
+
+        # Resume the killed holder's stale token and attempt a real approvals write.
+        stale = lease.CrossProcessLease(
+            lock_path=tmp_path / "stale-resume.lock",
+            conn=replacement_conn,
+            holder="kill-holder",
+            ttl_s=5.0,
+        )
+        stale._held = True
+        stale._fencing_token = token
+        stale_token_ctx = lease._CROSS_PROCESS_LEASE.set(stale)  # noqa: SLF001
+        with pytest.raises(BusyError):
+            with lease.writer_lease(holder="stale-resume"):
+                approvals_mod.propose(
+                    replacement_conn,
+                    cfg,
+                    op="nucleate",
+                    target_name="after-kill",
+                    payload={"note": "must-not-land"},
+                    proposed_by="stale",
+                )
+        assert not list(cfg.approvals_dir.glob("*.json"))
+    finally:
+        if stale_token_ctx is not None:
+            lease._CROSS_PROCESS_LEASE.reset(stale_token_ctx)  # noqa: SLF001
+        if holder.is_alive():
+            try:
+                os.kill(holder.pid, signal.SIGKILL)  # type: ignore[arg-type]
+            except OSError:
+                pass
+            holder.join(timeout=5)
+        if replacement is not None:
+            replacement.release()
+        if replacement_conn is not None:
+            replacement_conn.close()
+
+
+@pytest.mark.acceptance
+@pytest.mark.parametrize("domain", ["evidence", "trust", "approvals"])
+def test_stale_writer_cannot_commit_domain_stores(tmp_path: Path, domain: str) -> None:
+    """AC-S12-04: stale/killed lease holder cannot commit via evidence/trust/approvals.
+
+    Policy-store writer is a forward for S07 (not merged on this integration base).
+    """
+    from magicite.config import Config
+    from magicite.core import fingerprint_key as fk
+    from magicite.storage import db as db_mod
+
+    project = tmp_path / "proj"
+    (project / ".magicite" / "engrams").mkdir(parents=True)
+    (project / ".magicite" / "engrams" / "toy.egr.md").write_text(
+        "---\n"
+        "spec: engram/0.2\n"
+        "name: lease-toy\n"
+        "id: egr_lease0001\n"
+        "version: 1\n"
+        "provenance: authored\n"
+        "intent:\n"
+        "  does: Fence stale writers\n"
+        "  use_when: lease tests\n"
+        "  not_when: skipping fence\n"
+        "triggers:\n"
+        "  positive: [lease]\n"
+        "  negative: [race]\n"
+        "---\n"
+        "## Procedure\n"
+        "1. Acquire lease.\n",
+        encoding="utf-8",
+    )
+    cfg = Config.load(project, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    cfg.ensure_dirs()
+    fk.load_or_create_fingerprint_key(cfg)
+    seed = db_mod.connect(cfg.db_path)
+    seed.close()
+    # trust domain only needs an initialized DB + lease row; no registry seed required.
+
+    ctx = _spawn_context()
+    acquired = ctx.Queue()
+    attempt_write = ctx.Event()
+    results = ctx.Queue()
+    stale = ctx.Process(
+        target=_stale_domain_writer,
+        args=(
+            str(project),
+            str(tmp_path / f"stale-{domain}.lock"),
+            domain,
+            acquired,
+            attempt_write,
+            results,
+        ),
+    )
+    stale.start()
+
+    replacement_conn = None
+    replacement = None
+    try:
+        stale_token = acquired.get(timeout=10)
+        time.sleep(0.6)
+        replacement_conn = db_mod.connect(cfg.db_path)
+        replacement = lease.CrossProcessLease(
+            lock_path=tmp_path / f"replacement-{domain}.lock",
+            conn=replacement_conn,
+            holder="replacement",
+            ttl_s=5.0,
+        )
+        replacement_result = replacement.try_acquire()
+        assert replacement_result.fencing_token == stale_token + 1
+
+        attempt_write.set()
+        outcome = results.get(timeout=15)
+        assert outcome["domain"] == domain
+        assert outcome["status"] == "fenced", outcome
+
+        if domain == "approvals":
+            assert not list(cfg.approvals_dir.glob("*.json"))
     finally:
         attempt_write.set()
         _join_cleanly([stale])

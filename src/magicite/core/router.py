@@ -78,6 +78,7 @@ from magicite.core import eligibility as eligibility_mod
 from magicite.core import fingerprint_key as fingerprint_key_mod
 from magicite.core import index_generation as index_gen_mod
 from magicite.core import policy_store as policy_store_mod
+from magicite.core import recovery_gate as recovery_gate_mod
 from magicite.core import routing_policy as policy_mod
 from magicite.core import session as session_mod
 from magicite.core import trust as trust_mod
@@ -1094,6 +1095,10 @@ def route(
     route_context: RouteContext | None = None,
     server_policy: ServerPermissionPolicy | None = None,
 ) -> RouteOutcome:
+    # S12 C8/C9: refuse routing while restore reconciliation is required.
+    # Cheap no-op when no restore-generation markers exist.
+    recovery_gate_mod.assert_routing_allowed(cfg)
+
     # core/session.py (M3): the one session-resolution rule every
     # session-participating tool follows (spec §3.3) -- mint/reuse/expire,
     # in one place, instead of route() rolling its own uuid4() + upsert.

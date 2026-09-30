@@ -82,7 +82,12 @@ ALLOCATIONS: tuple[MigrationAllocation, ...] = (
 MAX_KNOWN_SCHEMA_VERSION: int = max(a.number for a in ALLOCATIONS if a.status == "shipped")
 
 #: Backup manifest kinds this build can restore. Newer kinds fail closed.
-SUPPORTED_BACKUP_MANIFEST_KINDS: frozenset[str] = frozenset({"migration_backup/1"})
+#: ``backup/1`` is the S12 multi-domain operator backup (distinct from S03's
+#: ``migration_backup/1`` pre-upgrade snapshot). Slot 7 ``backup_recovery``
+#: remains provisional — S12 uses file-domain authority (like S04/S09).
+SUPPORTED_BACKUP_MANIFEST_KINDS: frozenset[str] = frozenset(
+    {"migration_backup/1", "backup/1"}
+)
 
 #: Engram formats this build can migrate *from* and restore *to*.
 SUPPORTED_SOURCE_ENGRAM_FORMATS: frozenset[str] = frozenset({"engram/0.2"})

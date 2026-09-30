@@ -60,6 +60,7 @@ from pathlib import Path
 from typing import Any
 
 from magicite.config import Config
+from magicite.storage.lease import assert_cross_process_fence
 
 AUTONOMOUS_ACTOR = "autonomous-mode"
 
@@ -254,7 +255,13 @@ def _upsert_row(conn: sqlite3.Connection, record: ApprovalRecord) -> None:
 
 
 def _persist(cfg: Config, conn: sqlite3.Connection, record: ApprovalRecord) -> ApprovalRecord:
-    """File wins first (durable outside the DB), then the DB cache row."""
+    """File wins first (durable outside the DB), then the DB cache row.
+
+    S12 / AC-S12-04: when a CrossProcessLease is held, refuse durable approval
+    writes after fencing-token loss (no second lock system). In-process
+    writer_lease remains optional for legacy propose/decide callers.
+    """
+    assert_cross_process_fence()
     _write_mirror(cfg, record)
     _upsert_row(conn, record)
     return record
@@ -473,9 +480,14 @@ def record_policy_control_event(
     of prior policy governance. Mirror-only (no DB conn required on the
     policy-store hot path); ``reload_from_mirror`` will rehydrate into the
     operational ``approval`` table on sync.
+
+    When a CrossProcessLease is held, assert the fencing token before the
+    mirror write — governed control-state is a durable mutation and must not
+    commit under a stolen fence (AC-S12-04; consistent with ``_persist``).
     """
     if op not in {"policy_activate", "policy_rollback"}:
         raise ValueError(f"unsupported policy control op {op!r}")
+    assert_cross_process_fence()
     at = _now()
     body = {
         "policy_id": policy_id,

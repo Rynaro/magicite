@@ -144,22 +144,46 @@ def writer_lease(holder: str = "writer") -> Iterator[None]:
     """The top-level acquisition point: ``register()``/``sync()``/``export()``
     (and Dream's checkpoint phase, via :class:`CrossProcessLease` layered on
     top -- see :func:`core.dream.run`) wrap their durable-write work in this
-    context manager exactly once per call."""
+    context manager exactly once per call.
+
+    When a :class:`CrossProcessLease` is bound (via ``try_acquire``/``acquire``),
+    assert fencing ownership on enter so nested domain writers (evidence,
+    trust, approvals, backup) cannot commit after token loss (AC-S12-04 / B6).
+    """
     acquire_writer_lease(holder)
     try:
+        assert_cross_process_fence()
         yield
     finally:
         release_writer_lease()
 
 
+def assert_cross_process_fence() -> None:
+    """If a :class:`CrossProcessLease` is bound, require it still owns the token.
+
+    Used by :func:`writer_lease` and by domain writers (e.g. approvals) that
+    historically did not require the in-process writer lease, while still
+    failing closed under a stolen fencing token (AC-S12-04 / B6).
+    """
+    cross_process = _CROSS_PROCESS_LEASE.get()
+    if cross_process is not None:
+        cross_process.assert_owned()  # type: ignore[attr-defined]
+
+
 def assert_single_writer() -> None:
     """G2: every public ``storage.durable`` write function -- and
-    ``engram.writer.atomic_write()`` -- calls this first."""
+    ``engram.writer.atomic_write()`` -- calls this first.
+
+    S12 backup/restore and evidence/trust domain writers also call this under
+    :class:`CrossProcessLease` so a stale/killed holder cannot commit after
+    fencing-token loss (AC-S12-04).
+    """
     if _DEPTH.get() <= 0:
         raise WriterLeaseError(
             "durable write attempted without holding the writer lease",
             hint="durable writes must happen inside register()/sync()/export()/"
-            "checkpoint(), which acquire the writer lease before writing",
+            "checkpoint()/backup.create_snapshot()/backup.restore_snapshot(), "
+            "which acquire the writer lease before writing",
         )
     cross_process = _CROSS_PROCESS_LEASE.get()
     if cross_process is not None:
@@ -280,6 +304,7 @@ class CrossProcessLease:
         self._flock_fd: int | None = None
         self._held = False
         self._fencing_token: int | None = None
+        self._ctx_token: contextvars.Token[object | None] | None = None
         self._heartbeat_stop = threading.Event()
         self._heartbeat_thread: threading.Thread | None = None
         self._heartbeat_failure: BaseException | None = None
@@ -358,6 +383,12 @@ class CrossProcessLease:
                 raise
             self._held = True
             self._fencing_token = fencing_token
+            # Publish into the context var so assert_single_writer / nested
+            # domain writers observe the same fence as acquire() (AC-S12-04).
+            if _CROSS_PROCESS_LEASE.get() is None:
+                self._ctx_token = _CROSS_PROCESS_LEASE.set(self)
+            else:
+                self._ctx_token = None
             return LeaseAcquireResult(
                 holder=self.holder,
                 acquired_at=acquired_at,
@@ -485,6 +516,9 @@ class CrossProcessLease:
             )
             self._held = False
             self._fencing_token = None
+        if self._ctx_token is not None:
+            _CROSS_PROCESS_LEASE.reset(self._ctx_token)
+            self._ctx_token = None
         self._release_flock()
 
     @contextmanager
@@ -503,14 +537,13 @@ class CrossProcessLease:
             )
             return
 
+        # try_acquire publishes _CROSS_PROCESS_LEASE; do not double-set.
         result = self.try_acquire()
-        token = _CROSS_PROCESS_LEASE.set(self)
         self._start_periodic_heartbeat()
         try:
             yield result
         finally:
             self._stop_periodic_heartbeat()
-            _CROSS_PROCESS_LEASE.reset(token)
             self.release()
 
 

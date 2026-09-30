@@ -1315,6 +1315,9 @@ def load_event(cfg: Config, event_id: str) -> EvidenceEvent | None:
     tombstone names it. Segment stubs are authority independent of journal
     truncation (which fails closed via tombstones.mac).
     """
+    from magicite.core.recovery_gate import assert_evidence_access_allowed
+
+    assert_evidence_access_allowed(cfg)
     root = evidence_dir(cfg)
     if not root.exists():
         return None
@@ -1333,6 +1336,19 @@ def load_event(cfg: Config, event_id: str) -> EvidenceEvent | None:
     if not isinstance(event_data, dict):
         return None
     return _event_from_dict(event_data)
+
+
+def load_verified_tombstones(cfg: Config) -> list[dict[str, Any]]:
+    """Return tombstone rows after verifying ``tombstones.mac`` (S12 overlay input).
+
+    Fail closed on missing/wrong MAC when the ledger has segments or journal
+    content. Does not create a fingerprint key.
+    """
+    root = evidence_dir(cfg)
+    if not root.exists():
+        return []
+    _assert_tombstone_mac_or_absent(cfg, root)
+    return _load_tombstone_rows(root)
 
 
 def _is_tombstoned(root: Path, event_id: str) -> bool:
@@ -2718,6 +2734,9 @@ def export_evidence(
     export. Caller-chosen destinations outside ``evidence/exports/`` are
     registered for privacy deletion (AC-S09-05).
     """
+    from magicite.core.recovery_gate import assert_evidence_access_allowed
+
+    assert_evidence_access_allowed(cfg)
 
     def _write_export(owned_conn: sqlite3.Connection) -> Path:
         with _evidence_write_guard(cfg, owned_conn, "evidence-export"):
