@@ -297,9 +297,16 @@ class _SubjectProjectionDenied(Exception):
         super().__init__(",".join(self.reason_codes))
 
 
-def _file_identity(path: Path) -> tuple[int, int, int, int]:
+def _file_identity(path: Path) -> tuple[int, int, int, int, int]:
+    # ctime is included because utime() can restore mtime but never ctime.
     st = path.stat()
-    return (int(st.st_dev), int(st.st_ino), int(st.st_size), int(st.st_mtime_ns))
+    return (
+        int(st.st_dev),
+        int(st.st_ino),
+        int(st.st_size),
+        int(st.st_mtime_ns),
+        int(st.st_ctime_ns),
+    )
 
 
 def _asset_identities(

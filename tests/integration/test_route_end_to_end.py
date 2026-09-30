@@ -731,6 +731,79 @@ def test_subject_cache_detects_registry_drift(cfg, db_conn, embedder) -> None:
     assert "registry_drift" in reasons[eid]
 
 
+def test_subject_cache_same_size_restored_mtime_still_drifts(cfg, db_conn, embedder) -> None:
+    """Same-size rewrite with mtime restored via utime must still miss the cache."""
+    import os
+
+    from magicite.engram import ids as ids_mod
+
+    router_mod._SUBJECT_CACHE.clear()
+    eid = "egr_aa660016"
+    name = "cache-mtime-probe"
+    query = "cache mtime restore eligibility probe unique tokens xyzzy"
+    full, _ = _write_v1_engram(
+        cfg, engram_id=eid, name=name, query_tokens=query, risk_mode="none", risk_tools=[]
+    )
+    original = full.read_bytes()
+    drifted_path, _ = _write_v1_engram(
+        cfg,
+        engram_id=eid,
+        name=name,
+        query_tokens=query,
+        risk_mode="declared-tools",
+        risk_tools=["shell.exec"],
+    )
+    drifted = drifted_path.read_bytes()
+    assert len(drifted) > len(original)
+    padded = original + b" " * (len(drifted) - len(original))
+    full.write_bytes(padded)
+    digest = ids_mod.content_sha256(padded)
+    before = full.stat()
+
+    rel = f".magicite/engrams/{name}.egr.md"
+    _insert_synthetic(
+        db_conn, engram_id=eid, name=name, path=rel, content_sha256=digest, spec_version="engram/1.0"
+    )
+    ephemeral_mod.upsert_embedding(
+        db_conn, engram_id=eid, model_name=embedder.model_name, dim=embedder.dim,
+        vec=embedder.embed(query), source_sha256=digest,
+    )
+    _insert_healthy_competitor(
+        cfg, db_conn, embedder, engram_id="egr_aa6601ff", name="healthy-mtime-comp"
+    )
+    restrictive = ServerPermissionPolicy(
+        allowed_permissions=frozenset(),
+        allowed_tools=frozenset(),
+        policy_digest="atlas-cache-mtime/1",
+        max_filesystem="none",
+        max_subprocess="none",
+        max_network="none",
+        max_secrets="none",
+    )
+    first = router_mod.route(
+        cfg, db_conn, embedder, query=query, k=5,
+        route_context=RouteContext(), server_policy=restrictive,
+    )
+    assert eid in [c.id for c in first.candidates]
+
+    full.write_bytes(drifted)
+    os.utime(full, ns=(before.st_atime_ns, before.st_mtime_ns))
+    after = full.stat()
+    assert (after.st_ino, after.st_size, after.st_mtime_ns) == (
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+    )
+
+    second = router_mod.route(
+        cfg, db_conn, embedder, query=query, k=5,
+        route_context=RouteContext(), server_policy=restrictive,
+    )
+    _assert_excluded_bodies(second, eid, rel)
+    reasons = {e.engram_id: e.reason_codes for e in second.decision.exclusions}  # type: ignore[union-attr]
+    assert "registry_drift" in reasons[eid]
+
+
 def test_subject_cache_identical_rewrite_stays_eligible(cfg, db_conn, embedder) -> None:
     """Same-bytes rewrite keeps file identity miss but matching digest → eligible."""
     router_mod._SUBJECT_CACHE.clear()
