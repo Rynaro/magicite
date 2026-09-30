@@ -95,6 +95,35 @@ jobs:
         continue-on-error: true
         run: uv run pytest -q -m benchmark -s
 
+      # S13: execute historical compatibility checks separately from v1 evidence.
+      - name: Historical corpus and result compatibility
+        run: |
+          uv run python -m magicite.eval validate-corpus docs/evaluation/composition-v0.3.json
+          uv run python scripts/check_evaluation_results.py docs/evaluation/v0.3-results.json
+
+      - name: V1 manifest, Claim integrity, schema and source roundtrip
+        run: |
+          uv run pytest -q tests/unit/eval/test_manifests.py tests/unit/engram/test_v1_schema.py tests/integration/test_skillmd_roundtrip.py
+
+      - name: Generated documentation and negative contract fixtures
+        run: |
+          uv run python scripts/check_generated_docs.py
+          uv run python scripts/check_docs.py
+          uv run pytest -q tests/unit/test_docs_v1.py
+
+      - name: Disposable operator tutorial (fixture evidence only)
+        run: uv run python scripts/smoke_operator_tutorial.py --output ci-evidence/operator-tutorial.json
+
+      - name: Hashing benchmark envelope completeness (not production budgets)
+        run: uv run python scripts/run_benchmark_matrix.py --profile ci-smoke --provider hashing --envelope-mode completeness --output ci-evidence/hashing-completeness.json
+
+      - name: Archive fixture tutorial and completeness evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v1-fixture-evidence-py${{ matrix.python-version }}
+          path: ci-evidence/*.json
+          if-no-files-found: error
+
       # VG-4 (AC-003/AC-004): the manifest is exactly 16 tools.
       - name: magicite tools == 16
         run: |
