@@ -156,3 +156,134 @@ def test_layout_check_flags_the_legacy_directory(tmp_path: Path) -> None:
     report = doctor_mod.run_doctor(cfg)
     assert report["healthy"] is False
     assert any("data layout" in w for w in report["warnings"])
+
+
+def _tree_fingerprint(root: Path) -> dict[str, tuple[int, int, str]]:
+    """Hash every file under root: size, mtime_ns, sha256. Detects creates too."""
+    import hashlib
+
+    out: dict[str, tuple[int, int, str]] = {}
+    if not root.exists():
+        return out
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root).as_posix()
+        data = path.read_bytes()
+        st = path.stat()
+        out[rel] = (st.st_size, st.st_mtime_ns, hashlib.sha256(data).hexdigest())
+    # Also record directory names so mkdir would show up via new empty dirs... 
+    # empty dirs: encode as dir markers
+    for path in sorted(root.rglob("*")):
+        if path.is_dir():
+            rel = path.relative_to(root).as_posix() + "/"
+            out.setdefault(rel, (0, path.stat().st_mtime_ns, "dir"))
+    return out
+
+
+def test_zero_write_matrix(tmp_path: Path) -> None:
+    """AC-S12-01: doctor never mutates filesystem or DB bytes.
+
+    Covers missing / old-schema / corrupt / read-only data directories.
+    """
+    import os
+    import sqlite3
+    import stat
+
+    from magicite.config import Config
+    from magicite.storage import db as db_mod
+
+    cases: list[tuple[str, Path]] = []
+
+    # 1) Missing data dir entirely
+    missing = tmp_path / "missing"
+    missing.mkdir()
+    cases.append(("missing", missing))
+
+    # 2) Old-schema DB (user_version=1 material, no later migrations applied content-wise —
+    #    create via migrate then rewind user_version is wrong; instead write a minimal
+    #    sqlite with user_version=1 and no engram table expected by count).
+    old = tmp_path / "old-schema"
+    (old / ".magicite" / "engrams").mkdir(parents=True)
+    old_db = old / ".magicite" / "engrams" / "skill-graph.db"
+    conn = sqlite3.connect(str(old_db))
+    conn.execute("PRAGMA user_version = 1")
+    conn.execute("CREATE TABLE engram (id TEXT PRIMARY KEY)")
+    conn.commit()
+    conn.close()
+    cases.append(("old-schema", old))
+
+    # 3) Corrupt DB bytes
+    corrupt = tmp_path / "corrupt"
+    (corrupt / ".magicite" / "engrams").mkdir(parents=True)
+    (corrupt / ".magicite" / "engrams" / "skill-graph.db").write_bytes(b"not-a-sqlite-database")
+    (corrupt / ".magicite" / "engrams" / "toy.egr.md").write_text(
+        "---\nspec: engram/0.2\nname: toy\nid: egr_deadbeef\nversion: 1\n"
+        "provenance: authored\nintent:\n  does: x\n  use_when: y\n  not_when: z\n"
+        "triggers:\n  positive: [a]\n  negative: [b]\n---\n## Procedure\n1. x\n",
+        encoding="utf-8",
+    )
+    cases.append(("corrupt", corrupt))
+
+    # 4) Read-only data directory (after creating a valid migrated DB)
+    ro = tmp_path / "readonly"
+    (ro / ".magicite" / "engrams").mkdir(parents=True)
+    cfg_ro = Config.load(ro, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    cfg_ro.ensure_dirs()
+    live = db_mod.connect(cfg_ro.db_path)
+    live.execute("INSERT INTO schema_meta (key, value) VALUES ('doctor-ro', '1')")
+    live.close()
+    # chmod files + dirs read-only
+    for path in sorted(ro.rglob("*"), reverse=True):
+        mode = stat.S_IRUSR | stat.S_IXUSR if path.is_dir() else stat.S_IRUSR
+        os.chmod(path, mode)
+    os.chmod(ro, stat.S_IRUSR | stat.S_IXUSR)
+    cases.append(("read-only", ro))
+
+    try:
+        for label, root in cases:
+            before = _tree_fingerprint(root)
+            cfg = Config.load(root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+            report = doctor_mod.run_doctor(cfg)
+            assert report["kind"] == "doctor/1"
+            assert isinstance(report["checks"], list)
+            assert {c["id"] for c in report["checks"]} >= {
+                "filesystem.lock_semantics",
+                "registry.presence",
+                "embedding.provider",
+                "cold_start.signal",
+                "governance.mode",
+                "layout.data_dir",
+                "recovery.reconciliation",
+            }
+            for check in report["checks"]:
+                assert check["status"] in {
+                    "ok",
+                    "warn",
+                    "fail",
+                    "unknown",
+                    "not_applicable",
+                }
+            after = _tree_fingerprint(root)
+            assert after == before, f"doctor mutated {label}: {before.keys() ^ after.keys()}"
+    finally:
+        # Restore writability so tmp teardown succeeds.
+        for _label, root in cases:
+            if not root.exists():
+                continue
+            for path in sorted(root.rglob("*"), reverse=True):
+                try:
+                    os.chmod(path, stat.S_IRWXU)
+                except OSError:
+                    pass
+            try:
+                os.chmod(root, stat.S_IRWXU)
+            except OSError:
+                pass
+
+
+def test_doctor_report_is_doctor_v1(cfg) -> None:
+    report = doctor_mod.run_doctor(cfg)
+    assert report["kind"] == "doctor/1"
+    assert "reconciliation_required" in report
+    assert isinstance(report["checks"], list)
