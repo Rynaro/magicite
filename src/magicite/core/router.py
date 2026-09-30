@@ -1326,7 +1326,11 @@ def _resolve_active_policy(
             ("unknown_active_policy",),
         )
 
-    digest = manifest.policy_digest or policy_mod.compute_policy_digest(manifest.policy_id, cfg)
+    digest = (
+        policy_mod.bind_server_ceiling_digest(manifest.policy_digest, cfg)
+        if manifest.policy_digest
+        else policy_mod.compute_policy_digest(manifest.policy_id, cfg)
+    )
     extra: tuple[str, ...] = ()
     if cfg_policy != manifest.policy_id:
         extra = ("config_policy_ignored_store_active",)
@@ -1484,12 +1488,16 @@ def route(
         calibration_mod.clear_calibration(cfg)
         cal = None
         cal_digest = None
-    digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=cal_digest)
+    # A governed manifest is the policy authority; calibration validation must
+    # not replace its effective identity with the fresh-install config identity.
+    if policy_source != "store":
+        digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=cal_digest)
     if cal is not None and cal.policy_digest != digest:
         calibration_mod.clear_calibration(cfg)
         cal = None
         cal_digest = None
-        digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=None)
+        if policy_source != "store":
+            digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=None)
     family = policy_mod.policy_family(policy_id)
 
     gen_id, snap_id, schema_d, tok_d, pin_reasons = _pin_index_identity(conn)

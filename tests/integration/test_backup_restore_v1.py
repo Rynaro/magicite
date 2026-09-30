@@ -48,9 +48,9 @@ def _seed_registry(cfg: Config, conn) -> tuple[str, str]:
     outcome = registry_mod.register(cfg, conn, embedder, path=".magicite/engrams")
     assert outcome.ingested >= 1
     entry = outcome.registered[0]
-    digest = conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)
-    ).fetchone()["content_sha256"]
+    digest = conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)).fetchone()[
+        "content_sha256"
+    ]
     return entry.id, digest
 
 
@@ -215,9 +215,7 @@ def test_policy_reapplication(project_root: Path, tmp_path: Path) -> None:
             reason="post-backup revoke",
             event_id="evt-s12-pol-revoke",
         )
-        evidence_mod.delete_event(
-            cfg, conn, event.event_id, reason="privacy", actor="operator"
-        )
+        evidence_mod.delete_event(cfg, conn, event.event_id, reason="privacy", actor="operator")
         assert evidence_mod.load_event(cfg, event.event_id) is None
         assert trust_mod.latest_decision_for(cfg, engram_id).decision == "revoke"
 
@@ -383,9 +381,7 @@ def test_missing_stale_overlay_closed(project_root: Path, tmp_path: Path) -> Non
 
         report = doctor_mod.run_doctor(cfg)
         assert report["reconciliation_required"] is True
-        assert any(
-            c["id"] == "recovery.reconciliation" and c["status"] == "fail" for c in report["checks"]
-        )
+        assert any(c["id"] == "recovery.reconciliation" and c["status"] == "fail" for c in report["checks"])
 
         # Stale overlay/anchor still closed.
         stale_key = b"\x11" * 32
@@ -755,11 +751,65 @@ def test_backup_excludes_restore_generation_markers(project_root: Path, tmp_path
             leaked = [
                 p
                 for p in files_root.rglob("*")
-                if p.is_file()
-                and p.name in {gate_mod.DOMAIN_MARKER_NAME, gate_mod.RUNTIME_MARKER_NAME}
+                if p.is_file() and p.name in {gate_mod.DOMAIN_MARKER_NAME, gate_mod.RUNTIME_MARKER_NAME}
             ]
             assert leaked == []
         finally:
             other_conn.close()
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    "legacy_database", [False, True, "registry/./skill-graph.db", "registry/SKILL-GRAPH.DB"]
+)
+def test_restore_preserves_live_database_fence_and_immediate_writer(
+    tmp_path: Path,
+    legacy_database: bool,
+) -> None:
+    import hashlib
+
+    from magicite.core import migration
+    from magicite.storage import lease
+
+    cfg = Config(project_root=tmp_path / "project")
+    cfg.ensure_dirs()
+    conn = db_mod.connect(cfg.db_path)
+    key = fk.load_or_create_fingerprint_key(cfg)
+    snapshot = tmp_path / "snapshot"
+    manifest = backup_mod.create_snapshot(cfg, conn, snapshot)
+    assert not any(e["path"] in backup_mod._projection_archive_paths(cfg) for e in manifest["files"])
+    # Legacy snapshots genuinely carried a held lease DB; add one to prove it is ignored.
+    if legacy_database:
+        rel = legacy_database if isinstance(legacy_database, str) else "registry/skill-graph.db"
+        path = snapshot / "files" / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"historical-derived-database-never-open")
+        mp = snapshot / "manifest.json"
+        old = json.loads(mp.read_text())
+        old["files"].append(
+            {
+                "path": rel,
+                "domain": "registry",
+                "size": path.stat().st_size,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+        )
+        mp.write_text(json.dumps(old))
+    before_inode = cfg.db_path.stat().st_ino
+    overlay = backup_mod.build_recovery_overlay(
+        cfg, control_sequence=1, operator_provenance="fixture", key=key
+    )
+    anchor = backup_mod.issue_sequence_anchor(overlay, key=key)
+    cross = lease.CrossProcessLease(lock_path=cfg.dream_lock_path, conn=conn, holder="live-restore")
+    try:
+        with cross.acquire():
+            token = cross._fencing_token
+            result = backup_mod.restore_snapshot(cfg, conn, snapshot, overlay=overlay, sequence_anchor=anchor)
+            assert result["status"] == "ok"
+            assert cfg.db_path.stat().st_ino == before_inode
+            cross.assert_owned()
+            assert cross._fencing_token == token
+        assert migration.apply(cfg, operation_id="immediate-after-restore").state == "completed"
     finally:
         conn.close()

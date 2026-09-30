@@ -1,26 +1,33 @@
-# Magicite 0.3 authority manifest
+# Magicite v1 integration authority
 
-This manifest is the entry point for deciding what Magicite 0.3 means. It
-exists because the 0.2 audit found live design prose, archived construction
-records, and runtime behavior competing as if they had equal authority.
+The installed package remains 0.3.1. This integration is not a published v1
+release or a declaration that every release gate has passed.
 
 ## Authority order
 
-1. The 0.3 acceptance criteria and accepted amendments under
-   `.spectra/plans/magicite-v0.3.0-integrity-recovery*`.
-2. Public MCP schemas, engram schemas, configuration defaults, and tests in
-   the tagged release.
-3. Current documents `02` through `07`, `operations.md`, and adapter guides.
-4. `01-vision-and-hypotheses.md` for claims and falsification status only.
-5. Archived `.spectra/changes/archive/` records as immutable historical
-   evidence. Archives do not override a later accepted criterion.
-6. `docs/research/exploratory/` as research context, never current behavior.
+1. Frozen [v1 acceptance criteria](../.spectra/plans/magicite-v1/acceptance.md),
+   contracts, evaluation and release gates, plus explicitly accepted amendments.
+2. Installed runtime schemas and tests, with the [generated reference](generated/runtime-reference.json)
+   checked against actual version, engram schemas, 16 MCP tools, CLI and config.
+3. Current documents `02` through `07`, operations and adapter guides. The
+   current v1 contract at each document's start supersedes its historical context.
+4. Historical v0.3 results and append-only archives, retained as evidence rather
+   than proof of v1 performance or efficacy.
+5. Exploratory research and unaccepted proposals, which cannot change behavior.
 
-When two current sources disagree, the release is blocked until the mismatch
-is resolved or recorded as a scoped erratum. Code passing a test is not by
-itself permission to silently change a frozen acceptance criterion.
+The stable default is `dense-v1`; see [ADR 001](decisions/001-stable-dense-v1-incumbent.md).
+Adaptive selection is experimental. S10 efficacy is held; its containment is mandatory.
+A passing fixture establishes only that fixture's obligation. Official external data,
+production envelopes, real-host transcripts, fuzz evidence and independent operator
+validation remain separately [UNEVALUATED](evaluation/v1/unevaluated.md).
 
-## 0.3 semantic decisions
+`skill-graph.db` is local, rebuildable state and is ignored by default. Complete
+recovery also requires canonical bodies/assets, approvals, policy/trust state,
+evidence checkpoints and separately protected fingerprint-key custody; a copied DB
+is not a complete backup. S04 authenticated trust-history hardening is a proposal
+awaiting a human decision, not an implemented authority or waived release gate.
+
+## Historical 0.3 semantic decisions (superseded where v1 differs)
 
 - FastEmbed is the default production provider; hashing is the deterministic
   CI provider and Ollama is optional.

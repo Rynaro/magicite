@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from typing import NoReturn, TextIO
 
 import click
 
@@ -18,14 +19,37 @@ def _echo_json(payload: object) -> None:
     click.echo(json.dumps(payload, indent=2, default=str))
 
 
-def _die_magicite(exc: MagiciteError) -> None:
+def _die_magicite(exc: MagiciteError) -> NoReturn:
     from magicite.mcp.redact import redact_error_payload
 
-    _echo_json(redact_error_payload(exc.to_dict()))
+    payload = redact_error_payload(exc.to_dict(), strict=True)
+    payload["code"] = exc.code.value
+    payload["message"] = f"command failed ({exc.code.value})"
+    payload["hint"] = "inspect the error code and command help; correct input or reconcile state"
+    _echo_json(payload)
     sys.exit(1)
 
 
-@click.group()
+class SafeGroup(click.Group):
+    def invoke(self, ctx: click.Context) -> object:
+        try:
+            return super().invoke(ctx)
+        except MagiciteError as exc:
+            _die_magicite(exc)
+        except (click.ClickException, click.Abort):
+            raise
+        except Exception:
+            _echo_json(
+                {
+                    "code": "internal",
+                    "message": "internal command error",
+                    "hint": "inspect local state with doctor; no exception content is disclosed",
+                }
+            )
+            sys.exit(1)
+
+
+@click.group(cls=SafeGroup)
 def cli() -> None:
     """Magicite -- a local-first, plasticity-inspired skill router speaking MCP over stdio."""
 
@@ -379,12 +403,153 @@ def policy_rollback_cmd(
         _die_magicite(exc)
 
 
+@policy_group.command(name="register-evaluated")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--manifest", "manifest_path", required=True, type=click.Path(exists=True))
+@click.option(
+    "--evaluation-status", required=True, type=click.Choice(["pass", "fail", "inconclusive", "unevaluated"])
+)
+@click.option("--evidence", required=True)
+def policy_register_evaluated_cmd(
+    project_root: str, manifest_path: str, evaluation_status: str, evidence: str
+) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.policy_register_evaluated(
+                project_root,
+                manifest_path=manifest_path,
+                evaluation_status=evaluation_status,
+                evidence=evidence,
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@policy_group.command(name="approve")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--policy-digest", required=True)
+@click.option("--actor", required=True)
+def policy_approve_cmd(project_root: str, policy_digest: str, actor: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.policy_approve(project_root, policy_digest=policy_digest, actor=actor))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@cli.group(name="migration")
+def migration_group() -> None:
+    """Preview, apply, inspect, resume or restore a fenced format migration."""
+
+
+@migration_group.command(name="preview")
+@click.option("--project-root", default=".", show_default=True)
+def migration_preview_cmd(project_root: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.migration_preview(project_root))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@migration_group.command(name="apply")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--operation-id", default=None)
+def migration_apply_cmd(project_root: str, operation_id: str | None) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.migration_apply(project_root, operation_id=operation_id))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@migration_group.command(name="status")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--operation-id", required=True)
+def migration_status_cmd(project_root: str, operation_id: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.migration_status(project_root, operation_id=operation_id))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@migration_group.command(name="resume")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--operation-id", required=True)
+def migration_resume_cmd(project_root: str, operation_id: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.migration_resume(project_root, operation_id=operation_id))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
+@migration_group.command(name="restore")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--backup-path", required=True, type=click.Path(exists=True))
+def migration_restore_cmd(project_root: str, backup_path: str) -> None:
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(bind_ops.migration_restore(project_root, backup_path=backup_path))
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
 # ── S11: evidence ───────────────────────────────────────────────────────
 
 
 @cli.group(name="evidence")
 def evidence_group() -> None:
     """Evidence export, erasure, and retention (C6)."""
+
+
+@evidence_group.command(name="checkpoint")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--decision-event-id", default=None)
+@click.option(
+    "--route-request",
+    type=click.File("r"),
+    default=None,
+    help="Explicit new route and checkpoint JSON file; use - for stdin.",
+)
+@click.option("--event-id", required=True, help="Stable idempotency identity for retries.")
+@click.option("--outcome", default=None, type=click.Choice(["success", "failure", "unknown"]))
+def evidence_checkpoint_cmd(
+    project_root: str,
+    decision_event_id: str | None,
+    route_request: TextIO | None,
+    event_id: str,
+    outcome: str | None,
+) -> None:
+    """Explicit new decision checkpoint, or linked operator outcome self-report."""
+    from magicite.mcp import bind_ops
+
+    if route_request is not None:
+        if decision_event_id is not None or outcome is not None:
+            raise click.UsageError("route-request cannot be combined with outcome/decision-event-id")
+        _echo_json(
+            bind_ops.evidence_route_checkpoint(
+                project_root, request=json.load(route_request), event_id=event_id
+            )
+        )
+    else:
+        if decision_event_id is None or outcome is None:
+            raise click.UsageError("provide route-request, or both decision-event-id and outcome")
+        _echo_json(
+            bind_ops.evidence_checkpoint(
+                project_root, decision_event_id=decision_event_id, event_id=event_id, outcome=outcome
+            )
+        )
 
 
 @evidence_group.command(name="export")

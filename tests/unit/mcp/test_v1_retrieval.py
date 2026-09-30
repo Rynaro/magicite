@@ -108,6 +108,8 @@ def test_local_admission_withdrawn_after_route_denied(cfg, db_conn, embedder) ->
 
 
 def test_full_procedure_survives_dual_format_body_gate(cfg, db_conn, embedder) -> None:
+    # Explicit operator admission for the fixture's declared tool requirement.
+    cfg.allowed_tools = ("protontricks",)
     from magicite.engram import parser
 
     source = Path(__file__).parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"

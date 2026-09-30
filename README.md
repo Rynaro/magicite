@@ -2,13 +2,13 @@
 
 <img src="docs/assets/magicite-logo.png" alt="Magicite" width="800">
 
-### Skills that learn—without leaving your repository.
+### Local skills with explicit routing and review.
 
 Magicite is a local-first MCP server that routes an agent to the right skill,
 captures what happened, and turns that evidence into reviewable improvements.
 
 [![CI](https://github.com/Rynaro/magicite/actions/workflows/ci.yml/badge.svg)](https://github.com/Rynaro/magicite/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.3.0-7c3aed)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.1-7c3aed)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776ab?logo=python&logoColor=white)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-stdio-0f766e)](https://modelcontextprotocol.io/)
 [![License](https://img.shields.io/github/license/Rynaro/magicite)](LICENSE)
@@ -27,8 +27,9 @@ skill does, but they do not learn which skills work together, where they fail,
 or when they should stay out of the way.
 
 Magicite adds that missing lifecycle. Skills live as portable `.egr.md`
-**engrams**. A local routing engine ranks them from intent, positive and
-negative cues, declared relationships, and observed outcomes. A resumable
+**engrams**. The stable `dense-v1` policy ranks eligible skills from their full canonical
+routing content. Adaptive routing is explicitly experimental and cannot replace
+the stable incumbent without reviewed evidence. A resumable
 **Dream** cycle consolidates useful evidence back into reviewable files.
 
 The boundary is intentional: **Magicite stores, routes, and audits skills. It
@@ -41,10 +42,14 @@ sandboxing, and execution.
 |---|---|
 | **Local by default** | stdio MCP, project-local SQLite/WAL, offline embeddings after one explicit model fetch, and no hosted control plane. |
 | **Portable by design** | Human-readable `.egr.md` files are the source of truth. The database is a disposable index that can be rebuilt from them. |
-| **Adaptive, not opaque** | Usage and outcome signals influence routing through explicit, inspectable plasticity state instead of an invisible recommendation service. |
+| **Stable by default** | `dense-v1` is nonadaptive; Dream and learned weights cannot change stable ordering. Adaptive policy selection is experimental. |
 | **Graph-aware** | Skills can declare dependencies, composition, and inhibition; routing can return an ordered multi-skill plan rather than only one winner. |
 | **Governed** | Every tool has a risk and side-effect class. Durable lifecycle changes are approval-gated by default and leave an audit trail. |
 | **Host-agnostic** | Any MCP client can use the core server. Hooks improve signal quality, but they are an adapter—not a dependency. |
+
+This is an unreleased v1 integration, still packaged as **0.3.1**. It is not a GA
+claim. See the [current authority](docs/AUTHORITY.md), [operator tutorial](docs/operator-tutorial.md),
+and [UNEVALUATED evidence catalog](docs/evaluation/v1/unevaluated.md).
 
 ## Quick start
 
@@ -104,7 +109,7 @@ A normal agent loop uses only a small part of the 16-tool surface:
 route({ query, session_id })
   -> ranked candidates + bounded composition plan
 
-load_skill_body({ name, level: "L2" })
+load_skill_body({ name, level: "L2", expected_content_digest, expected_policy_digest })
   -> procedure + pitfalls
 
 signal_use({ skill_ids, session_id })
@@ -112,15 +117,17 @@ signal_outcome({ valence, salience, skill_ids, session_id })
   -> evidence for later consolidation
 ```
 
-The `route` response includes the instructions needed to close this loop. Skill
+The `route` response supplies the `expected_content_digest and expected_policy_digest` required for body
+disclosure. Loading rechecks eligibility and rejects stale policy, trust or file state.
+Abstention discloses neither plan nodes nor plan digests. Skill
 bodies are loaded only after selection, keeping context use progressive rather
 than injecting the whole registry into every prompt.
 
 ### Container deployment
 
-Release images are built for `linux/amd64` and `linux/arm64`. They run as a
-non-root user, bake the FastEmbed model during the build, and complete their MCP
-handshake without network access. Pin the image by the digest published on the
+The release workflow targets `linux/amd64` and `linux/arm64`. Its images run as a
+non-root user and bake the FastEmbed model during the build, with offline MCP handshake checks in CI. Published v1 channel validation remains
+UNEVALUATED. Pin the image by the digest published on the
 matching [GitHub Release](https://github.com/Rynaro/magicite/releases):
 
 ```bash
@@ -155,8 +162,9 @@ flowchart TD
 
 Magicite separates the system into three paths:
 
-- **Hot path:** embed the query, select candidates, spread bounded activation,
-  apply contraindication and inhibition penalties, and return compact metadata.
+- **Hot path:** check trust and typed eligibility, embed full canonical routing
+  content under `dense-v1`, apply the selected calibrated abstention policy, and
+  return a validated bounded plan when selection is allowed.
 - **Signal path:** record session-scoped use and outcome evidence without
   writing learned state into skill files.
 - **Dream path:** consolidate durable node and edge state through resumable,
@@ -222,7 +230,9 @@ trust:
 2. State what the measurement supports and what it does not.
 ```
 
-This example is trimmed from Magicite's own registry. In the complete format:
+This is a legacy `engram/0.2` example, retained for the dual reader. New typed
+artifacts use `engram/1.0`; see the [current schema](src/magicite/engram/schema/engram-1.0.schema.json).
+For the legacy format:
 
 - `intent` and positive triggers form the versioned positive routing view;
 - `not_when` and negative triggers form a separate contraindication view;
@@ -288,12 +298,12 @@ That distinction is part of the product.
 |---|---|
 | Portable registry, rebuildable index, governed lifecycle, and recoverable Dream execution | Mechanically verified by unit, integration, acceptance, and spawned-process crash tests. |
 | Offline stdio server and hardened container handshake | Verified in CI with networking disabled for the runtime path. |
-| Full Magicite routing beats plain dense embeddings | **Not demonstrated.** On the 70-skill / 210-query study, dense Hit@1 was `0.5476`; the full pipeline was `0.5333`—a difference of 3 queries and statistically indistinguishable. |
+| Hybrid or adaptive routing beats the stable dense incumbent | **UNEVALUATED for v1.** Historical negative results remain in the linked falsification record; they do not qualify new claims. |
 | Graph activation and learned state improve routing | **Not demonstrated.** The central declared-edge hypothesis still needs an independent, purpose-built evaluation. |
 | A roughly 50-skill break-even point exists | **Not demonstrated.** It remains a historical reference size, not a product claim. |
-| Sub-100 ms routing at 10k skills | **Not claimed.** The 10k matrix is measurement evidence and a profiling target, not a passing latency promise. |
+| Production latency at the proposed supported scale | **UNEVALUATED.** Dedicated production-model measurements and both synthetic and licensed real corpus evidence are required. |
 
-The current study is bounded: one author, one annotator, one embedder, and a
+The historical study is bounded: one author, one annotator, one embedder, and a
 uniform learning workload. Mechanism repairs between releases are not presented
 as validation of the underlying hypothesis.
 

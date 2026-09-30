@@ -1,5 +1,19 @@
 # 03. Learning Model: The Plasticity Engine
 
+## Current v1 integration contract
+
+The stable default is `dense-v1`. Learned state, reward, synapses and Dream must
+not change stable ordering; explicit experimental adaptive selection is separate.
+S10 efficacy remains held/UNEVALUATED. Durable weight changes (to S) happen ONLY
+in the offline Dream cycle. The legacy adaptive parameter w_retrieval=0.05 is not
+a stable dense ranking coefficient. A use/outcome signal is evidence, not an
+approval to promote a routing policy.
+
+See [AUTHORITY](AUTHORITY.md), [generated reference](generated/runtime-reference.json),
+and [operator tutorial](operator-tutorial.md).
+
+## Retained design and historical context
+
 **Status:** Draft-refined / v1  
 **Provenance:** exploratory/consolidated-research-graph-mcp-proposal.md Part II.2–II.3, Part IV.4, engram-format.md §2, FINDING-004, FINDING-009  
 **Decisions implemented:** [DECISION D1] Three-tier state model with corrected plasticity-locus; [DECISION D4] Neuroscience analogy table (keep/kill/reframe verdicts); Principle 0 (hot-path learning prohibition); Principle 1 (retrieval-as-ledger-write)

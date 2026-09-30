@@ -17,8 +17,8 @@ from magicite.core import policy_store as policy_store_mod
 from magicite.core import router as router_mod
 from magicite.core import routing_policy as policy_mod
 from magicite.core import trust as trust_mod
+from magicite.core.context import ArtifactInventoryEntry, HostFact, ServerPermissionPolicy
 from magicite.core.context import RouteContext as CoreRouteContext
-from magicite.core.context import ServerPermissionPolicy
 from magicite.engram import parser as parser_mod
 from magicite.errors import InvalidInputError, NotFoundError
 from magicite.mcp.registry import ToolContext, magicite_tool
@@ -32,13 +32,12 @@ from magicite.mcp.schemas import (
     PlanEdgeOut,
     PlanNodeOut,
     PlanOut,
+    RouteContext,
     RouteInput,
     RouteOutput,
 )
 
-_L2_EXEC_WARNING = (
-    "exec blocks are returned as inert text; the HOST executes them, the server never does"
-)
+_L2_EXEC_WARNING = "exec blocks are returned as inert text; the HOST executes them, the server never does"
 
 #: Supported public route schema selectors (C8). Unknown → fail closed.
 _SUPPORTED_ROUTE_SCHEMA_VERSIONS = frozenset(
@@ -334,7 +333,11 @@ def _active_policy_digest(cfg: Any) -> str | None:
             hint=str(exc),
         ) from exc
     if manifest is not None:
-        return manifest.policy_digest or policy_mod.compute_policy_digest(manifest.policy_id, cfg)
+        return (
+            policy_mod.bind_server_ceiling_digest(manifest.policy_digest, cfg)
+            if manifest.policy_digest
+            else policy_mod.compute_policy_digest(manifest.policy_id, cfg)
+        )
     return policy_mod.compute_policy_digest(policy_mod.resolve_policy_id(cfg), cfg)
 
 
@@ -342,6 +345,36 @@ def _current_snapshot_id(conn: Any) -> str | None:
     """Resolve the live index snapshot the same way the router pins it (C10)."""
     _gen_id, snap_id, _schema_d, _tok_d, _reasons = router_mod.pin_index_identity(conn)
     return snap_id
+
+
+def typed_route_context(context: RouteContext | None) -> CoreRouteContext:
+    if context is None:
+        return CoreRouteContext()
+    return CoreRouteContext(
+        languages=context.languages,
+        frameworks=context.frameworks,
+        package_managers=context.package_managers,
+        platform=context.platform,
+        host=HostFact(**context.host.model_dump()) if context.host else None,
+        capabilities=context.capabilities,
+        permission_grants=frozenset(context.permission_grants)
+        if context.permission_grants is not None
+        else None,
+        allowed_tools=frozenset(context.allowed_tools) if context.allowed_tools is not None else None,
+        artifact_inventory=tuple(ArtifactInventoryEntry(**a.model_dump()) for a in context.artifact_inventory)
+        if context.artifact_inventory is not None
+        else None,
+        excluded_engram_ids=frozenset(context.excluded_engram_ids),
+    )
+
+
+def legacy_route_context(context: RouteContext | None) -> dict[str, Any] | None:
+    return context.model_dump(include={"project_tag", "recent_failures", "user_prefs"}) if context else None
+
+
+def validate_route_version(params: RouteInput) -> None:
+    if params.schema_version not in _SUPPORTED_ROUTE_SCHEMA_VERSIONS:
+        raise InvalidInputError("unsupported route schema version")
 
 
 def _server_policy(cfg: Any, policy_digest: str) -> ServerPermissionPolicy:
@@ -363,19 +396,16 @@ def _server_policy(cfg: Any, policy_digest: str) -> ServerPermissionPolicy:
     description="Ranked skill candidates + composition plan for a query.",
 )
 def route(ctx: ToolContext, params: RouteInput) -> RouteOutput:
-    if params.schema_version not in _SUPPORTED_ROUTE_SCHEMA_VERSIONS:
-        raise InvalidInputError(
-            f"unsupported route schema_version {params.schema_version!r}",
-            details={"reason": "unsupported_schema_version", "requested": params.schema_version},
-            hint="omit schema_version or request RouteOutput/1 / RouteDecision/1",
-        )
-    context_dict = params.context.model_dump() if params.context else None
+    validate_route_version(params)
+    context_dict = legacy_route_context(params.context)
     outcome = router_mod.route(
         ctx.cfg,
         ctx.conn,
         ctx.embedder,
         query=params.query,
         context=context_dict,
+        route_context=typed_route_context(params.context),
+        server_policy=_server_policy(ctx.cfg, _active_policy_digest(ctx.cfg) or "policy-unavailable"),
         k=params.k,
         session_id=params.session_id,
     )
@@ -456,9 +486,7 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
         prior = trust_mod.latest_decision_for(ctx.cfg, engram_id)
         if prior is not None:
             decisions[engram_id] = prior
-        trust_view = router_mod._route_trust_view(
-            ctx.cfg, row, cached_decision=decisions.get(engram_id)
-        )
+        trust_view = router_mod._route_trust_view(ctx.cfg, row, cached_decision=decisions.get(engram_id))
     except trust_mod.TrustLedgerCorruptError:
         return _refuse_stale(row["name"], params.level, codes=["stale_decision", "trust_unavailable"])
     except InvalidInputError:
@@ -476,9 +504,7 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
 
     active_policy = _active_policy_digest(ctx.cfg)
     if active_policy != expected_policy_digest:
-        return _refuse_stale(
-            row["name"], params.level, codes=["stale_decision", "policy_digest_drift"]
-        )
+        return _refuse_stale(row["name"], params.level, codes=["stale_decision", "policy_digest_drift"])
 
     if params.expected_snapshot_id is not None:
         current_snapshot = _current_snapshot_id(ctx.conn)
@@ -490,10 +516,9 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
                 codes=["stale_decision", "snapshot_drift"],
             )
 
-    # C2 body-path digest gate (S06) plus trust lifecycle — refuse on digest/trust
-    # denials. Compatibility-only context_required does not block disclosure of an
-    # already digest-bound decision (caller already passed route eligibility).
-    route_ctx = CoreRouteContext()
+    # Re-evaluate typed facts and operator ceiling on every disclosure. A supplied
+    # digest is an identity pin, not proof that compatibility or grants still hold.
+    route_ctx = typed_route_context(params.context)
     policy_digest = expected_policy_digest
     server_policy = _server_policy(ctx.cfg, policy_digest)
     file_path = Path(ctx.cfg.project_root) / row["path"]
@@ -521,9 +546,7 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
     # Bind disclosure to the same bytes parsed above, including a concurrent edit
     # after the trust view was captured. Never reopen the path for rendering.
     if artifact.content_sha256 != params.expected_content_digest:
-        return _refuse_stale(
-            row["name"], params.level, codes=["stale_decision", "content_digest_drift"]
-        )
+        return _refuse_stale(row["name"], params.level, codes=["stale_decision", "content_digest_drift"])
 
     elig = eligibility_mod.evaluate_eligibility(
         elig_subject,
@@ -533,16 +556,15 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
         path="body",
         expected_content_digest=params.expected_content_digest,
     )
-    deny_codes = {
-        eligibility_mod.REASON_STALE_DIGEST,
-        eligibility_mod.REASON_QUARANTINED,
-        eligibility_mod.REASON_LIFECYCLE_BLOCKED,
-        eligibility_mod.REASON_UNTRUSTED_ORIGIN,
-        eligibility_mod.REASON_SIGNATURE_INVALID,
-        "stale_decision",
-    }
-    hard_denials = [c for c in elig.reason_codes if c in deny_codes]
-    if hard_denials:
+    if not elig.eligible:
+        if elig.context_required:
+            return _empty_body(
+                name=row["name"],
+                level=params.level,
+                status="missing_context",
+                missing_context=list(elig.missing_fields),
+                reason_codes=list(elig.reason_codes),
+            )
         return _refuse_stale(row["name"], params.level, codes=list(elig.reason_codes))
 
     body = artifact.body
@@ -574,9 +596,7 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
             break
         local_start = max(params.cursor - stream_offset, 0)
         remaining = budget - consumed
-        partial = text_bytes[local_start : local_start + remaining].decode(
-            "utf-8", errors="ignore"
-        )
+        partial = text_bytes[local_start : local_start + remaining].decode("utf-8", errors="ignore")
         rendered[name] = partial
         consumed += len(partial.encode("utf-8"))
         stream_offset = section_end

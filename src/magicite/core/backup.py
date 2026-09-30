@@ -925,6 +925,17 @@ def _assert_overlay_covers_known_ids(
         )
 
 
+def _projection_archive_paths(cfg: Config) -> frozenset[str]:
+    """Exact configured SQLite projection and sidecars; never portable authority."""
+    database = f"registry/{cfg.db_path.relative_to(cfg.registry_dir).as_posix()}"
+    return frozenset(database + suffix for suffix in ("", "-wal", "-shm", "-journal"))
+
+
+def _is_projection_archive_path(cfg: Config, rel: str) -> bool:
+    normalized = Path(rel).as_posix().casefold()
+    return normalized in {path.casefold() for path in _projection_archive_paths(cfg)}
+
+
 def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
     """Yield ``(archive_relative_path, source_path)`` for a domain."""
     if domain == "registry":
@@ -935,7 +946,7 @@ def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
                 continue
             rel = _rel_under(cfg.registry_dir, path)
             archive_rel = f"registry/{rel}"
-            if _is_recovery_control_rel(archive_rel):
+            if _is_recovery_control_rel(archive_rel) or _is_projection_archive_path(cfg, archive_rel):
                 continue
             yield archive_rel, path
         return
@@ -998,7 +1009,7 @@ def _iter_domain_files(cfg: Config, domain: str) -> Iterable[tuple[str, Path]]:
             if path.is_file() and not _is_symlink(path):
                 rel = _rel_under(cfg.archive_dir, path)
                 archive_rel = f"archive/{rel}"
-                if _is_recovery_control_rel(archive_rel):
+                if _is_recovery_control_rel(archive_rel) or _is_projection_archive_path(cfg, archive_rel):
                     continue
                 yield archive_rel, path
         return
@@ -1213,6 +1224,7 @@ def _archive_rel_to_dest(dest_data_dir: Path, rel: str) -> Path:
 
 
 def _restore_files_into(
+    cfg: Config,
     files_root: Path,
     manifest: dict[str, Any],
     *,
@@ -1227,13 +1239,14 @@ def _restore_files_into(
         if domain and domain not in selected:
             continue
         rel = str(entry["path"])
+        if _is_projection_archive_path(cfg, rel):
+            continue  # Legacy archives may contain a live lease; never restore it.
         src = _constrained_under(files_root, rel, label="backup restore src")
         dest = _archive_rel_to_dest(dest_data_dir, rel)
         if fault_hook is not None:
             fault_hook(f"boundary:restore_file:{rel}")
         _mkdir_secure(dest.parent)
         _copy_file_durable(src, dest)
-
 
 
 def _preserve_live_overlay(
@@ -1410,23 +1423,17 @@ def restore_snapshot(
             fault_hook("boundary:restore_begin")
 
         # Stamp generation markers early so deleting recovery/ cannot clear the gate.
-        registry_id_for_stamp = str(
-            manifest.get("registry_id") or load_registry_id(cfg) or "unknown"
-        )
+        registry_id_for_stamp = str(manifest.get("registry_id") or load_registry_id(cfg) or "unknown")
         if auth_key is not None:
             _stamp_restore_generation(
                 cfg,
                 generation_id=generation_id,
                 registry_id=registry_id_for_stamp,
-                control_sequence=int(
-                    (manifest.get("recovery_point_sequences") or {}).get("evidence") or 0
-                ),
+                control_sequence=int((manifest.get("recovery_point_sequences") or {}).get("evidence") or 0),
                 key=auth_key,
                 domains=domains,
             )
-            _append_journal(
-                cfg, {"step": "generation_stamped", "generation_id": generation_id}, key=auth_key
-            )
+            _append_journal(cfg, {"step": "generation_stamped", "generation_id": generation_id}, key=auth_key)
         else:
             # Unauthenticated marker: gate fails closed once any key appears, and
             # without a key markers are still collected so status stays required.
@@ -1512,9 +1519,7 @@ def restore_snapshot(
 
                 if anchor_obj is None:
                     # Always issue against the *final* (possibly merged) overlay digest.
-                    anchor_obj = issue_sequence_anchor(
-                        overlay_obj, key=auth_key, control_sequence=min_seq
-                    )
+                    anchor_obj = issue_sequence_anchor(overlay_obj, key=auth_key, control_sequence=min_seq)
                 else:
                     if anchor_obj.control_sequence < min_seq:
                         raise InvalidInputError(
@@ -1550,12 +1555,11 @@ def restore_snapshot(
             if staging.exists():
                 shutil.rmtree(staging)
             _mkdir_secure(staging)
-            _append_journal(
-                cfg, {"step": "staging_begin", "reason": activate_error}, key=auth_key
-            )
+            _append_journal(cfg, {"step": "staging_begin", "reason": activate_error}, key=auth_key)
             if fault_hook is not None:
                 fault_hook("boundary:restore_staging")
             _restore_files_into(
+                cfg,
                 files_root,
                 manifest,
                 dest_data_dir=staging,
@@ -1612,13 +1616,15 @@ def restore_snapshot(
                     _clear_tree_files(target)
                 elif domain == "registry":
                     for path in registry_mod._iter_registry_files(cfg.registry_dir, "*"):
-                        if path.is_file():
+                        archive_rel = f"registry/{path.relative_to(cfg.registry_dir).as_posix()}"
+                        if path.is_file() and not _is_projection_archive_path(cfg, archive_rel):
                             path.unlink()
 
         if fault_hook is not None:
             fault_hook("boundary:restore_cleared")
 
         _restore_files_into(
+            cfg,
             files_root,
             manifest,
             dest_data_dir=cfg.data_dir,
@@ -1672,9 +1678,7 @@ def restore_snapshot(
             anchor=anchor_obj,
             key=auth_key,
         )
-        _append_journal(
-            cfg, {"step": "activate_complete", "generation_id": generation_id}, key=auth_key
-        )
+        _append_journal(cfg, {"step": "activate_complete", "generation_id": generation_id}, key=auth_key)
         if fault_hook is not None:
             fault_hook("boundary:restore_complete")
 

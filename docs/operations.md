@@ -457,3 +457,60 @@ the environment only — `magicite.toml` lives *inside* the directory it would b
 naming, so that field is deliberately not settable there.
 
 The `.spectra/` fallback is scheduled for removal in a future minor version.
+
+## V1 policy, trust and recovery operations
+
+Stable routing defaults to `dense-v1`; adaptive selection is experimental. Hybrid
+promotion requires reviewed paired evidence, calibrated abstention and matching
+configuration/index/calibration identities. `policy activate` requires both the
+candidate approval and an exact `--expected-current` compare-and-swap guard.
+`policy rollback` restores a reviewed prior artifact with the same guard. Neither
+an inconclusive evaluation nor an operator evidence command activates a policy.
+
+Trust, policy, evidence, backup and doctor operations are CLI-only; run
+`magicite <group> --help` and consult the generated runtime reference. PR26 recorded
+proposed MCP categories for trust/evidence/backup/doctor, but did not preserve exact
+candidate tool names. None are advertised as remote tools; MCP still has 16 tools.
+
+An interrupted policy commit remains unavailable to routing and read-only status.
+Run `magicite policy reconcile --project-root /path/to/project` to finalize its
+MAC-authenticated pending transaction under the registry writer lease. A missing
+or conflicting governance mirror fails closed; preserve the files for investigation.
+Doctor performs diagnosis without reconciling or writing any durable state.
+
+A backup is a point-in-time snapshot, not an acknowledgement that later receipts
+are protected. The recovery-point objective is the last verified checkpoint or
+snapshot; uncheckpointed evidence remains outside that recovery point. Keep current
+trust overlays and sequence anchors in independent custody: stale/missing material
+must keep restored routing closed. A restore must pass its recovery gate before
+activation. Retain complete pre-upgrade snapshots for rollback; do not reconstruct
+authoritative trust/policy decisions from the rebuildable database alone.
+
+The domain API `create_snapshot(..., include_secrets=True, encrypted_custody_path=...)`
+copies key bytes to the supplied custody path; Magicite does **not** encrypt
+the destination. Supply an operator-managed encrypted volume or encrypted custody
+workflow, with access controls and a tested recovery procedure. Never commit the key,
+its unencrypted copy, raw prompts or credentials. Encryption at rest is the operator's
+responsibility; do not call an ordinary destination path encrypted storage.
+
+The [support policy](support-policy.json) separates tested Python 3.11/3.12 from
+proposed OS/channel targets and experimental combinations. Writable registries
+require local filesystems. Published v1 artifacts, independent operator transcript,
+real Claude Code transcript, bounded fuzz and production-scale measurements remain
+UNEVALUATED until immutable evidence is attached. The scripted tutorial uses the
+hashing fixture provider; it does not establish production-model efficacy.
+
+### Typed context and operator ceilings
+
+Public route and body requests accept `RouteContext/1` environmental facts, including
+languages, platform, host, capabilities and artifact inventory. These are caller
+assertions, not attestation. Missing inventory means unknown; an empty inventory
+means known empty. Supply the same applicable context during body disclosure.
+
+The operator config `.magicite/magicite.toml` may set `allowed_permissions` and
+`allowed_tools` arrays. Both default to empty. Request grants can narrow this
+ceiling but cannot enlarge it. Changing either operator ceiling invalidates old
+body-disclosure policy pins. A governed policy's stored digest remains its CAS
+identity; the public effective policy digest additionally binds the live operator
+ceiling. Use the public route digest for body disclosure, and the stored candidate
+digest for policy activation/rollback.

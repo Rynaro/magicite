@@ -1,6 +1,6 @@
 # Claude Code Host Adapter (Tier-2 Hook Adapter)
 
-**Status:** v1, M3. **Normative source:** `docs/05-protocol-and-signals.md`
+**Status:** adapter implementation present; real Claude Code v1 transcript UNEVALUATED. **Normative source:** `docs/05-protocol-and-signals.md`
 §"Tier-2: Host Adapter Matrix" and §"Signal Fidelity Model: The Three-Tier
 Ladder"; `.spectra/changes/archive/2026-08-15-magicite-v1-implementation/spec.md` §3.3 (`signal_use`/
 `signal_outcome`) and §6.2 (the P0 enforcement point). This document does not
@@ -14,8 +14,9 @@ Tier 1 (`signal_use`/`signal_outcome` called by an agent following the
 follows instructions reasonably reliably. This adapter describes the
 **optional, additive** Tier-2 acceleration available specifically on Claude
 Code, via its hook system. Nothing here is required for Magicite to be
-useful — it only raises signal confidence (85–95% vs Tier-1's 70–85%,
-docs/05) and removes the per-session Tier-1 caps for hook-verified calls.
+useful. Historical confidence ranges were design assumptions, not measured v1
+host accuracy. Hook-verified calls use their own signal tier; real-host validation
+is still required.
 
 ---
 

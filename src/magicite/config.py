@@ -100,6 +100,9 @@ class Config:
     #: nonadaptive dense incumbent. Legacy adaptive blend is opt-in only via
     #: ``experimental/adaptive-blend-v1`` (see ``core/routing_policy.py``).
     routing_policy: str = "dense-v1"
+    #: Operator-only permission ceiling; request grants can only narrow these.
+    allowed_permissions: tuple[str, ...] = ()
+    allowed_tools: tuple[str, ...] = ()
     session_ttl_hours: float = 3.0
     temperature: float = 0.07
     #: [DECLARED-EDGES-AMENDED 2026-08-15] was 0.15. MEASURED (70 engrams
@@ -466,6 +469,12 @@ _BOOL_FIELDS = {
 
 
 def _coerce(field_name: str, raw: Any) -> Any:
+    if field_name in {"allowed_permissions", "allowed_tools"}:
+        from magicite.core.context import normalize_grant_set
+
+        if not isinstance(raw, (list, tuple)) or not all(isinstance(x, str) for x in raw):
+            raise ValueError("operator permission/tool ceilings must be arrays of identifiers")
+        return tuple(sorted(normalize_grant_set(raw)))
     if field_name == "evidence_export_roots":
         if isinstance(raw, (list, tuple)):
             return tuple(str(p).strip() for p in raw if str(p).strip())
