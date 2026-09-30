@@ -3,7 +3,7 @@
   "description": "Pinned host/SDK/protocol matrix for PROTOCOL release gate (S11). Untested hosts remain experimental/unevaluated.",
   "mcp_sdk": {
     "distribution": "mcp",
-    "version": "2.2.0",
+    "version": "2.0.0",
     "constraint": "mcp>=2.0,<3.0"
   },
   "protocol_versions": {
@@ -23,7 +23,7 @@
       "id": "stdio-generic",
       "adapter": "mcp.client.stdio",
       "status": "stable",
-      "sdk_version": "2.2.0",
+      "sdk_version": "2.0.0",
       "protocol_version": "2025-11-25",
       "probes": [
         "handshake",
@@ -37,7 +37,7 @@
       "id": "claude-code",
       "adapter": "docs/adapters/claude-code.md",
       "status": "experimental",
-      "sdk_version": "2.2.0",
+      "sdk_version": "2.0.0",
       "protocol_version": "2025-11-25",
       "probes": [
         "handshake",
