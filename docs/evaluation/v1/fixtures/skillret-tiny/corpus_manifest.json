@@ -4,9 +4,9 @@
   "artifacts": [
     {
       "path": "queries.json",
-      "sha256": "3626953c742d09b9e66fde51a9912c0ff1767be7d12e024c8b4c49af785567ed",
+      "sha256": "19d2ae843466aef94adedfaefe795e09705d964f38d82c0a3084b566813571ce",
       "role": "queries",
-      "byte_length": 1329
+      "byte_length": 1676
     }
   ],
   "queries": [

@@ -116,3 +116,51 @@ def build_tiny_corpus_manifest(
         content_identity_sha256=content_identity,
         schema=SCHEMA_CORPUS,
     )
+
+
+def official_skillret_status() -> dict[str, Any]:
+    """Release evidence status for the official SkillRet split.
+
+    Always UNEVALUATED unless an operator-acquired archive digest is supplied
+    out-of-band. Never fabricates PASS or metric numbers.
+    """
+    from magicite.eval.unevaluated import unevaluated_by_id
+
+    item = unevaluated_by_id("skillret-official-final-split")
+    return {
+        "status": "UNEVALUATED",
+        "source_url": SKILLRET_SOURCE_URL,
+        "source_citation": SKILLRET_SOURCE_CITATION,
+        "offline_fixture": str(DEFAULT_TINY_FIXTURE),
+        "operator_command": item.operator_command,
+        "manifest_or_digest": item.manifest_or_digest,
+        "reason": item.reason,
+    }
+
+
+def recompute_content_identity_sha256(queries_payload: list[dict[str, Any]]) -> str:
+    """SHA-256 over canonical ``{"queries": [...]}`` query bytes (E1)."""
+    return sha256_json({"queries": queries_payload})
+
+
+def verify_acquired_corpus_manifest(path: Path) -> tuple[CorpusManifest | None, list[str]]:
+    """Load + validate an operator-acquired corpus manifest (no network).
+
+    Recomputes ``content_identity_sha256`` from query bytes and fails closed
+    on mismatch with the declared digest.
+    """
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    errors = validate_corpus_manifest_data(data)
+    if errors:
+        return None, errors
+    queries = data.get("queries") or []
+    if not isinstance(queries, list):
+        return None, ["queries must be an array"]
+    recomputed = recompute_content_identity_sha256(queries)
+    declared = data.get("content_identity_sha256")
+    if declared != recomputed:
+        return None, [
+            "content_identity_sha256 does not match recomputed query digest "
+            f"(declared={declared!r}, recomputed={recomputed!r})"
+        ]
+    return parse_corpus(data), []

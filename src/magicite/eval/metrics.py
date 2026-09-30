@@ -358,7 +358,7 @@ def abstention_report(
     else:
         false_pos = sum(1 for selected in no_match_selected if selected)
         false_rate = false_pos / n_no_match
-        _, false_high = wilson_interval(false_pos, n_no_match)
+        _, false_high = wilson_interval(false_pos, n_no_match, z=1.6448536269514722)
     return AbstentionReport(
         n_answerable=n_answerable,
         n_no_match=n_no_match,
