@@ -961,6 +961,7 @@ version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "cryptography" },
     { name = "fastembed" },
     { name = "jsonschema" },
     { name = "mcp" },
@@ -988,6 +989,7 @@ leiden = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1" },
+    { name = "cryptography", specifier = ">=48.0.1" },
     { name = "fastembed", specifier = ">=0.4" },
     { name = "jsonschema", specifier = ">=4.21" },
     { name = "leidenalg", marker = "extra == 'leiden'", specifier = ">=0.10" },

@@ -31,6 +31,7 @@ dependencies = [
   # (S02). Previously only transitive; promote so the contract cannot drift
   # if an upstream drops the transitive edge.
   "packaging>=23",
+  "cryptography>=48.0.1",
 ]
 
 [project.urls]

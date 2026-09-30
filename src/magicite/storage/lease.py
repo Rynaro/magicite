@@ -96,6 +96,11 @@ def held_by_me() -> bool:
     return _DEPTH.get() > 0
 
 
+def cross_process_lease_held() -> bool:
+    """True iff the current context holds a :class:`CrossProcessLease`."""
+    return _CROSS_PROCESS_LEASE.get() is not None
+
+
 def acquire_writer_lease(holder: str = "writer") -> None:
     """Fail-fast, non-blocking acquire (spec §2.6 step 1: "fail fast if held").
 
@@ -484,6 +489,20 @@ class CrossProcessLease:
 
     @contextmanager
     def acquire(self) -> Iterator[LeaseAcquireResult]:
+        # Re-entrant: nested trust mutators under review_*/import must not
+        # try_acquire (BusyError) or release the outer fencing token.
+        current = _CROSS_PROCESS_LEASE.get()
+        if current is not None:
+            now = _now()
+            yield LeaseAcquireResult(
+                holder=getattr(current, "holder", self.holder),
+                acquired_at=_iso(now),
+                expires_at=_iso(now + _td(self.ttl_s)),
+                fencing_token=int(getattr(current, "_fencing_token", None) or 0),
+                stolen=False,
+            )
+            return
+
         result = self.try_acquire()
         token = _CROSS_PROCESS_LEASE.set(self)
         self._start_periodic_heartbeat()
