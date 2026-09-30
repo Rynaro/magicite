@@ -25,6 +25,8 @@ honestly reports whichever :class:`~magicite.core.communities
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -736,7 +738,7 @@ def register(
     outcome = IngestOutcome()
     cross_lease = _cross_process_lease(cfg, conn, "register")
     with cross_lease.acquire(), lease_mod.writer_lease():
-        _recover_incomplete_bundle_publishes(cfg.registry_dir)
+        _recover_incomplete_bundle_publishes(cfg, conn, cfg.registry_dir)
         for file_path in egr_files:
             inside = _path_inside_registry(cfg, file_path)
             channel = trust_mod.classify_intake_channel(
@@ -901,7 +903,7 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
 
     cross_lease = _cross_process_lease(cfg, conn, "sync")
     with cross_lease.acquire(), lease_mod.writer_lease():
-        _recover_incomplete_bundle_publishes(registry_dir)
+        _recover_incomplete_bundle_publishes(cfg, conn, registry_dir)
         for file_path in _iter_registry_files(registry_dir, "*.egr.md"):
             relpath = str(file_path.resolve().relative_to(project_root))
             on_disk_paths.add(relpath)
@@ -1124,12 +1126,14 @@ def _assert_import_destinations_safe(
     registry_root: Path,
     verified_staging: Path,
     manifest_entries: list[Any],
-) -> dict[str, bool]:
-    """Pre-check every destination. Returns rel → skip_publish (idempotent).
+) -> tuple[dict[str, bool], list[str]]:
+    """Pre-check every destination. Returns (skip_publish, pre_existing_paths).
 
     Refuses the whole import (no destination writes) when any destination
     exists with differing bytes, a casefold collision with a different
     spelling, or byte-identical content owned by a different engram.
+    ``pre_existing_paths`` is the registry path-index snapshot used by the
+    authenticated publish journal so crash recovery never moves authored files.
     """
     existing = build_registry_path_index(registry_root)
     skip_publish: dict[str, bool] = {}
@@ -1191,9 +1195,10 @@ def _assert_import_destinations_safe(
                     f"casefold collision with existing registry path: "
                     f"{existing[key].as_posix()!r} vs {rel!r}"
                 )
-    skip_publish[rel] = False
+            skip_publish[rel] = False
 
-    return skip_publish
+    pre_existing_paths = sorted({p.as_posix() for p in existing.values()})
+    return skip_publish, pre_existing_paths
 
 
 def _fsync_dir(path: Path) -> None:
@@ -1204,10 +1209,54 @@ def _fsync_dir(path: Path) -> None:
         os.close(dir_fd)
 
 
-def _write_publish_journal(job_dir: Path, payload: dict[str, Any]) -> Path:
-    """Write + fsync the publish journal before the first os.replace."""
+_JOURNAL_MAC_DOMAIN = b"magicite/bundle-publish-journal/v1"
+_QUARANTINE_IMPORT_ROLLBACK = ("quarantine", "import-rollback")
+
+
+def _journal_mac_subkey(cfg: Config) -> bytes:
+    """Domain-separated HMAC subkey from the local fingerprint key material."""
+    from magicite.core import fingerprint_key as fingerprint_key_mod
+
+    root = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
+    return hmac.new(root, _JOURNAL_MAC_DOMAIN, hashlib.sha256).digest()
+
+
+def _canonical_journal_payload(payload: dict[str, Any]) -> bytes:
+    from magicite.engram.digests import canonical_json_bytes
+
+    body = {k: v for k, v in payload.items() if k != "mac"}
+    return canonical_json_bytes(body)
+
+
+def _sign_publish_journal(cfg: Config, payload: dict[str, Any]) -> dict[str, Any]:
+    """Attach ``mac`` over the canonical journal body (excluding ``mac``)."""
+    mac = hmac.new(
+        _journal_mac_subkey(cfg),
+        _canonical_journal_payload(payload),
+        hashlib.sha256,
+    ).hexdigest()
+    signed = dict(payload)
+    signed["mac"] = mac
+    return signed
+
+
+def _verify_publish_journal(cfg: Config, payload: dict[str, Any]) -> bool:
+    mac = payload.get("mac")
+    if not isinstance(mac, str) or not mac:
+        return False
+    expected = hmac.new(
+        _journal_mac_subkey(cfg),
+        _canonical_journal_payload(payload),
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(mac, expected)
+
+
+def _write_publish_journal(cfg: Config, job_dir: Path, payload: dict[str, Any]) -> Path:
+    """Write + fsync an authenticated publish journal before the first os.replace."""
+    signed = _sign_publish_journal(cfg, payload)
     path = job_dir / _PUBLISH_JOURNAL_NAME
-    raw = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    raw = json.dumps(signed, indent=2, sort_keys=True) + "\n"
     tmp = path.with_name(path.name + ".tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
     try:
@@ -1231,18 +1280,83 @@ def _load_publish_journal(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _compensate_published_members(
+def _import_rollback_quarantine_root(cfg: Config) -> Path:
+    return cfg.data_dir.joinpath(*_QUARANTINE_IMPORT_ROLLBACK)
+
+
+def _quarantine_tree(cfg: Config, src: Path, *, job_id: str) -> Path:
+    """Move ``src`` (file or dir) under quarantine/import-rollback/<job_id>/."""
+    dest_root = _import_rollback_quarantine_root(cfg) / job_id
+    dest_root.mkdir(parents=True, exist_ok=True)
+    target = dest_root / src.name
+    # Avoid clobbering a prior quarantine of the same name.
+    if target.exists():
+        target = dest_root / f"{src.name}.{uuid.uuid4().hex[:8]}"
+    os.replace(src, target)
+    _fsync_dir(dest_root)
+    return target
+
+
+def _quarantine_registry_member(
+    cfg: Config,
     registry_root: Path,
-    members: list[dict[str, Any]],
-) -> None:
-    """Remove published members whose live bytes still match the journal digests."""
+    *,
+    rel: str,
+    job_id: str,
+) -> Path | None:
+    """Move a published registry member into quarantine; never unlink."""
+    src = registry_root / rel
+    if not src.is_file():
+        return None
+    dest = _import_rollback_quarantine_root(cfg) / job_id / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists():
+        dest = dest.with_name(dest.name + f".{uuid.uuid4().hex[:8]}")
+    os.replace(src, dest)
+    _fsync_dir(dest.parent)
+    return dest
+
+
+def _compensate_published_members(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    registry_root: Path,
+    journal: dict[str, Any],
+    *,
+    job_id: str,
+) -> list[str]:
+    """Quarantine published members that are safe to roll back. Never unlink.
+
+    A member is moved only when: (i) not owned by a durable engram other than
+    the aborted import's engrams, (ii) absent from the pre-import path index
+    snapshot, and (iii) live bytes still match the journal digest. Returns
+    human-readable skip reasons for anything left in place.
+    """
     from magicite.engram.digests import sha256_hex
 
+    reports: list[str] = []
+    members = journal.get("members")
+    if not isinstance(members, list):
+        return reports
+    pre_existing = {
+        str(p).replace("\\", "/")
+        for p in (journal.get("pre_existing_paths") or [])
+        if isinstance(p, str)
+    }
+    aborted_ids = {
+        str(i) for i in (journal.get("aborted_engram_ids") or []) if isinstance(i, str)
+    }
+
     for member in members:
+        if not isinstance(member, dict):
+            continue
         if member.get("pre_existing"):
             continue
         rel = str(member.get("path", "")).replace("\\", "/")
         if not rel:
+            continue
+        if rel in pre_existing:
+            reports.append(f"left in place (pre-existing snapshot): {rel}")
             continue
         dest = registry_root / rel
         if not dest.is_file():
@@ -1250,38 +1364,66 @@ def _compensate_published_members(
         expected = str(member.get("sha256", ""))
         try:
             live = sha256_hex(dest.read_bytes())
-        except OSError:
+        except OSError as exc:
+            reports.append(f"left in place (unreadable): {rel} ({exc})")
             continue
-        if expected and live == expected:
-            dest.unlink(missing_ok=True)
+        if not expected or live != expected:
+            reports.append(f"left in place (digest mismatch): {rel}")
+            continue
+        owner = _engram_id_owning_registry_path(conn, cfg, rel_posix=rel)
+        if owner is not None and owner not in aborted_ids:
+            reports.append(
+                f"left in place (owned by other engram {owner}): {rel}"
+            )
+            continue
+        _quarantine_registry_member(cfg, registry_root, rel=rel, job_id=job_id)
+    return reports
 
 
-def _recover_incomplete_bundle_publishes(registry_root: Path) -> None:
-    """Roll back incomplete publish journals left by a crash (SIGKILL-safe)."""
+def _recover_incomplete_bundle_publishes(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    registry_root: Path,
+) -> list[str]:
+    """Recover incomplete publish jobs under the writer lease.
+
+    Unauthenticated/corrupt/legacy journals never delete or move registry
+    files; the staging job is quarantined for operator review. Authenticated
+    incomplete journals quarantine only members that pass ownership +
+    pre-existing + digest checks.
+    """
+    reports: list[str] = []
     staging_root = registry_root / _IMPORT_STAGING_DIRNAME
     if not staging_root.is_dir():
-        return
+        return reports
     for job_dir in list(staging_root.iterdir()):
         if not job_dir.is_dir():
             continue
+        job_id = job_dir.name
         journal_path = job_dir / _PUBLISH_JOURNAL_NAME
         if not journal_path.is_file():
-            shutil.rmtree(job_dir, ignore_errors=True)
+            _quarantine_tree(cfg, job_dir, job_id=f"{job_id}-no-journal")
+            reports.append(f"quarantined staging job without journal: {job_id}")
             continue
         journal = _load_publish_journal(journal_path)
-        if journal is None:
-            shutil.rmtree(job_dir, ignore_errors=True)
+        if journal is None or not _verify_publish_journal(cfg, journal):
+            _quarantine_tree(cfg, job_dir, job_id=f"{job_id}-unauth")
+            reports.append(
+                f"quarantined unauthenticated/corrupt publish journal: {job_id}"
+            )
             continue
         if journal.get("complete") is True:
             shutil.rmtree(job_dir, ignore_errors=True)
             continue
-        members = journal.get("members")
-        if isinstance(members, list):
+        reports.extend(
             _compensate_published_members(
-                registry_root,
-                [m for m in members if isinstance(m, dict)],
+                cfg, conn, registry_root, journal, job_id=job_id
             )
-        shutil.rmtree(job_dir, ignore_errors=True)
+        )
+        # Staging leftovers after compensation: quarantine remaining job dir.
+        if job_dir.exists():
+            _quarantine_tree(cfg, job_dir, job_id=f"{job_id}-staging")
+    return reports
 
 
 def import_bundle(
@@ -1322,8 +1464,8 @@ def import_bundle(
     cross_lease = _cross_process_lease(cfg, conn, "bundle-import")
     publish_staging: Path | None = None
     with cross_lease.acquire(), lease_mod.writer_lease():
-        _recover_incomplete_bundle_publishes(registry_root)
-        skip_publish = _assert_import_destinations_safe(
+        _recover_incomplete_bundle_publishes(cfg, conn, registry_root)
+        skip_publish, pre_existing_paths = _assert_import_destinations_safe(
             conn=conn,
             cfg=cfg,
             registry_root=registry_root,
@@ -1332,8 +1474,11 @@ def import_bundle(
         )
 
         # Stage under the registry root; publish only after checks + re-hash.
-        publish_staging = registry_root / _IMPORT_STAGING_DIRNAME / uuid.uuid4().hex
+        job_id = uuid.uuid4().hex
+        publish_staging = registry_root / _IMPORT_STAGING_DIRNAME / job_id
         journal_members: list[dict[str, Any]] = []
+        aborted_engram_ids: list[str] = []
+        journal_body: dict[str, Any] | None = None
         try:
             for entry in verified.manifest.entries:
                 rel = entry.path.replace("\\", "/")
@@ -1356,18 +1501,23 @@ def import_bundle(
                             "pre_existing": False,
                         }
                     )
+                    if rel.endswith(".egr.md"):
+                        eid = _parse_engram_id_from_bytes(raw)
+                        if eid is not None:
+                            aborted_engram_ids.append(eid)
+
+            journal_body = {
+                "schema": "BundlePublishJournal/1",
+                "bundle_id": verified.manifest_digest or job_id,
+                "complete": False,
+                "members": journal_members,
+                "pre_existing_paths": pre_existing_paths,
+                "aborted_engram_ids": aborted_engram_ids,
+            }
 
             # Journal BEFORE the first os.replace (crash recovery contract).
             publish_staging.mkdir(parents=True, exist_ok=True)
-            _write_publish_journal(
-                publish_staging,
-                {
-                    "schema": "BundlePublishJournal/1",
-                    "bundle_id": verified.manifest_digest or uuid.uuid4().hex,
-                    "complete": False,
-                    "members": journal_members,
-                },
-            )
+            _write_publish_journal(cfg, publish_staging, journal_body)
 
             staged_egr: list[Path] = []
             for entry in verified.manifest.entries:
@@ -1388,15 +1538,8 @@ def import_bundle(
                 if rel.endswith(".egr.md"):
                     staged_egr.append(dest)
 
-            _write_publish_journal(
-                publish_staging,
-                {
-                    "schema": "BundlePublishJournal/1",
-                    "bundle_id": verified.manifest_digest or uuid.uuid4().hex,
-                    "complete": True,
-                    "members": journal_members,
-                },
-            )
+            journal_body = {**journal_body, "complete": True}
+            _write_publish_journal(cfg, publish_staging, journal_body)
 
             for dest in staged_egr:
                 rel_in_registry = str(dest.relative_to(registry_root).as_posix())
@@ -1432,8 +1575,10 @@ def import_bundle(
                     outcome.registered.append(registered)
                 outcome.dangling.extend(dangling)
         except BaseException:
-            if journal_members:
-                _compensate_published_members(registry_root, journal_members)
+            if journal_body is not None:
+                _compensate_published_members(
+                    cfg, conn, registry_root, journal_body, job_id=job_id
+                )
             raise
         finally:
             if publish_staging is not None:
