@@ -171,11 +171,12 @@ class TrustJournal:
                 assert_owned,
             )
 
-    def initialize_reviewed_genesis(self) -> None:
+    def initialize_reviewed_genesis(self, *, assert_owned: Callable[[], None] = lambda: None) -> None:
         """Explicit operator step AFTER protected enrollment; never used by reads."""
         head, records = self._remote()
         if head["head_sequence"] != 1 or records[0]["kind"] != "genesis":
             raise CustodianError("existing history requires explicit recovery")
+        assert_owned()
         with _directory_fd(self.directory, create=True) as directory:
             for name in ("journal.jsonl", "head.json"):
                 try:
@@ -183,8 +184,9 @@ class TrustJournal:
                 except FileNotFoundError:
                     continue
                 raise CustodianError("local trust history already initialized")
-            _replace_file(directory, "journal.jsonl", _bytes(records[0]) + b"\n")
-        self._write_head(head)
+            _replace_file(directory, "journal.jsonl", _bytes(records[0]) + b"\n", assert_owned)
+        self._write_head(head, assert_owned)
+        assert_owned()
 
     def snapshot(self) -> TrustSnapshot:
         try:

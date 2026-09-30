@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 
+import pytest
 from click.testing import CliRunner
 
 from magicite.__main__ import cli
@@ -140,5 +141,42 @@ def test_explicit_initialize_and_reconcile_use_authenticated_service_interface(t
         result = runner.invoke(cli, ["custody", "reconcile", "--project-root", str(tmp_path)])
         assert result.exit_code == 0, result.output
         assert json.loads(result.output)["head_sequence"] == 1
+    finally:
+        store.close()
+
+
+@pytest.mark.parametrize("command", ["initialize-journal", "reconcile"])
+def test_valid_profile_unavailable_service_has_no_local_writes(tmp_path, monkeypatch, command):
+    from magicite.core import writer_guard
+    from magicite.core.trust_custodian import CustodianError
+
+    class Unavailable:
+        def call(self, *args, **kwargs):
+            raise CustodianError("unavailable")
+
+    monkeypatch.setattr(writer_guard, "resolve_custody", lambda cfg: ("r", Unavailable()))
+    result = CliRunner().invoke(cli, ["custody", command, "--project-root", str(tmp_path)])
+    assert result.exit_code != 0
+    assert not (tmp_path / ".magicite").exists()
+
+
+def test_genesis_lost_lease_cannot_create_local_journal(tmp_path):
+    from magicite.core.trust_custodian import CustodianError, CustodianStore
+    from magicite.core.trust_journal import TrustJournal
+
+    store = CustodianStore.create(tmp_path / "custody")
+    store.enroll("r", default_policy().to_dict(), actor="operator", reviewed=True)
+
+    class Adapter:
+        def call(self, operation, **arguments):
+            return getattr(store, operation)("r", **arguments)
+
+    def lost():
+        raise CustodianError("lost lease")
+
+    try:
+        with pytest.raises(CustodianError):
+            TrustJournal(tmp_path / "local", "r", Adapter()).initialize_reviewed_genesis(assert_owned=lost)
+        assert not (tmp_path / "local").exists()
     finally:
         store.close()

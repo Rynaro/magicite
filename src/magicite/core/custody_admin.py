@@ -165,13 +165,14 @@ def initialize_journal(project_root: Path) -> None:
     from magicite.storage import db
 
     cfg = Config.load(project_root)
-    resolve_custody(cfg)  # prerequisites BEFORE any local creation
+    _, client = resolve_custody(cfg)
+    client.call("read_current")  # authenticated liveness BEFORE any local creation
     cfg.ensure_dirs()
     conn = db.connect(cfg.db_path)
     try:
         with registry_writer_lease(cfg, conn).acquire():
             journal, held, _ = bound_journal(cfg)
-            journal.initialize_reviewed_genesis()
+            journal.initialize_reviewed_genesis(assert_owned=held.assert_owned)
             held.assert_owned()
             _emit({"state": "INITIALIZED"})
     finally:
@@ -186,7 +187,8 @@ def reconcile(project_root: Path) -> None:
     from magicite.storage import db
 
     cfg = Config.load(project_root)
-    resolve_custody(cfg)
+    _, client = resolve_custody(cfg)
+    client.call("read_current")
     conn = db.connect(cfg.db_path)
     try:
         with registry_writer_lease(cfg, conn).acquire():
