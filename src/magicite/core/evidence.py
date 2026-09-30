@@ -127,9 +127,14 @@ _OPEN_SEGMENT_NAME = "open.events.jsonl"
 _OPEN_MANIFEST_NAME = "open.manifest.json"
 _REGISTERED_EXPORTS_FILENAME = "registered_exports.json"
 _PURGE_COMPLETE_FILENAME = "purge_complete.marker"
+_TOMBSTONE_MAC_FILENAME = "tombstones.mac"
 _REGISTRY_MAC_LABEL = b"magicite/export-registry/v1"
 _REGISTRY_MAC_SCHEME = "hmac-sha256/export-registry-v1"
 _REGISTRY_MAC_VERSION_PREFIX = b"v1|"
+_PURGE_MARKER_MAC_LABEL = b"magicite/evidence-purge-marker/v1"
+_PURGE_MARKER_MAC_SCHEME = "hmac-sha256/evidence-purge-marker-v1"
+_TOMBSTONE_MAC_LABEL = b"magicite/evidence-tombstones/v1"
+_TOMBSTONE_MAC_SCHEME = "hmac-sha256/evidence-tombstones-v1"
 
 EXPORT_COPY_DELETION_NOTICE = (
     "Privacy deletion covers the managed evidence/exports directory and any "
@@ -1003,7 +1008,8 @@ def _evidence_write_guard(
     def _enter() -> None:
         root = evidence_dir(cfg)
         if root.exists():
-            _repurge_tombstoned_payloads(root)
+            _ensure_tombstone_mac(cfg, root)
+            _repurge_tombstoned_payloads(cfg, root)
 
     if lease_mod._CROSS_PROCESS_LEASE.get() is not None:  # noqa: SLF001
         with writer_lease(holder):
@@ -1226,6 +1232,7 @@ def load_event(cfg: Config, event_id: str) -> EvidenceEvent | None:
     root = evidence_dir(cfg)
     if not root.exists():
         return None
+    _assert_tombstone_mac_or_absent(cfg, root)
     index_path = root / _INDEX_FILENAME
     if not index_path.is_file():
         return None
@@ -1252,10 +1259,47 @@ def _is_tombstoned(root: Path, event_id: str) -> bool:
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
-        row = json.loads(line)
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
         if row.get("target_event_id") == event_id:
             return True
     return False
+
+
+def _assert_tombstone_mac_or_absent(cfg: Config, root: Path) -> None:
+    """Read-path gate: fail closed if tombstone MAC is present-but-wrong.
+
+    Call from load/export paths that must not expose deleted data after a
+    truncated journal. A present MAC must always match current journal bytes
+    (including empty/truncated). Missing MAC with a non-empty journal also
+    fails closed on the read path (write guard heals under lease).
+    """
+    path = root / _TOMBSTONES_FILENAME
+    mac_path = root / _TOMBSTONE_MAC_FILENAME
+    if not mac_path.is_file():
+        if path.is_file() and path.read_bytes().strip():
+            raise InvalidInputError(
+                "tombstones.mac is missing; refusing to trust tombstone journal",
+                details={"hint": "run rebuild/checkpoint under the writer lease to heal"},
+            )
+        return
+    raw = path.read_bytes() if path.is_file() else b""
+    try:
+        body = json.loads(mac_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise InvalidInputError(
+            "tombstones.mac is corrupt; refusing to trust tombstone journal",
+            details={"error": str(exc)},
+        ) from exc
+    expected = _compute_tombstone_mac(cfg, raw)
+    actual = str(body.get("mac") or "")
+    if not actual or not hmac.compare_digest(expected, actual):
+        raise InvalidInputError(
+            "tombstones.mac HMAC verification failed",
+            details={"hint": "tombstone journal may be truncated or forged"},
+        )
 
 
 def _event_from_dict(data: dict[str, Any]) -> EvidenceEvent:
@@ -1490,7 +1534,50 @@ def _tombstone_generation(root: Path) -> str:
     return f"{st.st_mtime_ns}:{st.st_size}:{st.st_ino}"
 
 
-def _purge_is_complete(root: Path) -> bool:
+def _tombstone_set_digest(root: Path) -> str:
+    """Stable digest of tombstone file bytes (empty file / missing → known digest)."""
+    path = root / _TOMBSTONES_FILENAME
+    if not path.is_file():
+        raw = b""
+    else:
+        raw = path.read_bytes()
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _segment_manifest_digest(root: Path) -> str:
+    """Digest over all segment manifest files; any rewrite/rotation changes this."""
+    segments = root / _SEGMENTS_DIRNAME
+    if not segments.is_dir():
+        return hashlib.sha256(b"").hexdigest()
+    h = hashlib.sha256()
+    for path in sorted(segments.glob("*.manifest.json")):
+        h.update(path.name.encode("utf-8"))
+        h.update(b"\0")
+        try:
+            h.update(path.read_bytes())
+        except OSError:
+            h.update(b"missing")
+        h.update(b"\0")
+    return h.hexdigest()
+
+
+def _purge_marker_mac_key(cfg: Config) -> bytes:
+    master = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
+    return hmac.new(master, _PURGE_MARKER_MAC_LABEL, hashlib.sha256).digest()
+
+
+def _purge_marker_mac(cfg: Config, body: dict[str, Any]) -> str:
+    key = _purge_marker_mac_key(cfg)
+    payload = {k: v for k, v in body.items() if k != "mac"}
+    message = b"v1|" + _canonical_json(payload).encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+
+def _purge_is_complete(cfg: Config, root: Path) -> bool:
+    """Return True only when an authenticated marker still matches live state.
+
+    Unauthenticated / mismatched markers are ignored (never suppress a purge).
+    """
     marker = root / _PURGE_COMPLETE_FILENAME
     if not marker.is_file():
         return False
@@ -1498,20 +1585,36 @@ def _purge_is_complete(root: Path) -> bool:
         data = json.loads(marker.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
-    return bool(data.get("purge_complete")) and str(data.get("generation")) == _tombstone_generation(
-        root
-    )
+    if not isinstance(data, dict) or not data.get("purge_complete"):
+        return False
+    actual = str(data.get("mac") or "")
+    if not actual:
+        return False
+    expected = _purge_marker_mac(cfg, data)
+    if not hmac.compare_digest(expected, actual):
+        return False
+    if str(data.get("generation")) != _tombstone_generation(root):
+        return False
+    if str(data.get("tombstone_digest")) != _tombstone_set_digest(root):
+        return False
+    if str(data.get("manifest_digest")) != _segment_manifest_digest(root):
+        return False
+    if str(data.get("mac_scheme") or "") != _PURGE_MARKER_MAC_SCHEME:
+        return False
+    return True
 
 
-def _mark_purge_complete(root: Path) -> None:
-    _atomic_write_json(
-        root / _PURGE_COMPLETE_FILENAME,
-        {
-            "purge_complete": True,
-            "generation": _tombstone_generation(root),
-            "updated_at": _now(),
-        },
-    )
+def _mark_purge_complete(cfg: Config, root: Path) -> None:
+    body = {
+        "purge_complete": True,
+        "generation": _tombstone_generation(root),
+        "tombstone_digest": _tombstone_set_digest(root),
+        "manifest_digest": _segment_manifest_digest(root),
+        "mac_scheme": _PURGE_MARKER_MAC_SCHEME,
+        "updated_at": _now(),
+    }
+    body["mac"] = _purge_marker_mac(cfg, body)
+    _atomic_write_json(root / _PURGE_COMPLETE_FILENAME, body)
 
 
 def _invalidate_purge_complete(root: Path) -> None:
@@ -1519,6 +1622,77 @@ def _invalidate_purge_complete(root: Path) -> None:
         (root / _PURGE_COMPLETE_FILENAME).unlink(missing_ok=True)
     except OSError:
         pass
+
+
+def _tombstone_mac_key(cfg: Config) -> bytes:
+    master = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
+    return hmac.new(master, _TOMBSTONE_MAC_LABEL, hashlib.sha256).digest()
+
+
+def _compute_tombstone_mac(cfg: Config, raw: bytes) -> str:
+    key = _tombstone_mac_key(cfg)
+    return hmac.new(key, b"v1|" + raw, hashlib.sha256).hexdigest()
+
+
+def _ensure_tombstone_mac(cfg: Config, root: Path) -> None:
+    """Verify or lease-heal the tombstone MAC (fail closed on mismatch).
+
+    Missing MAC with an existing tombstone file is healed once under the write
+    lease (upgrade path). Present-but-wrong MAC always fails closed so a
+    truncated/forged tombstone journal cannot suppress deletion hiding.
+    """
+    path = root / _TOMBSTONES_FILENAME
+    mac_path = root / _TOMBSTONE_MAC_FILENAME
+    if not path.is_file():
+        return
+    raw = path.read_bytes()
+    expected = _compute_tombstone_mac(cfg, raw)
+    if not mac_path.is_file():
+        # Lease-held heal for pre-Round-5 ledgers.
+        _atomic_write_json(
+            mac_path,
+            {
+                "mac_scheme": _TOMBSTONE_MAC_SCHEME,
+                "mac": expected,
+                "updated_at": _now(),
+            },
+        )
+        return
+    try:
+        body = json.loads(mac_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise InvalidInputError(
+            "tombstones.mac is corrupt; refusing to trust tombstone journal",
+            details={"error": str(exc)},
+        ) from exc
+    actual = str(body.get("mac") or "")
+    if not actual or not hmac.compare_digest(expected, actual):
+        raise InvalidInputError(
+            "tombstones.mac HMAC verification failed",
+            details={
+                "hint": "tombstone journal may be truncated or forged; restore from backup",
+                "mac_scheme": _TOMBSTONE_MAC_SCHEME,
+            },
+        )
+
+
+def _write_tombstone_mac(cfg: Config, root: Path) -> None:
+    path = root / _TOMBSTONES_FILENAME
+    raw = path.read_bytes() if path.is_file() else b""
+    _atomic_write_json(
+        root / _TOMBSTONE_MAC_FILENAME,
+        {
+            "mac_scheme": _TOMBSTONE_MAC_SCHEME,
+            "mac": _compute_tombstone_mac(cfg, raw),
+            "updated_at": _now(),
+        },
+    )
+
+
+def _append_tombstone_line(cfg: Config, root: Path, tombstone: dict[str, Any]) -> None:
+    _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
+    _write_tombstone_mac(cfg, root)
+    _invalidate_purge_complete(root)
 
 
 def _pending_tombstone_payload_ids(root: Path) -> set[str]:
@@ -1538,18 +1712,18 @@ def _pending_tombstone_payload_ids(root: Path) -> set[str]:
     return pending
 
 
-def _repurge_tombstoned_payloads(root: Path) -> None:
+def _repurge_tombstoned_payloads(cfg: Config, root: Path) -> None:
     """Resume physical purge for tombstoned events that still have payloads.
 
-    One segment scan per guard entry. Skipped entirely when a persisted
-    ``purge_complete`` marker matches the current tombstone generation.
+    One segment scan per guard entry. Skipped only when an authenticated
+    ``purge_complete`` marker still matches tombstone + segment-manifest digests.
     """
-    if _purge_is_complete(root):
+    if _purge_is_complete(cfg, root):
         return
     pending = _pending_tombstone_payload_ids(root)
     for eid in pending:
         _physically_purge_event_from_segments(root, eid)
-    _mark_purge_complete(root)
+    _mark_purge_complete(cfg, root)
 
 
 def _load_tombstone_rows(root: Path) -> list[dict[str, Any]]:
@@ -1571,31 +1745,57 @@ def _managed_exports_root(root: Path) -> Path:
     return (root / "exports").resolve()
 
 
-def _path_equals_or_under(path: Path, ancestor: Path) -> bool:
+def _path_equals_or_under_casefold(path: Path, ancestor: Path) -> bool:
+    """Casefold path-prefix check for case-insensitive filesystems."""
     try:
-        path.resolve().relative_to(ancestor.resolve())
-        return True
-    except (ValueError, OSError):
-        return False
-
-
-def _paths_overlap(a: Path, b: Path) -> bool:
-    """True if a equals b, a is inside b, or b is inside a."""
-    try:
-        ar, br = a.resolve(), b.resolve()
+        pp = str(path.resolve()).replace("\\", "/").casefold()
+        aa = str(ancestor.resolve()).replace("\\", "/").casefold()
     except OSError:
-        return False
-    if ar == br:
+        pp = str(path).replace("\\", "/").casefold()
+        aa = str(ancestor).replace("\\", "/").casefold()
+    if pp == aa:
+        return True
+    prefix = aa if aa.endswith("/") else aa + "/"
+    return pp.startswith(prefix)
+
+
+def _path_equals_or_under(path: Path, ancestor: Path) -> bool:
+    """True if path equals or lies under ancestor (casefold + samefile aware)."""
+    try:
+        resolved = path.resolve()
+        anc = ancestor.resolve()
+    except OSError:
+        return _path_equals_or_under_casefold(path, ancestor)
+    if resolved == anc:
         return True
     try:
-        ar.relative_to(br)
+        resolved.relative_to(anc)
         return True
     except ValueError:
         pass
-    try:
-        br.relative_to(ar)
+    if _path_equals_or_under_casefold(resolved, anc):
         return True
-    except ValueError:
+    cursor = resolved
+    for _ in range(64):
+        try:
+            if cursor.exists() and anc.exists() and cursor.samefile(anc):
+                return True
+        except OSError:
+            break
+        if cursor.parent == cursor:
+            break
+        cursor = cursor.parent
+    return False
+
+
+def _paths_overlap(a: Path, b: Path) -> bool:
+    """True if a equals b, a is inside b, or b is inside a (casefold-aware)."""
+    if _path_equals_or_under(a, b) or _path_equals_or_under(b, a):
+        return True
+    try:
+        if a.resolve().exists() and b.resolve().exists() and a.resolve().samefile(b.resolve()):
+            return True
+    except OSError:
         pass
     return False
 
@@ -2145,7 +2345,7 @@ def _delete_event_locked(
     if _is_tombstoned(root, event_id):
         _physically_purge_event_from_segments(root, event_id)
         purge_report = _purge_managed_and_registered_exports(cfg, root)
-        _mark_purge_complete(root)
+        _mark_purge_complete(cfg, root)
         for row in _load_tombstone_rows(root):
             if row.get("target_event_id") == event_id:
                 return {**row, "export_purge_skipped": purge_report.get("skipped", [])}
@@ -2173,9 +2373,8 @@ def _delete_event_locked(
         "reason": reason,
         "actor": actor,
     }
-    # (a) Durable hide first.
-    _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
-    _invalidate_purge_complete(root)
+    # (a) Durable hide first (tombstone journal + MAC).
+    _append_tombstone_line(cfg, root, tombstone)
     _maybe_fault("after_tombstone")
 
     # (b) Physical purge (idempotent / resumable).
@@ -2207,7 +2406,7 @@ def _delete_event_locked(
     )
     conn.execute("DELETE FROM evidence_event_projection WHERE event_id = ?", (event_id,))
     purge_report = _purge_managed_and_registered_exports(cfg, root)
-    _mark_purge_complete(root)
+    _mark_purge_complete(cfg, root)
     return {
         **tombstone,
         "export_purge_skipped": purge_report.get("skipped", []),
@@ -2463,10 +2662,10 @@ def apply_privacy_overlay(
                     "reason": record.get("reason") or "overlay_replay",
                     "actor": record.get("actor") or "privacy_overlay",
                 }
-                _append_line_fsync(root / _TOMBSTONES_FILENAME, _canonical_json(tombstone))
-                _invalidate_purge_complete(root)
+                _append_tombstone_line(cfg, root, tombstone)
                 _physically_purge_event_from_segments(root, event_id)
                 _rewrite_derived_caches(root)
+                _mark_purge_complete(cfg, root)
             applied += 1
     return {
         "applied": applied,
