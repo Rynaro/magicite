@@ -531,9 +531,9 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
         artifact, _doc = parser_mod.parse_artifact(
             raw_text,
             relpath=str(row["path"]),
-            registry_root=Path(ctx.cfg.project_root),
+            registry_root=ctx.cfg.registry_dir,
             admit=False,
-            require_asset_files=False,
+            require_asset_files=True,
         )
         from magicite.core.trust_artifacts import require_enrollment_marker
         require_enrollment_marker(artifact, disclosure_snapshot.head["registry_id"])

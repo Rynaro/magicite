@@ -728,7 +728,7 @@ def _ingest_skillmd_one(
             cfg, target_path, writer_mod.render_document(engram, None).encode(), actor=actor,
             source_document=raw_source
         )
-        artifact, _doc = parser_mod.load_artifact_file(target_path, registry_root=project_root)
+        artifact, _doc = trust_artifacts.load_registry_artifact(cfg, target_path)
         engram = _artifact_to_engram(artifact, intake_channel="skillmd_import")
     else:
         writer_mod.write_engram(target_path, engram)
@@ -825,10 +825,8 @@ def register(
                 path_inside_registry=inside,
             )
             try:
-                artifact, _doc = parser_mod.load_artifact_file(
-                    file_path,
-                    registry_root=project_root,
-                    require_asset_files=inside,
+                artifact, _doc = trust_artifacts.load_registry_artifact(
+                    cfg, file_path, require_asset_files=inside,
                 )
                 engram = _artifact_to_engram(artifact, intake_channel=channel)
             except parser_mod.EngramParseError as exc:
@@ -838,7 +836,7 @@ def register(
             target = file_path if inside else cfg.registry_dir / f"{engram.frontmatter.name}.egr.md"
             try:
                 trust_artifacts.publish_new_artifact(cfg, target, file_path.read_bytes(), actor="register")
-                artifact, _doc = parser_mod.load_artifact_file(target, registry_root=project_root)
+                artifact, _doc = trust_artifacts.load_registry_artifact(cfg, target)
                 engram = _artifact_to_engram(artifact, intake_channel=channel)
             except (CustodianError, parser_mod.EngramParseError) as exc:
                 outcome.validation_errors.append(ValidationError(path=str(file_path), message=str(exc)))
@@ -983,9 +981,7 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
             relpath = str(file_path.resolve().relative_to(project_root))
             on_disk_paths.add(relpath)
             try:
-                artifact, _doc = parser_mod.load_artifact_file(
-                    file_path, registry_root=project_root, require_asset_files=True
-                )
+                artifact, _doc = trust_artifacts.load_registry_artifact(cfg, file_path)
                 engram = _artifact_to_engram(artifact, intake_channel="local_register")
             except parser_mod.EngramParseError as exc:
                 outcome.validation_errors.append(ValidationError(path=relpath, message=str(exc)))

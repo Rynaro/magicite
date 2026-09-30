@@ -915,3 +915,63 @@ def test_bundle_failure_after_target_publication_compensates_exact_marked_bytes(
     assert outcome.ingested == 1
     artifact = trust_artifacts.require_bound_artifact(cfg, cfg.registry_dir / "sample.egr.md")
     assert not registry.trust_view_for(cfg, conn, engram_id=artifact.id).admitted
+
+
+def test_signed_bundle_assets_use_registry_root_through_review_and_sync(enrolled, tmp_path):
+    import hashlib
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from magicite.core import bundles, registry, router, trust_artifacts
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.mcp import bind_retrieval
+    from magicite.mcp.registry import ToolContext
+    from magicite.mcp.schemas import LoadSkillBodyInput
+
+    cfg, conn, _ = enrolled
+    key = Ed25519PrivateKey.generate()
+    trust.pin_trust_root(cfg, public_key_bytes=key.public_key().public_bytes_raw())
+    source = tmp_path / "asset-bundle"
+    (source / "assets").mkdir(parents=True)
+    asset = b"verified bundle helper\n"
+    (source / "assets/helper.sh").write_bytes(asset)
+    raw = (
+        Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    ).read_text()
+    raw = raw[: raw.index("compatibility:")] + raw[raw.index("routing:") :]
+    raw = raw.replace(
+        "assets: {}",
+        "assets:\n  assets/helper.sh:\n    sha256: "
+        + hashlib.sha256(asset).hexdigest()
+        + f"\n    size: {len(asset)}\n    media_type: application/octet-stream",
+    )
+    (source / "sample.egr.md").write_text(raw)
+    # A same-named project file is never the authority for bundle resources.
+    (cfg.project_root / "assets").mkdir()
+    (cfg.project_root / "assets/helper.sh").write_bytes(b"unrelated project file")
+    archive = tmp_path / "assets.zip"
+    bundles.write_signed_bundle(source_dir=source, out_path=archive, private_key=key)
+    embedder = get_embedder(dim=256)
+    outcome = registry.import_bundle(cfg, conn, embedder, archive_path=archive)
+    assert outcome.ingested == 1, outcome.validation_errors
+    artifact = trust_artifacts.require_bound_artifact(cfg, cfg.registry_dir / "sample.egr.md")
+    assert artifact.path == ".magicite/engrams/sample.egr.md"
+    registry.review_approve(
+        cfg, conn, engram_id=artifact.id, expected_digest=artifact.content_sha256, actor="operator"
+    )
+    assert registry.trust_view_for(cfg, conn, engram_id=artifact.id).admitted
+    params = LoadSkillBodyInput(
+        name=artifact.name,
+        level="L2",
+        expected_content_digest=artifact.content_sha256,
+        expected_policy_digest=bind_retrieval._active_policy_digest(cfg),
+    )
+    ctx = ToolContext(cfg=cfg, conn=conn, embedder=embedder)
+    assert bind_retrieval.load_skill_body(ctx, params).status == "ok"
+    assert router.route(cfg, conn, embedder, query="prepare proton tooling", k=5).candidates
+    assert not registry.sync(cfg, conn, embedder).validation_errors
+    (cfg.registry_dir / "assets/helper.sh").write_bytes(b"changed bundle helper")
+    assert not registry.trust_view_for(cfg, conn, engram_id=artifact.id).admitted
+    assert bind_retrieval.load_skill_body(ctx, params).status != "ok"
+    assert not router.route(cfg, conn, embedder, query="prepare proton tooling", k=5).candidates
+    assert registry.sync(cfg, conn, embedder).validation_errors
