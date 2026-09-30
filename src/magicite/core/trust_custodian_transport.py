@@ -150,9 +150,11 @@ class CustodyProfile:
                 client_uid=data["client_uid"],
                 public_key=data["public_key"],
             )
-            if profile.custodian_uid != expected_owner_uid or data["minimum_epoch"] != profile.epoch:
+            if (expected_owner_uid != 0 and profile.custodian_uid != expected_owner_uid) or data[
+                "minimum_epoch"
+            ] != profile.epoch:
                 raise CustodianError("protected custody identity mismatch")
-            protected_path(profile.socket_path.parent, expected_owner_uid, directory=True)
+            protected_path(profile.socket_path.parent, profile.custodian_uid, directory=True)
             return profile
         except (OSError, ValueError, TypeError, KeyError) as exc:
             raise CustodianError("protected custody profile unavailable") from exc

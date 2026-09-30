@@ -49,6 +49,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Protocol
 
 from magicite.errors import BusyError
 
@@ -75,9 +76,7 @@ _HOLDER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 #: a callee opens). Only the outermost ``release_writer_lease()`` actually
 #: drops ``_HOLDER``/``_PROCESS_LOCK`` -- otherwise an inner release would
 #: prematurely free the lease out from under an still-in-flight outer call.
-_DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar(
-    "magicite_writer_lease_depth", default=0
-)
+_DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar("magicite_writer_lease_depth", default=0)
 
 # The active cross-process lease, when the top-level writer uses one. Durable
 # helpers consult it from assert_single_writer(), turning the fencing token
@@ -207,9 +206,7 @@ def assert_single_writer() -> None:
 #: under ``src/magicite`` that may call :func:`dream_context`). Every other
 #: module reads it only through :func:`assert_dream_context`/
 #: :func:`in_dream_context`, never sets it.
-_DREAM_CONTEXT: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "magicite_dream_context", default=False
-)
+_DREAM_CONTEXT: contextvars.ContextVar[bool] = contextvars.ContextVar("magicite_dream_context", default=False)
 
 
 class DreamContextError(BusyError):
@@ -277,6 +274,19 @@ class LeaseAcquireResult:
     stolen: bool  # True iff a stale (expired) lease row was reclaimed
 
 
+class CustodyCoordinator(Protocol):
+    registry_id: str
+
+    def capture(self) -> None: ...
+
+    def register(self, holder: str, local_token: int) -> None: ...
+
+
+def current_cross_process_lease() -> CrossProcessLease | None:
+    current = _CROSS_PROCESS_LEASE.get()
+    return current if isinstance(current, CrossProcessLease) else None
+
+
 class CrossProcessLease:
     """spec §4.2 ``storage/lease.py::WriterLease``: acquires, in order,
 
@@ -305,8 +315,10 @@ class CrossProcessLease:
         holder: str | None = None,
         ttl_s: float = DEFAULT_LEASE_TTL_S,
         heartbeat_interval_s: float = DEFAULT_HEARTBEAT_INTERVAL_S,
+        custody: CustodyCoordinator | None = None,
     ) -> None:
         self.lock_path = Path(lock_path)
+        self.custody = custody
         self.conn = conn
         self.holder = holder or f"{os.uname().nodename}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
         self.ttl_s = ttl_s
@@ -343,6 +355,8 @@ class CrossProcessLease:
         another holder is live; returns a :class:`LeaseAcquireResult`
         (``stolen=True`` iff a dead holder's expired lease was reclaimed).
         """
+        if self.custody is not None:
+            self.custody.capture()
         if not self._try_flock():
             raise BusyError(
                 "writer lease flock is held by another process",
@@ -393,6 +407,10 @@ class CrossProcessLease:
                 raise
             self._held = True
             self._fencing_token = fencing_token
+            if self.custody is not None:
+                self.assert_owned()
+                self.custody.register(self.holder, fencing_token)
+                self.assert_owned()
             # Publish into the context var so assert_single_writer / nested
             # domain writers observe the same fence as acquire() (AC-S12-04).
             if _CROSS_PROCESS_LEASE.get() is None:
@@ -407,7 +425,7 @@ class CrossProcessLease:
                 stolen=stolen,
             )
         except BaseException:
-            self._release_flock()
+            self.release()
             raise
 
     def heartbeat(self) -> None:
@@ -466,9 +484,7 @@ class CrossProcessLease:
                     ),
                 )
                 if cursor.rowcount != 1:
-                    self._heartbeat_failure = BusyError(
-                        "periodic heartbeat lost writer lease ownership"
-                    )
+                    self._heartbeat_failure = BusyError("periodic heartbeat lost writer lease ownership")
                     self._held = False
                     return
         except BaseException as exc:  # surfaced by assert_owned on the writer thread
@@ -537,6 +553,16 @@ class CrossProcessLease:
         # try_acquire (BusyError) or release the outer fencing token.
         current = _CROSS_PROCESS_LEASE.get()
         if current is not None:
+            if (
+                not isinstance(current, CrossProcessLease)
+                or current.lock_path.resolve() != self.lock_path.resolve()
+            ):
+                raise BusyError("nested writer lease registry mismatch")
+            current.assert_owned()
+            if self.custody is not None and (
+                current.custody is None or current.custody.registry_id != self.custody.registry_id
+            ):
+                raise BusyError("nested writer lease lacks matching custody")
             now = _now()
             yield LeaseAcquireResult(
                 holder=getattr(current, "holder", self.holder),
