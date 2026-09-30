@@ -538,7 +538,9 @@ def _ingest_one(
 
     if cfg is not None:
         try:
-            trust_artifacts.require_bound_artifact(cfg, cfg.project_root / engram.path)
+            verified = trust_artifacts.require_bound_artifact(cfg, cfg.project_root / engram.path)
+            if verified.id != engram.id or verified.content_sha256 != engram.content_sha256:
+                raise CustodianError("parsed object differs from authenticated bytes")
         except (CustodianError, OSError, parser_mod.EngramParseError):
             return (None, ValidationError(path=engram.path,
                     message="authenticated enrollment artifact required"), False, [])
@@ -682,7 +684,8 @@ def _ingest_skillmd_one(
 ) -> tuple[RegisteredEntry | None, ValidationError | None, bool, list[str]]:
     """SKILL.md ingestion (spec §5.3 steps 3-9): convert -> lint(import) ->
     write -> index. Returns the same shape as :func:`_ingest_one`."""
-    raw_text = path.read_text(encoding="utf-8")
+    raw_source = path.read_bytes()
+    raw_text = raw_source.decode("utf-8")
     try:
         source = skillmd_mod.parse_source(raw_text)
     except skillmd_mod.SkillMdParseError as exc:
@@ -722,7 +725,8 @@ def _ingest_skillmd_one(
     # spec §5.3 step 6: write before step 7 (index).
     if cfg is not None:
         trust_artifacts.publish_new_artifact(
-            cfg, target_path, writer_mod.render_document(engram, None).encode(), actor=actor
+            cfg, target_path, writer_mod.render_document(engram, None).encode(), actor=actor,
+            source_document=raw_source
         )
         artifact, _doc = parser_mod.load_artifact_file(target_path, registry_root=project_root)
         engram = _artifact_to_engram(artifact, intake_channel="skillmd_import")

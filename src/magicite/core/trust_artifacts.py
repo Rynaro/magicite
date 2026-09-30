@@ -128,7 +128,7 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
         "review",
         "grants_admission",
     }
-    if set(payload) != expected or payload["schema"] != "ArtifactTransform/1":
+    if set(payload) - {"conversion_provenance"} != expected or payload["schema"] != "ArtifactTransform/1":
         raise CustodianError("invalid artifact transform schema")
     if payload["transform_id"] != TRANSFORM or payload["grants_admission"] is not False:
         raise CustodianError("artifact transformation cannot grant admission")
@@ -137,6 +137,17 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
     for field in ("source_digest", "target_digest", "configuration_digest"):
         if not isinstance(payload[field], str) or not re.fullmatch("[0-9a-f]{64}", payload[field]):
             raise CustodianError("invalid transform digest")
+    conversion = payload.get("conversion_provenance")
+    if conversion is not None:
+        if (
+            not isinstance(conversion, dict)
+            or set(conversion) != {"format", "source_digest", "intermediate_digest"}
+            or conversion["format"] != "SKILL.md"
+            or not isinstance(conversion["source_digest"], str)
+            or re.fullmatch("[0-9a-f]{64}", conversion["source_digest"]) is None
+            or conversion["intermediate_digest"] != payload["source_digest"]
+        ):
+            raise CustodianError("invalid source conversion provenance")
     config = payload["configuration"]
     if (
         not isinstance(config, dict)
@@ -179,7 +190,13 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
 
 
 def publish_new_artifact(
-    cfg: Any, target: Any, source: bytes, *, actor: str, source_signature: dict[str, Any] | None = None
+    cfg: Any,
+    target: Any,
+    source: bytes,
+    *,
+    actor: str,
+    source_signature: dict[str, Any] | None = None,
+    source_document: bytes | None = None,
 ) -> None:
     """Publish new intake through non-authorizing, exact-byte journal lineage.
 
@@ -227,15 +244,22 @@ def publish_new_artifact(
         source_signature=source_signature,
     )
     held.assert_owned()
-    source_digest = hashlib.sha256(source).hexdigest()
-    with _directory_fd(cfg.data_dir / "trust" / "sources", create=True) as directory:
-        try:
-            prior = _read_file(directory, source_digest)
-        except FileNotFoundError:
-            _replace_file(directory, source_digest, source, held.assert_owned)
-        else:
-            if prior != source:
-                raise CustodianError("source archive digest mismatch")
+    if source_document is not None:
+        transformed.lineage["conversion_provenance"] = {
+            "format": "SKILL.md",
+            "source_digest": hashlib.sha256(source_document).hexdigest(),
+            "intermediate_digest": transformed.lineage["source_digest"],
+        }
+    for original in (source,) if source_document is None else (source, source_document):
+        source_digest = hashlib.sha256(original).hexdigest()
+        with _directory_fd(cfg.data_dir / "trust" / "sources", create=True) as directory:
+            try:
+                prior = _read_file(directory, source_digest)
+            except FileNotFoundError:
+                _replace_file(directory, source_digest, original, held.assert_owned)
+            else:
+                if prior != original:
+                    raise CustodianError("source archive digest mismatch")
     journal.append(
         record_id="transform-" + hashlib.sha256(_bytes(transformed.lineage)).hexdigest(),
         kind="artifact_transform",

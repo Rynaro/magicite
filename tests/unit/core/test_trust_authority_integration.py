@@ -362,3 +362,53 @@ def test_skill_import_marks_target_before_indexing(enrolled):
     artifact = trust_artifacts.require_bound_artifact(cfg, cfg.project_root / row["path"])
     assert artifact.content_sha256 == row["content_sha256"]
     assert store.committed_records("r")[1]["kind"] == "artifact_transform"
+
+
+def test_ingest_rejects_object_different_from_bound_file(enrolled, monkeypatch):
+    import shutil
+
+    from magicite.core import registry, trust_artifacts
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, _ = enrolled
+    fixture = Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    target = cfg.registry_dir / "sample.egr.md"
+    shutil.copy(fixture, target)
+    embedder = get_embedder(dim=256)
+    registry.register(cfg, conn, embedder, path=".magicite/engrams")
+    artifact = trust_artifacts.require_bound_artifact(cfg, target)
+    stale = registry._artifact_to_engram(artifact, intake_channel="local_register")
+    stale.content_sha256 = "0" * 64
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("stale object reached DB upsert")
+
+    monkeypatch.setattr(registry.durable_mod, "upsert_engram", unexpected)
+    entry, error, _, _ = registry._ingest_one(
+        conn, embedder, stale, profile="strict", registry_dir=cfg.registry_dir, cfg=cfg
+    )
+    assert entry is None and error is not None
+
+
+def test_skill_raw_source_archive_and_conversion_provenance(enrolled):
+    import hashlib
+
+    from magicite.core import registry
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, store = enrolled
+    fixture = (
+        Path(__file__).resolve().parents[2] / "fixtures/toy-registry/skills/wine-dxvk-cache-clear/SKILL.md"
+    )
+    source = fixture.read_bytes()
+    intake = cfg.project_root / "SKILL.md"
+    intake.write_bytes(source)
+    registry.register(cfg, conn, get_embedder(dim=256), path=str(intake))
+    digest = hashlib.sha256(source).hexdigest()
+    assert (cfg.data_dir / "trust/sources" / digest).read_bytes() == source
+    lineage = next(r["payload"] for r in store.committed_records("r") if r["kind"] == "artifact_transform")
+    assert lineage["conversion_provenance"] == {
+        "format": "SKILL.md",
+        "source_digest": digest,
+        "intermediate_digest": lineage["source_digest"],
+    }
