@@ -129,7 +129,7 @@ def test_corrupt_mirror_fails_closed(cfg, db_conn, embedder) -> None:
 
 
 def test_approve_under_and_without_outer_lease(cfg, db_conn, embedder) -> None:
-    """Direct approve acquires cross-process + writer lease; nested must not deadlock."""
+    """Direct approve/reject acquire cross-process + writer lease; nested must not deadlock."""
     assert getattr(trust_mod, "_ledger_lock", None) is None
 
     _external_subject(cfg, name="lease-subj", eid="egr_1ea5e001")
@@ -142,11 +142,11 @@ def test_approve_under_and_without_outer_lease(cfg, db_conn, embedder) -> None:
     held: list[bool] = []
     _orig_live = trust_mod.live_content_digest
 
-    def _probe_during_approve(*args, **kwargs):
+    def _probe_during_mutation(*args, **kwargs):
         held.append(lease_mod.cross_process_lease_held())
         return _orig_live(*args, **kwargs)
 
-    trust_mod.live_content_digest = _probe_during_approve  # type: ignore[method-assign]
+    trust_mod.live_content_digest = _probe_during_mutation  # type: ignore[method-assign]
     try:
         # Direct mutator must acquire the same cross-process lease as review_*.
         decision = trust_mod.approve(
@@ -157,11 +157,28 @@ def test_approve_under_and_without_outer_lease(cfg, db_conn, embedder) -> None:
             actor="direct",
             event_id="evt-direct",
         )
+        held_during_approve = list(held)
+        held.clear()
+        rejected = trust_mod.reject(
+            cfg,
+            db_conn,
+            engram_id=entry.id,
+            expected_digest=live,
+            actor="direct-reject",
+            event_id="evt-reject",
+        )
+        held_during_reject = list(held)
     finally:
         trust_mod.live_content_digest = _orig_live  # type: ignore[method-assign]
 
     assert decision.decision == "admit"
-    assert held and all(held), "cross-process lease must be held during approve mutation"
+    assert held_during_approve and all(held_during_approve), (
+        "cross-process lease must be held during approve mutation"
+    )
+    assert rejected.decision == "reject"
+    assert held_during_reject and all(held_during_reject), (
+        "cross-process lease must be held during reject mutation"
+    )
 
     # Nested via review_* (already holds CrossProcessLease + writer_lease).
     again = registry_mod.review_approve(
