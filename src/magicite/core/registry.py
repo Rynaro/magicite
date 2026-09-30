@@ -303,17 +303,82 @@ def _resolve_scan_root(project_root: Path, path: str) -> Path:
     return candidate
 
 
+# Reserved registry subdirs (crash leftovers must never be ingestible).
+_IMPORT_STAGING_DIRNAME = ".import-staging"
+_PUBLISH_JOURNAL_NAME = "publish-journal.json"
+_RESERVED_REGISTRY_DIRNAMES = frozenset({_IMPORT_STAGING_DIRNAME})
+
+
+def _is_reserved_registry_path(
+    path: Path | str,
+    *,
+    registry_root: Path | None = None,
+) -> bool:
+    """True when ``path`` lies under a magicite-reserved registry subdirectory."""
+    p = Path(path)
+    parts = p.parts
+    if any(part in _RESERVED_REGISTRY_DIRNAMES for part in parts):
+        return True
+    if registry_root is not None:
+        try:
+            rel_parts = p.resolve().relative_to(registry_root.resolve()).parts
+        except (ValueError, OSError):
+            rel_parts = ()
+        if any(part in _RESERVED_REGISTRY_DIRNAMES for part in rel_parts):
+            return True
+    return False
+
+
+def _iter_registry_files(registry_dir: Path, pattern: str) -> list[Path]:
+    """rglob under the registry, skipping reserved staging / control dirs."""
+    root = registry_dir.resolve()
+    if not root.is_dir():
+        return []
+    return sorted(
+        p
+        for p in root.rglob(pattern)
+        if p.is_file() and not _is_reserved_registry_path(p, registry_root=root)
+    )
+
+
 def _discover_files(scan_root: Path, fmt: str) -> tuple[list[Path], list[Path]]:
     """Returns (egr_files, skill_files) under ``scan_root``."""
     if scan_root.is_file():
+        if _is_reserved_registry_path(scan_root):
+            raise InvalidInputError(
+                f"refusing reserved registry path under {_IMPORT_STAGING_DIRNAME}: "
+                f"{scan_root}"
+            )
         if scan_root.suffix == ".md" and scan_root.name.endswith(".egr.md"):
             return [scan_root], []
         if scan_root.name == "SKILL.md":
             return [], [scan_root]
         raise InvalidInputError(f"{scan_root} is neither a .egr.md nor a SKILL.md file")
 
-    egr_files = sorted(scan_root.rglob("*.egr.md")) if fmt in ("auto", "egr") else []
-    skill_files = sorted(scan_root.rglob("SKILL.md")) if fmt in ("auto", "skill") else []
+    if _is_reserved_registry_path(scan_root):
+        raise InvalidInputError(
+            f"refusing reserved registry path under {_IMPORT_STAGING_DIRNAME}: "
+            f"{scan_root}"
+        )
+
+    egr_files = (
+        sorted(
+            p
+            for p in scan_root.rglob("*.egr.md")
+            if p.is_file() and not _is_reserved_registry_path(p)
+        )
+        if fmt in ("auto", "egr")
+        else []
+    )
+    skill_files = (
+        sorted(
+            p
+            for p in scan_root.rglob("SKILL.md")
+            if p.is_file() and not _is_reserved_registry_path(p)
+        )
+        if fmt in ("auto", "skill")
+        else []
+    )
     return egr_files, skill_files
 
 
@@ -393,6 +458,24 @@ def _ingest_one(
     resource_digest: str | None = None,
 ) -> tuple[RegisteredEntry | None, ValidationError | None, bool, list[str]]:
     """Returns (registered_entry, validation_error, skipped_unchanged, dangling)."""
+    if cfg is not None and engram.path:
+        candidate = Path(engram.path)
+        if not candidate.is_absolute():
+            candidate = (cfg.project_root / engram.path).resolve()
+        if _is_reserved_registry_path(candidate, registry_root=cfg.registry_dir):
+            return (
+                None,
+                ValidationError(
+                    path=engram.path,
+                    message=(
+                        f"refusing to ingest reserved registry path under "
+                        f"{_IMPORT_STAGING_DIRNAME}"
+                    ),
+                ),
+                False,
+                [],
+            )
+
     result = lint_mod.lint(engram, profile=profile)  # type: ignore[arg-type]
     if profile == "strict" and not result.ok:
         msg = "; ".join(f"{i.rule}: {i.message}" for i in result.errors)
@@ -653,6 +736,7 @@ def register(
     outcome = IngestOutcome()
     cross_lease = _cross_process_lease(cfg, conn, "register")
     with cross_lease.acquire(), lease_mod.writer_lease():
+        _recover_incomplete_bundle_publishes(cfg.registry_dir)
         for file_path in egr_files:
             inside = _path_inside_registry(cfg, file_path)
             channel = trust_mod.classify_intake_channel(
@@ -817,7 +901,8 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
 
     cross_lease = _cross_process_lease(cfg, conn, "sync")
     with cross_lease.acquire(), lease_mod.writer_lease():
-        for file_path in sorted(registry_dir.rglob("*.egr.md")):
+        _recover_incomplete_bundle_publishes(registry_dir)
+        for file_path in _iter_registry_files(registry_dir, "*.egr.md"):
             relpath = str(file_path.resolve().relative_to(project_root))
             on_disk_paths.add(relpath)
             try:
@@ -949,7 +1034,6 @@ class BundleImportOutcome:
     signer_fingerprint: str | None
 
 
-_IMPORT_STAGING_DIRNAME = ".import-staging"
 _ENGRAM_ID_RE = re.compile(r"(?m)^id:\s*[\"']?([^\s\"'#]+)[\"']?\s*$")
 
 
@@ -967,8 +1051,10 @@ def build_registry_path_index(registry_root: Path) -> dict[str, Path]:
     for path in root.rglob("*"):
         if not path.is_file():
             continue
+        if _is_reserved_registry_path(path, registry_root=root):
+            continue
         rel = path.relative_to(root).as_posix()
-        if rel == ".gitignore" or rel.startswith(f"{_IMPORT_STAGING_DIRNAME}/"):
+        if rel == ".gitignore":
             continue
         if rel.endswith(".db") or ".db-" in rel or rel.endswith(".db-wal") or rel.endswith(".db-shm"):
             continue
@@ -1105,9 +1191,97 @@ def _assert_import_destinations_safe(
                     f"casefold collision with existing registry path: "
                     f"{existing[key].as_posix()!r} vs {rel!r}"
                 )
-            skip_publish[rel] = False
+    skip_publish[rel] = False
 
     return skip_publish
+
+
+def _fsync_dir(path: Path) -> None:
+    dir_fd = os.open(str(path), os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
+
+
+def _write_publish_journal(job_dir: Path, payload: dict[str, Any]) -> Path:
+    """Write + fsync the publish journal before the first os.replace."""
+    path = job_dir / _PUBLISH_JOURNAL_NAME
+    raw = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(raw)
+            fh.flush()
+            os.fsync(fh.fileno())
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    os.replace(tmp, path)
+    _fsync_dir(job_dir)
+    return path
+
+
+def _load_publish_journal(path: Path) -> dict[str, Any] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _compensate_published_members(
+    registry_root: Path,
+    members: list[dict[str, Any]],
+) -> None:
+    """Remove published members whose live bytes still match the journal digests."""
+    from magicite.engram.digests import sha256_hex
+
+    for member in members:
+        if member.get("pre_existing"):
+            continue
+        rel = str(member.get("path", "")).replace("\\", "/")
+        if not rel:
+            continue
+        dest = registry_root / rel
+        if not dest.is_file():
+            continue
+        expected = str(member.get("sha256", ""))
+        try:
+            live = sha256_hex(dest.read_bytes())
+        except OSError:
+            continue
+        if expected and live == expected:
+            dest.unlink(missing_ok=True)
+
+
+def _recover_incomplete_bundle_publishes(registry_root: Path) -> None:
+    """Roll back incomplete publish journals left by a crash (SIGKILL-safe)."""
+    staging_root = registry_root / _IMPORT_STAGING_DIRNAME
+    if not staging_root.is_dir():
+        return
+    for job_dir in list(staging_root.iterdir()):
+        if not job_dir.is_dir():
+            continue
+        journal_path = job_dir / _PUBLISH_JOURNAL_NAME
+        if not journal_path.is_file():
+            shutil.rmtree(job_dir, ignore_errors=True)
+            continue
+        journal = _load_publish_journal(journal_path)
+        if journal is None:
+            shutil.rmtree(job_dir, ignore_errors=True)
+            continue
+        if journal.get("complete") is True:
+            shutil.rmtree(job_dir, ignore_errors=True)
+            continue
+        members = journal.get("members")
+        if isinstance(members, list):
+            _compensate_published_members(
+                registry_root,
+                [m for m in members if isinstance(m, dict)],
+            )
+        shutil.rmtree(job_dir, ignore_errors=True)
 
 
 def import_bundle(
@@ -1148,6 +1322,7 @@ def import_bundle(
     cross_lease = _cross_process_lease(cfg, conn, "bundle-import")
     publish_staging: Path | None = None
     with cross_lease.acquire(), lease_mod.writer_lease():
+        _recover_incomplete_bundle_publishes(registry_root)
         skip_publish = _assert_import_destinations_safe(
             conn=conn,
             cfg=cfg,
@@ -1158,6 +1333,7 @@ def import_bundle(
 
         # Stage under the registry root; publish only after checks + re-hash.
         publish_staging = registry_root / _IMPORT_STAGING_DIRNAME / uuid.uuid4().hex
+        journal_members: list[dict[str, Any]] = []
         try:
             for entry in verified.manifest.entries:
                 rel = entry.path.replace("\\", "/")
@@ -1171,6 +1347,27 @@ def import_bundle(
                         f"staged bytes diverged from verified manifest for {rel!r}"
                     )
                 staged.write_bytes(raw)
+                if not skip_publish.get(rel):
+                    journal_members.append(
+                        {
+                            "path": rel,
+                            "sha256": entry.sha256,
+                            "size": entry.size,
+                            "pre_existing": False,
+                        }
+                    )
+
+            # Journal BEFORE the first os.replace (crash recovery contract).
+            publish_staging.mkdir(parents=True, exist_ok=True)
+            _write_publish_journal(
+                publish_staging,
+                {
+                    "schema": "BundlePublishJournal/1",
+                    "bundle_id": verified.manifest_digest or uuid.uuid4().hex,
+                    "complete": False,
+                    "members": journal_members,
+                },
+            )
 
             staged_egr: list[Path] = []
             for entry in verified.manifest.entries:
@@ -1190,6 +1387,16 @@ def import_bundle(
                 os.replace(publish_staging / rel, dest)
                 if rel.endswith(".egr.md"):
                     staged_egr.append(dest)
+
+            _write_publish_journal(
+                publish_staging,
+                {
+                    "schema": "BundlePublishJournal/1",
+                    "bundle_id": verified.manifest_digest or uuid.uuid4().hex,
+                    "complete": True,
+                    "members": journal_members,
+                },
+            )
 
             for dest in staged_egr:
                 rel_in_registry = str(dest.relative_to(registry_root).as_posix())
@@ -1224,6 +1431,10 @@ def import_bundle(
                 if registered:
                     outcome.registered.append(registered)
                 outcome.dangling.extend(dangling)
+        except BaseException:
+            if journal_members:
+                _compensate_published_members(registry_root, journal_members)
+            raise
         finally:
             if publish_staging is not None:
                 shutil.rmtree(publish_staging, ignore_errors=True)
