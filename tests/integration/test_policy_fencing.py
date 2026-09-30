@@ -190,3 +190,22 @@ def test_public_cli_reconciliation_and_read_only_diagnostics(
         assert ps.policy_store_path(cfg).read_bytes() == before["policy_store/state.json"]
         with pytest.raises(InvalidInputError, match="pending"):
             ps.status(cfg)
+
+
+def test_policy_directory_open_failure_does_not_acknowledge_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg, approval = _prepared(tmp_path)
+    real_open = os.open
+    def fail_policy_directory(path: str | Path, flags: int, *args: object, **kwargs: object) -> int:
+        if Path(path) == ps.policy_store_dir(cfg) and flags == os.O_RDONLY:
+            raise OSError("policy directory durability unavailable")
+        return real_open(path, flags, *args, **kwargs)
+    monkeypatch.setattr(os, "open", fail_policy_directory)
+    with pytest.raises(OSError, match="policy directory durability"):
+        ps.activate(cfg, expected_current=None, candidate_digest="a", approval_id=approval)
+    with pytest.raises(InvalidInputError, match="pending"):
+        ps.status(cfg)
+    assert json.loads(next(cfg.approvals_dir.glob("*.json")).read_text())["state"] == "approved"
+    monkeypatch.setattr(os, "open", real_open)
+    assert ps.reconcile(cfg).active_digest == "a"

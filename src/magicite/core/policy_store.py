@@ -208,10 +208,7 @@ def _policy_write_leases(cfg: Config, *, holder: str) -> Iterator[None]:
 
 
 def _fsync_dir(directory: Path) -> None:
-    try:
-        dir_fd = os.open(str(directory), os.O_RDONLY)
-    except OSError:
-        return
+    dir_fd = os.open(str(directory), os.O_RDONLY)
     try:
         os.fsync(dir_fd)
     finally:
