@@ -7,6 +7,7 @@ SQLite FULL transactions are the authority's linearization/durability boundary.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
@@ -175,6 +176,7 @@ class CustodianStore:
             "prev_mac": previous,
         }
         record["mac"] = hmac.new(self._key, DOMAIN + _bytes(record), hashlib.sha256).hexdigest()
+        _bytes(record)  # Reject final envelope overflow before any durable preparation.
         return record
 
     def enroll(self, registry: str, policy: dict[str, Any], *, actor: str, reviewed: bool) -> None:
@@ -372,6 +374,29 @@ class CustodianStore:
 
     def committed_records(self, registry: str) -> list[dict[str, Any]]:
         return list(self._load(registry)["records"])
+
+    def history_page(self, registry: str, *, expected_head: dict[str, Any], offset: int) -> dict[str, Any]:
+        state = self._load(registry)
+        head = self._head(state)
+        if not _match(expected_head, head, HEAD_FIELDS):
+            raise CustodianError("history head changed")
+        # Aggregate history has no single-record size cap. Each authenticated
+        # page is bounded independently and pinned to one immutable head.
+        raw = json.dumps(
+            state["records"], sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode()
+        if type(offset) is not int or not 0 <= offset < len(raw):
+            raise CustodianError("invalid history cursor")
+        end = min(offset + 1024 * 1024, len(raw))
+        return {
+            **{key: head[key] for key in HEAD_FIELDS},
+            "offset": offset,
+            "next_offset": end,
+            "total_bytes": len(raw),
+            "record_count": len(state["records"]),
+            "stream_digest": hashlib.sha256(raw).hexdigest(),
+            "data": base64.b64encode(raw[offset:end]).decode("ascii"),
+        }
 
     def prepared_record(self, registry: str) -> dict[str, Any] | None:
         pending: dict[str, Any] | None = self._load(registry)["pending"]

@@ -7,10 +7,13 @@ changed history closes reads until explicit reconciliation under a writer fence.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import secrets
 import stat
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -103,7 +106,41 @@ class TrustJournal:
             raise CustodianError("custody enrollment mismatch")
         if head["pending_record_id"] is not None and not allow_pending:
             raise CustodianError("pending trust record requires reconciliation")
-        records = self.client.call("committed_records")
+        deadline = time.monotonic() + 30.0
+        raw = bytearray()
+        identity = None
+        while True:
+            if time.monotonic() >= deadline:
+                raise CustodianError("history read deadline exceeded")
+            page = self.client.call("history_page", expected_head=head, offset=len(raw))
+            try:
+                chunk = base64.b64decode(page["data"], validate=True)
+                integers = ("offset", "next_offset", "total_bytes", "record_count")
+                current_identity = (page["total_bytes"], page["record_count"], page["stream_digest"])
+                if (
+                    not _match(page, head, HEAD_FIELDS)
+                    or any(type(page[key]) is not int for key in integers)
+                    or page["offset"] != len(raw)
+                    or not 0 < len(chunk) <= 1024 * 1024
+                    or page["next_offset"] != len(raw) + len(chunk)
+                    or page["next_offset"] > page["total_bytes"]
+                    or page["record_count"] != head["head_sequence"]
+                    or (identity is not None and current_identity != identity)
+                ):
+                    raise CustodianError("invalid authenticated history page")
+                identity = current_identity
+                raw.extend(chunk)
+                if len(raw) == page["total_bytes"]:
+                    if hashlib.sha256(raw).hexdigest() != page["stream_digest"]:
+                        raise CustodianError("history stream digest mismatch")
+                    records = json.loads(raw)
+                    if not isinstance(records, list):
+                        raise CustodianError("invalid history stream")
+                    break
+            except (ValueError, TypeError, KeyError, RecursionError) as exc:
+                raise CustodianError("invalid authenticated history page") from exc
+        if time.monotonic() >= deadline:
+            raise CustodianError("history read deadline exceeded")
         after = self.client.call("read_current")
         if not _equal(head, after):
             raise CustodianError("trust head changed during snapshot")

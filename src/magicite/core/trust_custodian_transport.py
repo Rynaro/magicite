@@ -7,6 +7,7 @@ explicitly injected by callers rather than weakening this production boundary.
 from __future__ import annotations
 
 import errno
+import hashlib
 import json
 import os
 import secrets
@@ -27,6 +28,8 @@ from magicite.core.trust_custodian import CustodianError, CustodianStore, _bytes
 
 RECEIPT_DOMAIN = b"magicite-trust-custodian/1\x00"
 MAX_FRAME = 4 * 1024 * 1024
+MAX_LOGICAL = 2 * MAX_FRAME + 64 * 1024
+FRAGMENT_BYTES = MAX_FRAME - 24
 TIMEOUT = 5.0
 
 
@@ -251,9 +254,86 @@ def send_frame(connection: socket.socket, data: dict[str, Any]) -> None:
     connection.sendall(len(encoded).to_bytes(4, "big") + encoded)
 
 
+def _message_bytes(value: Any) -> bytes:
+    try:
+        raw = json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode()
+    except (ValueError, TypeError, RecursionError) as exc:
+        raise CustodianError("invalid custody message") from exc
+    if not 0 < len(raw) <= MAX_LOGICAL:
+        raise CustodianError("custody message exceeds limit")
+    return raw
+
+
+def send_message(connection: socket.socket, data: dict[str, Any], *, deadline: float | None = None) -> None:
+    deadline = deadline if deadline is not None else time.monotonic() + TIMEOUT
+    raw = _message_bytes(data)
+    # Fixed binary framing: magic, logical length, fragment count, random
+    # transfer ID, digest; then transfer ID/index/length for each raw chunk.
+    count = (len(raw) + FRAGMENT_BYTES - 1) // FRAGMENT_BYTES
+    transfer = secrets.token_bytes(16)
+    header = b"MTC2" + struct.pack("!II", len(raw), count) + transfer + hashlib.sha256(raw).digest()
+
+    def send(value: bytes) -> None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CustodianError("custody message deadline exceeded")
+        connection.settimeout(remaining)
+        try:
+            connection.sendall(value)
+        except TimeoutError as exc:
+            raise CustodianError("custody message deadline exceeded") from exc
+
+    send(header)
+    for index in range(count):
+        chunk = raw[index * FRAGMENT_BYTES : (index + 1) * FRAGMENT_BYTES]
+        send(transfer + struct.pack("!II", index, len(chunk)) + chunk)
+    connection.shutdown(socket.SHUT_WR)
+
+
+def receive_message(connection: socket.socket, *, deadline: float | None = None) -> dict[str, Any]:
+    deadline = deadline if deadline is not None else time.monotonic() + TIMEOUT
+    header = _read_exact(connection, 60, deadline)
+    total, count = struct.unpack("!II", header[4:12])
+    if (
+        header[:4] != b"MTC2"
+        or not 0 < total <= MAX_LOGICAL
+        or count != (total + FRAGMENT_BYTES - 1) // FRAGMENT_BYTES
+    ):
+        raise CustodianError("invalid custody message framing")
+    transfer, digest = header[12:28], header[28:60]
+    raw = bytearray()
+    for index in range(count):
+        part = _read_exact(connection, 24, deadline)
+        actual_index, size = struct.unpack("!II", part[16:24])
+        if part[:16] != transfer or actual_index != index or size != min(FRAGMENT_BYTES, total - len(raw)):
+            raise CustodianError("invalid custody fragment")
+        raw.extend(_read_exact(connection, size, deadline))
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise CustodianError("custody message deadline exceeded")
+    connection.settimeout(remaining)
+    try:
+        if connection.recv(1):
+            raise CustodianError("extra custody fragment")
+    except TimeoutError as exc:
+        raise CustodianError("custody message deadline exceeded") from exc
+    if len(raw) != total or hashlib.sha256(raw).digest() != digest:
+        raise CustodianError("invalid custody message digest")
+    try:
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise ValueError("object required")
+        _message_bytes(value)
+        return value
+    except (ValueError, TypeError, RecursionError) as exc:
+        raise CustodianError("invalid custody message") from exc
+
+
 def sign_receipt(key: Ed25519PrivateKey, payload: dict[str, Any]) -> dict[str, Any]:
     # Copy via encoding so mutable caller structures cannot change a signed value.
-    raw = _bytes(payload)
+    raw = _message_bytes(payload)
     return {"payload": json.loads(raw), "signature": key.sign(RECEIPT_DOMAIN + raw).hex()}
 
 
@@ -270,7 +350,7 @@ def verify_receipt(
     try:
         payload = receipt["payload"]
         Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key)).verify(
-            bytes.fromhex(receipt["signature"]), RECEIPT_DOMAIN + _bytes(payload)
+            bytes.fromhex(receipt["signature"]), RECEIPT_DOMAIN + _message_bytes(payload)
         )
         expected = {
             "nonce": nonce,
@@ -313,8 +393,9 @@ class CustodianClient:
                 connection.settimeout(TIMEOUT)
                 connection.connect(str(profile.socket_path))
                 check_peer(connection, profile.custodian_uid)
-                send_frame(connection, request)
-                receipt = receive_frame(connection)
+                deadline = time.monotonic() + TIMEOUT
+                send_message(connection, request, deadline=deadline)
+                receipt = receive_message(connection, deadline=deadline)
             return verify_receipt(
                 receipt,
                 profile.public_key,
@@ -345,7 +426,8 @@ class CustodianService:
             raise CustodianError("custodian service identity mismatch")
         connection.settimeout(TIMEOUT)
         check_peer(connection, profile.client_uid)
-        request = receive_frame(connection)
+        deadline = time.monotonic() + TIMEOUT
+        request = receive_message(connection, deadline=deadline)
         fields = ("nonce", "request_id", "registry_id", "epoch", "operation")
         if (
             request.get("version") != "trust-custodian/1"
@@ -366,7 +448,7 @@ class CustodianService:
             "register_fence": self.store.register_fence,
             "prepare_record": self.store.prepare_record,
             "commit_record": self.store.commit_record,
-            "committed_records": self.store.committed_records,
+            "history_page": self.store.history_page,
             "prepared_record": self.store.prepared_record,
         }
         try:
@@ -376,7 +458,7 @@ class CustodianService:
             payload["result"] = dispatch[operation](profile.registry_id, **request["arguments"])
         except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
             payload["error"] = "reconciliation_required"
-        send_frame(connection, sign_receipt(self.store.signing_key, payload))
+        send_message(connection, sign_receipt(self.store.signing_key, payload), deadline=deadline)
 
     def serve(self) -> None:
         profile = self.profile.refresh()

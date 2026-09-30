@@ -190,7 +190,7 @@ def test_missing_operation_is_redacted_protocol_error_not_uncaught_keyerror(tmp_
     monkeypatch.setattr(transport, "check_peer", lambda *args: None)  # explicit credential double only
     a, b = socket.socketpair()
     try:
-        transport.send_frame(
+        transport.send_message(
             b,
             {
                 "version": "trust-custodian/1",
