@@ -29,6 +29,10 @@ from magicite.storage import lease as lease_mod
 POLICY_STORE_SCHEMA = "PolicyStoreState/1"
 _MAC_DOMAIN = b"magicite/policy-store/v1"
 
+#: Frozen simple incumbent that may be (re)activated without a fresh PASS
+#: (contracts.md C4 / evaluation.md — hybrid must earn promotion).
+FROZEN_SIMPLE_INCUMBENT_IDS: frozenset[str] = frozenset({"dense-v1"})
+
 PolicyState = Literal["candidate", "evaluated", "approved", "active", "retired"]
 EvaluationStatus = Literal["pass", "fail", "inconclusive", "unevaluated"]
 
@@ -85,6 +89,16 @@ class PolicyManifest:
             evaluation_status=data.get("evaluation_status") or "unevaluated",
             evaluation_evidence=str(data.get("evaluation_evidence") or ""),
         )
+
+
+def _activation_allowed(manifest: PolicyManifest) -> bool:
+    """True iff the candidate may become the stable incumbent pointer."""
+    if manifest.evaluation_status == "pass":
+        return True
+    return (
+        manifest.policy_id in FROZEN_SIMPLE_INCUMBENT_IDS
+        and manifest.policy_family == "stable"
+    )
 
 
 @dataclass(frozen=True)
@@ -346,6 +360,18 @@ def activate(
         approvals = state.get("approvals") or {}
         if approval_id not in approvals:
             raise InvalidInputError("unknown approval_id")
+
+        # N4: hybrid/non-incumbent must earn promotion (evaluation_status=pass).
+        # The frozen simple incumbent (dense-v1) may be (re)activated.
+        if not _activation_allowed(manifest):
+            raise InvalidInputError(
+                "refusing activation of non-incumbent without evaluation_status=pass",
+                details={
+                    "policy_id": manifest.policy_id,
+                    "evaluation_status": manifest.evaluation_status,
+                    "reason": "promotion_not_earned",
+                },
+            )
 
         # Retire previous active if present and distinct.
         if active and active != candidate_digest and active in records:

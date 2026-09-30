@@ -102,6 +102,7 @@ def compute_policy_digest(
             "abstention_enabled": bool(cfg.abstention_enabled),
             "abstention_score_threshold": float(cfg.abstention_score_threshold),
             "abstention_margin_threshold": float(cfg.abstention_margin_threshold),
+            "default_local_authorship_admission": bool(cfg.default_local_authorship_admission),
             "calibration_digest": calibration_digest or "none",
         }
     elif policy_id == POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1:
@@ -130,6 +131,7 @@ def compute_policy_digest(
                 reranker_fallback if reranker_fallback is not None else cfg.reranker_fallback
             )
             or "none",
+            "default_local_authorship_admission": bool(cfg.default_local_authorship_admission),
             "calibration_digest": calibration_digest or "none",
         }
     else:
@@ -151,6 +153,7 @@ def compute_config_digest(cfg: Config) -> str:
         "abstention_enabled": cfg.abstention_enabled,
         "abstention_score_threshold": cfg.abstention_score_threshold,
         "abstention_margin_threshold": cfg.abstention_margin_threshold,
+        "default_local_authorship_admission": cfg.default_local_authorship_admission,
         "plan_max_depth": cfg.plan_max_depth,
         "plan_max_size": cfg.plan_max_size,
         "declared_edge_strength": cfg.declared_edge_strength,

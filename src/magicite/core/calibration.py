@@ -235,12 +235,65 @@ def decide_abstention(
     artifact: CalibrationArtifact | None,
     expected_policy_digest: str | None = None,
     expected_config_digest: str | None = None,
+    fallback_score_threshold: float | None = None,
+    fallback_margin_threshold: float | None = None,
+    abstention_enabled: bool = True,
 ) -> AbstentionDecision:
-    """Apply the frozen abstention rule. Incompatible artifacts → uncalibrated."""
+    """Apply the frozen abstention rule.
+
+    When a compatible calibration artifact exists, use its fitted thresholds
+    (calibrated). Otherwise, if ``abstention_enabled`` and config fallback
+    thresholds are provided, apply them as an **uncalibrated** rule (confidence
+    remains null). When disabled / no thresholds, do not abstain for score/margin.
+    """
+    if not abstention_enabled:
+        return AbstentionDecision(
+            abstain=False,
+            reason_codes=("abstention_disabled",),
+            rule_id=FROZEN_ABSTENTION_RULE,
+            calibrated=False,
+            confidence_value=None,
+            calibration_id=None,
+            calibration_digest=None,
+        )
+
+    if artifact is not None:
+        if expected_policy_digest is not None and artifact.policy_digest != expected_policy_digest:
+            artifact = None
+        elif expected_config_digest is not None and artifact.config_digest != expected_config_digest:
+            artifact = None
+
     if artifact is None:
+        # Uncalibrated fallback from Config knobs (N2). Defaults of 0.0 mean
+        # "no threshold abstention" (legacy always-return); operators opt in by
+        # setting a positive threshold.
+        score_thr = float(fallback_score_threshold) if fallback_score_threshold is not None else 0.0
+        margin_thr = float(fallback_margin_threshold) if fallback_margin_threshold is not None else 0.0
+        if score_thr <= 0.0 and margin_thr <= 0.0:
+            return AbstentionDecision(
+                abstain=False,
+                reason_codes=("uncalibrated",),
+                rule_id=FROZEN_ABSTENTION_RULE,
+                calibrated=False,
+                confidence_value=None,
+                calibration_id=None,
+                calibration_digest=None,
+            )
+        reasons: list[str] = ["uncalibrated"]
+        abstain = False
+        if top_score is None:
+            abstain = True
+            reasons.append("no_eligible_candidate")
+        else:
+            if score_thr > 0.0 and top_score <= score_thr:
+                abstain = True
+                reasons.append("below_score_threshold")
+            if margin is not None and margin_thr > 0.0 and margin <= margin_thr:
+                abstain = True
+                reasons.append("below_margin_threshold")
         return AbstentionDecision(
-            abstain=False,
-            reason_codes=("uncalibrated",),
+            abstain=abstain,
+            reason_codes=tuple(dict.fromkeys(reasons if abstain else ["uncalibrated", "select"])),
             rule_id=FROZEN_ABSTENTION_RULE,
             calibrated=False,
             confidence_value=None,
@@ -248,28 +301,7 @@ def decide_abstention(
             calibration_digest=None,
         )
 
-    if expected_policy_digest is not None and artifact.policy_digest != expected_policy_digest:
-        return AbstentionDecision(
-            abstain=False,
-            reason_codes=("calibration_incompatible", "uncalibrated"),
-            rule_id=FROZEN_ABSTENTION_RULE,
-            calibrated=False,
-            confidence_value=None,
-            calibration_id=None,
-            calibration_digest=None,
-        )
-    if expected_config_digest is not None and artifact.config_digest != expected_config_digest:
-        return AbstentionDecision(
-            abstain=False,
-            reason_codes=("calibration_incompatible", "uncalibrated"),
-            rule_id=FROZEN_ABSTENTION_RULE,
-            calibrated=False,
-            confidence_value=None,
-            calibration_id=None,
-            calibration_digest=None,
-        )
-
-    reasons: list[str] = []
+    reasons = []
     abstain = False
 
     if query_fingerprint in artifact.rejection_query_fingerprints:
@@ -287,7 +319,6 @@ def decide_abstention(
             abstain = True
             reasons.append("below_margin_threshold")
 
-    # Calibrated confidence: distance above thresholds, clipped to [0, 1].
     confidence: float | None = None
     if not abstain and top_score is not None:
         score_gap = max(0.0, top_score - artifact.score_threshold)

@@ -196,6 +196,11 @@ class Config:
     #: stable path. When False, never abstain for threshold/margin reasons
     #: (legacy always-return-top-k behaviour for uncalibrated installs).
     abstention_enabled: bool = True
+    #: C2 default local authorship policy (N1): when True, verified
+    #: ``origin_trusted`` local artifacts without an explicit reject/revoke/
+    #: quarantine decision are treated as admitted for routing. When False,
+    #: authored artifacts need a digest-bound admit like imports.
+    default_local_authorship_admission: bool = True
 
     # ── graph index build (spec §2.6 steps 8-9) ─────────────────────────
     similar_to_top_m: int = 5
@@ -446,6 +451,7 @@ _ENV_FIELD_MAP: dict[str, str] = {
     "MAGICITE_ABSTENTION_SCORE_THRESHOLD": "abstention_score_threshold",
     "MAGICITE_ABSTENTION_MARGIN_THRESHOLD": "abstention_margin_threshold",
     "MAGICITE_ABSTENTION_ENABLED": "abstention_enabled",
+    "MAGICITE_DEFAULT_LOCAL_AUTHORSHIP_ADMISSION": "default_local_authorship_admission",
 }
 
 _BOOL_FIELDS = {
@@ -455,6 +461,7 @@ _BOOL_FIELDS = {
     "dream_on_session_end",
     "reranker_required",
     "abstention_enabled",
+    "default_local_authorship_admission",
 }
 
 

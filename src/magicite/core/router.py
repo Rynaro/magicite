@@ -60,9 +60,10 @@ import uuid
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
@@ -74,7 +75,8 @@ from magicite.core import composition as composition_mod
 from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import eligibility as eligibility_mod
 from magicite.core import fingerprint_key as fingerprint_key_mod
-from magicite.core import registry as registry_mod
+from magicite.core import index_generation as index_gen_mod
+from magicite.core import policy_store as policy_store_mod
 from magicite.core import routing_policy as policy_mod
 from magicite.core import session as session_mod
 from magicite.core import trust as trust_mod
@@ -82,7 +84,10 @@ from magicite.core.context import RouteContext, ServerPermissionPolicy
 from magicite.core.decay_math import effective_value
 from magicite.embeddings import reranker as reranker_mod
 from magicite.embeddings.base import Embedder, contraindication_model_name
-from magicite.engram.model import ROUTABLE_STATUSES
+from magicite.engram import parser as parser_mod
+from magicite.engram.assets import validate_assets
+from magicite.engram.model import ROUTABLE_STATUSES, Engram
+from magicite.engram.model_v1 import EngramV1
 from magicite.errors import InvalidInputError
 from magicite.storage import ephemeral as ephemeral_mod
 
@@ -170,6 +175,8 @@ class RouteDecision:
     explanation_version: str = EXPLANATION_VERSION
     fallback_identity: str | None = None
     operational_error: str | None = None
+    #: Named C2 default-local-authorship policy (N1); fingerprinted in digests.
+    default_local_authorship_policy: bool = True
     schema_version: str = ROUTE_DECISION_SCHEMA
 
 
@@ -261,6 +268,11 @@ def expand_composition(
     )
 
 
+#: In-process subject projection cache: (engram_id, content_digest) → subject.
+_SUBJECT_CACHE: dict[tuple[str, str], eligibility_mod.EligibilitySubject] = {}
+_SUBJECT_CACHE_MAX = 4096
+
+
 def _trust_decisions_by_engram(cfg: Config) -> dict[str, trust_mod.TrustDecision]:
     """Load the trust ledger once per route (latest decision per engram)."""
     latest: dict[str, trust_mod.TrustDecision] = {}
@@ -273,53 +285,153 @@ def _trust_decisions_by_engram(cfg: Config) -> dict[str, trust_mod.TrustDecision
             ):
                 latest[decision.engram_id] = decision
     except trust_mod.TrustLedgerCorruptError:
-        # Fail closed: callers treat a corrupt ledger as deny-all via full path.
         raise
     return latest
 
 
-def _route_context_is_unconstrained(route_context: RouteContext) -> bool:
-    return (
-        not route_context.languages
-        and not route_context.frameworks
-        and not route_context.package_managers
-        and route_context.platform is None
-        and route_context.host is None
-        and route_context.capabilities is None
-        and route_context.permission_grants is None
-        and route_context.allowed_tools is None
-        and route_context.artifact_inventory is None
-        and not route_context.excluded_engram_ids
+def _build_subject_from_row(
+    cfg: Config,
+    row: sqlite3.Row,
+) -> eligibility_mod.EligibilitySubject:
+    """Build a full EligibilitySubject; parse failure → raise (caller denies)."""
+    engram_id = str(row["id"])
+    version = int(row["version"]) if "version" in row.keys() else 1
+    content_digest = str(row["content_sha256"]) if "content_sha256" in row.keys() else ""
+    cache_key = (engram_id, content_digest)
+    cached = _SUBJECT_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    rel = str(row["path"]) if "path" in row.keys() else ""
+    full = Path(rel) if Path(rel).is_absolute() else (cfg.project_root / rel)
+    subject: eligibility_mod.EligibilitySubject
+
+    if full.is_file():
+        try:
+            registry_root = cfg.registry_dir.resolve()
+            try:
+                full.resolve().relative_to(registry_root)
+                artifact, _doc = parser_mod.parse_artifact_file(
+                    full,
+                    registry_root=cfg.registry_dir,
+                    admit=False,
+                    require_asset_files=False,
+                )
+            except ValueError:
+                raw = full.read_text(encoding="utf-8")
+                artifact, _doc = parser_mod.parse_artifact(
+                    raw,
+                    relpath=rel,
+                    file_mtime_ns=full.stat().st_mtime_ns,
+                    admit=False,
+                    registry_root=cfg.registry_dir,
+                    require_asset_files=False,
+                )
+        except Exception as exc:
+            raise InvalidInputError(
+                f"eligibility subject parse failed for {engram_id}: {exc}"
+            ) from exc
+
+        if isinstance(artifact, EngramV1):
+            assets = dict(artifact.frontmatter.assets or {})
+            assets_valid = True
+            if assets:
+                issues = validate_assets(
+                    assets, registry_root=cfg.registry_dir, require_files=True
+                )
+                assets_valid = len(issues) == 0
+            subject = eligibility_mod.subject_from_engram(artifact, assets_valid=assets_valid)
+        elif isinstance(artifact, Engram):
+            subject = eligibility_mod.EligibilitySubject(
+                id=str(artifact.id or engram_id),
+                version=int(getattr(artifact, "version", version) or version),
+                assets_valid=True,
+            )
+        else:
+            raise InvalidInputError(f"unsupported artifact type for {engram_id}")
+    else:
+        # Durable row without on-disk body (synthetic / DB-only fixtures): no V1
+        # risk/compat declared — evaluator still runs; checks for undeclared
+        # dimensions are no-ops. Do not invent permissive V1 risk.
+        subject = eligibility_mod.EligibilitySubject(
+            id=engram_id,
+            version=version,
+            assets_valid=True,
+        )
+
+    if len(_SUBJECT_CACHE) >= _SUBJECT_CACHE_MAX:
+        _SUBJECT_CACHE.clear()
+    _SUBJECT_CACHE[cache_key] = subject
+    return subject
+
+
+def _route_trust_view(
+    cfg: Config,
+    row: sqlite3.Row,
+    *,
+    cached_decision: trust_mod.TrustDecision | None,
+) -> trust_mod.TrustDecisionView:
+    """Build TrustDecisionView for route eligibility without per-row file I/O.
+
+    Uses the batched ledger decision + durable row fields. Default local
+    authorship admission is the named Config knob (N1).
+    """
+    engram_id = str(row["id"])
+    content_digest = str(row["content_sha256"]) if "content_sha256" in row.keys() else ""
+    verification = str(row["verification_status"]) if "verification_status" in row.keys() else ""
+    lifecycle = str(row["status"]) if "status" in row.keys() else ""
+    origin = str(row["origin"]) if "origin" in row.keys() else ""
+
+    decision = cached_decision
+    quarantined = verification == "quarantined" or (
+        decision is not None and decision.decision == "quarantine"
     )
 
+    admitted = False
+    if decision is not None and decision.decision == "admit":
+        if decision.content_digest == content_digest:
+            try:
+                policy = trust_mod.load_policy(cfg)
+                admitted = (
+                    decision.policy_digest == policy.digest()
+                    and decision.policy_revision == policy.revision
+                )
+            except InvalidInputError:
+                admitted = False
 
-def _effective_trust_view(
-    cfg: Config,
-    conn: sqlite3.Connection,
-    *,
-    engram_id: str,
-    cached_decision: trust_mod.TrustDecision | None | object = ...,
-) -> trust_mod.TrustDecisionView:
-    """``trust_view_for`` plus C2 default local policy for verified authorship.
-
-    Local ``origin_trusted`` artifacts without an explicit reject/revoke/
-    quarantine decision are treated as admitted for routing so authored
-    registries remain routable without a separate ledger admit row. Imports
-    still require digest-bound admission (``admitted`` stays False).
-    """
-    view = registry_mod.trust_view_for(cfg, conn, engram_id=engram_id)
-    if view.admitted or view.quarantined or not view.origin_trusted:
-        return view
-    if cached_decision is ...:
-        try:
-            decision = trust_mod.latest_decision_for(cfg, engram_id)
-        except trust_mod.TrustLedgerCorruptError:
-            return view
+    if origin in ("authored", "sharpened") or (
+        decision is not None and decision.source_channel in ("local_authored", "local_register")
+    ):
+        channel_trusted = True
+        intake: trust_mod.SourceChannel = "local_register"
+    elif admitted:
+        channel_trusted = True
+        intake = decision.source_channel if decision is not None else "unknown"
     else:
-        decision = cached_decision  # type: ignore[assignment]
-    if decision is not None and decision.decision in {"reject", "revoke", "quarantine"}:
-        return view
-    return replace(view, admitted=True)
+        channel_trusted = False
+        intake = decision.source_channel if decision is not None else "unknown"
+
+    origin_trusted = trust_mod.origin_trusted_for_channel(intake, admitted=admitted) or channel_trusted
+
+    if (
+        cfg.default_local_authorship_admission
+        and origin_trusted
+        and not quarantined
+        and not admitted
+        and (decision is None or decision.decision not in {"reject", "revoke", "quarantine"})
+    ):
+        admitted = True
+
+    sig: bool | None = decision.signature_valid if decision is not None else None
+    return trust_mod.TrustDecisionView(
+        engram_id=engram_id,
+        content_digest=content_digest,
+        quarantined=quarantined,
+        lifecycle_status=lifecycle,
+        origin_trusted=origin_trusted,
+        signature_valid=sig,
+        admitted=admitted,
+    )
 
 
 def _evaluate_route_eligibility(
@@ -330,17 +442,15 @@ def _evaluate_route_eligibility(
     route_context: RouteContext,
     server_policy: ServerPermissionPolicy,
 ) -> tuple[list[sqlite3.Row], list[ExclusionSummary], list[str]]:
-    """Run S06 eligibility before scoring/rerank. Exceptions → deny.
+    """Run S06 eligibility before scoring/rerank for EVERY candidate (C2).
 
-    Hot-path optimization (AC-011): unconstrained authored+verified rows with
-    no adverse trust decision skip per-row ledger/file I/O. Quarantined rows
-    are excluded from ``verification_status`` alone. Constrained contexts and
-    imports still take the full evaluator path (fail closed).
+    Always builds a full subject and always calls ``evaluate_eligibility``.
+    Exceptions / parse failures = deny. Subject projections are cached by
+    (engram_id, content_digest). Trust decisions are batched once per route.
     """
     eligible_rows: list[sqlite3.Row] = []
     exclusions: list[ExclusionSummary] = []
     missing_context: list[str] = []
-    unconstrained = _route_context_is_unconstrained(route_context)
     try:
         decisions = _trust_decisions_by_engram(cfg)
         ledger_corrupt = False
@@ -350,55 +460,18 @@ def _evaluate_route_eligibility(
 
     for row in rows:
         engram_id = str(row["id"])
-        verification = str(row["verification_status"]) if "verification_status" in row.keys() else ""
-        origin = str(row["origin"]) if "origin" in row.keys() else ""
-
-        if verification == "quarantined":
+        if ledger_corrupt:
             exclusions.append(
                 ExclusionSummary(
                     engram_id=engram_id,
-                    reason_codes=(eligibility_mod.REASON_QUARANTINED,),
+                    reason_codes=(eligibility_mod.REASON_UNTRUSTED_ORIGIN,),
                 )
             )
             continue
-
-        decision = decisions.get(engram_id)
-        if decision is not None and decision.decision in {"reject", "revoke", "quarantine"}:
-            code = (
-                eligibility_mod.REASON_QUARANTINED
-                if decision.decision == "quarantine"
-                else eligibility_mod.REASON_UNTRUSTED_ORIGIN
-            )
-            exclusions.append(ExclusionSummary(engram_id=engram_id, reason_codes=(code,)))
-            continue
-
-        # Fast path: default local policy for unconstrained authored+verified.
-        if (
-            unconstrained
-            and not ledger_corrupt
-            and verification == "verified"
-            and origin in {"authored", "sharpened"}
-            and (decision is None or decision.decision == "admit")
-        ):
-            eligible_rows.append(row)
-            continue
-
-        subject = eligibility_mod.EligibilitySubject(
-            id=engram_id,
-            version=int(row["version"]) if "version" in row.keys() else 1,
-            assets_valid=True,
-        )
         try:
-            if ledger_corrupt:
-                exclusions.append(
-                    ExclusionSummary(
-                        engram_id=engram_id,
-                        reason_codes=(eligibility_mod.REASON_UNTRUSTED_ORIGIN,),
-                    )
-                )
-                continue
-            trust = _effective_trust_view(
-                cfg, conn, engram_id=engram_id, cached_decision=decision
+            subject = _build_subject_from_row(cfg, row)
+            trust = _route_trust_view(
+                cfg, row, cached_decision=decisions.get(engram_id)
             )
             result = eligibility_mod.evaluate_eligibility(
                 subject, route_context, trust, server_policy, path="route"
@@ -407,7 +480,11 @@ def _evaluate_route_eligibility(
             exclusions.append(
                 ExclusionSummary(
                     engram_id=engram_id,
-                    reason_codes=(eligibility_mod.REASON_CONFLICT, "eligibility_evaluator_error"),
+                    reason_codes=(
+                        eligibility_mod.REASON_CONFLICT,
+                        eligibility_mod.REASON_ASSET_INVALID,
+                        "eligibility_evaluator_error",
+                    ),
                 )
             )
             continue
@@ -530,6 +607,7 @@ def semantic_decision_fields(decision: RouteDecision) -> dict[str, Any]:
         "registry_digest": decision.registry_digest,
         "schema_digest": decision.schema_digest,
         "model_digest": decision.model_digest,
+        "tokenizer_digest": decision.tokenizer_digest,
         "index_generation_id": decision.index_generation_id,
         "snapshot_id": decision.snapshot_id,
         "selected_content_digests": dict(decision.selected_content_digests),
@@ -538,6 +616,7 @@ def semantic_decision_fields(decision: RouteDecision) -> dict[str, Any]:
         "explanation_version": decision.explanation_version,
         "fallback_identity": decision.fallback_identity,
         "operational_error": decision.operational_error,
+        "default_local_authorship_policy": decision.default_local_authorship_policy,
         "schema_version": decision.schema_version,
     }
 
@@ -761,6 +840,102 @@ def _community_rerank(conn: sqlite3.Connection, kept_ids: list[str], scores: dic
     return [nid for nid in kept_ids if community_by_id.get(nid, "__unassigned__") in top_keys]
 
 
+def _resolve_active_policy(
+    cfg: Config,
+) -> tuple[str, str, str, str | None]:
+    """Resolve policy id/digest/family, honouring policy_store when present (N3).
+
+    Returns ``(policy_id, policy_digest, policy_family, operational_error)``.
+    No store file → cfg default. Store present but corrupt → typed error.
+    Active manifest naming an unknown policy → typed error.
+    """
+    store_path = policy_store_mod.policy_store_path(cfg)
+    if not store_path.is_file():
+        policy_id = policy_mod.resolve_policy_id(cfg)
+        digest = policy_mod.compute_policy_digest(policy_id, cfg)
+        return policy_id, digest, policy_mod.policy_family(policy_id), None
+
+    try:
+        manifest = policy_store_mod.get_active_manifest(cfg)
+    except InvalidInputError:
+        return (
+            policy_mod.POLICY_DENSE_V1,
+            "",
+            "stable",
+            "policy_store_corrupt",
+        )
+
+    if manifest is None:
+        policy_id = policy_mod.resolve_policy_id(cfg)
+        digest = policy_mod.compute_policy_digest(policy_id, cfg)
+        return policy_id, digest, policy_mod.policy_family(policy_id), None
+
+    if manifest.policy_id not in policy_mod.KNOWN_POLICY_IDS:
+        return (
+            manifest.policy_id,
+            manifest.policy_digest,
+            manifest.policy_family,
+            "unknown_active_policy",
+        )
+
+    # Prefer the reviewed manifest digest; recompute if empty.
+    digest = manifest.policy_digest or policy_mod.compute_policy_digest(manifest.policy_id, cfg)
+    return manifest.policy_id, digest, manifest.policy_family, None
+
+
+def _pin_index_identity(
+    conn: sqlite3.Connection,
+) -> tuple[str | None, str | None, str | None, str | None, tuple[str, ...]]:
+    """Pin active index generation into RouteDecision identity fields (B2).
+
+    Returns ``(generation_id, snapshot_id, schema_digest, tokenizer_digest, reason_codes)``.
+    When no published generation exists, fields are explicit null with reason codes.
+    """
+    catalog = index_gen_mod.IndexCatalog(conn)
+    gid = catalog.active_generation_id()
+    if gid is None:
+        return (
+            None,
+            None,
+            None,
+            None,
+            (
+                "index_generation_absent",
+                "snapshot_unpinned",
+                "schema_digest_unavailable",
+                "tokenizer_digest_unavailable",
+            ),
+        )
+    try:
+        meta = catalog.pin(gid)
+    except index_gen_mod.IndexGenerationError:
+        return (
+            None,
+            None,
+            None,
+            None,
+            (
+                "index_generation_unpinnable",
+                "snapshot_unpinned",
+                "schema_digest_unavailable",
+                "tokenizer_digest_unavailable",
+            ),
+        )
+    schema_digest = hashlib.sha256(
+        meta.fingerprint.index_schema_version.encode("utf-8")
+    ).hexdigest()
+    tokenizer_digest = hashlib.sha256(
+        meta.fingerprint.tokenizer_id.encode("utf-8")
+    ).hexdigest()
+    return (
+        meta.generation_id,
+        meta.snapshot_id or None,
+        schema_digest,
+        tokenizer_digest,
+        (),
+    )
+
+
 def route(
     cfg: Config,
     conn: sqlite3.Connection,
@@ -777,13 +952,62 @@ def route(
     # session-participating tool follows (spec §3.3) -- mint/reuse/expire,
     # in one place, instead of route() rolling its own uuid4() + upsert.
     sid = session_mod.resolve_id(cfg, conn, session_id)
-    policy_id = policy_mod.resolve_policy_id(cfg)
+    policy_id, digest, family, policy_ops_error = _resolve_active_policy(cfg)
     config_digest = policy_mod.compute_config_digest(cfg)
+
+    if policy_ops_error:
+        key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
+        query_fp = fingerprint_key_mod.query_fingerprint(query, key=key)
+        gen_id, snap_id, schema_d, tok_d, pin_reasons = _pin_index_identity(conn)
+        decision = RouteDecision(
+            decision_id=f"rd_{uuid.uuid4().hex[:16]}",
+            status="error",
+            selected_ids=(),
+            candidates=[],
+            exclusions=(),
+            score_components={},
+            confidence=Confidence(value=None, calibration_id=None),
+            reason_codes=(policy_ops_error, "operational_error", *pin_reasons),
+            missing_context=(),
+            truncations={},
+            policy_id=policy_id,
+            policy_digest=digest,
+            policy_family=family,
+            config_digest=config_digest,
+            calibration_digest=None,
+            query_fingerprint=query_fp,
+            registry_digest=_registry_digest(conn),
+            schema_digest=schema_d,
+            model_digest=embedder.model_name,
+            tokenizer_digest=tok_d,
+            index_generation_id=gen_id,
+            snapshot_id=snap_id,
+            selection_mechanism=policy_id,
+            operational_error=policy_ops_error,
+            default_local_authorship_policy=bool(cfg.default_local_authorship_admission),
+        )
+        return RouteOutcome(
+            candidates=[],
+            composition_plan=[],
+            plan_confidence=0.0,
+            instructions=ROUTE_INSTRUCTIONS,
+            session_id=sid,
+            registry_size=conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"],
+            unresolved_context=[],
+            policy_id=policy_id,
+            policy_digest=digest,
+            policy_family=family,
+            decision=decision,
+        )
+
+    # Temporarily align cfg.routing_policy with the active store/default so
+    # downstream digest helpers and experimental dispatch stay consistent.
+    cfg.routing_policy = policy_id
+
     cal = calibration_mod.load_calibration(
         cfg,
         expected_config_digest=config_digest,
     )
-    # Policy digest must include calibration when compatible evidence exists.
     cal_digest = cal.digest if cal is not None else None
     if cal is not None and cal.policy_id != policy_id:
         calibration_mod.clear_calibration(cfg)
@@ -791,13 +1015,13 @@ def route(
         cal_digest = None
     digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=cal_digest)
     if cal is not None and cal.policy_digest != digest:
-        # Stale calibration vs current policy semantics — clear, never report
-        # stale probabilities.
         calibration_mod.clear_calibration(cfg)
         cal = None
         cal_digest = None
         digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=None)
     family = policy_mod.policy_family(policy_id)
+
+    gen_id, snap_id, schema_d, tok_d, pin_reasons = _pin_index_identity(conn)
 
     qvec = embedder.embed(query)
     rows = _fetch_candidates(conn, embedder.model_name)
@@ -822,12 +1046,16 @@ def route(
             calibration=cal,
             exclusions=(),
             missing_context=[],
-            reason_codes=("no_candidates",),
+            reason_codes=("no_candidates", *pin_reasons),
             status="abstained",
             selection_mechanism=policy_id,
             score_components={},
             truncations={},
             model_digest=embedder.model_name,
+            index_generation_id=gen_id,
+            snapshot_id=snap_id,
+            schema_digest=schema_d,
+            tokenizer_digest=tok_d,
         )
 
     if policy_id == policy_mod.POLICY_DENSE_V1:
@@ -848,6 +1076,11 @@ def route(
             calibration=cal,
             route_context=rctx,
             server_policy=spolicy,
+            index_generation_id=gen_id,
+            snapshot_id=snap_id,
+            schema_digest=schema_d,
+            tokenizer_digest=tok_d,
+            pin_reasons=pin_reasons,
         )
     else:
         outcome = _route_adaptive_blend_v1(
@@ -868,6 +1101,11 @@ def route(
             calibration=cal,
             route_context=rctx,
             server_policy=spolicy,
+            index_generation_id=gen_id,
+            snapshot_id=snap_id,
+            schema_digest=schema_d,
+            tokenizer_digest=tok_d,
+            pin_reasons=pin_reasons,
         )
     return outcome
 
@@ -924,6 +1162,8 @@ def _finalize_route(
     operational_error: str | None = None,
     index_generation_id: str | None = None,
     snapshot_id: str | None = None,
+    schema_digest: str | None = None,
+    tokenizer_digest: str | None = None,
 ) -> RouteOutcome:
     key = fingerprint_key_mod.load_or_create_fingerprint_key(cfg)
     query_fp = fingerprint_key_mod.query_fingerprint(query, key=key)
@@ -944,13 +1184,8 @@ def _finalize_route(
         final_candidates = []
         final_reasons = list(dict.fromkeys([*final_reasons, operational_error, "operational_error"]))
     else:
-        # Calibrated abstention (selection quality — not operational errors).
-        if (
-            cfg.abstention_enabled
-            and calibration is not None
-            and final_candidates
-            and not operational_error
-        ):
+        # Abstention: calibrated artifact OR uncalibrated Config thresholds (N2).
+        if cfg.abstention_enabled and final_candidates and not operational_error:
             top_score = final_candidates[0].score
             margin = calibration_mod.score_margin([c.score for c in final_candidates])
             abstention = calibration_mod.decide_abstention(
@@ -960,11 +1195,16 @@ def _finalize_route(
                 artifact=calibration,
                 expected_policy_digest=policy_digest,
                 expected_config_digest=cfg_digest,
+                fallback_score_threshold=cfg.abstention_score_threshold,
+                fallback_margin_threshold=cfg.abstention_margin_threshold,
+                abstention_enabled=True,
             )
             if not abstention.calibrated:
                 confidence = Confidence(value=None, calibration_id=None)
                 cal_digest = None
                 final_reasons.extend(abstention.reason_codes)
+                if abstention.abstain:
+                    final_candidates = []
             elif abstention.abstain:
                 final_candidates = []
                 final_reasons.extend(abstention.reason_codes)
@@ -1029,6 +1269,8 @@ def _finalize_route(
         query_fingerprint=query_fp,
         registry_digest=_registry_digest(conn),
         model_digest=model_digest,
+        schema_digest=schema_digest,
+        tokenizer_digest=tokenizer_digest,
         index_generation_id=index_generation_id,
         snapshot_id=snapshot_id,
         selected_content_digests=selected_digests,
@@ -1036,6 +1278,7 @@ def _finalize_route(
         propensity=propensity,
         fallback_identity=fallback_identity,
         operational_error=operational_error,
+        default_local_authorship_policy=bool(cfg.default_local_authorship_admission),
     )
 
     # step 11: Tier-C bookkeeping ONLY -- R and S are never touched here (Principle 1).
@@ -1091,6 +1334,11 @@ def _route_dense_v1(
     calibration: calibration_mod.CalibrationArtifact | None,
     route_context: RouteContext,
     server_policy: ServerPermissionPolicy,
+    index_generation_id: str | None = None,
+    snapshot_id: str | None = None,
+    schema_digest: str | None = None,
+    tokenizer_digest: str | None = None,
+    pin_reasons: tuple[str, ...] = (),
 ) -> RouteOutcome:
     """Nonadaptive incumbent: eligibility → cosine → optional rerank → abstain."""
     eligible_rows, exclusions, missing_ctx = _evaluate_route_eligibility(
@@ -1119,10 +1367,14 @@ def _route_dense_v1(
             calibration=calibration,
             exclusions=bound_exclusions,
             missing_context=missing_ctx,
-            reason_codes=("no_eligible_candidate",),
+            reason_codes=("no_eligible_candidate", *pin_reasons),
             status="abstained",
             selection_mechanism=policy_id,
             model_digest=embedder.model_name,
+            index_generation_id=index_generation_id,
+            snapshot_id=snapshot_id,
+            schema_digest=schema_digest,
+            tokenizer_digest=tokenizer_digest,
         )
 
     node_ids: list[str] = []
@@ -1199,6 +1451,10 @@ def _route_dense_v1(
         model_digest=embedder.model_name,
         fallback_identity=fallback_identity,
         operational_error=operational_error,
+        index_generation_id=index_generation_id,
+        snapshot_id=snapshot_id,
+        schema_digest=schema_digest,
+        tokenizer_digest=tokenizer_digest,
     )
 
 
@@ -1221,6 +1477,11 @@ def _route_adaptive_blend_v1(
     calibration: calibration_mod.CalibrationArtifact | None,
     route_context: RouteContext,
     server_policy: ServerPermissionPolicy,
+    index_generation_id: str | None = None,
+    snapshot_id: str | None = None,
+    schema_digest: str | None = None,
+    tokenizer_digest: str | None = None,
+    pin_reasons: tuple[str, ...] = (),
 ) -> RouteOutcome:
     """Legacy adaptive blend — explicit experimental policy only."""
     eligible_rows, exclusions, missing_ctx = _evaluate_route_eligibility(
@@ -1248,10 +1509,14 @@ def _route_adaptive_blend_v1(
             calibration=calibration,
             exclusions=bound_exclusions,
             missing_context=missing_ctx,
-            reason_codes=("no_eligible_candidate",),
+            reason_codes=("no_eligible_candidate", *pin_reasons),
             status="abstained",
             selection_mechanism=policy_id,
             model_digest=embedder.model_name,
+            index_generation_id=index_generation_id,
+            snapshot_id=snapshot_id,
+            schema_digest=schema_digest,
+            tokenizer_digest=tokenizer_digest,
         )
 
     now = datetime.now(UTC).isoformat()
@@ -1429,6 +1694,10 @@ def _route_adaptive_blend_v1(
         missing_context=missing_ctx,
         selection_mechanism=policy_id,
         model_digest=embedder.model_name,
+        index_generation_id=index_generation_id,
+        snapshot_id=snapshot_id,
+        schema_digest=schema_digest,
+        tokenizer_digest=tokenizer_digest,
     )
 
 
