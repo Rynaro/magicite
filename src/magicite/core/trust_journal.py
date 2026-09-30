@@ -171,6 +171,8 @@ class TrustJournal:
                     decision = record["payload"]
                     decisions.append(decision)
                     latest[decision["engram_id"]] = decision
+                elif record["kind"] == "artifact_transform":
+                    pass  # Lineage grants nothing and cannot clear a prior restriction.
                 else:
                     raise CustodianError("unsupported authenticated journal kind")
             import hashlib

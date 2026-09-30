@@ -298,6 +298,11 @@ class CustodianStore:
                 ):
                     raise CustodianError("invalid signature status")
                 parsed = TrustDecision.from_dict(payload).to_dict()
+            elif kind == "artifact_transform":
+                from magicite.core.trust_artifacts import validate_transform_lineage
+
+                validate_transform_lineage(payload)
+                parsed = payload
             else:
                 raise CustodianError("unsupported record kind")
             if not _equal(parsed, payload):
@@ -319,6 +324,11 @@ class CustodianStore:
         self._validate_payload(kind, payload)
         if kind == "trust_decision" and record_id != payload["decision_id"]:
             raise CustodianError("decision identity must equal immutable journal identity")
+        if kind == "artifact_transform":
+            if record_id != "transform-" + hashlib.sha256(_bytes(payload)).hexdigest():
+                raise CustodianError("transform identity must equal immutable content identity")
+            if payload["configuration"]["registry_id"] != registry:
+                raise CustodianError("transform enrollment mismatch")
         with self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
             state = self._load(registry)
