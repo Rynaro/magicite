@@ -35,10 +35,17 @@ class SafeGroup(click.Group):
         try:
             return super().invoke(ctx)
         except MagiciteError as exc:
+            if ctx.invoked_subcommand == "serve":
+                click.echo(f"server startup failed ({exc.code.value})", err=True)
+                sys.exit(1)
             _die_magicite(exc)
         except (click.ClickException, click.Abort):
             raise
-        except Exception:
+        except Exception as exc:
+            if ctx.invoked_subcommand == "serve":
+                category = "PermissionError" if isinstance(exc, PermissionError) else "internal"
+                click.echo(f"server startup failed ({category})", err=True)
+                sys.exit(1)
             _echo_json(
                 {
                     "code": "internal",
