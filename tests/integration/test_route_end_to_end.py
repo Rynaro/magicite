@@ -12,6 +12,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from magicite.core import eligibility as eligibility_mod
 from magicite.core import fingerprint_key as fk
 from magicite.core import policy_store as ps
 from magicite.core import registry as registry_mod
@@ -93,18 +94,17 @@ def test_plan_confidence_is_one_when_fully_resolved(cfg, db_conn, embedder) -> N
     assert outcome.candidates[0].name == "proton-ge-proton-downgrade"
     assert len(outcome.composition_plan) > 1
     assert outcome.plan_confidence == 1.0
+    assert outcome.decision is not None
+    assert outcome.decision.status == "selected"
+    assert outcome.decision.plan_digest is not None
 
 
-def test_plan_confidence_reports_the_unresolved_share(cfg, db_conn, embedder) -> None:
-    """AC-038: GIVEN a winning engram declaring exactly two needs targets
-    of which exactly one is registered WHEN route() returns its
-    composition_plan THEN plan_confidence SHALL equal 0.5.
+def test_dangling_dependency_abstains_composition_invalid(cfg, db_conn, embedder) -> None:
+    """C5 wire-up: dangling declared depends_on ⇒ abstain, not partial confidence.
 
-    proton-ge-proton-downgrade already declares needs: [steam-prefix-
-    access] (registered, spec §2.6-ingested via register()); one
-    additional depends_on edge naming a target no .egr.md declares is
-    inserted directly so the winner has exactly two needs targets, one
-    resolved."""
+    Replaces legacy AC-038 (plan_confidence == 0.5 under expand()). Plan/1
+    never returns an executable prefix with unresolved required deps.
+    """
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     winner_id = db_conn.execute(
         "SELECT id FROM engram WHERE name = 'proton-ge-proton-downgrade'"
@@ -121,8 +121,13 @@ def test_plan_confidence_reports_the_unresolved_share(cfg, db_conn, embedder) ->
 
     outcome = router_mod.route(cfg, db_conn, embedder, query="rollback proton for a steam game", k=5)
 
-    assert outcome.candidates[0].name == "proton-ge-proton-downgrade"
-    assert outcome.plan_confidence == 0.5
+    assert outcome.decision is not None
+    assert outcome.decision.status == "abstained"
+    assert outcome.composition_plan == []
+    assert outcome.plan_confidence == 0.0
+    assert outcome.candidates == []
+    assert router_mod.REASON_COMPOSITION_INVALID in outcome.decision.reason_codes
+    assert eligibility_mod.REASON_DANGLING_DEPENDENCY in outcome.decision.reason_codes
 
 
 def _write_v02_engram(cfg, *, engram_id: str, name: str, relpath: str | None = None) -> tuple[str, str]:
@@ -213,6 +218,7 @@ def _write_v1_engram(
     risk_mode: str = "declared-tools",
     hosts: list[dict] | None = None,
     assets: dict | None = None,
+    relation_requires: list[dict] | None = None,
 ) -> tuple[Path, str]:
     """Write a minimal V1 engram under the registry; return (path, content_digest)."""
     from magicite.engram import ids as ids_mod
@@ -237,6 +243,12 @@ def _write_v1_engram(
     if assets:
         assets_block = json.dumps(assets, sort_keys=True)
     tools_yaml = f"    tools: {tools}" if risk_mode == "declared-tools" else "    tools: []"
+    requires_yaml = "  requires: []\n"
+    if relation_requires:
+        requires_yaml = "  requires:\n"
+        for ref in relation_requires:
+            requires_yaml += f"    - id: {ref['id']}\n"
+            requires_yaml += f"      version: {ref['version']}\n"
     raw = f"""---
 spec: engram/1.0
 name: {name}
@@ -254,8 +266,7 @@ compatibility:
   alternatives: []
   conflicts_with: []
 relations:
-  requires: []
-  before: []
+{requires_yaml}  before: []
   supersedes: []
 risk:
   filesystem: none
@@ -1004,3 +1015,249 @@ def test_store_active_ignores_cfg_experimental(cfg, db_conn, embedder) -> None:
         assert cfg.routing_policy == before
     finally:
         fk.set_fingerprint_key_override(None)
+
+
+def _register_v1_pair(
+    cfg,
+    conn,
+    embedder,
+    *,
+    winner_id: str,
+    winner_name: str,
+    dep_id: str,
+    dep_name: str,
+    query: str,
+    dep_verification: str = "verified",
+    dep_hosts: list[dict] | None = None,
+    dep_risk_tools: list[str] | None = None,
+    cycle: bool = False,
+) -> tuple[str, str]:
+    """Insert winner→dep V1 pair (optional reverse require for cycle). Returns (winner_rel, dep_rel)."""
+    router_mod._SUBJECT_CACHE.clear()
+    winner_requires = [{"id": dep_id, "version": 1}]
+    dep_requires = [{"id": winner_id, "version": 1}] if cycle else None
+    _wpath, w_digest = _write_v1_engram(
+        cfg,
+        engram_id=winner_id,
+        name=winner_name,
+        query_tokens=query,
+        risk_tools=[],
+        risk_mode="none",
+        relation_requires=winner_requires,
+    )
+    _dpath, d_digest = _write_v1_engram(
+        cfg,
+        engram_id=dep_id,
+        name=dep_name,
+        query_tokens=f"dep {dep_name}",
+        risk_tools=dep_risk_tools if dep_risk_tools is not None else [],
+        risk_mode="none" if not dep_risk_tools else "declared-tools",
+        hosts=dep_hosts,
+        relation_requires=dep_requires,
+    )
+    w_rel = f".magicite/engrams/{winner_name}.egr.md"
+    d_rel = f".magicite/engrams/{dep_name}.egr.md"
+    _insert_synthetic(
+        conn,
+        engram_id=winner_id,
+        name=winner_name,
+        path=w_rel,
+        content_sha256=w_digest,
+        spec_version="engram/1.0",
+    )
+    _insert_synthetic(
+        conn,
+        engram_id=dep_id,
+        name=dep_name,
+        path=d_rel,
+        content_sha256=d_digest,
+        verification_status=dep_verification,
+        spec_version="engram/1.0",
+    )
+    ephemeral_mod.upsert_embedding(
+        conn,
+        engram_id=winner_id,
+        model_name=embedder.model_name,
+        dim=embedder.dim,
+        vec=embedder.embed(query),
+        source_sha256=w_digest,
+    )
+    ephemeral_mod.upsert_embedding(
+        conn,
+        engram_id=dep_id,
+        model_name=embedder.model_name,
+        dim=embedder.dim,
+        vec=embedder.embed(f"unrelated {dep_name}"),
+        source_sha256=d_digest,
+    )
+    return w_rel, d_rel
+
+
+def test_compose_valid_multi_node_ordered(cfg, db_conn, embedder) -> None:
+    """Valid Plan/1 via compose() returns ordered composition names (not expand)."""
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    outcome = router_mod.route(cfg, db_conn, embedder, query="rollback proton for a steam game", k=5)
+    assert outcome.decision is not None
+    assert outcome.decision.status == "selected"
+    assert "steam-prefix-access" in outcome.composition_plan
+    assert outcome.composition_plan.index("steam-prefix-access") < outcome.composition_plan.index(
+        "proton-ge-proton-downgrade"
+    )
+    assert outcome.decision.plan_digest is not None
+    # Self-audit: stable path must not call legacy expand().
+    assert outcome.composition_plan  # non-empty ordered plan from compose
+
+
+def test_compose_cycle_abstains_composition_invalid(cfg, db_conn, embedder) -> None:
+    """Cycle in relations.requires ⇒ route abstains with composition_invalid."""
+    query = "compose cycle probe unique tokens xyzzy"
+    _register_v1_pair(
+        cfg,
+        db_conn,
+        embedder,
+        winner_id="egr_cc010001",
+        winner_name="cycle-winner",
+        dep_id="egr_cc010002",
+        dep_name="cycle-dep",
+        query=query,
+        cycle=True,
+    )
+    outcome = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
+    assert outcome.decision is not None
+    assert outcome.decision.status == "abstained"
+    assert outcome.composition_plan == []
+    assert outcome.candidates == []
+    assert router_mod.REASON_COMPOSITION_INVALID in outcome.decision.reason_codes
+    assert eligibility_mod.REASON_CYCLE in outcome.decision.reason_codes
+
+
+def test_compose_budget_exceeded_abstains(cfg, db_conn, embedder) -> None:
+    """Depth budget exceeded ⇒ abstain with composition_invalid (no partial plan)."""
+    query = "compose budget probe unique tokens xyzzy"
+    # Chain: winner → mid → leaf; clamp depth to 1 so mid→leaf exceeds.
+    cfg.plan_max_depth = 1
+    router_mod._SUBJECT_CACHE.clear()
+    mid_id, leaf_id = "egr_bb010002", "egr_bb010003"
+    winner_id = "egr_bb010001"
+    _w, w_digest = _write_v1_engram(
+        cfg,
+        engram_id=winner_id,
+        name="budget-winner",
+        query_tokens=query,
+        risk_tools=[],
+        risk_mode="none",
+        relation_requires=[{"id": mid_id, "version": 1}],
+    )
+    _m, m_digest = _write_v1_engram(
+        cfg,
+        engram_id=mid_id,
+        name="budget-mid",
+        query_tokens="mid",
+        risk_tools=[],
+        risk_mode="none",
+        relation_requires=[{"id": leaf_id, "version": 1}],
+    )
+    _l, l_digest = _write_v1_engram(
+        cfg,
+        engram_id=leaf_id,
+        name="budget-leaf",
+        query_tokens="leaf",
+        risk_tools=[],
+        risk_mode="none",
+    )
+    for eid, name, digest in (
+        (winner_id, "budget-winner", w_digest),
+        (mid_id, "budget-mid", m_digest),
+        (leaf_id, "budget-leaf", l_digest),
+    ):
+        rel = f".magicite/engrams/{name}.egr.md"
+        _insert_synthetic(
+            db_conn,
+            engram_id=eid,
+            name=name,
+            path=rel,
+            content_sha256=digest,
+            spec_version="engram/1.0",
+        )
+        ephemeral_mod.upsert_embedding(
+            db_conn,
+            engram_id=eid,
+            model_name=embedder.model_name,
+            dim=embedder.dim,
+            vec=embedder.embed(query if eid == winner_id else f"unrelated {name}"),
+            source_sha256=digest,
+        )
+
+    outcome = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
+    assert outcome.decision is not None
+    assert outcome.decision.status == "abstained"
+    assert outcome.composition_plan == []
+    assert router_mod.REASON_COMPOSITION_INVALID in outcome.decision.reason_codes
+    assert eligibility_mod.REASON_BUDGET_EXCEEDED in outcome.decision.reason_codes
+
+
+def test_compose_ineligible_dependency_abstains_body_absent(cfg, db_conn, embedder) -> None:
+    """Ineligible required dependency ⇒ composition_invalid; dep body absent."""
+    query = "compose ineligible dep probe unique tokens xyzzy"
+    w_rel, d_rel = _register_v1_pair(
+        cfg,
+        db_conn,
+        embedder,
+        winner_id="egr_dd010001",
+        winner_name="inel-winner",
+        dep_id="egr_dd010002",
+        dep_name="inel-dep",
+        query=query,
+        dep_verification="quarantined",
+    )
+    outcome = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
+    assert outcome.decision is not None
+    assert outcome.decision.status == "abstained"
+    assert outcome.composition_plan == []
+    assert outcome.candidates == []
+    assert router_mod.REASON_COMPOSITION_INVALID in outcome.decision.reason_codes
+    body_refs = [c.body_ref for c in outcome.candidates]
+    assert d_rel not in body_refs
+    assert "egr_dd010002" not in [c.id for c in outcome.candidates]
+    # Quarantined dep must not appear as a disclosed body on the decision either.
+    assert all(c.id != "egr_dd010002" for c in outcome.decision.candidates)
+    del w_rel
+
+
+def test_compose_context_required_abstains_with_missing_fields(cfg, db_conn, embedder) -> None:
+    """context_required on a composed dependency ⇒ abstain with missing_context."""
+    query = "compose context required probe unique tokens xyzzy"
+    _register_v1_pair(
+        cfg,
+        db_conn,
+        embedder,
+        winner_id="egr_ee010001",
+        winner_name="ctx-winner",
+        dep_id="egr_ee010002",
+        dep_name="ctx-dep",
+        query=query,
+        dep_hosts=[{"id": "cursor", "scheme": "semver", "range": ">=0.40.0,<1.0.0"}],
+    )
+    outcome = router_mod.route(
+        cfg,
+        db_conn,
+        embedder,
+        query=query,
+        k=5,
+        route_context=RouteContext(),
+        server_policy=ServerPermissionPolicy(
+            allowed_permissions=frozenset(),
+            allowed_tools=frozenset(),
+            policy_digest="compose-ctx/1",
+            max_filesystem="write-project",
+            max_subprocess="declared-tools",
+            max_network="required",
+            max_secrets="raw",
+        ),
+    )
+    assert outcome.decision is not None
+    assert outcome.decision.status == "abstained"
+    assert outcome.composition_plan == []
+    assert router_mod.REASON_COMPOSITION_INVALID in outcome.decision.reason_codes
+    assert REASON_CONTEXT_REQUIRED in outcome.decision.reason_codes
+    assert "host" in outcome.decision.missing_context
