@@ -166,6 +166,37 @@ class Config:
     #: S09 / C6 backup overlay expiry (operator Config — never from meta.json).
     evidence_backup_expiry_days: int = 90
 
+    # ── S07 route orchestration / abstention / reranker ─────────────────
+    #: Optional local reranker provider id (``noop`` / empty = disabled).
+    #: Unknown required providers fail closed as operational errors unless a
+    #: fallback identity is configured.
+    reranker_provider: str = ""
+    #: Wall-clock budget for an optional reranker call (seconds).
+    reranker_timeout_s: float = 2.0
+    #: When set, a reranker timeout or missing required model falls back to
+    #: this selection mechanism identity (e.g. ``dense-v1``) instead of an
+    #: operational error. Empty = fail closed as ``status=error``.
+    reranker_fallback: str = "dense-v1"
+    #: When True, a configured non-empty ``reranker_provider`` is required;
+    #: missing/unknown providers become operational errors (or configured
+    #: fallback). When False, an empty/unknown provider is a no-op.
+    reranker_required: bool = False
+    #: How many extra candidates to pull when eligibility drops the slate
+    #: below ``k`` (bounded refill after eligibility).
+    candidate_refill_limit: int = 32
+    #: Max exclusion summaries retained on RouteDecision/1.
+    max_exclusion_summaries: int = 32
+    #: Minimum fused/cosine score for calibrated selection (overridden by a
+    #: compatible calibration artifact when present).
+    abstention_score_threshold: float = 0.0
+    #: Minimum top-1/top-2 margin for calibrated selection (overridden by a
+    #: compatible calibration artifact when present).
+    abstention_margin_threshold: float = 0.0
+    #: When True, apply fitted/configured abstention thresholds on the
+    #: stable path. When False, never abstain for threshold/margin reasons
+    #: (legacy always-return-top-k behaviour for uncalibrated installs).
+    abstention_enabled: bool = True
+
     # ── graph index build (spec §2.6 steps 8-9) ─────────────────────────
     similar_to_top_m: int = 5
     hub_penalty_percentile: float = 95.0
@@ -406,9 +437,25 @@ _ENV_FIELD_MAP: dict[str, str] = {
     "MAGICITE_EVIDENCE_RETENTION_OPERATIONAL_DAYS": "evidence_retention_operational_days",
     "MAGICITE_EVIDENCE_RETENTION_AUDIT_DAYS": "evidence_retention_audit_days",
     "MAGICITE_EVIDENCE_BACKUP_EXPIRY_DAYS": "evidence_backup_expiry_days",
+    "MAGICITE_RERANKER_PROVIDER": "reranker_provider",
+    "MAGICITE_RERANKER_TIMEOUT_S": "reranker_timeout_s",
+    "MAGICITE_RERANKER_FALLBACK": "reranker_fallback",
+    "MAGICITE_RERANKER_REQUIRED": "reranker_required",
+    "MAGICITE_CANDIDATE_REFILL_LIMIT": "candidate_refill_limit",
+    "MAGICITE_MAX_EXCLUSION_SUMMARIES": "max_exclusion_summaries",
+    "MAGICITE_ABSTENTION_SCORE_THRESHOLD": "abstention_score_threshold",
+    "MAGICITE_ABSTENTION_MARGIN_THRESHOLD": "abstention_margin_threshold",
+    "MAGICITE_ABSTENTION_ENABLED": "abstention_enabled",
 }
 
-_BOOL_FIELDS = {"embedding_offline", "autonomous", "commit_db", "dream_on_session_end"}
+_BOOL_FIELDS = {
+    "embedding_offline",
+    "autonomous",
+    "commit_db",
+    "dream_on_session_end",
+    "reranker_required",
+    "abstention_enabled",
+}
 
 
 def _coerce(field_name: str, raw: Any) -> Any:
@@ -435,11 +482,28 @@ def _coerce(field_name: str, raw: Any) -> Any:
     return raw
 
 
+def _validate_s07(cfg: Config) -> None:
+    """Fail closed on invalid S07 orchestration knobs."""
+    from magicite.errors import InvalidInputError
+
+    if cfg.reranker_timeout_s < 0:
+        raise InvalidInputError("reranker_timeout_s must be >= 0")
+    if cfg.candidate_refill_limit < 1:
+        raise InvalidInputError("candidate_refill_limit must be >= 1")
+    if cfg.max_exclusion_summaries < 1:
+        raise InvalidInputError("max_exclusion_summaries must be >= 1")
+    if cfg.abstention_score_threshold < 0:
+        raise InvalidInputError("abstention_score_threshold must be >= 0")
+    if cfg.abstention_margin_threshold < 0:
+        raise InvalidInputError("abstention_margin_threshold must be >= 0")
+
+
 def _apply_mapping(cfg: Config, values: dict[str, Any]) -> Config:
     for key, raw in values.items():
         name = key.replace("-", "_")
         if name in _FIELD_NAMES:
             setattr(cfg, name, _coerce(name, raw))
+    _validate_s07(cfg)
     return cfg
 
 
@@ -447,4 +511,5 @@ def _apply_env(cfg: Config, env: Mapping[str, str]) -> Config:
     for env_key, field_name in _ENV_FIELD_MAP.items():
         if env_key in env:
             setattr(cfg, field_name, _coerce(field_name, env[env_key]))
+    _validate_s07(cfg)
     return cfg

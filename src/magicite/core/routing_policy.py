@@ -62,19 +62,26 @@ def active_stable_policy_digest(cfg: Config) -> str:
     return compute_policy_digest(POLICY_DENSE_V1, cfg)
 
 
-def compute_policy_digest(policy_id: str, cfg: Config) -> str:
+def compute_policy_digest(
+    policy_id: str,
+    cfg: Config,
+    *,
+    calibration_digest: str | None = None,
+    eligibility_evaluator_version: str = "EligibilityEvaluator/1",
+    fusion: str | None = None,
+    reranker_fallback: str | None = None,
+) -> str:
     """SHA-256 over the policy's scoring-semantic fingerprint (no DB state).
 
-    ``dense-v1`` currently fingerprints a fixed semantic descriptor (cosine +
-    stable-ID ties, no adaptive channels). S07 MUST extend this payload when
-    stable knobs that change selection semantics are introduced (abstention
-    thresholds, margins, fallback identity, calibration digest, etc.) so the
-    digest changes if and only if stable ranking/abstention semantics change.
-    Do not fold Dream-learned strengths or experimental-only knobs into the
-    dense digest.
+    ``dense-v1`` fingerprints the fixed cosine + stable-ID incumbent plus
+    S07 stable knobs that change selection/abstention semantics (thresholds,
+    margins, fallback identity, calibration digest, eligibility evaluator,
+    fusion identity). Digest changes iff stable ranking/abstention semantics
+    change. Do not fold Dream-learned strengths or experimental-only knobs
+    into the dense digest.
     """
     if policy_id == POLICY_DENSE_V1:
-        # Fixed incumbent descriptor until S07 adds stable knobs — see docstring.
+        fb = reranker_fallback if reranker_fallback is not None else cfg.reranker_fallback
         payload: dict[str, object] = {
             "policy_id": POLICY_DENSE_V1,
             "family": "stable",
@@ -85,6 +92,17 @@ def compute_policy_digest(policy_id: str, cfg: Config) -> str:
             "uses_excitability": False,
             "uses_community_rerank": False,
             "uses_learned_edges": False,
+            "eligibility_evaluator_version": eligibility_evaluator_version,
+            "fusion": fusion or "none",
+            "reranker_provider": cfg.reranker_provider or "none",
+            "reranker_fallback": fb or "none",
+            "reranker_required": bool(cfg.reranker_required),
+            "reranker_timeout_s": float(cfg.reranker_timeout_s),
+            "candidate_refill_limit": int(cfg.candidate_refill_limit),
+            "abstention_enabled": bool(cfg.abstention_enabled),
+            "abstention_score_threshold": float(cfg.abstention_score_threshold),
+            "abstention_margin_threshold": float(cfg.abstention_margin_threshold),
+            "calibration_digest": calibration_digest or "none",
         }
     elif policy_id == POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1:
         payload = {
@@ -107,8 +125,37 @@ def compute_policy_digest(policy_id: str, cfg: Config) -> str:
             "temperature": cfg.temperature,
             "inhib_gain": cfg.inhib_gain,
             "type_gain": dict(sorted(cfg.type_gain.items())),
+            "eligibility_evaluator_version": eligibility_evaluator_version,
+            "reranker_fallback": (
+                reranker_fallback if reranker_fallback is not None else cfg.reranker_fallback
+            )
+            or "none",
+            "calibration_digest": calibration_digest or "none",
         }
     else:
         raise InvalidInputError(f"unknown routing_policy {policy_id!r}")
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def compute_config_digest(cfg: Config) -> str:
+    """Stable digest of config knobs that affect route selection semantics."""
+    payload = {
+        "routing_policy": cfg.routing_policy,
+        "reranker_provider": cfg.reranker_provider,
+        "reranker_timeout_s": cfg.reranker_timeout_s,
+        "reranker_fallback": cfg.reranker_fallback,
+        "reranker_required": cfg.reranker_required,
+        "candidate_refill_limit": cfg.candidate_refill_limit,
+        "max_exclusion_summaries": cfg.max_exclusion_summaries,
+        "abstention_enabled": cfg.abstention_enabled,
+        "abstention_score_threshold": cfg.abstention_score_threshold,
+        "abstention_margin_threshold": cfg.abstention_margin_threshold,
+        "plan_max_depth": cfg.plan_max_depth,
+        "plan_max_size": cfg.plan_max_size,
+        "declared_edge_strength": cfg.declared_edge_strength,
+        "embedding_provider": cfg.embedding_provider,
+        "embedding_dim": cfg.embedding_dim,
+    }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
