@@ -116,6 +116,7 @@ class CustodyProfile:
     custodian_uid: int
     client_uid: int
     public_key: str
+    profile_path: Path | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -149,6 +150,7 @@ class CustodyProfile:
                 custodian_uid=data["custodian_uid"],
                 client_uid=data["client_uid"],
                 public_key=data["public_key"],
+                profile_path=path,
             )
             if (expected_owner_uid != 0 and profile.custodian_uid != expected_owner_uid) or data[
                 "minimum_epoch"
@@ -158,6 +160,56 @@ class CustodyProfile:
             return profile
         except (OSError, ValueError, TypeError, KeyError) as exc:
             raise CustodianError("protected custody profile unavailable") from exc
+
+    @classmethod
+    def from_enrollment(cls, path: Path, *, project_root: Path) -> CustodyProfile:
+        """Root enrollment delegates only a pinned identity to mutable custody."""
+        protected_path(path, 0)
+        try:
+            descriptor = json.loads(path.read_bytes())
+            required = {
+                "schema",
+                "project_root",
+                "registry_id",
+                "custodian_uid",
+                "client_uid",
+                "profile_path",
+            }
+            if (
+                not isinstance(descriptor, dict)
+                or set(descriptor) != required
+                or descriptor["schema"] != "CustodyEnrollment/1"
+                or descriptor["project_root"] != str(project_root.resolve())
+                or type(descriptor["custodian_uid"]) is not int
+                or type(descriptor["client_uid"]) is not int
+            ):
+                raise CustodianError("invalid protected enrollment descriptor")
+            profile = cls.load(
+                Path(descriptor["profile_path"]), expected_owner_uid=descriptor["custodian_uid"]
+            )
+            if any(
+                getattr(profile, key) != descriptor[key]
+                for key in ("registry_id", "custodian_uid", "client_uid")
+            ):
+                raise CustodianError("protected enrollment/profile identity mismatch")
+            return profile
+        except (OSError, ValueError, TypeError, KeyError, RecursionError) as exc:
+            raise CustodianError("protected custody enrollment unavailable") from exc
+
+    def refresh(self) -> CustodyProfile:
+        if self.profile_path is None:
+            return self
+        current = self.load(self.profile_path, expected_owner_uid=self.custodian_uid)
+        if (current.registry_id, current.custodian_uid, current.client_uid, current.socket_path) != (
+            self.registry_id,
+            self.custodian_uid,
+            self.client_uid,
+            self.socket_path,
+        ):
+            raise CustodianError("protected custody identity changed")
+        if current.epoch < self.epoch:
+            raise CustodianError("protected custody epoch rollback")
+        return current
 
 
 def _read_exact(connection: socket.socket, size: int, deadline: float) -> bytes:
@@ -241,7 +293,8 @@ class CustodianClient:
         self.profile = profile
 
     def call(self, operation: str, **arguments: Any) -> Any:
-        profile = self.profile
+        profile = self.profile.refresh()
+        self.profile = profile
         if os.getuid() != profile.client_uid:
             raise CustodianError("unauthorized custody client identity")
         nonce, request_id = secrets.token_hex(32), secrets.token_hex(16)
@@ -286,7 +339,8 @@ class CustodianService:
         self.store, self.profile = store, profile
 
     def handle(self, connection: socket.socket) -> None:
-        profile = self.profile
+        profile = self.profile.refresh()
+        self.profile = profile
         if os.getuid() != profile.custodian_uid:
             raise CustodianError("custodian service identity mismatch")
         connection.settimeout(TIMEOUT)
@@ -325,7 +379,8 @@ class CustodianService:
         send_frame(connection, sign_receipt(self.store.signing_key, payload))
 
     def serve(self) -> None:
-        profile = self.profile
+        profile = self.profile.refresh()
+        self.profile = profile
         if os.getuid() != profile.custodian_uid:
             raise CustodianError("custodian service identity mismatch")
         protected_path(self.store.directory, profile.custodian_uid, directory=True)

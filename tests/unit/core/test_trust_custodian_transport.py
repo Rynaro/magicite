@@ -276,3 +276,48 @@ def test_parser_recursion_is_normalized_to_redacted_protocol_error(monkeypatch):
     finally:
         a.close()
         b.close()
+
+
+def test_descriptor_binds_mutable_profile_identity_and_pending_closes(tmp_path, monkeypatch):
+    import json
+
+    from magicite.core import trust_custodian_transport as transport
+
+    # Explicit filesystem-protection double tests descriptor semantics only;
+    # real ownership/ACL checks have separate negative boundary tests.
+    monkeypatch.setattr(transport, "protected_path", lambda *args, **kwargs: None)
+    owner, client = os.getuid() + 10000, os.getuid()
+    key = Ed25519PrivateKey.generate().public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+    profile_path = tmp_path / "profile.json"
+    profile = {
+        "state": "ACTIVE",
+        "registry_id": "r",
+        "epoch": 1,
+        "minimum_epoch": 1,
+        "socket_path": str(tmp_path / "socket"),
+        "custodian_uid": owner,
+        "client_uid": client,
+        "public_key": key,
+    }
+    descriptor = {
+        "schema": "CustodyEnrollment/1",
+        "project_root": str(tmp_path.resolve()),
+        "registry_id": "r",
+        "custodian_uid": owner,
+        "client_uid": client,
+        "profile_path": str(profile_path),
+    }
+    descriptor_path = tmp_path / "enrollment.json"
+    descriptor_path.write_text(json.dumps(descriptor))
+    profile_path.write_text(json.dumps(profile))
+    loaded = CustodyProfile.from_enrollment(descriptor_path, project_root=tmp_path)
+    assert loaded.registry_id == "r"
+    profile["registry_id"] = "substituted"
+    profile_path.write_text(json.dumps(profile))
+    with pytest.raises(CustodianError):
+        CustodyProfile.from_enrollment(descriptor_path, project_root=tmp_path)
+    profile["registry_id"] = "r"
+    profile["state"] = "ROTATION_PENDING"
+    profile_path.write_text(json.dumps(profile))
+    with pytest.raises(CustodianError):
+        CustodyProfile.from_enrollment(descriptor_path, project_root=tmp_path)

@@ -28,7 +28,7 @@ def protected_profile_path(cfg: Config) -> Path:
 
 def resolve_custody(cfg: Config) -> tuple[str, Custody]:
     try:
-        profile = CustodyProfile.load(protected_profile_path(cfg), expected_owner_uid=0)
+        profile = CustodyProfile.from_enrollment(protected_profile_path(cfg), project_root=cfg.project_root)
         return profile.registry_id, CustodianClient(profile)
     except (OSError, ValueError) as exc:
         raise CustodianError("protected custody enrollment required") from exc
