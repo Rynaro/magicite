@@ -110,6 +110,11 @@ def test_reviewed_backup_includes_wal_and_all_managed_domains_before_migration(l
             cfg, plan=plan, reviewed_sha256=trust_legacy.digest(plan), destination=tmp_path / "backup"
         )
         assert result["complete"] is True
+        recovered_plan, recovered_manifest = trust_legacy.read_verified_backup(
+            tmp_path / "backup", reviewed_sha256=trust_legacy.digest(plan)
+        )
+        assert recovered_plan == plan
+        assert trust_legacy.digest(recovered_manifest) == result["manifest_digest"]
         assert (tmp_path / "backup/files/evidence/private-history.json").read_text() == '{"preserve":true}'
         restored = db.connect(tmp_path / "backup/files/engrams/skill-graph.db", migrate=False)
         try:

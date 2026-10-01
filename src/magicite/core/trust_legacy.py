@@ -349,3 +349,51 @@ def backup_reviewed(
             )
     finally:
         conn.close()
+
+
+def read_verified_backup(destination: Path, *, reviewed_sha256: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """An incomplete or altered archive can never become migration input."""
+
+    def read(path: Path) -> bytes:
+        with _directory_fd(path.parent) as directory:
+            return _read_file(directory, path.name)
+
+    try:
+        plan = json.loads(read(destination / "reviewed-plan.json"))
+        manifest = json.loads(read(destination / "manifest.json"))
+        complete = json.loads(read(destination / "complete.json"))
+        if (
+            plan["schema"] != "LegacyTrustMigration/1"
+            or digest(plan) != reviewed_sha256
+            or manifest["schema"] != "LegacyTrustBackup/1"
+            or manifest["reviewed_plan_digest"] != reviewed_sha256
+            or complete != {"manifest_digest": digest(manifest)}
+        ):
+            raise CustodianError("legacy backup commitment mismatch")
+        from magicite.core.backup import _is_secret_rel
+
+        expected = {rel: value for rel, value in plan["files"].items() if not _is_secret_rel(rel)}
+        db_paths = [rel for rel in plan["physical_db_provenance"] if not rel.endswith(("-wal", "-shm"))]
+        if len(db_paths) != 1 or set(manifest["files"]) != set(expected) | set(db_paths):
+            raise CustodianError("incomplete legacy backup inventory")
+        for rel, meta in manifest["files"].items():
+            if Path(rel).is_absolute() or ".." in Path(rel).parts:
+                raise CustodianError("invalid backup member path")
+            if rel in expected and meta != expected[rel]:
+                raise CustodianError("legacy source commitment mismatch")
+            raw = read(destination / "files" / rel)
+            if meta != {"sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)}:
+                raise CustodianError("legacy backup member changed")
+        db_path = destination / "files" / db_paths[0]
+        conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)
+        try:
+            if (
+                conn.execute("PRAGMA quick_check").fetchone()[0] != "ok"
+                or logical_db_digest(conn) != plan["logical_db_digest"]
+            ):
+                raise CustodianError("legacy database backup changed")
+        finally:
+            conn.close()
+        return plan, manifest
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
+        raise CustodianError("complete reviewed legacy backup required") from exc

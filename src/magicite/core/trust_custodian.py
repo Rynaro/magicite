@@ -144,6 +144,9 @@ class CustodianStore:
 
     @staticmethod
     def _head(state: dict[str, Any]) -> dict[str, Any]:
+        from magicite.core.trust_reconciliation import active_plan
+
+        active = active_plan(state["records"])
         last = state["records"][-1]
         return {
             "registry_id": last["registry_id"],
@@ -153,6 +156,11 @@ class CustodianStore:
             "policy_digest": state["policy_digest"],
             "fence_generation": state["generation"],
             "pending_record_id": state["pending"]["record_id"] if state["pending"] else None,
+            "legacy_reconciliation": (
+                {key: active[key] for key in ("migration_id", "manifest_digest", "backup_digest")}
+                if active
+                else None
+            ),
         }
 
     def _record(
@@ -337,6 +345,11 @@ class CustodianStore:
                 ):
                     raise CustodianError("invalid signature status")
                 parsed = TrustDecision.from_dict(payload).to_dict()
+            elif kind == "legacy_reconciliation":
+                from magicite.core.trust_reconciliation import validate
+
+                validate(payload)
+                parsed = payload
             elif kind == "artifact_transform":
                 from magicite.core.trust_artifacts import validate_transform_lineage
 
@@ -400,6 +413,16 @@ class CustodianStore:
                     if existing["kind"] == kind and _equal(existing["payload"], payload):
                         return existing
                     raise CustodianError("conflicting immutable record identity")
+            from magicite.core.trust_reconciliation import check_next
+
+            check_next(
+                state["records"],
+                registry=registry,
+                epoch=self._head(state)["epoch"],
+                record_id=record_id,
+                kind=kind,
+                payload=payload,
+            )
             if state["pending"] is not None:
                 raise CustodianError("pending record requires reconciliation")
             head = self._head(state)
@@ -555,6 +578,8 @@ class CustodianStore:
             if transition_id in state.get("transitions", {}):
                 raise CustodianError("rotation identity already completed")
             old_head = self._head(state)
+            if old_head["legacy_reconciliation"] is not None:
+                raise CustodianError("legacy reconciliation blocks rotation")
             old_key = self.signer_for(registry)
             new_key, new_mac = Ed25519PrivateKey.generate(), secrets.token_bytes(32)
             old_public = old_key.public_key().public_bytes_raw().hex()

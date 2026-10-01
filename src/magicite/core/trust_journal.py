@@ -97,8 +97,11 @@ def _replace_file(
 
 
 class TrustJournal:
-    def __init__(self, directory: Path, registry_id: str, client: Custody):
+    def __init__(
+        self, directory: Path, registry_id: str, client: Custody, *, reconciliation_id: str | None = None
+    ):
         self.directory, self.registry_id, self.client = directory, registry_id, client
+        self.reconciliation_id = reconciliation_id
         self.journal_path = directory / "journal.jsonl"
         self.head_path = directory / "head.json"
 
@@ -193,6 +196,9 @@ class TrustJournal:
     def snapshot(self) -> TrustSnapshot:
         try:
             head, authenticated = self._remote()
+            gate = head.get("legacy_reconciliation")
+            if gate is not None and gate["migration_id"] != self.reconciliation_id:
+                raise CustodianError("legacy reconciliation remains incomplete")
             with _directory_fd(self.directory) as directory:
                 records = [json.loads(line) for line in _read_file(directory, "journal.jsonl").splitlines()]
                 local_head = json.loads(_read_file(directory, "head.json"))
@@ -222,6 +228,10 @@ class TrustJournal:
                         source_signers[key] = source_signers.get(key, frozenset()) | {
                             decision["signer_fingerprint"]
                         }
+                elif record["kind"] == "legacy_reconciliation":
+                    # Custody enforces ordered non-admitting plan completion;
+                    # the authenticated current head gates ordinary readers.
+                    continue
                 elif record["kind"] == "epoch_transition":
                     intent = record["payload"]
                     if (
