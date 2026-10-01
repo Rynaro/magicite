@@ -17,20 +17,25 @@ pytestmark = pytest.mark.acceptance
 PROTON = "proton-ge-proton-downgrade"
 
 
-def _die_after_response_staged(project_root: str, arguments: dict[str, object]) -> None:
-    cfg = Config.load(Path(project_root), env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
-    state = app_mod.build_state(cfg)
+def _die_after_response_staged(
+    project_root: str, arguments: dict[str, object], custody_directory: str, registry_id: str
+) -> None:
+    from tests.support.custody_adapter import attach_fixture
 
-    def stop(label: str) -> None:
-        if label == "response_staged":
-            os._exit(77)
+    with attach_fixture(Path(project_root), Path(custody_directory), registry_id):
+        cfg = Config.load(Path(project_root), env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+        state = app_mod.build_state(cfg)
 
-    app_mod.dispatch_call(
-        state,
-        "signal_use",
-        arguments,
-        idempotency_fault_hook=stop,
-    )
+        def stop(label: str) -> None:
+            if label == "response_staged":
+                os._exit(77)
+
+        app_mod.dispatch_call(
+            state,
+            "signal_use",
+            arguments,
+            idempotency_fault_hook=stop,
+        )
 
 
 def test_commit_boundary(cfg, embedder) -> None:
@@ -50,9 +55,12 @@ def test_commit_boundary(cfg, embedder) -> None:
         "session_id": "cancel-boundary",
         "request_id": "commit-boundary-1",
     }
+    from magicite.core import writer_guard
+
+    _, provider = writer_guard.resolve_custody(cfg)
     process = multiprocessing.get_context("spawn").Process(
         target=_die_after_response_staged,
-        args=(str(cfg.project_root), arguments),
+        args=(str(cfg.project_root), arguments, str(provider.store.directory), provider.registry_id),
     )
     process.start()
     process.join(timeout=20)

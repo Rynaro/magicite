@@ -90,13 +90,13 @@ def review_inserted_source(cfg, conn, *, path: Path, source: bytes) -> str:
 
     held = writer_guard.registry_writer_lease(cfg, conn)
     with held.acquire():
-        journal, _, _ = writer_guard.bound_journal(cfg)
+        journal, owner, _ = writer_guard.bound_journal(cfg)
         marked = trust_artifacts.mark_artifact(
             source, registry_id=journal.registry_id, relpath=str(path), actor="test-fixture-author"
         )
         trust_artifacts.bind_prepared_transform(cfg, marked)
         with _directory_fd(path.parent) as directory:
-            _replace_file(directory, path.name, marked.target, held.assert_owned)
+            _replace_file(directory, path.name, marked.target, owner.assert_owned)
         artifact = trust_artifacts.require_bound_artifact(cfg, path)
         cursor = conn.execute(
             "UPDATE engram SET content_sha256=?, body_sha256=?, spec_version='engram/1.0' WHERE id=?",
@@ -157,6 +157,24 @@ def attach_fixture(root: Path, directory: Path, registry_id: str):
     finally:
         writer_guard.resolve_custody = original
         provider.close()
+
+
+SERVE_LAUNCHER = Path(__file__).resolve().parent / "serve_with_fixture_custody.py"
+
+
+def fixture_cli_argv(cfg, *cli_args: str) -> list[str]:
+    """argv running the CLI in a child attached to ``cfg``'s already-enrolled custody."""
+    import sys
+
+    _, provider = writer_guard.resolve_custody(cfg)
+    return [
+        sys.executable,
+        str(SERVE_LAUNCHER),
+        str(cfg.project_root),
+        str(provider.store.directory),
+        provider.registry_id,
+        *cli_args,
+    ]
 
 
 def threaded_calls(provider, monkeypatch):

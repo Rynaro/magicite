@@ -35,16 +35,17 @@ def test_register_route_introspect(cfg, db_conn, embedder, review_fixture_artifa
 
 
 @pytest.mark.asyncio
-async def test_register_route_introspect_over_mcp(project_root) -> None:
+async def test_register_route_introspect_over_mcp(cfg, review_fixture_artifacts) -> None:
     """The same story proven over the real MCP wire (the AC's literal GIVEN/WHEN)."""
-    import sys
-
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
+    from tests.conftest import TOY_ENGRAM_NAMES
+    from tests.support.custody_adapter import fixture_cli_argv
 
+    command, *args = fixture_cli_argv(cfg, "serve", "--project-root", str(cfg.project_root))
     params = StdioServerParameters(
-        command=sys.executable,
-        args=["-m", "magicite", "serve", "--project-root", str(project_root)],
+        command=command,
+        args=args,
         env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"},
     )
     async with stdio_client(params) as (read, write):
@@ -55,6 +56,8 @@ async def test_register_route_introspect_over_mcp(project_root) -> None:
             assert reg.is_error is False, reg.structured_content
             assert reg.structured_content["ingested"] == 7
 
+            # No MCP tool grants admission; the operator reviews out of band.
+            review_fixture_artifacts(*TOY_ENGRAM_NAMES)
             rt = await session.call_tool("route", {"query": "rollback proton for a steam game", "k": 5})
             assert rt.is_error is False, rt.structured_content
             assert rt.structured_content["candidates"][0]["name"] == "proton-ge-proton-downgrade"

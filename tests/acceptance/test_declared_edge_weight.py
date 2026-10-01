@@ -19,7 +19,7 @@ from magicite.core import routing_policy as policy_mod
 pytestmark = pytest.mark.acceptance
 
 
-def test_inhibition_is_reachable_from_register(cfg, db_conn, embedder) -> None:
+def test_inhibition_is_reachable_from_register(cfg, db_conn, embedder, review_fixture_artifacts) -> None:
     """AC-034: GIVEN a registry whose engrams were ingested only through
     register() and one of whose .egr.md frontmatters declares inhibits:
     [<competitor>] (the toy registry's proton-ge-proton-downgrade ->
@@ -31,6 +31,9 @@ def test_inhibition_is_reachable_from_register(cfg, db_conn, embedder) -> None:
     # S00 call-site: inhibition is experimental adaptive-blend behavior.
     cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    from tests.conftest import TOY_ENGRAM_NAMES
+
+    review_fixture_artifacts(*TOY_ENGRAM_NAMES)
     query = "rollback proton for a steam game"
 
     cfg.declared_edge_strength = 1.0
