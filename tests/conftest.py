@@ -47,8 +47,29 @@ def empty_project_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def cfg(project_root: Path) -> Config:
-    return Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+def cfg(project_root: Path, monkeypatch, tmp_path_factory):
+    from tests.support.custody_adapter import enroll_fixture
+
+    config = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    provider = enroll_fixture(config, monkeypatch, tmp_path_factory.mktemp("fixture-custody") / "private")
+    yield config
+    provider.close()
+
+
+@pytest.fixture
+def review_fixture_artifacts(cfg, db_conn):
+    from tests.support.custody_adapter import review_sources
+
+    def review(*names: str):
+        if not names:
+            raise ValueError("select fixture names explicitly")
+        return review_sources(
+            cfg,
+            db_conn,
+            sources={name: (TOY_ENGRAMS_DIR / (name + ".egr.md")).read_bytes() for name in names},
+        )
+
+    return review
 
 
 @pytest.fixture

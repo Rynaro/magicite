@@ -1,0 +1,82 @@
+"""Simulated custody and explicit allowlisted review for mechanism tests.
+
+This bypasses OS isolation only by test-owned dependency injection. It does
+not qualify an installed channel or distinct-UID deployment. Enrollment
+never grants artifact admission; each positive scenario requests review.
+"""
+
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+
+from magicite.core import registry, trust, writer_guard
+from magicite.core.trust_custodian import CustodianStore
+from magicite.core.trust_journal import TrustJournal
+
+
+class FixtureCustody:
+    def __init__(self, directory: Path, registry_id: str):
+        self.store = CustodianStore.create(directory)
+        self.registry_id = registry_id
+        self.store.enroll(registry_id, trust.default_policy().to_dict(), actor="test-operator", reviewed=True)
+
+    def call(self, operation, **arguments):
+        return getattr(self.store, operation)(self.registry_id, **arguments)
+
+    def close(self):
+        self.store.close()
+
+
+def enroll_fixture(cfg, monkeypatch, directory: Path):
+    root = cfg.project_root.resolve()
+    identity = "test-" + hashlib.sha256(str(root).encode()).hexdigest()[:24]
+    provider = FixtureCustody(directory, identity)
+    original = writer_guard.resolve_custody
+
+    def resolve(candidate):
+        if candidate.project_root.resolve() == root:
+            return identity, provider
+        return original(candidate)
+
+    monkeypatch.setattr(writer_guard, "resolve_custody", resolve)
+    TrustJournal(cfg.data_dir / "trust/authority", identity, provider).initialize_reviewed_genesis()
+    return provider
+
+
+def review_sources(cfg, conn, *, sources: dict[str, bytes]):
+    """Review exact source identities explicitly selected by the calling test."""
+    from magicite.core import trust_artifacts
+    from magicite.engram import parser
+
+    if not sources:
+        raise ValueError("an explicit source allowlist is required")
+    snapshot = trust.authenticated_snapshot(cfg)
+    receipts = []
+    for name, raw in sources.items():
+        source, _ = parser.parse_artifact(raw.decode(), relpath=name + ".egr.md", admit=True)
+        if source.name != name:
+            raise ValueError("fixture source name mismatch")
+        row = conn.execute("SELECT path FROM engram WHERE id=?", (source.id,)).fetchone()
+        if row is None:
+            raise ValueError("fixture must be registered before explicit review")
+        artifact = trust_artifacts.require_bound_artifact(cfg, cfg.project_root / row["path"])
+        source_digest = hashlib.sha256(raw).hexdigest()
+        if not any(
+            record["kind"] == "artifact_transform"
+            and record["payload"]["engram_id"] == source.id
+            and record["payload"]["source_digest"] == source_digest
+            and record["payload"]["target_digest"] == artifact.content_sha256
+            for record in snapshot.records
+        ):
+            raise ValueError("live target is not the allowlisted source transformation")
+        receipts.append(
+            registry.review_approve(
+                cfg,
+                conn,
+                engram_id=source.id,
+                expected_digest=artifact.content_sha256,
+                actor="test-fixture-review",
+            )
+        )
+    return receipts
