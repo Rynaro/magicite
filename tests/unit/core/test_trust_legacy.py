@@ -536,3 +536,125 @@ def test_apply_resource_drift_keeps_authenticated_gate_closed(legacy_custody, tm
         trust.authenticated_snapshot(cfg)
     with pytest.raises(CustodianError, match="source change"):
         trust_legacy.apply_reviewed(cfg, backup_path=backup, reviewed_sha256=committed)
+
+
+def test_public_migration_missing_review_is_zero_write(tmp_path):
+    from magicite.core import migration
+    from magicite.errors import InvalidInputError
+
+    cfg = Config(project_root=tmp_path / "uninitialized")
+    for action in (lambda: migration.apply(cfg), lambda: migration.resume(cfg, "old-sql-id")):
+        with pytest.raises(InvalidInputError, match="reviewed migration"):
+            action()
+        assert not cfg.data_dir.exists()
+
+
+@pytest.mark.parametrize(
+    "boundary", ["begin_committed", "target_published", "before_complete", "complete_committed"]
+)
+def test_public_migration_adapter_resumes_exact_plan(legacy_custody, tmp_path, boundary):
+    from magicite.core import migration, trust_legacy
+    from magicite.errors import InvalidInputError
+
+    cfg, _, store = legacy_custody
+    plan = trust_legacy.preview(cfg, registry_id="r", actor="operator")
+    digest = trust_legacy.digest(plan)
+    backup = tmp_path / "public-backup"
+    trust_legacy.backup_reviewed(cfg, plan=plan, reviewed_sha256=digest, destination=backup)
+    operation_id = "legacy-" + digest[:32]
+    with pytest.raises(InvalidInputError, match="operation_id"):
+        migration.apply(cfg, reviewed_sha256=digest, backup_path=backup, operation_id="old-id")
+    assert not (cfg.data_dir / "trust/authority").exists()
+
+    def stop(value):
+        if value == boundary:
+            raise RuntimeError("interrupted public migration")
+
+    with pytest.raises(RuntimeError):
+        migration.apply(cfg, reviewed_sha256=digest, backup_path=backup, fault_hook=stop)
+    assert migration.status(cfg, operation_id).state == (
+        "completed" if boundary == "complete_committed" else "running"
+    )
+    result = migration.resume(cfg, operation_id, reviewed_sha256=digest, backup_path=backup)
+    assert result.state == "completed"
+    assert result.operation_id == operation_id
+    assert result.resumed
+    assert migration.status(cfg, operation_id).state == "completed"
+    head = store.read_current("r")
+    target = (cfg.registry_dir / "sample.egr.md").read_bytes()
+    retry = migration.apply(cfg, reviewed_sha256=digest, backup_path=backup)
+    assert retry.duplicate_noop
+    assert store.read_current("r")["head_sequence"] == head["head_sequence"]
+    assert (cfg.registry_dir / "sample.egr.md").read_bytes() == target
+
+
+def test_public_restore_stages_exact_backup_without_active_mutation(legacy_custody, tmp_path):
+    from magicite.core import migration, trust_legacy
+    from magicite.errors import InvalidInputError
+
+    cfg, _, _ = legacy_custody
+    plan = trust_legacy.preview(cfg, registry_id="r", actor="operator")
+    digest = trust_legacy.digest(plan)
+    backup = tmp_path / "restore-backup"
+    trust_legacy.backup_reviewed(cfg, plan=plan, reviewed_sha256=digest, destination=backup)
+    before = tree(cfg)
+    with pytest.raises(InvalidInputError, match="staging"):
+        migration.restore(cfg, backup_path=backup, reviewed_sha256=digest)
+    with pytest.raises(InvalidInputError, match="separate"):
+        migration.restore(cfg, backup_path=backup, reviewed_sha256=digest, staging_path=cfg.registry_dir)
+    stage = tmp_path.parent / (tmp_path.name + "-inactive-stage")
+    result = migration.restore(cfg, backup_path=backup, reviewed_sha256=digest, staging_path=stage)
+    assert result.state == "reconciliation_required"
+    assert tree(cfg) == before
+    _, manifest = trust_legacy.read_verified_backup(backup, reviewed_sha256=digest)
+    for rel in manifest["files"]:
+        assert (stage / "files" / rel).read_bytes() == (backup / "files" / rel).read_bytes()
+    assert json.loads((stage / "reconciliation-required.json").read_text())["active"] is False
+    assert migration.restore(
+        cfg, backup_path=backup, reviewed_sha256=digest, staging_path=stage
+    ).duplicate_noop
+
+
+def test_public_migration_cli_uses_reviewed_backend(legacy_custody, tmp_path):
+    from click.testing import CliRunner
+
+    from magicite.__main__ import cli
+    from magicite.core import trust_legacy
+
+    cfg, _, _ = legacy_custody
+    plan = trust_legacy.preview(cfg, registry_id="r", actor="operator")
+    digest = trust_legacy.digest(plan)
+    backup = tmp_path / "cli-public-backup"
+    trust_legacy.backup_reviewed(cfg, plan=plan, reviewed_sha256=digest, destination=backup)
+    runner = CliRunner()
+    common = [
+        "--project-root",
+        str(cfg.project_root),
+        "--reviewed-sha256",
+        digest,
+        "--backup-path",
+        str(backup),
+    ]
+    applied = runner.invoke(cli, ["migration", "apply", *common])
+    assert applied.exit_code == 0, applied.output
+    operation_id = json.loads(applied.output)["operation_id"]
+    resumed = runner.invoke(cli, ["migration", "resume", *common, "--operation-id", operation_id])
+    assert resumed.exit_code == 0, resumed.output
+    assert json.loads(resumed.output)["duplicate_noop"]
+
+
+def test_public_restore_rejects_unrelated_staging(legacy_custody, tmp_path):
+    from magicite.core import migration, trust_legacy
+    from magicite.errors import InvalidInputError
+
+    cfg, _, _ = legacy_custody
+    plan = trust_legacy.preview(cfg, registry_id="r", actor="operator")
+    digest = trust_legacy.digest(plan)
+    backup = tmp_path / "stage-guard-backup"
+    trust_legacy.backup_reviewed(cfg, plan=plan, reviewed_sha256=digest, destination=backup)
+    stage = tmp_path.parent / (tmp_path.name + "-unrelated")
+    stage.mkdir()
+    (stage / "unrelated").write_bytes(b"preserve")
+    with pytest.raises(InvalidInputError, match="not empty"):
+        migration.restore(cfg, backup_path=backup, reviewed_sha256=digest, staging_path=stage)
+    assert list(stage.iterdir()) == [stage / "unrelated"]
