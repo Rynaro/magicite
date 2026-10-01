@@ -115,7 +115,7 @@ jobs:
         run: uv run python scripts/smoke_operator_tutorial.py --output ci-evidence/operator-tutorial.json
 
       - name: Hashing benchmark envelope completeness (not production budgets)
-        run: uv run python scripts/run_benchmark_matrix.py --profile ci-smoke --provider hashing --envelope-mode completeness --output ci-evidence/hashing-completeness.json
+        run: uv run python scripts/run_benchmark_matrix.py --profile ci-smoke --provider hashing --envelope-mode completeness --custody disposable-simulated --output ci-evidence/hashing-completeness.json
 
       - name: Archive fixture tutorial and completeness evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -223,6 +223,7 @@ jobs:
             -v "$PWD/scripts/run_benchmark_matrix.py:/tmp/run_benchmark_matrix.py:ro" \
             magicite:verify /tmp/run_benchmark_matrix.py \
             --provider production --sizes 1000 10000 --calls 2 --warmup 1 \
+            --custody disposable-simulated \
             --environment-label production-container
 
       # Trivy HIGH/CRITICAL gate (mission directive: "CI: ... image build +

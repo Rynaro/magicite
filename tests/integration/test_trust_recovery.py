@@ -50,17 +50,20 @@ def _subject(cfg: Config) -> tuple[str, str]:
         outcome = registry_mod.register(cfg, conn, embedder, path="incoming", fmt="egr")
         assert outcome.ingested == 1
         entry = outcome.registered[0]
-        digest = conn.execute(
-            "SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)
-        ).fetchone()["content_sha256"]
+        digest = conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)).fetchone()[
+            "content_sha256"
+        ]
         return entry.id, digest
     finally:
         conn.close()
 
 
-def test_review_replay_rebuild(project_root: Path) -> None:
+def test_review_replay_rebuild(project_root: Path, custody_for, monkeypatch) -> None:
     """AC-S04-04: concurrent approve with one event_id → one admit; rebuild restores it."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    from tests.support.custody_adapter import threaded_calls
+
+    threaded_calls(custody_for(cfg), monkeypatch)
     cfg.ensure_dirs()
     engram_id, digest = _subject(cfg)
 
@@ -86,13 +89,11 @@ def test_review_replay_rebuild(project_root: Path) -> None:
     assert len(set(ids)) == 1
 
     admits = [
-        d
-        for d in trust_mod.list_decisions(cfg)
-        if d.decision == "admit" and d.event_id == "evt-replay-1"
+        d for d in trust_mod.list_decisions(cfg) if d.decision == "admit" and d.event_id == "evt-replay-1"
     ]
     assert len(admits) == 1
 
-    # Delete the rebuildable DB and sync — trust ledger must reload from mirrors.
+    # Delete the rebuildable DB and sync — trust projection must reload from authenticated journal.
     db_path = cfg.db_path
     for suffix in ("", "-wal", "-shm"):
         p = Path(str(db_path) + suffix) if suffix else db_path

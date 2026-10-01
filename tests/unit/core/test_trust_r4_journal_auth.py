@@ -115,6 +115,7 @@ def test_assert_import_destinations_all_skip_on_idempotent_reimport(
     assert first.ingested == 2
 
     paths = {rel: cfg.registry_dir / rel for rel in members}
+    target_bytes = {rel: p.read_bytes() for rel, p in paths.items()}
     meta = {rel: (p.stat().st_mtime_ns, getattr(p.stat(), "st_ino", None)) for rel, p in paths.items()}
 
     # Direct pre-check must mark every destination skip_publish=True.
@@ -130,6 +131,7 @@ def test_assert_import_destinations_all_skip_on_idempotent_reimport(
         registry_root=cfg.registry_dir.resolve(),
         verified_staging=verified.staging_dir,
         manifest_entries=list(verified.manifest.entries),
+        transformed_bytes=target_bytes,
     )
     assert skip == {rel: True for rel in members}
 
@@ -138,15 +140,13 @@ def test_assert_import_destinations_all_skip_on_idempotent_reimport(
     for rel, p in paths.items():
         st = p.stat()
         assert (st.st_mtime_ns, getattr(st, "st_ino", None)) == meta[rel], rel
-        assert p.read_bytes() == members[rel]
+        assert p.read_bytes() == target_bytes[rel]
 
 
 # ── MAJOR 2: authenticated journal recovery ────────────────────────────────
 
 
-def test_planted_unauthenticated_journal_does_not_delete_authored(
-    cfg, db_conn, embedder
-) -> None:
+def test_planted_unauthenticated_journal_does_not_delete_authored(cfg, db_conn, embedder) -> None:
     victim_rel = "skills/victim.egr.md"
     victim = cfg.registry_dir / victim_rel
     victim.parent.mkdir(parents=True, exist_ok=True)
@@ -172,9 +172,7 @@ def test_planted_unauthenticated_journal_does_not_delete_authored(
         # no mac / wrong mac
         "mac": "0" * 64,
     }
-    (job / registry_mod._PUBLISH_JOURNAL_NAME).write_text(
-        json.dumps(forged), encoding="utf-8"
-    )
+    (job / registry_mod._PUBLISH_JOURNAL_NAME).write_text(json.dumps(forged), encoding="utf-8")
 
     registry_mod.sync(cfg, db_conn, embedder)
 
@@ -186,9 +184,7 @@ def test_planted_unauthenticated_journal_does_not_delete_authored(
     assert quarantined, "unauthenticated job must be quarantined for review"
 
 
-def test_authenticated_journal_skips_path_owned_by_other_engram(
-    cfg, db_conn, embedder
-) -> None:
+def test_authenticated_journal_skips_path_owned_by_other_engram(cfg, db_conn, embedder) -> None:
     victim_rel = "skills/owned.egr.md"
     victim = cfg.registry_dir / victim_rel
     victim.parent.mkdir(parents=True, exist_ok=True)
@@ -202,10 +198,10 @@ def test_authenticated_journal_skips_path_owned_by_other_engram(
         path=str(cfg.registry_dir.relative_to(cfg.project_root)),
         fmt="egr",
     )
-    assert db_conn.execute(
-        "SELECT id FROM engram WHERE id = ?", ("egr_a0ced001",)
-    ).fetchone()
+    assert db_conn.execute("SELECT id FROM engram WHERE id = ?", ("egr_a0ced001",)).fetchone()
 
+    published = victim.read_bytes()
+    assert published != original
     job = cfg.registry_dir / registry_mod._IMPORT_STAGING_DIRNAME / "owned-job"
     job.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -215,8 +211,8 @@ def test_authenticated_journal_skips_path_owned_by_other_engram(
         "members": [
             {
                 "path": victim_rel,
-                "sha256": sha256_hex(original),
-                "size": len(original),
+                "sha256": sha256_hex(published),
+                "size": len(published),
                 "pre_existing": False,
             }
         ],
@@ -230,13 +226,11 @@ def test_authenticated_journal_skips_path_owned_by_other_engram(
 
     registry_mod.sync(cfg, db_conn, embedder)
 
-    assert victim.read_bytes() == original
+    assert victim.read_bytes() == published
     assert victim.exists()
 
 
-def test_authenticated_incomplete_journal_quarantines_published_members(
-    cfg, db_conn, embedder
-) -> None:
+def test_authenticated_incomplete_journal_quarantines_published_members(cfg, db_conn, embedder) -> None:
     rel = "skills/crash-only.egr.md"
     payload = _lint_valid_egr(name="crash-only", eid="egr_cfa50001").encode()
     digest = sha256_hex(payload)
@@ -276,6 +270,4 @@ def test_authenticated_incomplete_journal_quarantines_published_members(
     q = cfg.data_dir / "quarantine" / "import-rollback" / job_id / rel
     assert q.is_file()
     assert q.read_bytes() == payload
-    assert db_conn.execute(
-        "SELECT id FROM engram WHERE id = ?", ("egr_cfa50001",)
-    ).fetchone() is None
+    assert db_conn.execute("SELECT id FROM engram WHERE id = ?", ("egr_cfa50001",)).fetchone() is None

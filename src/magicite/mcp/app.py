@@ -115,6 +115,9 @@ class ServerState:
 
 
 def build_state(cfg: Config) -> ServerState:
+    from magicite.core.writer_guard import preflight_custody
+
+    preflight_custody(cfg)
     cfg.ensure_dirs()
     # The writer connection is opened first: it is the one that runs
     # migrations (a durable-schema, i.e. writer, concern), so the ephemeral

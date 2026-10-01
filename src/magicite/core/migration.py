@@ -25,16 +25,16 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from magicite.config import Config
+from magicite.core import writer_guard
 from magicite.engram.model import Engram
 from magicite.engram.parser import EngramParseError, load_artifact_file, parse_file
 from magicite.engram.transform import TransformDiagnostic, transform_0_2_to_1_0
 from magicite.engram.writer import write_engram_as
 from magicite.errors import BusyError, InvalidInputError, NotFoundError
 from magicite.storage import db as db_mod
-from magicite.storage import lease as lease_mod
 from magicite.storage import migration_ops as ops
 from magicite.storage.migrations.registry import (
     MAX_KNOWN_SCHEMA_VERSION,
@@ -44,7 +44,7 @@ from magicite.storage.migrations.registry import (
 )
 
 MigrationKind = Literal["upgrade_engram_0_2_to_1_0", "restore_backup"]
-OperationState = Literal["pending", "running", "completed", "failed", "restored"]
+OperationState = Literal["pending", "running", "completed", "failed", "restored", "reconciliation_required"]
 FaultHook = Callable[[str], None]
 
 MANIFEST_KIND = "migration_backup/1"
@@ -310,9 +310,7 @@ def _open_preview_uri(uri: str) -> sqlite3.Connection:
         conn.execute("PRAGMA query_only = ON")
         row = conn.execute("PRAGMA quick_check").fetchone()
         if row is None or str(row[0]) != "ok":
-            raise sqlite3.DatabaseError(
-                f"preview open quick_check failed: {row[0] if row else None!r}"
-            )
+            raise sqlite3.DatabaseError(f"preview open quick_check failed: {row[0] if row else None!r}")
         conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
         db_mod.assert_schema_supported(conn)
     except Exception:
@@ -447,9 +445,9 @@ def _invoke_fault(hook: FaultHook | None, boundary: str) -> None:
 
 
 def _cross_process_lease(cfg: Config, conn: sqlite3.Connection, holder: str) -> Any:
-    return lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path,
-        conn=conn,
+    return writer_guard.registry_writer_lease(
+        cfg,
+        conn,
         holder=holder,
     )
 
@@ -657,6 +655,27 @@ def preview(
 
 
 def status(cfg: Config, operation_id: str, conn: sqlite3.Connection | None = None) -> MigrationStatus:
+    if operation_id.startswith("legacy-"):
+        records = _reviewed_history(cfg, operation_id)
+        if not records:
+            raise NotFoundError("unknown authenticated migration operation")
+        begin = records[0]["payload"]
+        completed = any(row["payload"]["phase"] == "COMPLETE" for row in records)
+        return MigrationStatus(
+            operation_id=operation_id,
+            kind="upgrade_engram_0_2_to_1_0",
+            state="completed" if completed else "running",
+            source_format="legacy-reviewed",
+            target_format="engram/1.0",
+            backup_relpath=None,
+            preview_digest=begin["manifest_digest"],
+            manifest_digest=begin["backup_digest"],
+            created_at="",
+            updated_at="",
+            completed_at=None,
+            error_message=None,
+            steps_done=tuple(row["record_id"] for row in records),
+        )
     own_conn = conn is None
     temp_dir = None
     if own_conn:
@@ -674,7 +693,7 @@ def status(cfg: Config, operation_id: str, conn: sqlite3.Connection | None = Non
         return MigrationStatus(
             operation_id=str(row["operation_id"]),
             kind=str(row["kind"]),
-            state=cast(OperationState, str(row["state"])),
+            state="reconciliation_required",
             source_format=str(row["source_format"]),
             target_format=str(row["target_format"]),
             backup_relpath=row["backup_relpath"],
@@ -683,7 +702,7 @@ def status(cfg: Config, operation_id: str, conn: sqlite3.Connection | None = Non
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
             completed_at=row["completed_at"],
-            error_message=row["error_message"],
+            error_message="historical SQL migration status is not authenticated completion",
             steps_done=steps,
         )
     finally:
@@ -976,6 +995,20 @@ def _run_apply(ctx: _ApplyContext) -> MigrationResult:
     )
 
 
+def _reviewed_history(cfg: Config, operation_id: str) -> tuple[dict[str, Any], ...]:
+    from magicite.core.trust_journal import TrustJournal
+
+    registry_id, client = writer_guard.resolve_custody(cfg)
+    journal = TrustJournal(cfg.data_dir / "trust/authority", registry_id, client)
+    _, records = journal._remote(allow_pending=True)
+    migration_id = operation_id.removeprefix("legacy-")
+    return tuple(
+        row
+        for row in records
+        if row["kind"] == "legacy_reconciliation" and row["payload"]["migration_id"] == migration_id
+    )
+
+
 def apply(
     cfg: Config,
     conn: sqlite3.Connection | None = None,
@@ -983,55 +1016,40 @@ def apply(
     operation_id: str | None = None,
     target_format: str = "engram/1.0",
     fault_hook: FaultHook | None = None,
+    reviewed_sha256: str | None = None,
+    backup_path: str | Path | None = None,
 ) -> MigrationResult:
-    """Explicit upgrade under the shared writer lease (AC-S03-02/03)."""
-    cfg.ensure_dirs()
-    own_conn = conn is None
-    if own_conn:
-        conn = db_mod.connect(cfg.db_path, migrate=True)
-    assert conn is not None
+    """Apply only the explicitly reviewed, backed-up authenticated migration."""
+    from magicite.core import trust_legacy
 
-    preview_result = preview(cfg, conn, target_format=target_format)
-    op_id = operation_id or _new_operation_id()
-
-    existing = ops.get_migration_operation(conn, op_id)
-    if existing is not None and existing["state"] == "completed":
-        steps = tuple(ops.list_journal_steps(conn, op_id).keys())
-        if own_conn:
-            conn.close()
-        return MigrationResult(
-            operation_id=op_id,
-            state="completed",
-            kind=cast(MigrationKind, str(existing["kind"])),
-            preview_digest=existing["preview_digest"],
-            backup_relpath=existing["backup_relpath"],
-            steps_done=steps,
-            resumed=False,
-            duplicate_noop=True,
-        )
-
-    if existing is not None and existing["state"] == "restored":
+    if not reviewed_sha256 or backup_path is None:
         raise InvalidInputError(
-            f"operation {op_id!r} was restored; allocate a new operation_id to upgrade again",
+            "reviewed migration manifest and complete backup are required",
+            hint="run custody legacy-preview, custody legacy-backup, then migration apply "
+            "with --reviewed-sha256 and --backup-path",
         )
-
-    ctx = _ApplyContext(
-        cfg=cfg,
-        conn=conn,
-        operation_id=op_id,
-        preview=preview_result,
-        fault_hook=fault_hook,
-        resumed=existing is not None and existing["state"] in {"pending", "running", "failed"},
+    if target_format != "engram/1.0":
+        raise InvalidInputError("unsupported reviewed migration target")
+    # Verify the complete backup before resolving identity or touching local state.
+    trust_legacy.read_verified_backup(Path(backup_path), reviewed_sha256=reviewed_sha256)
+    canonical_id = "legacy-" + reviewed_sha256[:32]
+    if operation_id is not None and operation_id != canonical_id:
+        raise InvalidInputError("operation_id does not match the reviewed manifest")
+    before = _reviewed_history(cfg, canonical_id)
+    complete = any(row["payload"]["phase"] == "COMPLETE" for row in before)
+    result = trust_legacy.apply_reviewed(
+        cfg, backup_path=Path(backup_path), reviewed_sha256=reviewed_sha256, fault_hook=fault_hook
     )
-    _operation_dir(cfg, op_id).mkdir(parents=True, exist_ok=True)
-
-    try:
-        lease = _cross_process_lease(cfg, conn, f"migration:{op_id}")
-        with lease.acquire(), lease_mod.writer_lease(f"migration:{op_id}"):
-            return _run_apply(ctx)
-    finally:
-        if own_conn:
-            conn.close()
+    return MigrationResult(
+        operation_id=canonical_id,
+        state="completed",
+        kind="upgrade_engram_0_2_to_1_0",
+        preview_digest=result["manifest_digest"],
+        backup_relpath=str(backup_path),
+        steps_done=("reviewed_backup_verified", "authenticated_reconciliation_completed"),
+        resumed=bool(before),
+        duplicate_noop=complete,
+    )
 
 
 def resume(
@@ -1040,43 +1058,18 @@ def resume(
     conn: sqlite3.Connection | None = None,
     *,
     fault_hook: FaultHook | None = None,
+    reviewed_sha256: str | None = None,
+    backup_path: str | Path | None = None,
 ) -> MigrationResult:
-    """Resume an interrupted apply; final state equals uninterrupted (AC-S03-02)."""
-    cfg.ensure_dirs()
-    own_conn = conn is None
-    if own_conn:
-        conn = db_mod.connect(cfg.db_path, migrate=True)
-    assert conn is not None
-    try:
-        row = ops.get_migration_operation(conn, operation_id)
-        if row is None:
-            raise NotFoundError(f"unknown migration operation {operation_id!r}")
-        if row["state"] == "completed":
-            steps = tuple(ops.list_journal_steps(conn, operation_id).keys())
-            return MigrationResult(
-                operation_id=operation_id,
-                state="completed",
-                kind=cast(MigrationKind, str(row["kind"])),
-                preview_digest=row["preview_digest"],
-                backup_relpath=row["backup_relpath"],
-                steps_done=steps,
-                resumed=True,
-                duplicate_noop=True,
-            )
-        if row["state"] == "restored":
-            raise InvalidInputError(
-                f"operation {operation_id!r} was restored and cannot be resumed as an upgrade"
-            )
-        return apply(
-            cfg,
-            conn,
-            operation_id=operation_id,
-            target_format=row["target_format"],
-            fault_hook=fault_hook,
-        )
-    finally:
-        if own_conn:
-            conn.close()
+    """Resume the same reviewed plan; SQL migration rows confer no authority."""
+    return apply(
+        cfg,
+        conn,
+        operation_id=operation_id,
+        fault_hook=fault_hook,
+        reviewed_sha256=reviewed_sha256,
+        backup_path=backup_path,
+    )
 
 
 def _load_manifest(manifest_path: Path) -> dict[str, Any]:
@@ -1222,126 +1215,90 @@ def restore(
     conn: sqlite3.Connection | None = None,
     operation_id: str | None = None,
     fault_hook: FaultHook | None = None,
+    staging_path: str | Path | None = None,
+    reviewed_sha256: str | None = None,
 ) -> MigrationResult:
-    """Restore a matching pre-upgrade backup (AC-S03-04).
+    """Materialize a verified legacy backup into restricted, inactive staging."""
+    from magicite.core import trust_legacy
+    from magicite.core.trust_journal import _directory_fd, _read_file
 
-    Authoritative trees (engrams/approvals/archive) are restored byte-for-byte
-    from the backup. The SQLite DB remains a rebuildable projection: mirror
-    columns are refreshed from restored files. Migration journal rows are
-    retained (never deleted to fake a downgrade).
-    """
-    cfg.ensure_dirs()
+    if staging_path is None:
+        raise InvalidInputError(
+            "legacy restore requires an explicit inactive staging path",
+            hint="use --staging-path outside the active project; reconcile with reviewed legacy apply",
+        )
     backup_root, manifest_path = _resolve_backup_paths(backup_path)
-    manifest = _load_manifest(manifest_path)
-    _verify_backup_files(backup_root, manifest)
-
-    own_conn = conn is None
-    if own_conn:
-        conn = db_mod.connect(cfg.db_path, migrate=True)
-    assert conn is not None
-
-    restore_op_id = operation_id or f"rst_{uuid.uuid4().hex}"
-    source_op = str(manifest.get("operation_id") or "")
-    try:
-        backup_rel: str
-        try:
-            backup_rel = _rel_to_data(cfg, backup_root)
-        except ValueError:
-            backup_rel = str(backup_root)
-
-        lease = _cross_process_lease(cfg, conn, f"restore:{restore_op_id}")
-        with lease.acquire(), lease_mod.writer_lease(f"restore:{restore_op_id}"):
-            ops.upsert_migration_operation(
-                conn,
-                operation_id=restore_op_id,
-                kind="restore_backup",
-                state="running",
-                source_format=str(manifest.get("target_engram_format") or "engram/1.0"),
-                target_format=str(manifest.get("source_engram_format") or "engram/0.2"),
-                backup_relpath=backup_rel,
-                preview_digest=manifest.get("preview_digest"),
-                manifest_digest=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
-            )
-            _invoke_fault(fault_hook, "boundary:restore_begin")
-
-            _restore_tree(
-                backup_root / "engrams",
-                cfg.registry_dir,
-                data_root=cfg.data_dir,
-                clear_glob="*.egr.md",
-            )
-            _invoke_fault(fault_hook, "boundary:restore_tree:engrams")
-            _restore_tree(backup_root / "approvals", cfg.approvals_dir, data_root=cfg.data_dir)
-            _invoke_fault(fault_hook, "boundary:restore_tree:approvals")
-            _restore_tree(backup_root / "archive", cfg.archive_dir, data_root=cfg.data_dir)
-            _invoke_fault(fault_hook, "boundary:restore_tree:archive")
-
-            # Refresh rebuildable mirrors from restored authoritative files.
-            for path in _scan_registry_files(cfg):
-                artifact, _doc = load_artifact_file(
-                    path, registry_root=cfg.project_root, require_asset_files=False
-                )
-                if isinstance(artifact, Engram):
-                    fm_id = artifact.frontmatter.id
-                    spec: str = artifact.frontmatter.spec
-                    body_sha = artifact.body_sha256
-                else:
-                    fm_id = artifact.frontmatter.id
-                    spec = str(artifact.frontmatter.spec)
-                    body_sha = artifact.body_sha256
-                content_sha = hashlib.sha256(path.read_bytes()).hexdigest()
-                ops.update_engram_format_mirror(
-                    conn,
-                    engram_id=fm_id,
-                    spec_version=spec,
-                    content_sha256=content_sha,
-                    body_sha256=body_sha or content_sha,
-                    file_mtime_ns=path.stat().st_mtime_ns,
-                    path=path.relative_to(cfg.project_root).as_posix(),
-                )
-            _invoke_fault(fault_hook, "boundary:restore_mirrors")
-
-            ops.upsert_migration_operation(
-                conn,
-                operation_id=restore_op_id,
-                kind="restore_backup",
-                state="completed",
-                source_format=str(manifest.get("target_engram_format") or "engram/1.0"),
-                target_format=str(manifest.get("source_engram_format") or "engram/0.2"),
-                completed_at=_now(),
-                error_message=None,
-            )
-            ops.record_journal_step(
-                conn,
-                operation_id=restore_op_id,
-                step_key=STEP_COMPLETED,
-                detail={"restored_from": source_op, "manifest": str(manifest_path)},
-            )
-            if source_op and ops.get_migration_operation(conn, source_op):
-                src_row = ops.get_migration_operation(conn, source_op)
-                assert src_row is not None
-                ops.upsert_migration_operation(
-                    conn,
-                    operation_id=source_op,
-                    kind=str(src_row["kind"]),
-                    state="restored",
-                    source_format=str(src_row["source_format"]),
-                    target_format=str(src_row["target_format"]),
-                )
-            _invoke_fault(fault_hook, "boundary:restore_completed")
-
-            steps = tuple(ops.list_journal_steps(conn, restore_op_id).keys())
-            return MigrationResult(
-                operation_id=restore_op_id,
-                state="completed",
-                kind="restore_backup",
-                preview_digest=manifest.get("preview_digest"),
-                backup_relpath=backup_rel,
-                steps_done=steps,
-            )
-    finally:
-        if own_conn:
-            conn.close()
+    if reviewed_sha256 is not None:
+        _, manifest = trust_legacy.read_verified_backup(backup_root, reviewed_sha256=reviewed_sha256)
+        source_root = backup_root / "files"
+    else:
+        manifest = _load_manifest(manifest_path)
+        _verify_backup_files(backup_root, manifest)
+        source_root = backup_root
+    destination = Path(staging_path).absolute()
+    # Never overwrite the active registry or the archive being recovered.
+    for protected in (cfg.project_root.resolve(), backup_root.resolve()):
+        if destination.resolve().is_relative_to(protected) or protected.is_relative_to(destination.resolve()):
+            raise InvalidInputError("restore staging must be separate from project and backup")
+    commitment = trust_legacy.digest(manifest)
+    canonical_id = "stage-" + commitment[:32]
+    if operation_id is not None and operation_id != canonical_id:
+        raise InvalidInputError("restore operation_id does not match the backup")
+    intent_path = destination / "restore-intent.json"
+    intent = trust_legacy.canonical(
+        {"schema": "RestrictedLegacyRestoreIntent/1", "manifest_digest": commitment}
+    )
+    if destination.exists():
+        with _directory_fd(destination) as directory:
+            try:
+                existing_intent = _read_file(directory, intent_path.name)
+            except FileNotFoundError:
+                if any(destination.iterdir()):
+                    raise InvalidInputError("restore staging is not empty or bound to this backup") from None
+            else:
+                if existing_intent != intent:
+                    raise InvalidInputError("restore staging belongs to a different backup")
+    trust_legacy._write_new_or_exact(intent_path, intent, lambda: None)
+    marker = destination / "reconciliation-required.json"
+    duplicate = marker.exists()
+    # Copy only committed regular-file bytes; no active schema/DB/trust writes.
+    entries = (
+        [{"path": key, **value} for key, value in manifest["files"].items()]
+        if reviewed_sha256 is not None
+        else manifest["files"]
+    )
+    for entry in entries:
+        rel = Path(entry["path"])
+        if rel.is_absolute() or ".." in rel.parts or not rel.parts:
+            raise InvalidInputError("invalid backup member")
+        with _directory_fd(source_root / rel.parent) as directory:
+            raw = _read_file(directory, rel.name)
+        if len(raw) != entry["size"] or hashlib.sha256(raw).hexdigest() != entry["sha256"]:
+            raise InvalidInputError("backup member changed before staged restore")
+        trust_legacy._write_new_or_exact(destination / "files" / rel, raw, lambda: None)
+        _invoke_fault(fault_hook, "staged_file:" + rel.as_posix())
+    trust_legacy._write_new_or_exact(
+        marker,
+        trust_legacy.canonical(
+            {
+                "schema": "RestrictedLegacyRestore/1",
+                "manifest_digest": commitment,
+                "status": "reconciliation_required",
+                "active": False,
+                "next_action": "reviewed legacy reconciliation; staged bytes confer no trust",
+            }
+        ),
+        lambda: None,
+    )
+    return MigrationResult(
+        operation_id=canonical_id,
+        state="reconciliation_required",
+        kind="restore_backup",
+        preview_digest=manifest.get("preview_digest", reviewed_sha256),
+        backup_relpath=str(destination),
+        steps_done=("restricted_backup_materialized",),
+        duplicate_noop=duplicate,
+    )
 
 
 # Re-export index pointer helpers for S05 (storage primitives owned by S03).

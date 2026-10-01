@@ -126,6 +126,16 @@ def _parse_args() -> argparse.Namespace:
         default=[],
         help="prior measured E6 corpus-stratum run for the combined support gate",
     )
+    parser.add_argument(
+        "--custody",
+        choices=("protected", "disposable-simulated"),
+        default="protected",
+        help=(
+            "protected requires enrolled custody and fails closed for the disposable "
+            "benchmark registry; disposable-simulated uses an in-process evaluation "
+            "custodian, is never GA-eligible and leaves deployment custody UNEVALUATED"
+        ),
+    )
     parser.add_argument("--output", type=Path, help="write the JSON result to this path")
     args = parser.parse_args()
     if args.sizes is not None and any(size < 1 for size in args.sizes):
@@ -139,6 +149,51 @@ def _parse_args() -> argparse.Namespace:
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+class _DisposableCustody:
+    def __init__(self, store: Any, registry_id: str) -> None:
+        self.store, self.registry_id = store, registry_id
+
+    def call(self, operation: str, **arguments: Any) -> Any:
+        return getattr(self.store, operation)(self.registry_id, **arguments)
+
+
+def _attach_custody(project_root: Path, directory: Path, registry_id: str) -> None:
+    """Route custody resolution for this disposable registry only to ``directory``."""
+    from magicite.core import writer_guard
+    from magicite.core.trust_custodian import CustodianStore
+
+    provider = _DisposableCustody(CustodianStore.open(directory), registry_id)
+    original = writer_guard.resolve_custody
+    root = project_root.resolve()
+
+    def resolve(candidate: Config) -> tuple[str, Any]:
+        if candidate.project_root.resolve() == root:
+            return registry_id, provider
+        return original(candidate)
+
+    writer_guard.resolve_custody = resolve  # type: ignore[assignment]
+
+
+def _enroll_disposable_custody(cfg: Config, directory: Path) -> str:
+    """Create an evaluation-only custodian for the disposable benchmark registry."""
+    from magicite.core import trust
+    from magicite.core.trust_custodian import CustodianStore
+    from magicite.core.trust_journal import TrustJournal
+
+    registry_id = "benchmark-" + hashlib.sha256(str(cfg.project_root.resolve()).encode()).hexdigest()[:24]
+    store = CustodianStore.create(directory)
+    try:
+        store.enroll(registry_id, trust.default_policy().to_dict(), actor="benchmark-operator", reviewed=True)
+    finally:
+        store.close()
+    _attach_custody(cfg.project_root, directory, registry_id)
+    from magicite.core import writer_guard
+
+    _, provider = writer_guard.resolve_custody(cfg)
+    TrustJournal(cfg.data_dir / "trust/authority", registry_id, provider).initialize_reviewed_genesis()
+    return registry_id
 
 
 def _build_synthetic_registry(
@@ -178,6 +233,25 @@ def _build_synthetic_registry(
     outcome = registry.register(cfg, conn, embedder, path=str(cfg.registry_dir))
     if outcome.validation_errors or outcome.ingested != n:
         raise ValueError("synthetic artifacts failed production registration")
+    # Registration grants nothing; explicit review binds exactly the bytes
+    # generated above, so measured routes select rather than refuse.
+    _review_all(cfg, conn, reason="isolated synthetic evaluation registry; no runtime trust transfer")
+
+
+def _review_all(cfg: Config, conn: sqlite3.Connection, *, reason: str) -> None:
+    from magicite.core import registry, writer_guard
+
+    # One writer lease spans the batch; each review is still its own decision.
+    with writer_guard.registry_writer_lease(cfg, conn).acquire():
+        for row in conn.execute("SELECT id, content_sha256 FROM engram").fetchall():
+            registry.review_approve(
+                cfg,
+                conn,
+                engram_id=row["id"],
+                expected_digest=row["content_sha256"],
+                actor="benchmark-explicit-evaluation-review",
+                reason=reason,
+            )
 
 
 def _semantic_signature(outcome: router_mod.RouteOutcome) -> dict[str, Any]:
@@ -274,15 +348,7 @@ def _build_registry_from_corpus_manifest(
         )
         if outcome.validation_errors:
             raise ValueError("corpus artifact failed registry admission")
-    for row in conn.execute("SELECT id, content_sha256 FROM engram").fetchall():
-        registry.review_approve(
-            cfg,
-            conn,
-            engram_id=row["id"],
-            expected_digest=row["content_sha256"],
-            actor="benchmark-explicit-evaluation-review",
-            reason="isolated digest-bound corpus evaluation; no runtime trust transfer",
-        )
+    _review_all(cfg, conn, reason="isolated digest-bound corpus evaluation; no runtime trust transfer")
     queries = [
         {"query_text": q.query_text, "compatibility_context": q.compatibility_context}
         for q in corpus.queries
@@ -341,7 +407,9 @@ def _timed_route(
     return time.perf_counter() - started, outcome
 
 
-def _cold_process_ready(cfg: Config, db_path: Path, query: Any, provider: str) -> float:
+def _cold_process_ready(
+    cfg: Config, db_path: Path, query: Any, provider: str, custody: list[str] | None = None
+) -> float:
     """Wall time for a new serving process through first serialized route."""
     program = """
 import sys, json
@@ -352,7 +420,13 @@ from magicite.storage import db
 from magicite.core import router
 from magicite.mcp.bind_retrieval import project_route_output
 from magicite.eval.query_context import corpus_route_context
-root, database, query, provider = json.loads(sys.argv[1])
+root, database, query, provider, custody, script = json.loads(sys.argv[1])
+if custody is not None:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('benchmark_matrix', script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module._attach_custody(Path(root), Path(custody[0]), custody[1])
 cfg = Config(project_root=Path(root))
 cfg.embedding_provider = provider
 cfg.embedding_offline = True
@@ -370,7 +444,14 @@ finally:
 """
     started = time.perf_counter()
     subprocess.run(
-        [sys.executable, "-c", program, json.dumps([str(cfg.project_root), str(db_path), query, provider])],
+        [
+            sys.executable,
+            "-c",
+            program,
+            json.dumps(
+                [str(cfg.project_root), str(db_path), query, provider, custody, str(Path(__file__).resolve())]
+            ),
+        ],
         capture_output=True,
         text=True,
         check=True,
@@ -451,6 +532,7 @@ def _measure_profile(
     for index in range(warmup):
         _timed_route(cfg, conn, embedder, query=_query_for_index(index, queries), session_id=session_id)
     warm_durations = []
+    warm_selected_routes = 0
     truncations_fallbacks = []
     payload_tokens = []
     for index in range(calls):
@@ -458,6 +540,7 @@ def _measure_profile(
             cfg, conn, embedder, query=_query_for_index(warmup + index, queries), session_id=session_id
         )
         warm_durations.append(duration)
+        warm_selected_routes += bool(outcome.candidates)
         payload_tokens.append(len(tokenize_words(project_route_output(outcome).model_dump_json())))
         decision = outcome.decision
         if decision is not None and (decision.truncations or decision.fallback_identity):
@@ -508,6 +591,7 @@ def _measure_profile(
         "index_build_peak_rss_gib": None,
         "payload_tokens": max(payload_tokens, default=0),
         "warm_durations_s": warm_durations,
+        "warm_selected_routes": warm_selected_routes,
         "cache_hit_rates": {
             "route_index": router_mod._cached_route_index.cache_info().hits
             / max(
@@ -618,13 +702,21 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "n_candidates": None,
         }
 
+    result["custody"] = {"mode": args.custody, "deployment_qualification": "UNEVALUATED"}
     try:
-        with tempfile.TemporaryDirectory(prefix="magicite-benchmark-") as temp_dir:
-            project_root = Path(temp_dir)
+        with (
+            tempfile.TemporaryDirectory(prefix="magicite-benchmark-") as temp_dir,
+            tempfile.TemporaryDirectory(prefix="magicite-benchmark-custody-") as custody_parent,
+        ):
+            project_root = Path(temp_dir).resolve()
             cfg = Config(project_root=project_root)
             cfg.embedding_provider = provider_name
             cfg.embedding_offline = True
             cfg.ensure_dirs()
+            custody: list[str] | None = None
+            if args.custody == "disposable-simulated":
+                custody_dir = Path(custody_parent).resolve() / "private"
+                custody = [str(custody_dir), _enroll_disposable_custody(cfg, custody_dir)]
             embedder = get_embedder(cfg)
             result["fingerprint"]["model_name"] = embedder.model_name
             model_digest = getattr(embedder, "model_digest", None) or getattr(
@@ -685,7 +777,7 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 )
                 conn.commit()
                 cold_ready = _cold_process_ready(
-                    cfg, db_path, _query_for_index(0, measure_queries), provider_name
+                    cfg, db_path, _query_for_index(0, measure_queries), provider_name, custody
                 )
                 raw["cold_ready_s"] = cold_ready
                 for cold_state in ("cold_process", "cold_model"):
@@ -784,6 +876,9 @@ def _apply_ga_eligibility(
         measured_result=result,
         support_runs=[json.loads(path.read_text()) for path in getattr(args, "support_run", [])],
     )
+    if getattr(args, "custody", "protected") != "protected":
+        eligible = False
+        reasons = [*reasons, f"custody={args.custody!r} (deployment custody UNEVALUATED)"]
     corpus["ga_eligible"] = eligible
     corpus["ga_ineligible_reasons"] = reasons
     result["corpus"] = corpus

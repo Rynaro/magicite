@@ -1,4 +1,5 @@
 """Policy commit-boundary fencing and interrupted governance projection recovery."""
+
 from __future__ import annotations
 
 import json
@@ -8,30 +9,38 @@ from pathlib import Path
 import pytest
 
 from magicite.config import Config
-from magicite.core import approvals
+from magicite.core import approvals, writer_guard
 from magicite.core import policy_store as ps
 from magicite.errors import BusyError, InvalidInputError
-from magicite.storage import db, lease
+from magicite.storage import db
 
 
 def _manifest(digest: str) -> ps.PolicyManifest:
-    return ps.PolicyManifest(policy_id="dense-v1", policy_digest=digest,
-                             policy_family="stable", config_digest="c",
-                             calibration_digest=None, index_generation_id="g",
-                             snapshot_id="s", selection="cosine_similarity")
+    return ps.PolicyManifest(
+        policy_id="dense-v1",
+        policy_digest=digest,
+        policy_family="stable",
+        config_digest="c",
+        calibration_digest=None,
+        index_generation_id="g",
+        snapshot_id="s",
+        selection="cosine_similarity",
+    )
 
 
-def _prepared(tmp_path: Path) -> tuple[Config, str]:
+def _prepared(tmp_path: Path, custody_for) -> tuple[Config, str]:
     cfg = Config(project_root=tmp_path)
+    custody_for(cfg)
     ps.register_evaluated(cfg, _manifest("a"), evaluation_status="pass")
     return cfg, ps.approve(cfg, "a", actor="fixture")
 
 
-def test_nested_scope_reuses_only_same_registry(tmp_path: Path) -> None:
-    cfg, _ = _prepared(tmp_path / "one")
+def test_nested_scope_reuses_only_same_registry(custody_for, tmp_path: Path) -> None:
+    cfg, _ = _prepared(tmp_path / "one", custody_for)
     other = Config(project_root=tmp_path / "two")
+    custody_for(other)
     conn = db.connect(cfg.db_path)
-    cross = lease.CrossProcessLease(lock_path=cfg.dream_lock_path, conn=conn, holder="outer")
+    cross = writer_guard.registry_writer_lease(cfg, conn, holder="outer")
     try:
         with cross.acquire():
             ps.register_evaluated(cfg, _manifest("b"), evaluation_status="pass")
@@ -46,20 +55,25 @@ def test_nested_scope_reuses_only_same_registry(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("domain", ["policy", "mirror"])
 def test_token_loss_after_file_fsync_prevents_publication(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, domain: str,
+    custody_for,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    domain: str,
 ) -> None:
-    cfg, approval = _prepared(tmp_path)
+    cfg, approval = _prepared(tmp_path, custody_for)
     before = ps.policy_store_path(cfg).read_bytes()
     conn = db.connect(cfg.db_path)
-    cross = lease.CrossProcessLease(lock_path=cfg.dream_lock_path, conn=conn, holder="outer")
+    cross = writer_guard.registry_writer_lease(cfg, conn, holder="outer")
     real_fsync = os.fsync
     try:
         with cross.acquire():
+
             def lose_token(fd: int) -> None:
                 real_fsync(fd)
                 # The first file fsync is state for register, prepared mirror for activate.
                 conn.execute("UPDATE writer_lease SET fencing_token = fencing_token + 1")
                 conn.commit()
+
             monkeypatch.setattr(os, "fsync", lose_token)
             with pytest.raises(BusyError):
                 if domain == "policy":
@@ -74,21 +88,27 @@ def test_token_loss_after_file_fsync_prevents_publication(
 
 @pytest.mark.parametrize("boundary", ["before_state", "after_state", "after_mirror"])
 def test_interrupted_policy_commit_is_recoverable_and_closed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, boundary: str,
+    custody_for,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    boundary: str,
 ) -> None:
-    cfg, approval = _prepared(tmp_path)
+    cfg, approval = _prepared(tmp_path, custody_for)
     original_save = ps._save_raw
     original_finalize = approvals.finalize_policy_control_event
+
     def failing_save(config: Config, state: dict) -> None:
         if boundary == "before_state" and state.get("pending_control"):
             raise OSError("injected before authenticated commit")
         if boundary == "after_mirror" and state.get("active_digest") and not state.get("pending_control"):
             raise OSError("injected before pending clear")
         original_save(config, state)
+
     def failing_finalize(config: Config, expected: dict) -> None:
         if boundary == "after_state":
             raise OSError("injected before mirror finalization")
         original_finalize(config, expected)
+
     monkeypatch.setattr(ps, "_save_raw", failing_save)
     monkeypatch.setattr(approvals, "finalize_policy_control_event", failing_finalize)
     with pytest.raises(OSError):
@@ -111,12 +131,16 @@ def test_interrupted_policy_commit_is_recoverable_and_closed(
 
 
 def test_conflicting_pending_mirror_never_repaired_from_untrusted_bytes(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    custody_for,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    cfg, approval = _prepared(tmp_path)
+    cfg, approval = _prepared(tmp_path, custody_for)
     original = approvals.finalize_policy_control_event
+
     def crash(*args: object) -> None:
         raise OSError("crash")
+
     monkeypatch.setattr(approvals, "finalize_policy_control_event", crash)
     with pytest.raises(OSError):
         ps.activate(cfg, expected_current=None, candidate_digest="a", approval_id=approval)
@@ -134,16 +158,21 @@ def test_conflicting_pending_mirror_never_repaired_from_untrusted_bytes(
 
 
 def test_prepared_mirror_directory_is_durable_before_state_commit(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    custody_for,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import stat
-    cfg, approval = _prepared(tmp_path)
+
+    cfg, approval = _prepared(tmp_path, custody_for)
     before = ps.policy_store_path(cfg).read_bytes()
     real_fsync = os.fsync
+
     def fail_directory_fsync(fd: int) -> None:
         if stat.S_ISDIR(os.fstat(fd).st_mode):
             raise OSError("directory durability unavailable")
         real_fsync(fd)
+
     monkeypatch.setattr(os, "fsync", fail_directory_fsync)
     with pytest.raises(OSError, match="directory durability"):
         ps.activate(cfg, expected_current=None, candidate_digest="a", approval_id=approval)
@@ -153,15 +182,21 @@ def test_prepared_mirror_directory_is_durable_before_state_commit(
 
 @pytest.mark.parametrize("mirror_state", ["valid", "missing", "conflicting"])
 def test_public_cli_reconciliation_and_read_only_diagnostics(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mirror_state: str,
+    custody_for,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mirror_state: str,
 ) -> None:
     from click.testing import CliRunner
 
     from magicite.__main__ import cli
-    cfg, approval = _prepared(tmp_path)
+
+    cfg, approval = _prepared(tmp_path, custody_for)
     original = approvals.finalize_policy_control_event
+
     def crash(*args: object) -> None:
         raise OSError("crash before finalization")
+
     monkeypatch.setattr(approvals, "finalize_policy_control_event", crash)
     with pytest.raises(OSError):
         ps.activate(cfg, expected_current=None, candidate_digest="a", approval_id=approval)
@@ -173,9 +208,14 @@ def test_public_cli_reconciliation_and_read_only_diagnostics(
         raw = json.loads(mirror.read_text())
         raw["payload"]["policy_digest"] = "untrusted"
         mirror.write_text(json.dumps(raw))
+
     def snapshot() -> dict[str, bytes]:
-        return {str(path.relative_to(cfg.data_dir)): path.read_bytes()
-                for path in cfg.data_dir.rglob("*") if path.is_file()}
+        return {
+            str(path.relative_to(cfg.data_dir)): path.read_bytes()
+            for path in cfg.data_dir.rglob("*")
+            if path.is_file()
+        }
+
     before = snapshot()
     with pytest.raises(InvalidInputError, match="pending"):
         ps.get_active_manifest(cfg)
@@ -193,14 +233,18 @@ def test_public_cli_reconciliation_and_read_only_diagnostics(
 
 
 def test_policy_directory_open_failure_does_not_acknowledge_commit(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    custody_for,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    cfg, approval = _prepared(tmp_path)
+    cfg, approval = _prepared(tmp_path, custody_for)
     real_open = os.open
+
     def fail_policy_directory(path: str | Path, flags: int, *args: object, **kwargs: object) -> int:
         if Path(path) == ps.policy_store_dir(cfg) and flags == os.O_RDONLY:
             raise OSError("policy directory durability unavailable")
         return real_open(path, flags, *args, **kwargs)
+
     monkeypatch.setattr(os, "open", fail_policy_directory)
     with pytest.raises(OSError, match="policy directory durability"):
         ps.activate(cfg, expected_current=None, candidate_digest="a", approval_id=approval)

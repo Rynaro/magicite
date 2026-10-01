@@ -112,9 +112,7 @@ def _stale_writer(
             return
         try:
             candidate.assert_owned()
-            conn.execute(
-                "INSERT INTO schema_meta (key, value) VALUES ('stale-write', 'landed')"
-            )
+            conn.execute("INSERT INTO schema_meta (key, value) VALUES ('stale-write', 'landed')")
         except BusyError:
             results.put({"status": "fenced"})
         else:
@@ -257,9 +255,10 @@ def test_ttl_overrun_fences_stale_writer(tmp_path: Path) -> None:
 
         attempt_write.set()
         assert results.get(timeout=10)["status"] == "fenced"
-        assert replacement_conn.execute(
-            "SELECT value FROM schema_meta WHERE key = 'stale-write'"
-        ).fetchone() is None
+        assert (
+            replacement_conn.execute("SELECT value FROM schema_meta WHERE key = 'stale-write'").fetchone()
+            is None
+        )
     finally:
         attempt_write.set()
         _join_cleanly([stale])
@@ -270,6 +269,15 @@ def test_ttl_overrun_fences_stale_writer(tmp_path: Path) -> None:
 
 
 def _stale_domain_writer(
+    project_root, lock_path, domain, acquired, attempt_write, results, directory, registry_id
+):
+    from tests.support.custody_adapter import attach_fixture
+
+    with attach_fixture(Path(project_root), Path(directory), registry_id):
+        _stale_domain_attached(project_root, lock_path, domain, acquired, attempt_write, results)
+
+
+def _stale_domain_attached(
     project_root: str,
     lock_path: str,
     domain: str,
@@ -290,9 +298,11 @@ def _stale_domain_writer(
 
     cfg = Config.load(Path(project_root), env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
     conn = db_mod.connect(cfg.db_path)
-    candidate = lease.CrossProcessLease(
-        lock_path=lock_path,
-        conn=conn,
+    from magicite.core.writer_guard import registry_writer_lease
+
+    candidate = registry_writer_lease(
+        cfg,
+        conn,
         holder=f"stale-{domain}",
         ttl_s=0.35,
     )
@@ -456,7 +466,7 @@ def test_killed_holder_lease_reclaimed(tmp_path: Path) -> None:
 
 @pytest.mark.acceptance
 @pytest.mark.parametrize("domain", ["evidence", "trust", "approvals", "policy"])
-def test_stale_writer_cannot_commit_domain_stores(tmp_path: Path, domain: str) -> None:
+def test_stale_writer_cannot_commit_domain_stores(custody_for, tmp_path: Path, domain: str) -> None:
     """AC-S12-04: stale/killed lease holder cannot commit via evidence/trust/approvals.
 
     Includes the stable policy store after S07 integration.
@@ -487,6 +497,7 @@ def test_stale_writer_cannot_commit_domain_stores(tmp_path: Path, domain: str) -
         encoding="utf-8",
     )
     cfg = Config.load(project, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    provider = custody_for(cfg)
     cfg.ensure_dirs()
     fk.load_or_create_fingerprint_key(cfg)
     seed = db_mod.connect(cfg.db_path)
@@ -506,6 +517,8 @@ def test_stale_writer_cannot_commit_domain_stores(tmp_path: Path, domain: str) -
             acquired,
             attempt_write,
             results,
+            str(provider.store.directory),
+            provider.registry_id,
         ),
     )
     stale.start()
@@ -543,19 +556,28 @@ def test_stale_writer_cannot_commit_domain_stores(tmp_path: Path, domain: str) -
 
 def _policy_manifest(digest: str) -> Any:
     from magicite.core.policy_store import PolicyManifest
-    return PolicyManifest(policy_id="dense-v1", policy_digest=digest,
-                          policy_family="stable", config_digest="config",
-                          calibration_digest=None, index_generation_id="g",
-                          snapshot_id="s", selection="cosine_similarity")
+
+    return PolicyManifest(
+        policy_id="dense-v1",
+        policy_digest=digest,
+        policy_family="stable",
+        config_digest="config",
+        calibration_digest=None,
+        index_generation_id="g",
+        snapshot_id="s",
+        selection="cosine_similarity",
+    )
 
 
 def _policy_lock_holder(project_root: str, ready: Any, release: Any) -> None:
     from magicite.config import Config
+
     cfg = Config(project_root=Path(project_root))
     conn = db_mod.connect(cfg.db_path)
     try:
-        with lease.CrossProcessLease(lock_path=cfg.dream_lock_path, conn=conn,
-                                     holder="policy-blocker").acquire():
+        with lease.CrossProcessLease(
+            lock_path=cfg.dream_lock_path, conn=conn, holder="policy-blocker"
+        ).acquire():
             ready.set()
             release.wait(timeout=15)
     finally:
@@ -563,10 +585,12 @@ def _policy_lock_holder(project_root: str, ready: Any, release: Any) -> None:
 
 
 @pytest.mark.parametrize("operation", ["register", "approve", "activate", "rollback"])
-def test_policy_mutators_obey_other_process_lease(tmp_path: Path, operation: str) -> None:
+def test_policy_mutators_obey_other_process_lease(custody_for, tmp_path: Path, operation: str) -> None:
     from magicite.config import Config
     from magicite.core import policy_store as ps
+
     cfg = Config(project_root=tmp_path)
+    custody_for(cfg)
     cfg.ensure_dirs()
     db_mod.connect(cfg.db_path).close()
     ps.register_evaluated(cfg, _policy_manifest("a"), evaluation_status="pass")
@@ -596,11 +620,20 @@ def test_policy_mutators_obey_other_process_lease(tmp_path: Path, operation: str
     assert ps.status(cfg).active_digest == "a"
 
 
-def _policy_cas_contender(project_root: str, digest: str, approval: str,
-                          ready: Any, start: Any, results: Any) -> None:
+def _policy_cas_contender(project_root, digest, approval, ready, start, results, directory, registry_id):
+    from tests.support.custody_adapter import attach_fixture
+
+    with attach_fixture(Path(project_root), Path(directory), registry_id):
+        _policy_cas_attached(project_root, digest, approval, ready, start, results)
+
+
+def _policy_cas_attached(
+    project_root: str, digest: str, approval: str, ready: Any, start: Any, results: Any
+) -> None:
     from magicite.config import Config
     from magicite.core import policy_store as ps
     from magicite.errors import InvalidInputError
+
     cfg = Config(project_root=Path(project_root))
     ready.put(digest)
     start.wait(timeout=10)
@@ -612,20 +645,35 @@ def _policy_cas_contender(project_root: str, digest: str, approval: str,
         results.put((digest, "committed"))
 
 
-def test_policy_concurrent_cas_has_one_winner(tmp_path: Path) -> None:
+def test_policy_concurrent_cas_has_one_winner(custody_for, tmp_path: Path) -> None:
     from magicite.config import Config
     from magicite.core import policy_store as ps
     from magicite.errors import InvalidInputError
+
     cfg = Config(project_root=tmp_path)
+    provider = custody_for(cfg)
     approvals = {}
     for digest in ("a", "b"):
         ps.register_evaluated(cfg, _policy_manifest(digest), evaluation_status="pass")
         approvals[digest] = ps.approve(cfg, digest, actor="fixture")
     ctx = _spawn_context()
     ready, results, start = ctx.Queue(), ctx.Queue(), ctx.Event()
-    children = [ctx.Process(target=_policy_cas_contender,
-                            args=(str(tmp_path), d, approvals[d], ready, start, results))
-                for d in approvals]
+    children = [
+        ctx.Process(
+            target=_policy_cas_contender,
+            args=(
+                str(tmp_path),
+                d,
+                approvals[d],
+                ready,
+                start,
+                results,
+                str(provider.store.directory),
+                provider.registry_id,
+            ),
+        )
+        for d in approvals
+    ]
     for child in children:
         child.start()
     try:
@@ -637,8 +685,7 @@ def test_policy_concurrent_cas_has_one_winner(tmp_path: Path) -> None:
         loser = next(d for d, outcome in outcomes.items() if outcome == "rejected")
         assert ps.status(cfg).active_digest == winner
         with pytest.raises(InvalidInputError, match="stale expected_current"):
-            ps.activate(cfg, expected_current=None, candidate_digest=loser,
-                        approval_id=approvals[loser])
+            ps.activate(cfg, expected_current=None, candidate_digest=loser, approval_id=approvals[loser])
     finally:
         start.set()
         _join_cleanly(children)

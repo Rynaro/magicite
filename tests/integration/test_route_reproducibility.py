@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from tests.conftest import TOY_ENGRAM_NAMES
+
 from magicite.core import fingerprint_key as fk
 from magicite.core import registry as registry_mod
 from magicite.core import router as router_mod
 
 
-def test_rebuild_determinism(cfg, db_conn, embedder) -> None:
+def test_rebuild_determinism(cfg, db_conn, embedder, review_fixture_artifacts) -> None:
     """GIVEN pinned semantic inputs
     WHEN routing repeats across rebuild
     THEN semantic decision fields SHALL match.
@@ -16,6 +18,7 @@ def test_rebuild_determinism(cfg, db_conn, embedder) -> None:
     fk.set_fingerprint_key_override(b"\x33" * fk.KEY_BYTES)
     try:
         registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+        review_fixture_artifacts(*TOY_ENGRAM_NAMES)
         query = "rollback proton for a steam game"
 
         first = router_mod.route(cfg, db_conn, embedder, query=query, k=5)

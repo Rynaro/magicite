@@ -82,7 +82,9 @@ trust:
             now,
         ),
     )
-    return digest
+    from tests.support.custody_adapter import review_inserted_source
+
+    return review_inserted_source(cfg, conn, path=full, source=data)
 
 
 def _embed_and_store(conn, embedder, engram_id: str, text: str, digest: str) -> None:

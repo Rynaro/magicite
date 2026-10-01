@@ -165,6 +165,13 @@ def _semantic_v1_errors(
             if not isinstance(value, dict):
                 errors.append(f"extensions.{key}: must be an object")
                 continue
+            if key == "magicite.trust_journal" and key in known:
+                if (value.get("required") is not True
+                        or value.get("journal_version") != "trust-journal/1"
+                        or not isinstance(value.get("registry_id"), str)
+                        or not value["registry_id"]
+                        or set(value) != {"required", "registry_id", "journal_version"}):
+                    errors.append("extensions.magicite.trust_journal: invalid enrollment marker")
             if value.get("required") is True and key not in known:
                 errors.append(f"extensions.{key}: unknown required extension rejected (fail closed)")
 

@@ -114,9 +114,9 @@ def test_digest_and_policy_binding(cfg, db_conn, embedder, tmp_path: Path) -> No
     outcome = registry_mod.register(cfg, db_conn, embedder, path="incoming", fmt="egr")
     assert outcome.ingested == 1
     entry = outcome.registered[0]
-    digest = db_conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)
-    ).fetchone()["content_sha256"]
+    digest = db_conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)).fetchone()[
+        "content_sha256"
+    ]
 
     decision = registry_mod.review_approve(
         cfg,
@@ -133,17 +133,29 @@ def test_digest_and_policy_binding(cfg, db_conn, embedder, tmp_path: Path) -> No
     assert view.admitted is True
     assert view.origin_trusted is True
 
-    # Content byte change → prior approval must not authorize routing.
+    # Mutating the external source cannot overwrite an already bound destination.
     path.write_text(path.read_text(encoding="utf-8") + "\n<!-- mutated -->\n", encoding="utf-8")
-    # Re-register the mutated file from external path (copy into registry via re-register).
-    # The registry file was written at register time for external? Looking at register —
-    # external files are ingested from their path but durable path is relative to project.
-    # For 0.2 parse, path is the incoming path. Mutate that file and re-register.
-    outcome2 = registry_mod.register(cfg, db_conn, embedder, path="incoming", fmt="egr")
-    assert outcome2.ingested == 1 or outcome2.skipped_unchanged == 0
-    new_digest = db_conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)
-    ).fetchone()["content_sha256"]
+    refused = registry_mod.register(cfg, db_conn, embedder, path="incoming", fmt="egr")
+    assert refused.ingested == 0
+    assert trust_mod.live_content_digest(db_conn, entry.id) == digest
+
+    # An explicit authored edit changes the live exact-byte binding and expires approval.
+    from magicite.core import trust_artifacts, writer_guard
+
+    target = (
+        cfg.project_root / db_conn.execute("SELECT path FROM engram WHERE id=?", (entry.id,)).fetchone()[0]
+    )
+    raw = target.read_bytes()
+    changed = raw.replace(b"version: 1", b"version: 2", 1)
+    assert changed != raw
+    with writer_guard.registry_writer_lease(cfg, db_conn).acquire():
+        trust_artifacts.publish_authored_edit(
+            cfg, target, changed, expected_source_digest=digest, actor="operator"
+        )
+    registry_mod.sync(cfg, db_conn, embedder)
+    new_digest = db_conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)).fetchone()[
+        "content_sha256"
+    ]
     assert new_digest != digest
     assert not trust_mod.admission_still_valid(cfg, engram_id=entry.id, content_digest=new_digest)
 

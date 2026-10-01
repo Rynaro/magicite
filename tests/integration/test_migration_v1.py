@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import shutil
@@ -129,158 +128,135 @@ def test_preview_zero_write_no_wal_shm(cfg: Config) -> None:
     assert as_dict["eligibility_diff"] == "unevaluated"
 
 
-def test_idempotent_apply(cfg: Config) -> None:
-    """AC-S03-03: re-applying a completed operation_id is a zero-effect noop."""
-    _prepare_registered(cfg)
-    first = migration_mod.apply(cfg, operation_id="mig_idempotent_1")
-    assert first.state == "completed"
-    assert first.duplicate_noop is False
-    after_first = _engram_bytes(cfg.project_root)
-    for raw in after_first.values():
-        assert b"engram/1.0" in raw
+def test_idempotent_apply(legacy_migration_case, tmp_path: Path) -> None:
+    """AC-S03-03: the same reviewed operation neither appends nor rewrites."""
+    cfg, plan, backup, provider = legacy_migration_case(tmp_path)
+    from magicite.core import trust_legacy
 
-    second = migration_mod.apply(cfg, operation_id="mig_idempotent_1")
-    assert second.state == "completed"
-    assert second.duplicate_noop is True
+    kwargs = {"reviewed_sha256": trust_legacy.digest(plan), "backup_path": backup}
+    first = migration_mod.apply(cfg, **kwargs)
+    assert first.state == "completed" and not first.duplicate_noop
+    after_first = _engram_bytes(cfg.project_root)
+    assert all(b"engram/1.0" in raw for raw in after_first.values())
+    head = provider.call("read_current")
+    second = migration_mod.apply(cfg, operation_id=first.operation_id, **kwargs)
+    assert second.state == "completed" and second.duplicate_noop
     assert second.operation_id == first.operation_id
     assert _engram_bytes(cfg.project_root) == after_first
-
-    st = migration_mod.status(cfg, "mig_idempotent_1")
+    assert provider.call("read_current")["head_sequence"] == head["head_sequence"]
+    st = migration_mod.status(cfg, first.operation_id)
     assert st.state == "completed"
-    assert "operation_completed" in st.steps_done
+    assert st.steps_done[-1].endswith("-complete")
 
 
-def test_crash_matrix(cfg: Config, tmp_path: Path) -> None:
-    """AC-S03-02: resume after fault at true commit boundaries ≡ uninterrupted."""
-    _prepare_registered(cfg)
-    preview = migration_mod.preview(cfg)
-    first_artifact = next(p for p in preview.artifact_plans if p.source_format == "engram/0.2")
-    first_engram_id = first_artifact.engram_id
-    first_backup_rel = f"engrams/{Path(first_artifact.relpath).name}"
+def test_crash_matrix(legacy_migration_case, tmp_path: Path) -> None:
+    """AC-S03-02: actual reviewed commit boundaries resume to identical targets."""
+    from magicite.core import trust_legacy
 
-    boundaries = [
-        f"boundary:backup_file:{first_backup_rel}",
-        "boundary:backup_files_copied",
-        "boundary:backup_committed",
-        f"precommit:file:{first_artifact.relpath}",
-        f"boundary:file:{first_artifact.relpath}",
-        f"boundary:db_mirror:{first_engram_id}",
-        "boundary:db_mirror_committed",
-        "boundary:operation_completed",
-    ]
-
-    baseline_root = tmp_path / "baseline"
-    baseline_cfg = _clone_magicite(cfg.project_root, baseline_root)
-    baseline = migration_mod.apply(baseline_cfg, operation_id="mig_crash_baseline")
+    baseline_cfg, baseline_plan, backup, _ = legacy_migration_case(tmp_path / "baseline")
+    baseline = migration_mod.apply(
+        baseline_cfg, reviewed_sha256=trust_legacy.digest(baseline_plan), backup_path=backup
+    )
     assert baseline.state == "completed"
-    baseline_files = _engram_bytes(baseline_root)
+    baseline_files = _engram_bytes(baseline_cfg.project_root)
     baseline_mirrors = _mirror_projection(baseline_cfg)
-    baseline_journal = _journal_keys(baseline_cfg, "mig_crash_baseline")
+    boundaries = [
+        "begin_committed",
+        "record_committed:artifact_transform",
+        "target_published",
+        "record_committed:trust_decision",
+        "before_complete",
+        "complete_committed",
+    ]
+    for i, boundary in enumerate(boundaries):
+        cfg, plan, backup, provider = legacy_migration_case(tmp_path / f"case-{i}")
+        digest = trust_legacy.digest(plan)
 
-    for boundary in boundaries:
-        case_root = tmp_path / f"case-{hashlib.sha256(boundary.encode()).hexdigest()[:8]}"
-        case_cfg = _clone_magicite(cfg.project_root, case_root)
-        op_id = f"mig_crash_{hashlib.sha256(boundary.encode()).hexdigest()[:10]}"
-
-        def hook(hit: str, *, expect: str = boundary) -> None:
+        def hook(hit: str, expect=boundary):
             if hit == expect:
                 raise MigrationFault(hit)
 
         with pytest.raises(MigrationFault) as raised:
-            migration_mod.apply(case_cfg, operation_id=op_id, fault_hook=hook)
+            migration_mod.apply(cfg, reviewed_sha256=digest, backup_path=backup, fault_hook=hook)
         assert raised.value.boundary == boundary
-
-        # Partial backup must not leave STEP_BACKUP committed.
-        if boundary.startswith("boundary:backup_file:") or boundary == "boundary:backup_files_copied":
-            conn = db_mod.connect(case_cfg.db_path)
-            try:
-                assert migration_mod.STEP_BACKUP not in ops.list_journal_steps(conn, op_id)
-            finally:
-                conn.close()
-
-        resumed = migration_mod.resume(case_cfg, op_id)
+        resumed = migration_mod.resume(
+            cfg, "legacy-" + digest[:32], reviewed_sha256=digest, backup_path=backup
+        )
         assert resumed.state == "completed"
-        assert _engram_bytes(case_root) == baseline_files
-        assert _mirror_projection(case_cfg) == baseline_mirrors
-        assert _journal_keys(case_cfg, op_id) == baseline_journal
-
-        sample = next((case_root / ".magicite" / "engrams").glob("*.egr.md"))
-        artifact, _doc = parse_artifact_file(sample, registry_root=case_root)
+        assert _engram_bytes(cfg.project_root) == baseline_files
+        assert _mirror_projection(cfg) == baseline_mirrors
+        records = provider.call("committed_records")
+        assert len({record["record_id"] for record in records}) == len(records)
+        assert records[-1]["payload"]["phase"] == "COMPLETE"
+        sample = next(cfg.registry_dir.glob("*.egr.md"))
+        artifact, _ = parse_artifact_file(sample, registry_root=cfg.project_root)
         assert artifact.frontmatter.spec == "engram/1.0"
 
 
-def test_partial_backup_resume_rebuilds(cfg: Config, tmp_path: Path) -> None:
-    """Finding 4: resume after partial backup rebuilds until STEP_BACKUP commits."""
-    _prepare_registered(cfg)
-    preview = migration_mod.preview(cfg)
-    first = next(p for p in preview.artifact_plans if p.source_format == "engram/0.2")
-    boundary = f"boundary:backup_file:engrams/{Path(first.relpath).name}"
+def test_partial_backup_resume_rebuilds(legacy_migration_case, tmp_path: Path) -> None:
+    """Incomplete backup resumes exact bytes; corruption is never overwritten."""
+    from magicite.core import trust_legacy
+    from magicite.core.trust_custodian import CustodianError
 
-    baseline = _clone_magicite(cfg.project_root, tmp_path / "pb-baseline")
-    migration_mod.apply(baseline, operation_id="mig_pb_base")
-    base_files = _engram_bytes(tmp_path / "pb-baseline")
+    cfg, plan, backup, _ = legacy_migration_case(tmp_path, create_backup=False)
+    digest = trust_legacy.digest(plan)
 
-    case = _clone_magicite(cfg.project_root, tmp_path / "pb-case")
-    op_id = "mig_partial_backup"
-
-    def hook(hit: str) -> None:
-        if hit == boundary:
+    def hook(hit):
+        if hit == "backup_file":
             raise MigrationFault(hit)
 
     with pytest.raises(MigrationFault):
-        migration_mod.apply(case, operation_id=op_id, fault_hook=hook)
-
-    backup_dir = case.data_dir / "migrations" / op_id / "backup"
-    assert backup_dir.exists()
-    # Corrupt/partial: wipe some bytes to prove rebuild replaces them.
-    for leftover in backup_dir.rglob("*"):
-        if leftover.is_file():
-            leftover.write_bytes(b"partial")
-
-    resumed = migration_mod.resume(case, op_id)
-    assert resumed.state == "completed"
-    assert _engram_bytes(tmp_path / "pb-case") == base_files
-    manifest = json.loads(
-        (case.data_dir / "migrations" / op_id / "manifest.json").read_text(encoding="utf-8")
-    )
-    for entry in manifest["files"]:
-        path = backup_dir / entry["path"]
+        trust_legacy.backup_reviewed(
+            cfg, plan=plan, reviewed_sha256=digest, destination=backup, fault_hook=hook
+        )
+    assert not (backup / "complete.json").exists()
+    with pytest.raises(CustodianError):
+        migration_mod.apply(cfg, reviewed_sha256=digest, backup_path=backup)
+    assert not (cfg.data_dir / "trust/authority").exists()
+    copied = next(path for path in (backup / "files").rglob("*") if path.is_file())
+    original_copy = copied.read_bytes()
+    copied.write_bytes(b"partial corruption")
+    with pytest.raises(CustodianError):
+        trust_legacy.backup_reviewed(cfg, plan=plan, reviewed_sha256=digest, destination=backup)
+    assert copied.read_bytes() == b"partial corruption"
+    assert not (cfg.data_dir / "trust/authority").exists()
+    # Restore the fixture's original exact bytes before testing legitimate resume.
+    copied.write_bytes(original_copy)
+    trust_legacy.backup_reviewed(cfg, plan=plan, reviewed_sha256=digest, destination=backup)
+    result = migration_mod.apply(cfg, reviewed_sha256=digest, backup_path=backup)
+    assert result.state == "completed"
+    _, manifest = trust_legacy.read_verified_backup(backup, reviewed_sha256=digest)
+    for rel, entry in manifest["files"].items():
+        path = backup / "files" / rel
         assert migration_mod._sha256_file(path) == entry["sha256"]
         assert path.stat().st_size == entry["size"]
-        # Modes hardened (nit 7).
-        assert stat_mode(path) & 0o777 == 0o600
+        assert stat_mode(path) == 0o600
 
 
 def stat_mode(path: Path) -> int:
     return path.stat().st_mode & 0o777
 
 
-def test_backup_source_dest_digest_match(cfg: Config) -> None:
-    """Finding 4: manifest digests match source files, not just dest after copy."""
-    _prepare_registered(cfg)
+def test_backup_source_dest_digest_match(legacy_migration_case, tmp_path: Path) -> None:
+    from magicite.core import trust_legacy
+
+    cfg, plan, backup, _ = legacy_migration_case(tmp_path)
     before = {
-        path.name: (migration_mod._sha256_file(path), path.stat().st_size)
-        for path in cfg.registry_dir.glob("*.egr.md")
+        p.name: (migration_mod._sha256_file(p), p.stat().st_size) for p in cfg.registry_dir.glob("*.egr.md")
     }
-    result = migration_mod.apply(cfg, operation_id="mig_digest_check")
+    result = migration_mod.apply(cfg, reviewed_sha256=trust_legacy.digest(plan), backup_path=backup)
     assert result.state == "completed"
-    manifest = json.loads(
-        (cfg.data_dir / "migrations" / "mig_digest_check" / "manifest.json").read_text(encoding="utf-8")
-    )
-    for entry in manifest["files"]:
-        if not entry["path"].startswith("engrams/"):
-            continue
-        name = Path(entry["path"]).name
-        src_sha, src_size = before[name]
-        assert entry["sha256"] == src_sha
-        assert entry["size"] == src_size
-        assert entry.get("source_sha256", entry["sha256"]) == src_sha
+    _, manifest = trust_legacy.read_verified_backup(backup, reviewed_sha256=trust_legacy.digest(plan))
+    for rel, entry in manifest["files"].items():
+        if rel.endswith(".egr.md"):
+            src_sha, src_size = before[Path(rel).name]
+            assert entry["sha256"] == src_sha
+            assert entry["size"] == src_size
 
 
 def test_restore_rejects_path_traversal(cfg: Config, tmp_path: Path) -> None:
     """Finding 3: ../, absolute paths, and symlinks are rejected before I/O."""
     _prepare_registered(cfg)
-    migration_mod.apply(cfg, operation_id="mig_trav_base")
     op_dir = cfg.data_dir / "migrations" / "mig_sec"
     backup = op_dir / "backup" / "engrams"
     backup.mkdir(parents=True)
@@ -309,12 +285,16 @@ def test_restore_rejects_path_traversal(cfg: Config, tmp_path: Path) -> None:
         ]
     )
     with pytest.raises(InvalidInputError, match=r"\.\.|escapes"):
-        migration_mod.restore(cfg, backup_path=op_dir)
+        migration_mod.restore(
+            cfg, backup_path=op_dir, staging_path=tmp_path.parent / (tmp_path.name + "-staging")
+        )
 
     # Absolute path
     _manifest([{"path": "/tmp/evil.egr.md", "sha256": "0" * 64, "size": 1}])
     with pytest.raises(InvalidInputError, match="absolute|relative"):
-        migration_mod.restore(cfg, backup_path=op_dir)
+        migration_mod.restore(
+            cfg, backup_path=op_dir, staging_path=tmp_path.parent / (tmp_path.name + "-staging")
+        )
 
     # Symlink inside backup tree
     link = backup / "linked.egr.md"
@@ -325,67 +305,73 @@ def test_restore_rejects_path_traversal(cfg: Config, tmp_path: Path) -> None:
     size = Path("/etc/passwd").stat().st_size if Path("/etc/passwd").is_file() else 1
     _manifest([{"path": "engrams/linked.egr.md", "sha256": digest, "size": size}])
     with pytest.raises(InvalidInputError, match="symlink"):
-        migration_mod.restore(cfg, backup_path=op_dir)
+        migration_mod.restore(
+            cfg, backup_path=op_dir, staging_path=tmp_path.parent / (tmp_path.name + "-staging")
+        )
 
 
-def test_concurrent_apply_busy(cfg: Config) -> None:
-    """Finding 6: a second applier receives BusyError while the first holds the lease."""
-    _prepare_registered(cfg)
-    held = threading.Event()
-    release = threading.Event()
-    errors: list[BaseException] = []
+def test_concurrent_apply_busy(legacy_migration_case, tmp_path: Path, monkeypatch) -> None:
+    from magicite.core import trust_legacy
+    from magicite.core.trust_custodian import CustodianStore
 
-    def hook(hit: str) -> None:
-        if hit == "boundary:backup_committed":
+    cfg, plan, backup, provider = legacy_migration_case(tmp_path)
+    digest = trust_legacy.digest(plan)
+
+    def call(operation, **arguments):
+        store = CustodianStore.open(provider.store.directory)
+        try:
+            return getattr(store, operation)(provider.registry_id, **arguments)
+        finally:
+            store.close()
+
+    monkeypatch.setattr(provider, "call", call)
+    held, release = threading.Event(), threading.Event()
+    errors = []
+
+    def hook(hit):
+        if hit == "begin_committed":
             held.set()
             assert release.wait(timeout=5)
 
-    def first() -> None:
+    def first():
         try:
-            migration_mod.apply(cfg, operation_id="mig_concurrent_a", fault_hook=hook)
-        except BaseException as exc:  # noqa: BLE001 — collect for main thread
+            migration_mod.apply(cfg, reviewed_sha256=digest, backup_path=backup, fault_hook=hook)
+        except BaseException as exc:
             errors.append(exc)
 
     t = threading.Thread(target=first)
     t.start()
-    assert held.wait(timeout=5)
-
-    with pytest.raises(BusyError):
-        migration_mod.apply(cfg, operation_id="mig_concurrent_b")
-
-    release.set()
-    t.join(timeout=10)
+    try:
+        assert held.wait(timeout=5), errors
+        with pytest.raises(BusyError):
+            migration_mod.apply(cfg, reviewed_sha256=digest, backup_path=backup)
+    finally:
+        release.set()
+        t.join(timeout=10)
     assert not errors
 
 
-def test_lease_loss_mid_artifact_fencing(cfg: Config) -> None:
-    """Finding 6: losing the fencing token mid-artifact aborts before journal commit."""
-    _prepare_registered(cfg)
-    preview = migration_mod.preview(cfg)
-    first = next(p for p in preview.artifact_plans if p.source_format == "engram/0.2")
-    boundary = f"precommit:file:{first.relpath}"
+def test_lease_loss_mid_artifact_fencing(legacy_migration_case, tmp_path: Path) -> None:
+    from magicite.core import trust_legacy
 
-    def hook(hit: str) -> None:
-        if hit == boundary:
-            # Steal the lease row so assert_owned fails on the subsequent journal write.
+    cfg, plan, backup, provider = legacy_migration_case(tmp_path)
+    digest = trust_legacy.digest(plan)
+
+    def hook(hit):
+        if hit == "begin_committed":
             conn = db_mod.connect(cfg.db_path, migrate=False)
             try:
                 conn.execute(
-                    "UPDATE writer_lease SET fencing_token = fencing_token + 1, "
-                    "holder = 'stolen', expires_at = '2099-01-01T00:00:00+00:00' WHERE id = 1"
+                    "UPDATE writer_lease SET fencing_token=fencing_token+1, holder='stolen' WHERE id=1"
                 )
             finally:
                 conn.close()
 
+    original = _engram_bytes(cfg.project_root)
     with pytest.raises(BusyError):
-        migration_mod.apply(cfg, operation_id="mig_fence_loss", fault_hook=hook)
-
-    conn = db_mod.connect(cfg.db_path)
-    try:
-        steps = ops.list_journal_steps(conn, "mig_fence_loss")
-        assert f"artifact:{first.relpath}" not in steps
-    finally:
-        conn.close()
+        migration_mod.apply(cfg, reviewed_sha256=digest, backup_path=backup, fault_hook=hook)
+    assert _engram_bytes(cfg.project_root) == original
+    assert provider.call("read_current")["legacy_reconciliation"] is not None
 
 
 def test_unsupported_future_schema_fails_closed(tmp_path: Path) -> None:
@@ -471,10 +457,7 @@ def test_preview_wal_copy_retries_or_fails_on_checkpoint_tear(
         follow_symlinks: bool = True,
     ) -> str | os.PathLike[str]:
         result = real_copy2(src, dst, follow_symlinks=follow_symlinks)
-        if (
-            not tear_once["done"]
-            and Path(src).resolve() == cfg.db_path.resolve()
-        ):
+        if not tear_once["done"] and Path(src).resolve() == cfg.db_path.resolve():
             tear_once["done"] = True
             writer.close()
             chk = sqlite3.connect(str(cfg.db_path), isolation_level=None, check_same_thread=False)
@@ -589,9 +572,7 @@ def test_mkdir_secure_fsyncs_parent(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert tmp_path.resolve() in synced_paths
 
 
-def test_mkdir_secure_nested_parents_mode_and_fsync(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_mkdir_secure_nested_parents_mode_and_fsync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Nested mkdir chmods every new intermediate and fsyncs each new parent."""
     synced_paths: list[Path] = []
     real_open = os.open

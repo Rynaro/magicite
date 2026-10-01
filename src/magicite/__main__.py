@@ -92,6 +92,9 @@ def sync_cmd(project_root: str) -> None:
     from magicite.storage import db as db_mod
 
     cfg = Config.load(project_root)
+    from magicite.core.writer_guard import preflight_custody
+
+    preflight_custody(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     embedder = get_embedder(cfg)
@@ -116,6 +119,9 @@ def dream_cmd(once: bool, autonomous: bool, project_root: str) -> None:
     cfg = Config.load(project_root)
     if autonomous:
         cfg.autonomous = True
+    from magicite.core.writer_guard import preflight_custody
+
+    preflight_custody(cfg)
     cfg.ensure_dirs()
     conn = authorizer_mod.writer_connection(cfg.db_path)
     result = dream_mod.run(cfg, conn, trigger="cli")
@@ -152,6 +158,9 @@ def export_cmd(out_dir: str, project_root: str, min_status: str) -> None:
     from magicite.storage import db as db_mod
 
     cfg = Config.load(project_root)
+    from magicite.core.writer_guard import preflight_custody
+
+    preflight_custody(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     outcome = registry_mod.export(cfg, conn, out_dir=out_dir, min_status=min_status)
@@ -319,11 +328,7 @@ def trust_import_bundle_cmd(project_root: str, archive_path: str, actor: str) ->
     from magicite.mcp import bind_ops
 
     try:
-        _echo_json(
-            bind_ops.trust_import_bundle(
-                project_root, archive_path=archive_path, actor=actor
-            )
-        )
+        _echo_json(bind_ops.trust_import_bundle(project_root, archive_path=archive_path, actor=actor))
     except MagiciteError as exc:
         _die_magicite(exc)
 
@@ -393,9 +398,7 @@ def policy_activate_cmd(
 @click.option("--project-root", default=".", show_default=True)
 @click.option("--prior-digest", required=True)
 @click.option("--expected-current", default=None)
-def policy_rollback_cmd(
-    project_root: str, prior_digest: str, expected_current: str | None
-) -> None:
+def policy_rollback_cmd(project_root: str, prior_digest: str, expected_current: str | None) -> None:
     from magicite.mcp import bind_ops
 
     try:
@@ -467,11 +470,22 @@ def migration_preview_cmd(project_root: str) -> None:
 @migration_group.command(name="apply")
 @click.option("--project-root", default=".", show_default=True)
 @click.option("--operation-id", default=None)
-def migration_apply_cmd(project_root: str, operation_id: str | None) -> None:
+@click.option("--reviewed-sha256", default=None)
+@click.option("--backup-path", default=None, type=click.Path(exists=True))
+def migration_apply_cmd(
+    project_root: str, operation_id: str | None, reviewed_sha256: str | None, backup_path: str | None
+) -> None:
     from magicite.mcp import bind_ops
 
     try:
-        _echo_json(bind_ops.migration_apply(project_root, operation_id=operation_id))
+        _echo_json(
+            bind_ops.migration_apply(
+                project_root,
+                operation_id=operation_id,
+                reviewed_sha256=reviewed_sha256,
+                backup_path=backup_path,
+            )
+        )
     except MagiciteError as exc:
         _die_magicite(exc)
 
@@ -491,11 +505,22 @@ def migration_status_cmd(project_root: str, operation_id: str) -> None:
 @migration_group.command(name="resume")
 @click.option("--project-root", default=".", show_default=True)
 @click.option("--operation-id", required=True)
-def migration_resume_cmd(project_root: str, operation_id: str) -> None:
+@click.option("--reviewed-sha256", default=None)
+@click.option("--backup-path", default=None, type=click.Path(exists=True))
+def migration_resume_cmd(
+    project_root: str, operation_id: str, reviewed_sha256: str | None, backup_path: str | None
+) -> None:
     from magicite.mcp import bind_ops
 
     try:
-        _echo_json(bind_ops.migration_resume(project_root, operation_id=operation_id))
+        _echo_json(
+            bind_ops.migration_resume(
+                project_root,
+                operation_id=operation_id,
+                reviewed_sha256=reviewed_sha256,
+                backup_path=backup_path,
+            )
+        )
     except MagiciteError as exc:
         _die_magicite(exc)
 
@@ -503,11 +528,22 @@ def migration_resume_cmd(project_root: str, operation_id: str) -> None:
 @migration_group.command(name="restore")
 @click.option("--project-root", default=".", show_default=True)
 @click.option("--backup-path", required=True, type=click.Path(exists=True))
-def migration_restore_cmd(project_root: str, backup_path: str) -> None:
+@click.option("--staging-path", default=None, type=click.Path())
+@click.option("--reviewed-sha256", default=None)
+def migration_restore_cmd(
+    project_root: str, backup_path: str, staging_path: str | None, reviewed_sha256: str | None
+) -> None:
     from magicite.mcp import bind_ops
 
     try:
-        _echo_json(bind_ops.migration_restore(project_root, backup_path=backup_path))
+        _echo_json(
+            bind_ops.migration_restore(
+                project_root,
+                backup_path=backup_path,
+                staging_path=staging_path,
+                reviewed_sha256=reviewed_sha256,
+            )
+        )
     except MagiciteError as exc:
         _die_magicite(exc)
 
@@ -563,9 +599,7 @@ def evidence_checkpoint_cmd(
 @click.option("--project-root", default=".", show_default=True)
 @click.option("--export-dir", default=None, type=click.Path())
 @click.option("--event-id", "event_ids", multiple=True)
-def evidence_export_cmd(
-    project_root: str, export_dir: str | None, event_ids: tuple[str, ...]
-) -> None:
+def evidence_export_cmd(project_root: str, export_dir: str | None, event_ids: tuple[str, ...]) -> None:
     from magicite.mcp import bind_ops
 
     try:
@@ -585,17 +619,11 @@ def evidence_export_cmd(
 @click.option("--event-id", required=True)
 @click.option("--actor", required=True)
 @click.option("--reason", default=None)
-def evidence_delete_cmd(
-    project_root: str, event_id: str, actor: str, reason: str | None
-) -> None:
+def evidence_delete_cmd(project_root: str, event_id: str, actor: str, reason: str | None) -> None:
     from magicite.mcp import bind_ops
 
     try:
-        _echo_json(
-            bind_ops.evidence_delete(
-                project_root, event_id=event_id, actor=actor, reason=reason
-            )
-        )
+        _echo_json(bind_ops.evidence_delete(project_root, event_id=event_id, actor=actor, reason=reason))
     except MagiciteError as exc:
         _die_magicite(exc)
 
@@ -678,6 +706,11 @@ def backup_status_cmd(project_root: str, backup_path: str | None) -> None:
         _echo_json(bind_ops.backup_status(project_root, backup_path=backup_path))
     except MagiciteError as exc:
         _die_magicite(exc)
+
+
+from magicite.core.custody_admin import custody_cli  # noqa: E402
+
+cli.add_command(custody_cli)
 
 
 if __name__ == "__main__":

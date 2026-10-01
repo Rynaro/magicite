@@ -340,9 +340,7 @@ def _plan_identity_digest(plan: composition_mod.Plan) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _legacy_requires_refs(
-    conn: sqlite3.Connection, engram_id: str
-) -> tuple[list[EngramRevisionRef], bool]:
+def _legacy_requires_refs(conn: sqlite3.Connection, engram_id: str) -> tuple[list[EngramRevisionRef], bool]:
     """Bridge declared depends_on/composes DB edges → relations.requires.
 
     Returns ``(refs, has_dangling)``. Dangling targets cannot form a valid
@@ -395,9 +393,7 @@ def _subject_for_composition(
     return replace(subject, relations=new_relations), has_dangling
 
 
-def _row_by_engram_id(
-    conn: sqlite3.Connection, engram_id: str
-) -> sqlite3.Row | None:
+def _row_by_engram_id(conn: sqlite3.Connection, engram_id: str) -> sqlite3.Row | None:
     return conn.execute(
         """
         SELECT id, name, path, version, status, origin, verification_status,
@@ -427,7 +423,7 @@ def compose_route_plan(
     limits = _compose_limits(cfg)
 
     try:
-        decisions = _trust_decisions_by_engram(cfg)
+        decisions, trust_policy, trust_snapshot = _trust_decisions_by_engram(cfg)
     except trust_mod.TrustLedgerCorruptError:
         return _ComposeRouteResult(
             ok=False,
@@ -483,11 +479,7 @@ def compose_route_plan(
 
         # Seed transitive requires into the snapshot so compose can distinguish
         # dangling vs budget (C5). Compose itself enforces depth/node limits.
-        requires = (
-            list(subject.relations.requires)
-            if subject.relations is not None
-            else []
-        )
+        requires = list(subject.relations.requires) if subject.relations is not None else []
         for ref in requires:
             if ref.id in seen:
                 continue
@@ -508,7 +500,14 @@ def compose_route_plan(
         row = _row_by_engram_id(conn, engram_id)
         if row is None:
             raise KeyError(engram_id)
-        return _route_trust_view(cfg, row, cached_decision=decisions.get(engram_id))
+        try:
+            resource_digest: str | None = _build_subject_entry(cfg, row).resource_digest
+        except Exception:
+            resource_digest = None
+        return _route_trust_view(
+            cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy,
+            snapshot=trust_snapshot, resource_digest=resource_digest
+        )
 
     try:
         plan = composition_mod.compose(
@@ -526,16 +525,16 @@ def compose_route_plan(
         )
 
     if plan.status != "valid" or not plan.structurally_valid or not plan.executable:
-        diag_codes = list(
-            dict.fromkeys(d.code for d in plan.diagnostics if d.code)
-        )[:_COMPOSITION_REASON_BOUND]
+        diag_codes = list(dict.fromkeys(d.code for d in plan.diagnostics if d.code))[
+            :_COMPOSITION_REASON_BOUND
+        ]
         missing: list[str] = []
         for d in plan.diagnostics:
             if d.code == eligibility_mod.REASON_CONTEXT_REQUIRED:
                 missing.extend(d.related_ids)
-        reasons = list(
-            dict.fromkeys([REASON_COMPOSITION_INVALID, *diag_codes])
-        )[: _COMPOSITION_REASON_BOUND + 1]
+        reasons = list(dict.fromkeys([REASON_COMPOSITION_INVALID, *diag_codes]))[
+            : _COMPOSITION_REASON_BOUND + 1
+        ]
         return _ComposeRouteResult(
             ok=False,
             reason_codes=tuple(reasons),
@@ -583,6 +582,7 @@ class _SubjectCacheEntry:
     subject: eligibility_mod.EligibilitySubject
     db_digest: str
     asset_idents: tuple[tuple[Any, ...], ...]
+    resource_digest: str
 
 
 _SUBJECT_CACHE: OrderedDict[tuple[Any, ...], _SubjectCacheEntry] = OrderedDict()
@@ -612,9 +612,7 @@ def _file_identity(path: Path) -> tuple[int, int, int, int, int]:
     )
 
 
-def _asset_identities(
-    assets: dict[str, Any], *, registry_root: Path
-) -> tuple[tuple[Any, ...], ...]:
+def _asset_identities(assets: dict[str, Any], *, registry_root: Path) -> tuple[tuple[Any, ...], ...]:
     out: list[tuple[Any, ...]] = []
     for rel in sorted(assets):
         candidate = registry_root / rel
@@ -640,26 +638,36 @@ def _cache_put(key: tuple[Any, ...], entry: _SubjectCacheEntry) -> None:
         _SUBJECT_CACHE.popitem(last=False)
 
 
-def _trust_decisions_by_engram(cfg: Config) -> dict[str, trust_mod.TrustDecision]:
-    """Load the trust ledger once per route (latest decision per engram)."""
-    latest: dict[str, trust_mod.TrustDecision] = {}
-    try:
-        for decision in trust_mod.list_decisions(cfg):
-            prior = latest.get(decision.engram_id)
-            if prior is None or (decision.timestamp, decision.decision_id) > (
-                prior.timestamp,
-                prior.decision_id,
-            ):
-                latest[decision.engram_id] = decision
-    except trust_mod.TrustLedgerCorruptError:
-        raise
-    return latest
+def _trust_decisions_by_engram(
+    cfg: Config,
+) -> tuple[dict[str, trust_mod.TrustDecision], trust_mod.TrustPolicy, trust_mod.TrustSnapshot]:
+    """One authenticated head binds policy and sequence-ordered decisions."""
+    snapshot = trust_mod.authenticated_snapshot(cfg)
+    return (
+        {key: trust_mod.TrustDecision.from_dict(value) for key, value in snapshot.latest_by_engram.items()},
+        trust_mod.TrustPolicy.from_dict(snapshot.policy),
+        snapshot,
+    )
 
 
 def _build_subject_from_row(
     cfg: Config,
     row: sqlite3.Row,
 ) -> eligibility_mod.EligibilitySubject:
+    return _build_subject_entry(cfg, row).subject
+
+
+def _subject_scope(cfg: Config) -> tuple[Path, str]:
+    """Resolved registry root and enrolled registry id, constant within one route."""
+    from magicite.core.writer_guard import resolve_custody
+
+    registry_id, _ = resolve_custody(cfg)
+    return cfg.registry_dir.resolve(), registry_id
+
+
+def _build_subject_entry(
+    cfg: Config, row: sqlite3.Row, scope: tuple[Path, str] | None = None
+) -> _SubjectCacheEntry:
     """Build a full EligibilitySubject from live bytes; drift/missing → deny.
 
     Cache key: (resolved registry root, engram_id, artifact file identity).
@@ -671,7 +679,7 @@ def _build_subject_from_row(
     db_digest = str(row["content_sha256"]) if "content_sha256" in row.keys() else ""
     rel = str(row["path"]) if "path" in row.keys() else ""
     full = Path(rel) if Path(rel).is_absolute() else (cfg.project_root / rel)
-    registry_root = cfg.registry_dir.resolve()
+    registry_root, registry_id = scope if scope is not None else _subject_scope(cfg)
     root_key = str(registry_root)
 
     if not full.is_file():
@@ -690,17 +698,15 @@ def _build_subject_from_row(
             "missing_artifact",
         ) from exc
 
-    cache_key: tuple[Any, ...] = (root_key, engram_id, file_ident)
+    from magicite.core.trust_artifacts import require_enrollment_marker
+
+    cache_key: tuple[Any, ...] = (root_key, registry_id, engram_id, file_ident)
     cached = _cache_get(cache_key)
     if cached is not None and cached.db_digest == db_digest:
         # Re-stat asset files the subject's validity depended on.
-        asset_paths = {
-            str(item[0]): None
-            for item in cached.asset_idents
-            if item and item[0] is not None
-        }
+        asset_paths = {str(item[0]): None for item in cached.asset_idents if item and item[0] is not None}
         if cached.asset_idents == _asset_identities(asset_paths, registry_root=registry_root):
-            return cached.subject
+            return cached
 
     raw_bytes = full.read_bytes()
     live_digest = ids_mod.content_sha256(raw_bytes)
@@ -720,7 +726,9 @@ def _build_subject_from_row(
                 admit=False,
                 require_asset_files=False,
             )
+            inside_registry = True
         except ValueError:
+            inside_registry = False
             artifact, _doc = parser_mod.parse_artifact(
                 raw_bytes.decode("utf-8"),
                 relpath=rel,
@@ -738,14 +746,13 @@ def _build_subject_from_row(
             "eligibility_parse_error",
         ) from exc
 
+    require_enrollment_marker(artifact, registry_id)
     asset_idents: tuple[tuple[Any, ...], ...] = ()
     if isinstance(artifact, EngramV1):
         assets = dict(artifact.frontmatter.assets or {})
         assets_valid = True
         if assets:
-            issues = validate_assets(
-                assets, registry_root=cfg.registry_dir, require_files=True
-            )
+            issues = validate_assets(assets, registry_root=cfg.registry_dir, require_files=True)
             assets_valid = len(issues) == 0
             asset_idents = _asset_identities(assets, registry_root=registry_root)
         subject = eligibility_mod.subject_from_engram(artifact, assets_valid=assets_valid)
@@ -763,11 +770,18 @@ def _build_subject_from_row(
             "unsupported_artifact_type",
         )
 
-    _cache_put(
-        cache_key,
-        _SubjectCacheEntry(subject=subject, db_digest=db_digest, asset_idents=asset_idents),
+    # Same binding as trust.compute_resource_digest_at, which cannot parse an
+    # artifact outside the registry root and binds it to no resources.
+    resource_digest = (
+        trust_mod.resource_digest_for_artifact(cfg, artifact)
+        if inside_registry
+        else trust_mod.assets_manifest_digest({})
     )
-    return subject
+    entry = _SubjectCacheEntry(
+        subject=subject, db_digest=db_digest, asset_idents=asset_idents, resource_digest=resource_digest
+    )
+    _cache_put(cache_key, entry)
+    return entry
 
 
 def _route_trust_view(
@@ -775,11 +789,15 @@ def _route_trust_view(
     row: sqlite3.Row,
     *,
     cached_decision: trust_mod.TrustDecision | None,
+    cached_policy: trust_mod.TrustPolicy,
+    snapshot: trust_mod.TrustSnapshot | None = None,
+    resource_digest: str | None = None,
 ) -> trust_mod.TrustDecisionView:
-    """Build TrustDecisionView for route eligibility without per-row file I/O.
+    """Build TrustDecisionView for route eligibility.
 
-    Uses the batched ledger decision + durable row fields. Default local
-    authorship admission is the named Config knob (N1).
+    Uses the batched ledger decision + durable row fields. ``resource_digest``
+    is the live-asset binding from the identity-checked subject cache; when
+    absent it is recomputed from live files.
     """
     engram_id = str(row["id"])
     content_digest = str(row["content_sha256"]) if "content_sha256" in row.keys() else ""
@@ -792,17 +810,14 @@ def _route_trust_view(
         decision is not None and decision.decision == "quarantine"
     )
 
-    admitted = False
-    if decision is not None and decision.decision == "admit":
-        if decision.content_digest == content_digest:
-            try:
-                policy = trust_mod.load_policy(cfg)
-                admitted = (
-                    decision.policy_digest == policy.digest()
-                    and decision.policy_revision == policy.revision
-                )
-            except InvalidInputError:
-                admitted = False
+    try:
+        if resource_digest is None and "path" in row.keys():
+            resource_digest = trust_mod.compute_resource_digest_at(cfg, relpath=str(row["path"]))
+        admitted = trust_mod.decision_valid_under_policy(
+            decision, cached_policy, content_digest=content_digest,
+            resource_digest=resource_digest, snapshot=snapshot)
+    except InvalidInputError:
+        admitted = False
 
     if origin in ("authored", "sharpened") or (
         decision is not None and decision.source_channel in ("local_authored", "local_register")
@@ -817,15 +832,6 @@ def _route_trust_view(
         intake = decision.source_channel if decision is not None else "unknown"
 
     origin_trusted = trust_mod.origin_trusted_for_channel(intake, admitted=admitted) or channel_trusted
-
-    if (
-        cfg.default_local_authorship_admission
-        and origin_trusted
-        and not quarantined
-        and not admitted
-        and (decision is None or decision.decision not in {"reject", "revoke", "quarantine"})
-    ):
-        admitted = True
 
     sig: bool | None = decision.signature_valid if decision is not None else None
     return trust_mod.TrustDecisionView(
@@ -858,11 +864,16 @@ def _evaluate_route_eligibility(
     exclusions: list[ExclusionSummary] = []
     missing_context: list[str] = []
     try:
-        decisions = _trust_decisions_by_engram(cfg)
+        decisions, trust_policy, trust_snapshot = _trust_decisions_by_engram(cfg)
         ledger_corrupt = False
     except trust_mod.TrustLedgerCorruptError:
         decisions = {}
         ledger_corrupt = True
+    scope: tuple[Path, str] | None
+    try:
+        scope = _subject_scope(cfg)
+    except Exception:
+        scope = None
 
     for row in rows:
         engram_id = str(row["id"])
@@ -875,17 +886,17 @@ def _evaluate_route_eligibility(
             )
             continue
         try:
-            subject = _build_subject_from_row(cfg, row)
+            entry = _build_subject_entry(cfg, row, scope)
+            subject = entry.subject
             trust = _route_trust_view(
-                cfg, row, cached_decision=decisions.get(engram_id)
+                cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy,
+                snapshot=trust_snapshot, resource_digest=entry.resource_digest
             )
             result = eligibility_mod.evaluate_eligibility(
                 subject, route_context, trust, server_policy, path="route"
             )
         except _SubjectProjectionDenied as denied:
-            exclusions.append(
-                ExclusionSummary(engram_id=engram_id, reason_codes=denied.reason_codes)
-            )
+            exclusions.append(ExclusionSummary(engram_id=engram_id, reason_codes=denied.reason_codes))
             continue
         except Exception:
             exclusions.append(
@@ -900,9 +911,7 @@ def _evaluate_route_eligibility(
             )
             continue
         if not result.eligible:
-            exclusions.append(
-                ExclusionSummary(engram_id=engram_id, reason_codes=tuple(result.reason_codes))
-            )
+            exclusions.append(ExclusionSummary(engram_id=engram_id, reason_codes=tuple(result.reason_codes)))
             if result.context_required:
                 missing_context.extend(result.missing_fields)
             continue
@@ -910,9 +919,7 @@ def _evaluate_route_eligibility(
     return eligible_rows, exclusions, missing_context
 
 
-def _bound_exclusions(
-    exclusions: Sequence[ExclusionSummary], *, limit: int
-) -> tuple[ExclusionSummary, ...]:
+def _bound_exclusions(exclusions: Sequence[ExclusionSummary], *, limit: int) -> tuple[ExclusionSummary, ...]:
     if limit < 1:
         return ()
     ordered = sorted(exclusions, key=lambda e: e.engram_id)
@@ -998,8 +1005,7 @@ def semantic_decision_fields(decision: RouteDecision) -> dict[str, Any]:
         "candidate_ids": [c.id for c in decision.candidates],
         "candidate_scores": [c.score for c in decision.candidates],
         "exclusions": [
-            {"engram_id": e.engram_id, "reason_codes": list(e.reason_codes)}
-            for e in decision.exclusions
+            {"engram_id": e.engram_id, "reason_codes": list(e.reason_codes)} for e in decision.exclusions
         ],
         "score_components": decision.score_components,
         "confidence": {
@@ -1035,9 +1041,7 @@ def semantic_decision_fields(decision: RouteDecision) -> dict[str, Any]:
 
 
 def _registry_digest(conn: sqlite3.Connection) -> str:
-    rows = conn.execute(
-        "SELECT id, content_sha256 FROM engram ORDER BY id"
-    ).fetchall()
+    rows = conn.execute("SELECT id, content_sha256 FROM engram ORDER BY id").fetchall()
     payload = [{"id": r["id"], "content_sha256": r["content_sha256"]} for r in rows]
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -1375,12 +1379,8 @@ def _pin_index_identity(
                 "tokenizer_digest_unavailable",
             ),
         )
-    schema_digest = hashlib.sha256(
-        meta.fingerprint.index_schema_version.encode("utf-8")
-    ).hexdigest()
-    tokenizer_digest = hashlib.sha256(
-        meta.fingerprint.tokenizer_id.encode("utf-8")
-    ).hexdigest()
+    schema_digest = hashlib.sha256(meta.fingerprint.index_schema_version.encode("utf-8")).hexdigest()
+    tokenizer_digest = hashlib.sha256(meta.fingerprint.tokenizer_id.encode("utf-8")).hexdigest()
     return (
         meta.generation_id,
         meta.snapshot_id or None,
@@ -1750,11 +1750,7 @@ def _finalize_route(
         propensity["__abstain__"] = 1.0
 
     selected_ids = tuple(c.id for c in final_candidates[:1]) if final_status == "selected" else ()
-    selected_digests = {
-        c.id: (c.content_digest or "")
-        for c in final_candidates
-        if c.content_digest
-    }
+    selected_digests = {c.id: (c.content_digest or "") for c in final_candidates if c.content_digest}
 
     route_decision = RouteDecision(
         decision_id=f"rd_{uuid.uuid4().hex[:16]}",

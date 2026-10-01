@@ -105,6 +105,10 @@ trust:
             (engram_id, ctx_id),
         )
 
+    from tests.support.custody_adapter import review_inserted_source
+
+    return review_inserted_source(cfg, conn, path=full, source=data)
+
 
 def _insert_edge(
     conn, src_id: str, dst_name: str, dst_id: str | None, edge_type: str, strength: float
@@ -121,9 +125,7 @@ def _insert_edge(
 
 
 def _embed_and_store(conn, embedder, engram_id: str, text: str) -> None:
-    row = conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()
+    row = conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (engram_id,)).fetchone()
     digest = row["content_sha256"] if row is not None else engram_id
     vec = embedder.embed(text)
     ephemeral_mod.upsert_embedding(
@@ -345,13 +347,11 @@ def test_retrieval_strength_is_decayed_at_read_time(cfg, db_conn, embedder) -> N
     # fresh -- with decay-at-read wired in, "a"'s *effective* R must be
     # lower, so its score must be lower too (all else identical).
     db_conn.execute(
-        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES "
-        "('egr_aa01dd0a', 1.0, ?)",
+        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_aa01dd0a', 1.0, ?)",
         (stale_anchor,),
     )
     db_conn.execute(
-        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES "
-        "('egr_aa01dd0b', 1.0, ?)",
+        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_aa01dd0b', 1.0, ?)",
         (fresh_anchor,),
     )
 

@@ -1,0 +1,820 @@
+"""Durable independent trust authority (the service owns this store).
+
+This module never opens a registry directory. Production callers use the peer-
+authenticated transport; direct construction is for the custodian and unit tests.
+SQLite FULL transactions are the authority's linearization/durability boundary.
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+import os
+import re
+import secrets
+import sqlite3
+import stat
+from pathlib import Path
+from typing import Any, get_args
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
+
+DOMAIN = b"magicite-trust-journal/1\x00"
+HEAD_FIELDS = ("registry_id", "epoch", "head_sequence", "head_mac")
+PREDECESSOR_FIELDS = (*HEAD_FIELDS, "fence_generation")
+MAX_PAYLOAD = 4 * 1024 * 1024
+
+
+class CustodianError(ValueError):
+    """Redacted authority failure; callers must close admission."""
+
+
+def _bytes(value: Any) -> bytes:
+    try:
+        encoded = json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+        ).encode()
+    except (ValueError, TypeError, RecursionError) as exc:
+        raise CustodianError("invalid authority value") from exc
+    if len(encoded) > MAX_PAYLOAD:
+        raise CustodianError("authority value exceeds limit")
+    return encoded
+
+
+def _equal(left: Any, right: Any) -> bool:
+    return _bytes(left) == _bytes(right)
+
+
+def _match(left: dict[str, Any], right: dict[str, Any], fields: tuple[str, ...]) -> bool:
+    return all(key in left and key in right and _equal(left[key], right[key]) for key in fields)
+
+
+def _identifier(value: Any) -> None:
+    if not isinstance(value, str) or not value or len(value) > 256:
+        raise CustodianError("invalid authority identifier")
+
+
+_RECORD_SCHEMA = (
+    "CREATE TABLE record (registry TEXT NOT NULL, sequence INTEGER NOT NULL, record_id TEXT NOT NULL, "
+    "kind TEXT NOT NULL, lineage_target TEXT, body TEXT NOT NULL, "
+    "PRIMARY KEY (registry, sequence), UNIQUE (registry, record_id))",
+    "CREATE INDEX record_kind ON record (registry, kind, sequence)",
+    "CREATE INDEX record_lineage ON record (registry, lineage_target)",
+)
+
+
+def _lineage_target(engram_id: str, digest: str) -> str:
+    return json.dumps([engram_id, digest], separators=(",", ":"))
+
+
+def _insert_record(conn: sqlite3.Connection, registry: str, record: dict[str, Any]) -> None:
+    lineage = None
+    if record["kind"] == "artifact_transform":
+        lineage = _lineage_target(record["payload"]["engram_id"], record["payload"]["target_digest"])
+    conn.execute(
+        "INSERT INTO record VALUES (?,?,?,?,?,?)",
+        (registry, record["sequence"], record["record_id"], record["kind"], lineage, _bytes(record).decode()),
+    )
+
+
+def _upgrade_record_table(conn: sqlite3.Connection) -> None:
+    """Move aggregate-blob history into the indexed table in one transaction."""
+    with conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='record'").fetchone():
+            return
+        for statement in _RECORD_SCHEMA:
+            conn.execute(statement)
+        for registry, raw in conn.execute("SELECT id, state FROM registry").fetchall():
+            state = json.loads(raw)
+            records = state.pop("records")
+            previous = "0" * 64
+            for sequence, record in enumerate(records, 1):
+                if record["sequence"] != sequence or record["prev_mac"] != previous:
+                    raise CustodianError("invalid custody history")
+                previous = record["mac"]
+                _insert_record(conn, registry, record)
+            conn.execute(
+                "UPDATE registry SET state=? WHERE id=?",
+                (json.dumps(state, sort_keys=True, separators=(",", ":"), allow_nan=False), registry),
+            )
+
+
+class CustodianStore:
+    """Explicitly created, independently held transactional authority.
+
+    Existing stores are only opened, never recreated when keys/state are lost.
+    No client-controlled filename is accepted by any registry operation.
+    """
+
+    def __init__(
+        self, directory: Path, connection: sqlite3.Connection, key: bytes, signing_key: Ed25519PrivateKey
+    ):
+        self.directory = directory
+        self._conn = connection
+        self._key = key
+        self.signing_key = signing_key
+        self._closed = False
+
+    @classmethod
+    def create(cls, directory: Path) -> CustodianStore:
+        directory.mkdir(mode=0o700, parents=False, exist_ok=False)
+        key = secrets.token_bytes(32)
+        signing = Ed25519PrivateKey.generate()
+        for name, data in (
+            ("journal.key", key),
+            ("signing.key", signing.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())),
+        ):
+            fd = os.open(directory / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+        conn = sqlite3.connect(directory / "authority.sqlite")
+        os.chmod(directory / "authority.sqlite", 0o600)
+        conn.execute("PRAGMA synchronous=FULL")
+        conn.execute("CREATE TABLE registry (id TEXT PRIMARY KEY, state TEXT NOT NULL)")
+        for statement in _RECORD_SCHEMA:
+            conn.execute(statement)
+        conn.commit()
+        fd = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        parent_fd = os.open(directory.parent, os.O_RDONLY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+        return cls(directory, conn, key, signing)
+
+    @classmethod
+    def open(cls, directory: Path) -> CustodianStore:
+        try:
+            for name in ("journal.key", "signing.key", "authority.sqlite"):
+                info = (directory / name).lstat()
+                if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+                    raise CustodianError("custody state must remain private")
+            key = (directory / "journal.key").read_bytes()
+            signing = Ed25519PrivateKey.from_private_bytes((directory / "signing.key").read_bytes())
+            if len(key) != 32:
+                raise ValueError("key")
+            conn = sqlite3.connect(f"file:{directory / 'authority.sqlite'}?mode=rw", uri=True)
+            conn.execute("PRAGMA synchronous=FULL")
+            conn.execute("SELECT id FROM registry LIMIT 1")
+            _upgrade_record_table(conn)
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
+            raise CustodianError("custody unavailable; reconciliation required") from exc
+        return cls(directory, conn, key, signing)
+
+    def close(self) -> None:
+        if not self._closed:
+            self._conn.close()
+            self._closed = True
+
+    def _load(self, registry: str) -> dict[str, Any]:
+        _identifier(registry)
+        row = self._conn.execute("SELECT state FROM registry WHERE id=?", (registry,)).fetchone()
+        if row is None:
+            raise CustodianError("registry is not enrolled")
+        result: dict[str, Any] = json.loads(row[0])
+        return result
+
+    def _save(self, registry: str, state: dict[str, Any]) -> None:
+        # Do not apply the individual wire payload bound to the aggregate history.
+        self._conn.execute(
+            "UPDATE registry SET state=? WHERE id=?",
+            (json.dumps(state, sort_keys=True, separators=(",", ":"), allow_nan=False), registry),
+        )
+
+    def _records(self, registry: str, *, from_sequence: int = 1) -> list[dict[str, Any]]:
+        rows = self._conn.execute(
+            "SELECT body FROM record WHERE registry=? AND sequence>=? ORDER BY sequence",
+            (registry, from_sequence),
+        ).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+    def _record_by_id(self, registry: str, record_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT body FROM record WHERE registry=? AND record_id=?", (registry, record_id)
+        ).fetchone()
+        return None if row is None else dict(json.loads(row[0]))
+
+    def _last_record(self, registry: str) -> dict[str, Any]:
+        row = self._conn.execute(
+            "SELECT body FROM record WHERE registry=? ORDER BY sequence DESC LIMIT 1", (registry,)
+        ).fetchone()
+        if row is None:
+            raise CustodianError("invalid custody history")
+        return dict(json.loads(row[0]))
+
+    def _active_plan(self, registry: str) -> tuple[dict[str, Any], int] | None:
+        # Same rule as trust_reconciliation.active_plan: the latest gate decides.
+        row = self._conn.execute(
+            "SELECT sequence, body FROM record WHERE registry=? AND kind='legacy_reconciliation' "
+            "ORDER BY sequence DESC LIMIT 1",
+            (registry,),
+        ).fetchone()
+        if row is None:
+            return None
+        payload: dict[str, Any] = json.loads(row[1])["payload"]
+        return (payload, int(row[0])) if payload["phase"] == "BEGIN" else None
+
+    def _reconciliation_window(self, registry: str, kind: str) -> list[dict[str, Any]]:
+        """History check_next needs: all of it for a gate, else from the active BEGIN."""
+        if kind == "legacy_reconciliation":
+            return self._records(registry)
+        active = self._active_plan(registry)
+        return [] if active is None else self._records(registry, from_sequence=active[1])
+
+    def _transition_record(self, registry: str, transition_id: str | None) -> dict[str, Any]:
+        record = self._record_by_id(registry, "epoch-" + str(transition_id))
+        if record is None:
+            raise CustodianError("completed transition record is missing")
+        return record
+
+    def _head(self, registry: str, state: dict[str, Any]) -> dict[str, Any]:
+        plan = self._active_plan(registry)
+        active = plan[0] if plan else None
+        last = self._last_record(registry)
+        return {
+            "registry_id": last["registry_id"],
+            "epoch": last["epoch"],
+            "head_sequence": last["sequence"],
+            "head_mac": last["mac"],
+            "policy_digest": state["policy_digest"],
+            "fence_generation": state["generation"],
+            "pending_record_id": state["pending"]["record_id"] if state["pending"] else None,
+            "legacy_reconciliation": (
+                {key: active[key] for key in ("migration_id", "manifest_digest", "backup_digest")}
+                if active
+                else None
+            ),
+        }
+
+    def _record(
+        self,
+        registry: str,
+        epoch: int,
+        sequence: int,
+        previous: str,
+        record_id: str,
+        kind: str,
+        payload: dict[str, Any],
+        *,
+        mac_key: bytes | None = None,
+    ) -> dict[str, Any]:
+        record = {
+            "registry_id": registry,
+            "epoch": epoch,
+            "sequence": sequence,
+            "record_id": record_id,
+            "kind": kind,
+            "payload": payload,
+            "payload_digest": hashlib.sha256(_bytes(payload)).hexdigest(),
+            "prev_mac": previous,
+        }
+        record["mac"] = hmac.new(mac_key or self._key, DOMAIN + _bytes(record), hashlib.sha256).hexdigest()
+        _bytes(record)  # Reject final envelope overflow before any durable preparation.
+        return record
+
+    def enroll(self, registry: str, policy: dict[str, Any], *, actor: str, reviewed: bool) -> None:
+        _identifier(registry)
+        _identifier(actor)
+        if reviewed is not True:
+            raise CustodianError("explicit reviewed enrollment required")
+        self._validate_payload("policy_snapshot", policy)
+        genesis = self._record(
+            registry,
+            1,
+            1,
+            "0" * 64,
+            "genesis",
+            "genesis",
+            {"policy": policy, "actor": actor, "historical_provenance": "operator-reviewed-current-state"},
+        )
+        state: dict[str, Any] = {
+            "pending": None,
+            "generation": 0,
+            "attempts": {},
+            "active": None,
+            "policy_digest": hashlib.sha256(_bytes(policy)).hexdigest(),
+        }
+        try:
+            with self._conn:
+                self._conn.execute("INSERT INTO registry VALUES (?,?)", (registry, json.dumps(state)))
+                _insert_record(self._conn, registry, genesis)
+        except sqlite3.IntegrityError as exc:
+            raise CustodianError("registry already enrolled") from exc
+
+    @staticmethod
+    def _ordinary(state: dict[str, Any]) -> None:
+        if state.get("rotation") is not None:
+            raise CustodianError("custody rotation requires reconciliation")
+
+    def signer_for(self, registry: str) -> Ed25519PrivateKey:
+        state = self._load(registry)
+        epoch = str(self._head(registry, state)["epoch"])
+        if epoch == "1":
+            return self.signing_key
+        try:
+            return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(state["epoch_keys"][epoch]["signing"]))
+        except (KeyError, ValueError, TypeError) as exc:
+            raise CustodianError("custody epoch key unavailable") from exc
+
+    def read_current(self, registry: str) -> dict[str, Any]:
+        state = self._load(registry)
+        self._ordinary(state)
+        return self._head(registry, state)
+
+    def register_fence(
+        self, registry: str, *, predecessor: dict[str, Any], attempt_id: str, holder: str, local_token: int
+    ) -> dict[str, Any]:
+        return self._register_fence(
+            registry, predecessor=predecessor, attempt_id=attempt_id, holder=holder, local_token=local_token
+        )
+
+    def _register_fence(
+        self,
+        registry: str,
+        *,
+        predecessor: dict[str, Any],
+        attempt_id: str,
+        holder: str,
+        local_token: int,
+        transition_id: str | None = None,
+    ) -> dict[str, Any]:
+        _identifier(attempt_id)
+        _identifier(holder)
+        if type(local_token) is not int or local_token < 1:
+            raise CustodianError("invalid lease binding")
+        with self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            state = self._load(registry)
+            if transition_id is None:
+                self._ordinary(state)
+            elif (state.get("rotation") or {}).get("transition_id") != transition_id:
+                raise CustodianError("rotation identity mismatch")
+            binding = {
+                "attempt_id": attempt_id,
+                "holder": holder,
+                "local_token": local_token,
+                "predecessor": {k: predecessor.get(k) for k in PREDECESSOR_FIELDS},
+            }
+            previous = state["attempts"].get(attempt_id)
+            if previous is not None:
+                if previous != state["active"] or not _equal(previous["binding"], binding):
+                    raise CustodianError("superseded or conflicting fence attempt")
+                return previous
+            if not _match(predecessor, self._head(registry, state), PREDECESSOR_FIELDS):
+                raise CustodianError("stale fence predecessor")
+            state["generation"] += 1
+            fence = {"generation": state["generation"], "binding": binding}
+            state["attempts"][attempt_id] = fence
+            state["active"] = fence
+            self._save(registry, state)
+            return fence
+
+    @staticmethod
+    def _assert_fence(state: dict[str, Any], fence: dict[str, Any]) -> None:
+        if state["active"] is None or not _equal(state["active"], fence):
+            raise CustodianError("stale writer fence")
+
+    @staticmethod
+    def _validate_payload(kind: str, payload: dict[str, Any]) -> None:
+        # Reuse the existing frozen domain parsers, with no file reads/defaults.
+        from magicite.core.trust import DecisionKind, SourceChannel, TrustDecision, TrustPolicy
+
+        if not isinstance(payload, dict):
+            raise CustodianError("invalid record payload")
+        _bytes(payload)
+        try:
+            if kind == "policy_snapshot":
+                if payload.get("schema") != "TrustPolicy/1":
+                    raise CustodianError("invalid policy schema")
+                _identifier(payload.get("policy_id"))
+                if type(payload.get("revision")) is not int or payload["revision"] < 1:
+                    raise CustodianError("invalid policy revision")
+                if not isinstance(payload.get("roots"), list):
+                    raise CustodianError("invalid policy roots")
+                for root in payload["roots"]:
+                    if (
+                        type(root.get("revoked")) is not bool
+                        or len(bytes.fromhex(root["public_key_hex"])) != 32
+                    ):
+                        raise CustodianError("invalid policy root")
+                parsed = TrustPolicy.from_dict(payload).to_dict()
+            elif kind == "trust_decision":
+                if payload.get("schema") != "TrustDecision/1":
+                    raise CustodianError("invalid decision schema")
+                if payload.get("decision") not in get_args(DecisionKind) or payload.get(
+                    "source_channel"
+                ) not in get_args(SourceChannel):
+                    raise CustodianError("invalid decision domain")
+                for name in (
+                    "decision_id",
+                    "engram_id",
+                    "policy_id",
+                    "actor",
+                    "timestamp",
+                    "scanner_revision",
+                ):
+                    _identifier(payload.get(name))
+                if type(payload.get("policy_revision")) is not int or payload["policy_revision"] < 1:
+                    raise CustodianError("invalid decision policy revision")
+                for name in ("content_digest", "policy_digest", "resource_digest", "signer_fingerprint"):
+                    value = payload.get(name)
+                    if value is None and name in {"resource_digest", "signer_fingerprint"}:
+                        continue
+                    if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+                        raise CustodianError("invalid decision digest")
+                if (
+                    payload.get("signature_valid") is not None
+                    and type(payload["signature_valid"]) is not bool
+                ):
+                    raise CustodianError("invalid signature status")
+                parsed = TrustDecision.from_dict(payload).to_dict()
+            elif kind == "legacy_reconciliation":
+                from magicite.core.trust_reconciliation import validate
+
+                validate(payload)
+                parsed = payload
+            elif kind == "artifact_transform":
+                from magicite.core.trust_artifacts import validate_transform_lineage
+
+                validate_transform_lineage(payload)
+                parsed = payload
+            else:
+                raise CustodianError("unsupported record kind")
+            if not _equal(parsed, payload):
+                raise CustodianError("noncanonical record payload")
+        except (KeyError, ValueError, TypeError) as exc:
+            raise CustodianError("invalid record payload") from exc
+
+    def prepare_record(
+        self,
+        registry: str,
+        *,
+        fence: dict[str, Any],
+        expected_head: dict[str, Any],
+        record_id: str,
+        kind: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        _identifier(record_id)
+        self._validate_payload(kind, payload)
+        if kind == "trust_decision" and record_id != payload["decision_id"]:
+            raise CustodianError("decision identity must equal immutable journal identity")
+        if kind == "artifact_transform":
+            if record_id != "transform-" + hashlib.sha256(_bytes(payload)).hexdigest():
+                raise CustodianError("transform identity must equal immutable content identity")
+            if payload["configuration"]["registry_id"] != registry:
+                raise CustodianError("transform enrollment mismatch")
+        with self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            state = self._load(registry)
+            self._ordinary(state)
+            self._assert_fence(state, fence)
+            if kind == "artifact_transform":
+                for identity in payload["source_decision_ids"]:
+                    original = self._record_by_id(registry, identity)
+                    if (
+                        original is None
+                        or original["kind"] != "trust_decision"
+                        or original["payload"]["engram_id"] != payload["engram_id"]
+                        or original["payload"]["content_digest"] != payload["source_digest"]
+                    ):
+                        raise CustodianError("invalid source decision reference")
+                if payload["transform_id"] in {
+                    "magicite-authored-edit/1",
+                    "magicite-dream-checkpoint/1",
+                    "magicite-archive/1",
+                } and not self._conn.execute(
+                    "SELECT 1 FROM record WHERE registry=? AND lineage_target=? LIMIT 1",
+                    (registry, _lineage_target(payload["engram_id"], payload["source_digest"])),
+                ).fetchone():
+                    raise CustodianError("authored lineage source is missing")
+            for existing in (self._record_by_id(registry, record_id), state["pending"]):
+                if existing and existing["record_id"] == record_id:
+                    if existing["kind"] == kind and _equal(existing["payload"], payload):
+                        return existing
+                    raise CustodianError("conflicting immutable record identity")
+            from magicite.core.trust_reconciliation import check_next
+
+            check_next(
+                self._reconciliation_window(registry, kind),
+                registry=registry,
+                epoch=self._head(registry, state)["epoch"],
+                record_id=record_id,
+                kind=kind,
+                payload=payload,
+            )
+            if state["pending"] is not None:
+                raise CustodianError("pending record requires reconciliation")
+            head = self._head(registry, state)
+            if not _match(expected_head, head, HEAD_FIELDS):
+                raise CustodianError("stale preparation head")
+            record = self._record(
+                registry,
+                head["epoch"],
+                head["head_sequence"] + 1,
+                head["head_mac"],
+                record_id,
+                kind,
+                payload,
+                mac_key=(
+                    bytes.fromhex(state["epoch_keys"][str(head["epoch"])]["mac"])
+                    if head["epoch"] != 1
+                    else self._key
+                ),
+            )
+            state["pending"] = record
+            self._save(registry, state)
+            return record
+
+    def commit_record(
+        self, registry: str, *, fence: dict[str, Any], expected_head: dict[str, Any], record: dict[str, Any]
+    ) -> dict[str, Any]:
+        with self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            state = self._load(registry)
+            self._ordinary(state)
+            self._assert_fence(state, fence)
+            if _equal(record, self._last_record(registry)):
+                return self._head(registry, state)
+            if not _match(expected_head, self._head(registry, state), HEAD_FIELDS):
+                raise CustodianError("stale commit head")
+            if state["pending"] is None or not _equal(record, state["pending"]):
+                raise CustodianError("record does not match durable preparation")
+            _insert_record(self._conn, registry, state["pending"])
+            if record["kind"] == "policy_snapshot":
+                state["policy_digest"] = record["payload_digest"]
+            state["pending"] = None
+            self._save(registry, state)
+            return self._head(registry, state)
+
+    def committed_records(self, registry: str) -> list[dict[str, Any]]:
+        self._load(registry)
+        return self._records(registry)
+
+    def history_page(self, registry: str, *, expected_head: dict[str, Any], offset: int) -> dict[str, Any]:
+        state = self._load(registry)
+        self._ordinary(state)
+        return self._history_page(registry, state, expected_head=expected_head, offset=offset)
+
+    def rotate_history_page(
+        self, registry: str, *, transition_id: str, expected_head: dict[str, Any], offset: int
+    ) -> dict[str, Any]:
+        state = self._load(registry)
+        if (state.get("rotation") or {}).get("transition_id") != transition_id:
+            raise CustodianError("rotation identity mismatch")
+        return self._history_page(registry, state, expected_head=expected_head, offset=offset)
+
+    def transition_certificate(self, registry: str, *, transition_id: str) -> dict[str, Any]:
+        state = self._load(registry)
+        self._ordinary(state)
+        certificate = state.get("transitions", {}).get(transition_id)
+        if certificate is None:
+            raise CustodianError("unknown completed transition")
+        return dict(certificate)
+
+    def _history_page(
+        self, registry: str, state: dict[str, Any], *, expected_head: dict[str, Any], offset: int
+    ) -> dict[str, Any]:
+        head = self._head(registry, state)
+        if not _match(expected_head, head, HEAD_FIELDS):
+            raise CustodianError("history head changed")
+        # Aggregate history has no single-record size cap. Each authenticated
+        # page is bounded independently and pinned to one immutable head.
+        # Stored bodies are canonical _bytes(record), so joining them is
+        # byte-identical to canonically encoding the whole record list.
+        bodies = [
+            row[0]
+            for row in self._conn.execute(
+                "SELECT body FROM record WHERE registry=? ORDER BY sequence", (registry,)
+            ).fetchall()
+        ]
+        raw = ("[" + ",".join(bodies) + "]").encode()
+        if type(offset) is not int or not 0 <= offset < len(raw):
+            raise CustodianError("invalid history cursor")
+        end = min(offset + 1024 * 1024, len(raw))
+        return {
+            **{key: head[key] for key in HEAD_FIELDS},
+            "offset": offset,
+            "next_offset": end,
+            "total_bytes": len(raw),
+            "record_count": len(bodies),
+            "stream_digest": hashlib.sha256(raw).hexdigest(),
+            "data": base64.b64encode(raw[offset:end]).decode("ascii"),
+        }
+
+    def prepared_record(self, registry: str) -> dict[str, Any] | None:
+        state = self._load(registry)
+        self._ordinary(state)
+        pending: dict[str, Any] | None = state["pending"]
+        return pending
+
+    def rotation_status(self, registry: str, *, transition_id: str | None = None) -> dict[str, Any]:
+        state = self._load(registry)
+        rotation = state.get("rotation")
+        if rotation is None:
+            certificate = state.get("transitions", {}).get(transition_id)
+            if certificate is None:
+                raise CustodianError("no matching custody rotation")
+            return {
+                "phase": "FINISHED",
+                "head": self._head(registry, state),
+                "transition": certificate,
+                "transition_id": transition_id,
+                "record": self._transition_record(registry, transition_id),
+            }
+        if transition_id is not None and rotation["transition_id"] != transition_id:
+            raise CustodianError("rotation identity mismatch")
+        return {
+            "phase": rotation["phase"],
+            "head": self._head(registry, state),
+            "transition": rotation["certificate"],
+            "transition_id": rotation["transition_id"],
+            "record": rotation["record"],
+        }
+
+    def rotate_prepare(
+        self,
+        registry: str,
+        *,
+        fence: dict[str, Any],
+        expected_head: dict[str, Any],
+        transition_id: str,
+        actor: str,
+    ) -> dict[str, Any]:
+        from magicite.core.trust_rotation import TRANSITION_DOMAIN
+
+        _identifier(transition_id)
+        _identifier(actor)
+        with self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            state = self._load(registry)
+            self._assert_fence(state, fence)
+            rotation = state.get("rotation")
+            if rotation is not None:
+                if (
+                    rotation["transition_id"] != transition_id
+                    or rotation["actor"] != actor
+                    or not _match(expected_head, rotation["old_head"], HEAD_FIELDS)
+                ):
+                    raise CustodianError("conflicting custody rotation")
+                return dict(rotation["certificate"])
+            if state["pending"] is not None or not _match(
+                expected_head, self._head(registry, state), HEAD_FIELDS
+            ):
+                raise CustodianError("rotation requires reconciled current head")
+            if transition_id in state.get("transitions", {}):
+                raise CustodianError("rotation identity already completed")
+            old_head = self._head(registry, state)
+            if old_head["legacy_reconciliation"] is not None:
+                raise CustodianError("legacy reconciliation blocks rotation")
+            old_key = self.signer_for(registry)
+            new_key, new_mac = Ed25519PrivateKey.generate(), secrets.token_bytes(32)
+            old_public = old_key.public_key().public_bytes_raw().hex()
+            new_public = new_key.public_key().public_bytes_raw().hex()
+            intent = {
+                "schema": "EpochTransitionIntent/1",
+                "registry_id": registry,
+                "transition_id": transition_id,
+                "actor": actor,
+                "old_epoch": old_head["epoch"],
+                "new_epoch": old_head["epoch"] + 1,
+                "old_public_key": old_public,
+                "new_public_key": new_public,
+                "old_head": {k: old_head[k] for k in HEAD_FIELDS},
+                "policy_digest": state["policy_digest"],
+            }
+            record_id = "epoch-" + transition_id
+            if self._record_by_id(registry, record_id) is not None:
+                raise CustodianError("conflicting immutable record identity")
+            record = self._record(
+                registry,
+                intent["new_epoch"],
+                old_head["head_sequence"] + 1,
+                old_head["head_mac"],
+                record_id,
+                "epoch_transition",
+                intent,
+                mac_key=new_mac,
+            )
+            new_head = {
+                "registry_id": registry,
+                "epoch": intent["new_epoch"],
+                "head_sequence": record["sequence"],
+                "head_mac": record["mac"],
+            }
+            body = {
+                "schema": "Transition/1",
+                "registry_id": registry,
+                "transition_id": transition_id,
+                "old_epoch": intent["old_epoch"],
+                "new_epoch": intent["new_epoch"],
+                "old_public_key": old_public,
+                "new_public_key": new_public,
+                "old_key_id": hashlib.sha256(bytes.fromhex(old_public)).hexdigest(),
+                "new_key_id": hashlib.sha256(bytes.fromhex(new_public)).hexdigest(),
+                "old_head": intent["old_head"],
+                "new_head": new_head,
+                "policy_digest": state["policy_digest"],
+                "intent_digest": hashlib.sha256(_bytes(intent)).hexdigest(),
+            }
+            certificate = {
+                "body": body,
+                "old_signature": old_key.sign(TRANSITION_DOMAIN + _bytes(body)).hex(),
+                "new_signature": new_key.sign(TRANSITION_DOMAIN + _bytes(body)).hex(),
+            }
+            state.setdefault("epoch_keys", {})[str(intent["new_epoch"])] = {
+                "mac": new_mac.hex(),
+                "signing": new_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption()).hex(),
+            }
+            state["rotation"] = {
+                "phase": "PREPARED",
+                "transition_id": transition_id,
+                "actor": actor,
+                "old_head": old_head,
+                "record": record,
+                "certificate": certificate,
+            }
+            self._save(registry, state)
+            return certificate
+
+    def rotate_register(
+        self,
+        registry: str,
+        *,
+        transition_id: str,
+        predecessor: dict[str, Any],
+        attempt_id: str,
+        holder: str,
+        local_token: int,
+    ) -> dict[str, Any]:
+        return self._register_fence(
+            registry,
+            predecessor=predecessor,
+            attempt_id=attempt_id,
+            holder=holder,
+            local_token=local_token,
+            transition_id=transition_id,
+        )
+
+    def rotate_commit(
+        self,
+        registry: str,
+        *,
+        transition_id: str,
+        fence: dict[str, Any],
+        expected_head: dict[str, Any],
+    ) -> dict[str, Any]:
+        with self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            state = self._load(registry)
+            self._assert_fence(state, fence)
+            rotation = state.get("rotation")
+            if (
+                rotation is None
+                or rotation["transition_id"] != transition_id
+                or not _match(expected_head, rotation["old_head"], HEAD_FIELDS)
+            ):
+                raise CustodianError("rotation identity/head mismatch")
+            if rotation["phase"] == "COMMITTED":
+                return self._head(registry, state)
+            if not _match(self._head(registry, state), rotation["old_head"], HEAD_FIELDS):
+                raise CustodianError("rotation source head changed")
+            _insert_record(self._conn, registry, rotation["record"])
+            rotation["phase"] = "COMMITTED"
+            self._save(registry, state)
+            return self._head(registry, state)
+
+    def rotate_finish(
+        self,
+        registry: str,
+        *,
+        transition_id: str,
+        expected_head: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Service calls only after its protected profile has durably advanced."""
+        with self._conn:
+            self._conn.execute("BEGIN IMMEDIATE")
+            state = self._load(registry)
+            rotation = state.get("rotation")
+            if not _match(expected_head, self._head(registry, state), HEAD_FIELDS):
+                raise CustodianError("rotation completion head mismatch")
+            if rotation is None:
+                if transition_id not in state.get("transitions", {}):
+                    raise CustodianError("rotation identity mismatch")
+                return self._head(registry, state)
+            if rotation["transition_id"] != transition_id or rotation["phase"] != "COMMITTED":
+                raise CustodianError("rotation has not committed")
+            state.setdefault("transitions", {})[transition_id] = rotation["certificate"]
+            state["rotation"] = None
+            self._save(registry, state)
+            return self._head(registry, state)

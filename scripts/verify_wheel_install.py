@@ -76,12 +76,67 @@ registry_dir.mkdir(parents=True)
 for path in fixture_engrams.glob("*.egr.md"):
     shutil.copy(path, registry_dir / path.name)
 
+import hashlib
+
+from magicite.core import trust, writer_guard
+from magicite.core.trust_custodian import CustodianError, CustodianStore
+from magicite.core.trust_journal import TrustJournal
+
+project_root = project_root.resolve()
 cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
 cfg.ensure_dirs()
 conn = db_mod.connect(cfg.db_path)
 embedder = get_embedder(dim=256)
+
+# A clean install has no protected enrollment and must fail closed.
+try:
+    registry_mod.register(cfg, conn, embedder, path=".magicite/engrams")
+except CustodianError as exc:
+    assert "protected custody enrollment required" in str(exc), exc
+else:
+    raise AssertionError("clean install registered without protected custody")
+
+
+class DisposableCustody:
+    def __init__(self, store, registry_id):
+        self.store, self.registry_id = store, registry_id
+
+    def call(self, operation, **arguments):
+        return getattr(self.store, operation)(self.registry_id, **arguments)
+
+
+# Disposable in-process custodian for this probe registry only; it does not
+# qualify installed-channel or distinct-UID deployment custody.
+registry_id = "probe-" + hashlib.sha256(str(project_root).encode()).hexdigest()[:24]
+import tempfile
+
+store = CustodianStore.create(Path(tempfile.mkdtemp(prefix="magicite-probe-custody-")).resolve() / "private")
+store.enroll(registry_id, trust.default_policy().to_dict(), actor="probe-operator", reviewed=True)
+provider = DisposableCustody(store, registry_id)
+original_resolve = writer_guard.resolve_custody
+
+
+def resolve(candidate):
+    if candidate.project_root.resolve() == project_root:
+        return registry_id, provider
+    return original_resolve(candidate)
+
+
+writer_guard.resolve_custody = resolve
+TrustJournal(cfg.data_dir / "trust/authority", registry_id, provider).initialize_reviewed_genesis()
+
 register_outcome = registry_mod.register(cfg, conn, embedder, path=".magicite/engrams")
 assert register_outcome.ingested >= 1, register_outcome
+assert register_outcome.validation_errors == [], register_outcome.validation_errors
+for row in conn.execute("SELECT id, content_sha256 FROM engram").fetchall():
+    registry_mod.review_approve(
+        cfg,
+        conn,
+        engram_id=row["id"],
+        expected_digest=row["content_sha256"],
+        actor="probe-explicit-fixture-review",
+        reason="disposable clean-install probe registry; no runtime trust transfer",
+    )
 route_outcome = router_mod.route(
     cfg, conn, embedder, query="rollback proton for a steam game", k=5
 )
@@ -95,6 +150,9 @@ print(
             "top": top,
             "ingested": register_outcome.ingested,
             "pkg_file": str(pkg_file),
+            "fail_closed_without_custody": True,
+            "custody": "disposable-simulated",
+            "deployment_custody": "UNEVALUATED",
         }
     )
 )

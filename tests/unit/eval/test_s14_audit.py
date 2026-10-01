@@ -77,7 +77,7 @@ def test_holm_uses_p_values_and_step_down_stop():
     assert holm_critical_slice_family([("a", interval)]).status == "inconclusive"
 
 
-def test_authentic_manifest_ingests_full_bodies_and_rejects_tampering(tmp_path, embedder):
+def test_authentic_manifest_ingests_full_bodies_and_rejects_tampering(tmp_path, embedder, custody_for):
     import importlib.util
     import json
     from pathlib import Path
@@ -178,6 +178,7 @@ def test_authentic_manifest_ingests_full_bodies_and_rejects_tampering(tmp_path, 
     assert (acquired.parent / "assets/helper.txt").read_bytes() == asset.read_bytes()
     cfg = Config(project_root=tmp_path / "registry")
     cfg.ensure_dirs()
+    custody_for(cfg)
     conn = db.connect(cfg.db_path)
     try:
         metadata, queries = module._build_registry_from_corpus_manifest(

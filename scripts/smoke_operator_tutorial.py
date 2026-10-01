@@ -18,11 +18,31 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 
 def run_tutorial(work: Path) -> dict[str, Any]:
+    from tests.support.custody_adapter import SERVE_LAUNCHER, FixtureCustody, attach_fixture
+
+    work = work.resolve()
     project = work / "project"
     project.mkdir(parents=True)
+    # Disposable simulated custody stands in for the separately provisioned
+    # custodian account; deployment custody stays UNEVALUATED.
+    custody_dir = work / "custody"
+    registry_id = "tutorial-" + hashlib.sha256(str(project).encode()).hexdigest()[:24]
+    FixtureCustody(custody_dir, registry_id).close()
+    launcher = [str(SERVE_LAUNCHER), str(project), str(custody_dir), registry_id]
+    with attach_fixture(project, custody_dir, registry_id) as provider:
+        return _run_tutorial(work, project, provider, launcher)
+
+
+def _run_tutorial(work: Path, project: Path, provider: Any, launcher: list[str]) -> dict[str, Any]:
+    from magicite.config import Config
+    from magicite.core.trust_journal import TrustJournal
+
+    authority = Config(project_root=project).data_dir / "trust/authority"
+    TrustJournal(authority, provider.registry_id, provider).initialize_reviewed_genesis()
     environment = work / "environment"
     venv.EnvBuilder(with_pip=False).create(environment)
     python = environment / "bin/python"
@@ -49,9 +69,15 @@ def run_tutorial(work: Path) -> dict[str, Any]:
         }
     ]
 
-    def command(*args: str, allow_failure: bool = False, input_json: dict | None = None) -> dict[str, Any]:
+    def command(
+        *args: str,
+        allow_failure: bool = False,
+        input_json: dict | None = None,
+        target: tuple[Path, list[str]] | None = None,
+    ) -> dict[str, Any]:
+        root, attached = target or (project, launcher)
         run = subprocess.run(
-            [str(python), "-m", "magicite", *args, "--project-root", str(project)],
+            [str(python), *attached, *args, "--project-root", str(root)],
             env=env,
             input=json.dumps(input_json) if input_json is not None else None,
             text=True,
@@ -79,7 +105,7 @@ def run_tutorial(work: Path) -> dict[str, Any]:
         from mcp.client.stdio import stdio_client
 
         params = StdioServerParameters(
-            command=str(python), args=["-m", "magicite", "serve", "--project-root", str(project)], env=env
+            command=str(python), args=[*launcher, "serve", "--project-root", str(project)], env=env
         )
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
@@ -216,15 +242,15 @@ def run_tutorial(work: Path) -> dict[str, Any]:
     if restored.get("reconciliation_required"):
         raise RuntimeError(f"tutorial authenticated restore remained gated: {restored}")
     command("migration", "preview")
-    applied = command("migration", "apply", "--operation-id", "tutorial-upgrade")
-    command("migration", "status", "--operation-id", applied["operation_id"])
-    command("migration", "restore", "--backup-path", str(cfg.data_dir / applied["backup_relpath"]))
+    _legacy_upgrade(work, command)
     report = {
         "schema": "magicite/operator-tutorial/1",
         "status": "pass",
         "provider": "hashing",
         "independent_operator": "UNEVALUATED",
         "published_install": "UNEVALUATED",
+        "custody": "disposable-simulated",
+        "deployment_custody": "UNEVALUATED",
         "version": importlib.metadata.version("magicite"),
         "python": sys.version.split()[0],
         "mcp_version": importlib.metadata.version("mcp"),
@@ -239,6 +265,68 @@ def run_tutorial(work: Path) -> dict[str, Any]:
     return json.loads(
         json.dumps(report, default=str).replace(str(work), "<WORK>").replace(str(ROOT), "<SOURCE>")
     )
+
+
+def _legacy_upgrade(work: Path, command: Any) -> None:
+    """Reviewed upgrade of a disposable pre-custody project through the public CLI."""
+    from tests.support.custody_adapter import SERVE_LAUNCHER, FixtureCustody
+
+    from magicite.config import Config
+    from magicite.core import trust
+    from magicite.storage import db
+
+    legacy = work / "legacy-project"
+    cfg = Config(project_root=legacy)
+    cfg.ensure_dirs()
+    for source in (ROOT / "tests/fixtures/toy-registry/engrams").glob("*.egr.md"):
+        shutil.copyfile(source, cfg.registry_dir / source.name)
+    db.connect(cfg.db_path).close()
+    (cfg.data_dir / "trust").mkdir(exist_ok=True)
+    (cfg.data_dir / "trust/policy.json").write_text(json.dumps(trust.default_policy().to_dict()))
+    original = {p.name: p.read_bytes() for p in cfg.registry_dir.glob("*.egr.md")}
+
+    custody_dir = work / "legacy-custody"
+    registry_id = "tutorial-legacy-" + hashlib.sha256(str(legacy).encode()).hexdigest()[:24]
+    FixtureCustody(custody_dir, registry_id).close()
+    target = (legacy, [str(SERVE_LAUNCHER), str(legacy), str(custody_dir), registry_id])
+
+    preview = command(
+        "custody",
+        "legacy-preview",
+        "--registry-id",
+        registry_id,
+        "--actor",
+        "tutorial-operator",
+        target=target,
+    )
+    digest = preview["reviewed_sha256"]
+    plan_path, backup_path = work / "legacy-plan.json", work / "legacy-backup"
+    plan_path.write_text(json.dumps(preview["plan"]))
+    command(
+        "custody",
+        "legacy-backup",
+        "--plan",
+        str(plan_path),
+        "--reviewed-sha256",
+        digest,
+        "--destination",
+        str(backup_path),
+        target=target,
+    )
+    command("migration", "preview", target=target)
+    reviewed = ("--reviewed-sha256", digest, "--backup-path", str(backup_path))
+    applied = command("migration", "apply", *reviewed, target=target)
+    if applied.get("state") != "completed":
+        raise RuntimeError(f"reviewed legacy upgrade did not complete: {applied}")
+    status = command("migration", "status", "--operation-id", applied["operation_id"], target=target)
+    if status.get("state") != "completed":
+        raise RuntimeError(f"legacy upgrade status mismatch: {status}")
+    stage = work / "legacy-stage"
+    staged = command("migration", "restore", *reviewed, "--staging-path", str(stage), target=target)
+    if staged.get("state") != "reconciliation_required":
+        raise RuntimeError(f"legacy restore was not restricted to inactive staging: {staged}")
+    if {p.name: p.read_bytes() for p in (stage / "files/engrams").glob("*.egr.md")} != original:
+        raise RuntimeError("legacy restore staging did not preserve original source bytes")
 
 
 def main() -> int:

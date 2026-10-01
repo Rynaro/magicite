@@ -19,6 +19,7 @@ from magicite.core import evidence as evidence_mod
 from magicite.core import policy_store as policy_store_mod
 from magicite.core import recovery_gate as gate_mod
 from magicite.core import registry as registry_mod
+from magicite.core import writer_guard
 from magicite.errors import InvalidInputError, MagiciteError, NotFoundError
 from magicite.obs import doctor as doctor_mod
 from magicite.storage import authorizer as authorizer_mod
@@ -27,6 +28,7 @@ from magicite.storage import db as db_mod
 
 def _cfg(project_root: str | Path) -> Config:
     cfg = Config.load(str(project_root))
+    writer_guard.preflight_custody(cfg)
     cfg.ensure_dirs()
     return cfg
 
@@ -180,9 +182,7 @@ def trust_import_bundle(
         from magicite.embeddings import get_embedder
 
         embedder = get_embedder(cfg)
-        outcome = registry_mod.import_bundle(
-            cfg, conn, embedder, archive_path=archive_path, actor=actor
-        )
+        outcome = registry_mod.import_bundle(cfg, conn, embedder, archive_path=archive_path, actor=actor)
         return asdict(outcome)
     finally:
         conn.close()
@@ -221,8 +221,11 @@ def policy_reconcile(project_root: str | Path) -> dict[str, Any]:
         st = policy_store_mod.reconcile(cfg)
     except MagiciteError as exc:
         raise _map_policy_store_error(exc) from exc
-    return {"active_digest": st.active_digest, "prior_digest": st.prior_digest,
-            "state_digest": st.state_digest}
+    return {
+        "active_digest": st.active_digest,
+        "prior_digest": st.prior_digest,
+        "state_digest": st.state_digest,
+    }
 
 
 def policy_activate(
@@ -317,9 +320,7 @@ def evidence_delete(
 def evidence_retention_status(project_root: str | Path) -> dict[str, Any]:
     cfg = _cfg(project_root)
     return {
-        "retention_operational_days": int(
-            getattr(cfg, "evidence_retention_operational_days", 30)
-        ),
+        "retention_operational_days": int(getattr(cfg, "evidence_retention_operational_days", 30)),
         "retention_audit_days": int(getattr(cfg, "evidence_retention_audit_days", 90)),
         "backup_expiry_days": evidence_mod.backup_expiry_days(cfg),
         "privacy_deletion_notice": evidence_mod.EXPORT_COPY_DELETION_NOTICE,
@@ -410,22 +411,61 @@ def migration_status(project_root: str | Path, *, operation_id: str) -> dict[str
     return asdict(migration.status(Config.load(str(project_root)), operation_id))
 
 
-def migration_apply(project_root: str | Path, *, operation_id: str | None = None) -> dict[str, Any]:
+def migration_apply(
+    project_root: str | Path,
+    *,
+    operation_id: str | None = None,
+    reviewed_sha256: str | None = None,
+    backup_path: str | None = None,
+) -> dict[str, Any]:
     from magicite.core import migration
 
-    return asdict(migration.apply(Config.load(str(project_root)), operation_id=operation_id))
+    return asdict(
+        migration.apply(
+            Config.load(str(project_root)),
+            operation_id=operation_id,
+            reviewed_sha256=reviewed_sha256,
+            backup_path=backup_path,
+        )
+    )
 
 
-def migration_resume(project_root: str | Path, *, operation_id: str) -> dict[str, Any]:
+def migration_resume(
+    project_root: str | Path,
+    *,
+    operation_id: str,
+    reviewed_sha256: str | None = None,
+    backup_path: str | None = None,
+) -> dict[str, Any]:
     from magicite.core import migration
 
-    return asdict(migration.resume(Config.load(str(project_root)), operation_id))
+    return asdict(
+        migration.resume(
+            Config.load(str(project_root)),
+            operation_id,
+            reviewed_sha256=reviewed_sha256,
+            backup_path=backup_path,
+        )
+    )
 
 
-def migration_restore(project_root: str | Path, *, backup_path: str) -> dict[str, Any]:
+def migration_restore(
+    project_root: str | Path,
+    *,
+    backup_path: str,
+    staging_path: str | None = None,
+    reviewed_sha256: str | None = None,
+) -> dict[str, Any]:
     from magicite.core import migration
 
-    return asdict(migration.restore(Config.load(str(project_root)), backup_path=backup_path))
+    return asdict(
+        migration.restore(
+            Config.load(str(project_root)),
+            backup_path=backup_path,
+            staging_path=staging_path,
+            reviewed_sha256=reviewed_sha256,
+        )
+    )
 
 
 def policy_register_evaluated(
@@ -478,16 +518,13 @@ def evidence_route_checkpoint(project_root: str | Path, *, request: Any, event_i
     from magicite.errors import IdempotencyKeyConflictError
     from magicite.mcp import bind_retrieval
     from magicite.mcp.schemas import RouteInput
-    from magicite.storage import lease
 
     params = RouteInput.model_validate(request)
     bind_retrieval.validate_route_version(params)
     cfg = _cfg(project_root)
     conn = authorizer_mod.writer_connection(cfg.db_path)
     try:
-        with lease.CrossProcessLease(
-            lock_path=cfg.dream_lock_path, conn=conn, holder="cli-route-checkpoint"
-        ).acquire():
+        with writer_guard.registry_writer_lease(cfg, conn, holder="cli-route-checkpoint").acquire():
             key = fingerprint_key.load_or_create_fingerprint_key(cfg)
             canonical = json.dumps(params.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
             request_fp = fingerprint_key.query_fingerprint(canonical, key=key)

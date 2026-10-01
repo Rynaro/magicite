@@ -95,9 +95,10 @@ def _seed_all_domains(cfg: Config, conn) -> dict:
     }
 
 
-def test_complete_restore(project_root: Path, tmp_path: Path) -> None:
+def test_complete_restore(custody_for, project_root: Path, tmp_path: Path) -> None:
     """AC-S12-02: acknowledged durable records through recovery point recovered."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -176,13 +177,14 @@ def test_complete_restore(project_root: Path, tmp_path: Path) -> None:
         conn.close()
 
 
-def test_policy_reapplication(project_root: Path, tmp_path: Path) -> None:
+def test_policy_reapplication(custody_for, project_root: Path, tmp_path: Path) -> None:
     """AC-S12-03: post-backup revocation/deletion + valid overlay → no reactivation.
 
     Default preserve_live_overlay=True path: live overlay is verified, merged
     with any caller overlay, and monotonic anchors refuse rollback.
     """
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -261,9 +263,10 @@ def test_policy_reapplication(project_root: Path, tmp_path: Path) -> None:
         conn.close()
 
 
-def test_snapshot_refuses_corrupt_tombstones(project_root: Path, tmp_path: Path) -> None:
+def test_snapshot_refuses_corrupt_tombstones(custody_for, project_root: Path, tmp_path: Path) -> None:
     """Corrupt live tombstones abort the snapshot instead of binding empty known sets."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -287,9 +290,10 @@ def test_snapshot_refuses_corrupt_tombstones(project_root: Path, tmp_path: Path)
         conn.close()
 
 
-def test_poison_live_overlay_refuses_preserve(project_root: Path, tmp_path: Path) -> None:
+def test_poison_live_overlay_refuses_preserve(custody_for, project_root: Path, tmp_path: Path) -> None:
     """B3: truncating tombstones / deleting revoke without key → refuse preserve."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -333,9 +337,10 @@ def test_poison_live_overlay_refuses_preserve(project_root: Path, tmp_path: Path
         conn.close()
 
 
-def test_missing_stale_overlay_closed(project_root: Path, tmp_path: Path) -> None:
+def test_missing_stale_overlay_closed(custody_for, project_root: Path, tmp_path: Path) -> None:
     """AC-S12-05: clean-machine restore without overlay/anchor stays offline."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -422,12 +427,13 @@ def test_missing_stale_overlay_closed(project_root: Path, tmp_path: Path) -> Non
         conn.close()
 
 
-def test_route_refused_while_reconciliation_required(project_root: Path, tmp_path: Path) -> None:
+def test_route_refused_while_reconciliation_required(custody_for, project_root: Path, tmp_path: Path) -> None:
     """B1(b)/C9: route() refuses while reconciliation_required (S07 merged)."""
     from magicite.core import router as router_mod
     from magicite.embeddings.hashing_provider import get_embedder
 
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -458,9 +464,10 @@ def test_route_refused_while_reconciliation_required(project_root: Path, tmp_pat
         conn.close()
 
 
-def test_tamper_recovery_control_plane_stays_closed(project_root: Path, tmp_path: Path) -> None:
+def test_tamper_recovery_control_plane_stays_closed(custody_for, project_root: Path, tmp_path: Path) -> None:
     """B2: delete recovery/, forge activate_complete, delete state → still gated."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -506,9 +513,10 @@ def test_tamper_recovery_control_plane_stays_closed(project_root: Path, tmp_path
         conn.close()
 
 
-def test_custody_key_install_no_rekey(project_root: Path, tmp_path: Path) -> None:
+def test_custody_key_install_no_rekey(custody_for, project_root: Path, tmp_path: Path) -> None:
     """B4: custody key installed equals supplied key; without key → no key file."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -560,9 +568,10 @@ def test_custody_key_install_no_rekey(project_root: Path, tmp_path: Path) -> Non
         conn.close()
 
 
-def test_registry_id_mismatch_rejected(project_root: Path, tmp_path: Path) -> None:
+def test_registry_id_mismatch_rejected(custody_for, project_root: Path, tmp_path: Path) -> None:
     """B5: overlay.registry_id must match manifest (and live id when present)."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -601,9 +610,12 @@ def test_registry_id_mismatch_rejected(project_root: Path, tmp_path: Path) -> No
         conn.close()
 
 
-def test_deleted_revoke_mirror_refuses_preserve(project_root: Path, tmp_path: Path) -> None:
-    """Anti-shrink: delete a revoke known to the backup → preserve refuses."""
+def test_deleted_revoke_mirror_preserves_authenticated_restriction(
+    custody_for, project_root: Path, tmp_path: Path
+) -> None:
+    """Mirror deletion cannot remove a revoke before or after safe restore."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -630,11 +642,12 @@ def test_deleted_revoke_mirror_refuses_preserve(project_root: Path, tmp_path: Pa
         snap = backup_mod.create_snapshot(cfg, conn, backup_dir)
         assert revoke.decision_id in snap["known_revocation_ids"]
 
-        # Attacker deletes the revoke decision mirror (S04 ledger has no set-MAC).
+        # The historical mirror-loss defect is now closed: mirrors are projections.
         mirror = trust_mod.trust_decisions_dir(cfg) / f"{revoke.decision_id}.json"
-        assert mirror.is_file()
+        mirror.parent.mkdir(parents=True, exist_ok=True)
+        mirror.write_text(json.dumps(revoke.to_dict()))
         mirror.unlink()
-        assert trust_mod.latest_decision_for(cfg, engram_id).decision == "admit"
+        assert trust_mod.latest_decision_for(cfg, engram_id).decision == "revoke"
 
         result = backup_mod.restore_snapshot(
             cfg,
@@ -645,19 +658,20 @@ def test_deleted_revoke_mirror_refuses_preserve(project_root: Path, tmp_path: Pa
             custody_key=key,
             preserve_live_overlay=True,
         )
-        assert result["reconciliation_required"] is True
-        assert result["activated"] is False
-        assert "live_overlay_shrunk" in (result.get("reason") or "")
-        assert backup_mod.is_reconciliation_required(cfg) is True
+        assert result["status"] == "ok"
+        assert result["activated"] is True
+        assert trust_mod.latest_decision_for(cfg, engram_id).decision == "revoke"
+        assert not trust_mod.admission_still_valid(cfg, engram_id=engram_id, content_digest=digest)
     finally:
         conn.close()
 
 
-def test_deleted_privacy_tombstone_refuses_preserve(project_root: Path, tmp_path: Path) -> None:
+def test_deleted_privacy_tombstone_refuses_preserve(custody_for, project_root: Path, tmp_path: Path) -> None:
     """Anti-shrink: re-MAC after dropping a tombstone known to the backup → refuse."""
     from magicite.storage import lease as lease_mod
 
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -703,9 +717,10 @@ def test_deleted_privacy_tombstone_refuses_preserve(project_root: Path, tmp_path
         conn.close()
 
 
-def test_backup_excludes_restore_generation_markers(project_root: Path, tmp_path: Path) -> None:
+def test_backup_excludes_restore_generation_markers(custody_for, project_root: Path, tmp_path: Path) -> None:
     """Hardening: backups never carry restore-generation markers; restore stays clean."""
     cfg = Config.load(project_root, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
@@ -764,15 +779,18 @@ def test_backup_excludes_restore_generation_markers(project_root: Path, tmp_path
     "legacy_database", [False, True, "registry/./skill-graph.db", "registry/SKILL-GRAPH.DB"]
 )
 def test_restore_preserves_live_database_fence_and_immediate_writer(
+    custody_for,
     tmp_path: Path,
     legacy_database: bool,
 ) -> None:
     import hashlib
 
-    from magicite.core import migration
-    from magicite.storage import lease
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from magicite.core import trust
 
     cfg = Config(project_root=tmp_path / "project")
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     key = fk.load_or_create_fingerprint_key(cfg)
@@ -801,7 +819,9 @@ def test_restore_preserves_live_database_fence_and_immediate_writer(
         cfg, control_sequence=1, operator_provenance="fixture", key=key
     )
     anchor = backup_mod.issue_sequence_anchor(overlay, key=key)
-    cross = lease.CrossProcessLease(lock_path=cfg.dream_lock_path, conn=conn, holder="live-restore")
+    from magicite.core.writer_guard import registry_writer_lease
+
+    cross = registry_writer_lease(cfg, conn, holder="live-restore")
     try:
         with cross.acquire():
             token = cross._fencing_token
@@ -810,6 +830,10 @@ def test_restore_preserves_live_database_fence_and_immediate_writer(
             assert cfg.db_path.stat().st_ino == before_inode
             cross.assert_owned()
             assert cross._fencing_token == token
-        assert migration.apply(cfg, operation_id="immediate-after-restore").state == "completed"
+        before_head = trust.authenticated_snapshot(cfg).head["head_sequence"]
+        trust.pin_trust_root(
+            cfg, public_key_bytes=Ed25519PrivateKey.generate().public_key().public_bytes_raw()
+        )
+        assert trust.authenticated_snapshot(cfg).head["head_sequence"] == before_head + 1
     finally:
         conn.close()

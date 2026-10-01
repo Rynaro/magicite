@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -30,12 +29,16 @@ def test_host_support_manifest_pins_exact_versions() -> None:
         assert "transcript" in row
 
 
-def test_conformance_probe_offline_fixture_route_and_body(project_root, tmp_path: Path) -> None:
+def test_conformance_probe_offline_fixture_route_and_body(
+    cfg, review_fixture_artifacts, tmp_path: Path
+) -> None:
     """Every required probe for the generic stdio host must pass."""
     import importlib.metadata as md
 
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
+    from tests.conftest import TOY_ENGRAM_NAMES
+    from tests.support.custody_adapter import fixture_cli_argv
 
     from magicite.mcp import app as _app  # noqa: F401
     from magicite.mcp.registry import registered_names
@@ -48,9 +51,10 @@ def test_conformance_probe_offline_fixture_route_and_body(project_root, tmp_path
         manifest["mcp_sdk"]["version"].split("+")[0]
     )
 
+    command, *args = fixture_cli_argv(cfg, "serve", "--project-root", str(cfg.project_root))
     params = StdioServerParameters(
-        command=sys.executable,
-        args=["-m", "magicite", "serve", "--project-root", str(project_root)],
+        command=command,
+        args=args,
         env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"},
     )
 
@@ -86,6 +90,8 @@ def test_conformance_probe_offline_fixture_route_and_body(project_root, tmp_path
                 transcript["steps"].append(
                     {"step": "register", "ingested": reg.structured_content.get("ingested")}
                 )
+                # No MCP tool grants admission; the operator reviews out of band.
+                review_fixture_artifacts(*TOY_ENGRAM_NAMES)
 
                 route_result = await session.call_tool(
                     "route",

@@ -109,6 +109,12 @@ def test_imported_engrams_survive_resync_and_rebuild(cfg, db_conn, embedder, toy
     assert register_outcome.ingested == 3
     assert register_outcome.validation_errors == []
 
+    # The project_root fixture's 7 native engrams enter through register(),
+    # the only path that binds them; sync() refuses unbound files.
+    native_outcome = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    assert native_outcome.ingested == 7
+    assert native_outcome.validation_errors == []
+
     # Re-running sync() against the now-materialised imported .egr.md files
     # (alongside the project_root fixture's 7 native engrams) must not flag
     # them as validation errors (CR-4 still applies).
@@ -427,13 +433,16 @@ def test_checkpoint_persists_provenance_journal_to_file(cfg, db_conn, embedder) 
 
     # And it must be real, round-trippable YAML -- not a coincidental
     # substring match -- by re-parsing the exact file Dream just wrote.
-    reparsed = parser_mod.parse_file(file_path, registry_root=cfg.project_root.resolve())
-    events = [e.event for e in reparsed.engram.frontmatter.provenance_journal]
+    from magicite.engram.model_v1 import EngramV1
+
+    reparsed, _ = parser_mod.parse_artifact_file(file_path, registry_root=cfg.project_root.resolve())
+    assert isinstance(reparsed, EngramV1), "register() publishes the bound engram/1.0 form"
+    events = [e.event for e in reparsed.frontmatter.origin.journal]
     assert events == ["authored", "consolidated"], (
         "the re-parsed file's own provenance_journal must carry both the "
         "original fixture entry and the newly-appended checkpoint entry, "
         "in append order"
     )
-    consolidated_entry = reparsed.engram.frontmatter.provenance_journal[-1]
+    consolidated_entry = reparsed.frontmatter.origin.journal[-1]
     assert consolidated_entry.author == "dream-worker"
     assert consolidated_entry.timestamp, "the persisted entry must carry a real checkpoint timestamp"

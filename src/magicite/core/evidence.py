@@ -72,6 +72,7 @@ from typing import Any, Literal
 
 from magicite.config import Config
 from magicite.core import fingerprint_key as fingerprint_key_mod
+from magicite.core import writer_guard
 from magicite.errors import IdempotencyKeyConflictError, InvalidInputError
 from magicite.storage import lease as lease_mod
 from magicite.storage.lease import assert_single_writer, writer_lease
@@ -1092,14 +1093,13 @@ def _evidence_write_guard(
         _ensure_tombstone_mac(cfg, root)
         _repurge_tombstoned_payloads(cfg, root)
 
-    if lease_mod._CROSS_PROCESS_LEASE.get() is not None:  # noqa: SLF001
+    if lease_mod.cross_process_lease_held():
+        writer_guard.bound_journal(cfg)
         with writer_lease(holder):
             _enter()
             yield
         return
-    cross = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path,
-        conn=conn,
+    cross = writer_guard.registry_writer_lease(cfg, conn,
         holder=holder,
     )
     with cross.acquire():

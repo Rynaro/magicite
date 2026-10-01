@@ -41,10 +41,10 @@ from typing import Any
 
 from magicite.config import Config
 from magicite.core import fitness as fitness_mod
+from magicite.core import writer_guard
 from magicite.core.decay_math import effective_value
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
-from magicite.engram import parser as parser_mod
 from magicite.engram import writer as writer_mod
 from magicite.engram.lint import InjectionScanResult
 from magicite.engram.model import PitfallEntry, ProcedureStep, ProvenanceJournalEntry, VerificationStatus
@@ -171,9 +171,7 @@ def apply_local_admission(
     asserts G2). ``admit=True`` → ``verified``; ``admit=False`` → ``pending``.
     Returns the new verification_status.
     """
-    row = conn.execute(
-        "SELECT verification_status FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()
+    row = conn.execute("SELECT verification_status FROM engram WHERE id = ?", (engram_id,)).fetchone()
     if row is None:
         raise NotFoundError(f"no engram {engram_id!r}")
     new_status: VerificationStatus = "verified" if admit else "pending"
@@ -219,9 +217,7 @@ def _recent_valences(conn: sqlite3.Connection, engram_id: str, *, limit: int = 5
         "AND captured_at IS NOT NULL ORDER BY captured_at DESC LIMIT ?",
         (engram_id, limit),
     ).fetchall()
-    return tuple(
-        float(r["capture_valence"]) for r in reversed(rows) if r["capture_valence"] is not None
-    )
+    return tuple(float(r["capture_valence"]) for r in reversed(rows) if r["capture_valence"] is not None)
 
 
 def gather_evidence(conn: sqlite3.Connection, cfg: Config, engram_row: sqlite3.Row) -> fitness_mod.Evidence:
@@ -268,7 +264,9 @@ class UpwardCheck:
         return self.to_status is not None and not self.unmet
 
 
-def check_injection_scan(project_root: Path, engram_row: sqlite3.Row) -> lint_mod.InjectionScanResult:
+def check_injection_scan(
+    project_root: Path, engram_row: sqlite3.Row, *, cfg: Config | None = None
+) -> lint_mod.InjectionScanResult:
     """spec §5.1's "any -> quarantined" row is unconditional on the
     engram's current ``status`` -- unlike the upward ladder below, which
     only re-scans as a *side effect* of evaluating the nascent branch's
@@ -278,8 +276,11 @@ def check_injection_scan(project_root: Path, engram_row: sqlite3.Row) -> lint_mo
     still caught -- not only a `nascent` one mid-evaluation of a different
     gate entirely."""
     file_path = project_root / str(engram_row["path"])
-    parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-    return lint_mod.injection_scan(parsed.engram)
+    from magicite.core import registry, trust_artifacts
+
+    artifact = trust_artifacts.require_bound_artifact(cfg or Config(project_root=project_root), file_path)
+    engram = registry._artifact_to_engram(artifact, intake_channel="local_register")
+    return lint_mod.injection_scan(engram)
 
 
 def evaluate_upward_transition(
@@ -315,8 +316,10 @@ def evaluate_upward_transition(
         # (nucleate()/core.distill lands in M6), so it is `n/a` (True) for
         # every origin this milestone can actually produce.
         file_path = project_root / str(engram_row["path"])
-        parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-        engram = parsed.engram
+        from magicite.core import registry, trust_artifacts
+
+        artifact = trust_artifacts.require_bound_artifact(cfg, file_path)
+        engram = registry._artifact_to_engram(artifact, intake_channel="local_register")
         if scan is None:
             scan = lint_mod.injection_scan(engram)
         rubric = fitness_mod.structural_rubric_score(engram)
@@ -402,9 +405,7 @@ def execute_sharpen(
     from magicite.core import registry as registry_mod
 
     project_root = cfg.project_root.resolve()
-    row = conn.execute(
-        "SELECT path, verification_status FROM engram WHERE name = ?", (name,)
-    ).fetchone()
+    row = conn.execute("SELECT path, verification_status FROM engram WHERE name = ?", (name,)).fetchone()
     if row is None:
         raise NotFoundError(f"no engram named {name!r}")
     file_path = project_root / str(row["path"])
@@ -416,8 +417,11 @@ def execute_sharpen(
     # on the next `upsert_engram` below.
     current_verification_status = str(row["verification_status"])
 
-    parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-    engram = parsed.engram
+    from magicite.core import trust_artifacts
+    from magicite.engram.model_v1 import ProvenanceJournalEntryV1
+    typed = trust_artifacts.require_bound_artifact(cfg, file_path)
+    source_digest = typed.content_sha256
+    engram = registry_mod._artifact_to_engram(typed, intake_channel="local_register")
     if engram.frontmatter.trust is None:
         from magicite.engram.model import Trust
 
@@ -472,8 +476,8 @@ def execute_sharpen(
     # writer of durable engram state and must not interleave with a
     # running Dream cycle -- the cross-process lease, not just G2's
     # in-process one.
-    cross_lease = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path, conn=conn, holder=f"sharpen:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+    cross_lease = writer_guard.registry_writer_lease(
+        cfg, conn, holder=f"sharpen:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
     with cross_lease.acquire(), lease_mod.writer_lease(holder="sharpen"):
         # NOT `parsed.frontmatter_doc`: that round-trip carrier's own
@@ -487,9 +491,26 @@ def execute_sharpen(
         # content; it costs the pre-existing file's YAML comments, an
         # acceptable, disclosed trade-off for a sharpen -- unlike a
         # checkpoint, this is not supposed to look untouched.
-        rendered = writer_mod.render_document(engram, None)
-        engram.content_sha256 = ids_mod.content_sha256(rendered.encode("utf-8"))
-        writer_mod.atomic_write(file_path, rendered)
+        # Keep all v1-only constraints and assets; only the requested authored
+        # delta is copied back from the existing algorithm's legacy projection.
+        typed.frontmatter.version = new_version
+        typed.frontmatter.routing.positive = list(engram.frontmatter.triggers.positive)
+        typed.frontmatter.routing.negative = list(engram.frontmatter.triggers.negative)
+        typed.body = engram.body.model_copy(deep=True)
+        typed.frontmatter.origin.journal = [
+            ProvenanceJournalEntryV1(**entry.model_dump())
+            for entry in engram.frontmatter.provenance_journal
+        ]
+        rendered = writer_mod.render_document_v1(typed)
+        trust_artifacts.publish_authored_edit(cfg,file_path,rendered.encode(),
+            expected_source_digest=source_digest,actor=actor)
+        published = trust_artifacts.require_bound_artifact(cfg,file_path)
+        engram = registry_mod._artifact_to_engram(published,intake_channel="local_register")
+        if engram.frontmatter.trust is not None:
+            engram.frontmatter.trust = engram.frontmatter.trust.model_copy(
+                update={"verification_status": current_verification_status}
+            )
+
 
         identity = registry_mod.identity_hash(engram)  # CR-8: drift-only, `id` itself never recomputed
         durable_mod.upsert_engram(conn, engram, identity_sha256=identity)

@@ -96,6 +96,370 @@
         "type": "path"
       }
     ],
+    "magicite custody": [],
+    "magicite custody enroll": [
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "directory",
+        "options": [
+          "--directory"
+        ],
+        "path_exists": false,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "registry_id",
+        "options": [
+          "--registry-id"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "policy",
+        "options": [
+          "--policy"
+        ],
+        "path_exists": true,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "actor",
+        "options": [
+          "--actor"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "reviewed_sha256",
+        "options": [
+          "--reviewed-sha256"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      }
+    ],
+    "magicite custody init": [
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "directory",
+        "options": [
+          "--directory"
+        ],
+        "path_exists": false,
+        "required": true,
+        "type": "path"
+      }
+    ],
+    "magicite custody initialize-journal": [
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": false,
+        "required": false,
+        "type": "path"
+      }
+    ],
+    "magicite custody legacy-apply": [
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": false,
+        "required": false,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "backup_path",
+        "options": [
+          "--backup"
+        ],
+        "path_exists": true,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "reviewed_sha256",
+        "options": [
+          "--reviewed-sha256"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      }
+    ],
+    "magicite custody legacy-backup": [
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": false,
+        "required": false,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "plan_path",
+        "options": [
+          "--plan"
+        ],
+        "path_exists": true,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "reviewed_sha256",
+        "options": [
+          "--reviewed-sha256"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "destination",
+        "options": [
+          "--destination"
+        ],
+        "path_exists": false,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "encrypted_custody_reference",
+        "options": [
+          "--encrypted-custody-reference"
+        ],
+        "path_exists": true,
+        "required": false,
+        "type": "path"
+      }
+    ],
+    "magicite custody legacy-preview": [
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": false,
+        "required": false,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "registry_id",
+        "options": [
+          "--registry-id"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "actor",
+        "options": [
+          "--actor"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      }
+    ],
+    "magicite custody profile": [
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "directory",
+        "options": [
+          "--directory"
+        ],
+        "path_exists": false,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "registry_id",
+        "options": [
+          "--registry-id"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": false,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "client_uid",
+        "options": [
+          "--client-uid"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "integer"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "socket_path",
+        "options": [
+          "--socket-path"
+        ],
+        "path_exists": false,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "profile_path",
+        "options": [
+          "--profile-path"
+        ],
+        "path_exists": false,
+        "required": true,
+        "type": "path"
+      }
+    ],
+    "magicite custody reconcile": [
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": false,
+        "required": false,
+        "type": "path"
+      }
+    ],
+    "magicite custody rotate": [
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": false,
+        "required": false,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "transition_id",
+        "options": [
+          "--transition-id"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "actor",
+        "options": [
+          "--actor"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      }
+    ],
+    "magicite custody serve": [
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "directory",
+        "options": [
+          "--directory"
+        ],
+        "path_exists": false,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "profile_path",
+        "options": [
+          "--profile-path"
+        ],
+        "path_exists": false,
+        "required": true,
+        "type": "path"
+      }
+    ],
+    "magicite custody status": [
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": false,
+        "required": false,
+        "type": "path"
+      }
+    ],
     "magicite doctor": [
       {
         "choices": null,
@@ -387,6 +751,28 @@
         "path_exists": null,
         "required": false,
         "type": "text"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "name": "reviewed_sha256",
+        "options": [
+          "--reviewed-sha256"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "name": "backup_path",
+        "options": [
+          "--backup-path"
+        ],
+        "path_exists": true,
+        "required": false,
+        "type": "path"
       }
     ],
     "magicite migration preview": [
@@ -424,6 +810,28 @@
         "path_exists": true,
         "required": true,
         "type": "path"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "name": "staging_path",
+        "options": [
+          "--staging-path"
+        ],
+        "path_exists": false,
+        "required": false,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "name": "reviewed_sha256",
+        "options": [
+          "--reviewed-sha256"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
       }
     ],
     "magicite migration resume": [
@@ -448,6 +856,28 @@
         "path_exists": null,
         "required": true,
         "type": "text"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "name": "reviewed_sha256",
+        "options": [
+          "--reviewed-sha256"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "name": "backup_path",
+        "options": [
+          "--backup-path"
+        ],
+        "path_exists": true,
+        "required": false,
+        "type": "path"
       }
     ],
     "magicite migration status": [

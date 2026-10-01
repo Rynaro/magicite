@@ -1,4 +1,5 @@
 """Startup errors must not put non-protocol bytes on the MCP stdout stream."""
+
 from __future__ import annotations
 
 import json
@@ -39,3 +40,27 @@ def test_operator_error_remains_json_stdout(monkeypatch):
     assert json.loads(result.stdout)["code"] == "internal"
     assert result.stderr == ""
     assert "SECRET_SENTINEL" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "command", [["serve"], ["sync"], ["dream", "--once"], ["export", "--out-dir", "out"], ["trust", "list"]]
+)
+def test_stateful_entrypoint_missing_custody_is_zero_write(tmp_path, command):
+    result = CliRunner().invoke(cli, [*command, "--project-root", str(tmp_path)])
+    assert result.exit_code == 1
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_build_state_unavailable_custody_is_zero_write(tmp_path, monkeypatch):
+    from magicite.core import writer_guard
+    from magicite.core.trust_custodian import CustodianError
+    from magicite.mcp.app import build_state
+
+    class Unavailable:
+        def call(self, operation, **arguments):
+            raise CustodianError("unavailable custody")
+
+    monkeypatch.setattr(writer_guard, "resolve_custody", lambda cfg: ("r", Unavailable()))
+    with pytest.raises(CustodianError):
+        build_state(Config(project_root=tmp_path))
+    assert list(tmp_path.iterdir()) == []

@@ -49,6 +49,8 @@ from magicite.core import communities as communities_mod
 from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import lifecycle as lifecycle_mod
 from magicite.core import trust as trust_mod
+from magicite.core import trust_artifacts, writer_guard
+from magicite.core.trust_custodian import CustodianError
 from magicite.embeddings.base import Embedder, contraindication_model_name
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
@@ -61,6 +63,7 @@ from magicite.engram.model import (
     Intent,
     Plasticity,
     ProvenanceJournalEntry,
+    Synapse,
     Triggers,
     Trust,
 )
@@ -214,6 +217,9 @@ def project_v1_to_durable_engram(artifact: EngramV1, *, server_origin: str) -> E
         else [],
         affinity=[str(v) for v in legacy.get("affinity", [])]
         if isinstance(legacy, dict) and isinstance(legacy.get("affinity"), list)
+        else [],
+        synapses=[Synapse.model_validate(item) for item in legacy.get("synapses", [])]
+        if isinstance(legacy, dict) and isinstance(legacy.get("synapses"), list)
         else [],
         provenance_journal=journal,
         trust=Trust(
@@ -534,6 +540,15 @@ def _ingest_one(
                 [],
             )
 
+    if cfg is not None:
+        try:
+            verified = trust_artifacts.require_bound_artifact(cfg, cfg.project_root / engram.path)
+            if verified.id != engram.id or verified.content_sha256 != engram.content_sha256:
+                raise CustodianError("parsed object differs from authenticated bytes")
+        except (CustodianError, OSError, parser_mod.EngramParseError):
+            return (None, ValidationError(path=engram.path,
+                    message="authenticated enrollment artifact required"), False, [])
+
     result = lint_mod.lint(engram, profile=profile)  # type: ignore[arg-type]
     if profile == "strict" and not result.ok:
         msg = "; ".join(f"{i.rule}: {i.message}" for i in result.errors)
@@ -673,7 +688,8 @@ def _ingest_skillmd_one(
 ) -> tuple[RegisteredEntry | None, ValidationError | None, bool, list[str]]:
     """SKILL.md ingestion (spec §5.3 steps 3-9): convert -> lint(import) ->
     write -> index. Returns the same shape as :func:`_ingest_one`."""
-    raw_text = path.read_text(encoding="utf-8")
+    raw_source = path.read_bytes()
+    raw_text = raw_source.decode("utf-8")
     try:
         source = skillmd_mod.parse_source(raw_text)
     except skillmd_mod.SkillMdParseError as exc:
@@ -711,7 +727,15 @@ def _ingest_skillmd_one(
         )
 
     # spec §5.3 step 6: write before step 7 (index).
-    writer_mod.write_engram(target_path, engram)
+    if cfg is not None:
+        trust_artifacts.publish_new_artifact(
+            cfg, target_path, writer_mod.render_document(engram, None).encode(), actor=actor,
+            source_document=raw_source
+        )
+        artifact, _doc = trust_artifacts.load_registry_artifact(cfg, target_path)
+        engram = _artifact_to_engram(artifact, intake_channel="skillmd_import")
+    else:
+        writer_mod.write_engram(target_path, engram)
 
     entry, verr, _skipped, dangling = _ingest_one(
         conn,
@@ -757,9 +781,7 @@ def _cross_process_lease(
     acquires the same cross-process lease Dream does, first -- one real,
     OS-and-DB-backed single-writer guarantee, not two independently
     partial ones."""
-    return lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path,
-        conn=conn,
+    return writer_guard.registry_writer_lease(cfg, conn,
         holder=f"{holder_prefix}:{os.getpid()}:{uuid.uuid4().hex[:6]}",
     )
 
@@ -807,27 +829,22 @@ def register(
                 path_inside_registry=inside,
             )
             try:
-                artifact, _doc = parser_mod.load_artifact_file(
-                    file_path,
-                    registry_root=project_root,
-                    require_asset_files=inside,
+                artifact, _doc = trust_artifacts.load_registry_artifact(
+                    cfg, file_path, require_asset_files=inside,
                 )
                 engram = _artifact_to_engram(artifact, intake_channel=channel)
             except parser_mod.EngramParseError as exc:
                 outcome.validation_errors.append(ValidationError(path=str(file_path), message=str(exc)))
                 continue
 
-            # C10 staging: external intake is copied into the registry root so
-            # rebuild/sync cannot drop the quarantined/pending bytes.
-            if not inside:
-                staged = cfg.registry_dir / f"{engram.frontmatter.name}.egr.md"
-                staged.parent.mkdir(parents=True, exist_ok=True)
-                staged.write_bytes(file_path.read_bytes())
-                engram.path = str(staged.resolve().relative_to(project_root))
-                try:
-                    engram.file_mtime_ns = staged.stat().st_mtime_ns
-                except OSError:
-                    pass
+            target = file_path if inside else cfg.registry_dir / f"{engram.frontmatter.name}.egr.md"
+            try:
+                trust_artifacts.publish_new_artifact(cfg, target, file_path.read_bytes(), actor="register")
+                artifact, _doc = trust_artifacts.load_registry_artifact(cfg, target)
+                engram = _artifact_to_engram(artifact, intake_channel=channel)
+            except (CustodianError, parser_mod.EngramParseError) as exc:
+                outcome.validation_errors.append(ValidationError(path=str(file_path), message=str(exc)))
+                continue
 
             entry, verr, skipped, dangling = _ingest_one(
                 conn,
@@ -968,9 +985,7 @@ def sync(cfg: Config, conn: sqlite3.Connection, embedder: Embedder) -> SyncOutco
             relpath = str(file_path.resolve().relative_to(project_root))
             on_disk_paths.add(relpath)
             try:
-                artifact, _doc = parser_mod.load_artifact_file(
-                    file_path, registry_root=project_root, require_asset_files=True
-                )
+                artifact, _doc = trust_artifacts.load_registry_artifact(cfg, file_path)
                 engram = _artifact_to_engram(artifact, intake_channel="local_register")
             except parser_mod.EngramParseError as exc:
                 outcome.validation_errors.append(ValidationError(path=relpath, message=str(exc)))
@@ -1186,6 +1201,7 @@ def _assert_import_destinations_safe(
     registry_root: Path,
     verified_staging: Path,
     manifest_entries: list[Any],
+    transformed_bytes: dict[str, bytes] | None = None,
 ) -> tuple[dict[str, bool], list[str]]:
     """Pre-check every destination. Returns (skip_publish, pre_existing_paths).
 
@@ -1214,7 +1230,7 @@ def _assert_import_destinations_safe(
 
         dest = registry_root / rel
         src = verified_staging / rel
-        incoming = src.read_bytes()
+        incoming = transformed_bytes[rel] if transformed_bytes is not None else src.read_bytes()
 
         # Exact path exists?
         if dest.exists() or (key in existing and existing[key].as_posix() == rel):
@@ -1592,12 +1608,37 @@ def import_bundle(
     publish_staging: Path | None = None
     with cross_lease.acquire(), lease_mod.writer_lease():
         _recover_incomplete_bundle_publishes(cfg, conn, registry_root)
+        current_policy = trust_mod.load_policy(cfg)
+        if verified.signer_fingerprint not in {root.fingerprint for root in current_policy.active_roots()}:
+            raise InvalidInputError("bundle signer no longer admitted by current policy")
+        journal, held, _ = writer_guard.bound_journal(cfg)
+        transformed: dict[str, trust_artifacts.MarkedArtifact] = {}
+        targets: dict[str, bytes] = {}
+        revisions: dict[str, int] = {}
+        for entry in verified.manifest.entries:
+            rel = str(_assert_safe_journal_member_path(entry.path))
+            raw = (verified.staging_dir / rel).read_bytes()
+            if sha256_hex(raw) != entry.sha256 or len(raw) != entry.size:
+                raise InvalidInputError("verified bundle source changed before transformation")
+            targets[rel] = raw
+            if rel.endswith(".egr.md"):
+                artifact, _ = parser_mod.parse_artifact(raw.decode(), relpath=rel, admit=True)
+                revisions[artifact.id] = artifact.frontmatter.version
+        for rel, raw in list(targets.items()):
+            if rel.endswith(".egr.md"):
+                marked = trust_artifacts.mark_artifact(raw,registry_id=journal.registry_id,relpath=rel,
+                    actor=actor,revision_map=revisions,source_signature={"signature_valid": True,
+                    "signer_fingerprint": verified.signer_fingerprint,
+                    "manifest_digest": verified.manifest_digest})
+                transformed[rel] = marked
+                targets[rel] = marked.target
         skip_publish, pre_existing_paths = _assert_import_destinations_safe(
             conn=conn,
             cfg=cfg,
             registry_root=registry_root,
             verified_staging=verified.staging_dir,
             manifest_entries=list(verified.manifest.entries),
+            transformed_bytes=targets,
         )
 
         # Stage under the registry root; publish only after checks + re-hash.
@@ -1607,6 +1648,8 @@ def import_bundle(
         aborted_engram_ids: list[str] = []
         journal_body: dict[str, Any] | None = None
         try:
+            for marked in transformed.values():
+                trust_artifacts.bind_prepared_transform(cfg, marked)
             for entry in verified.manifest.entries:
                 rel = str(_assert_safe_journal_member_path(entry.path))
                 src = verified.staging_dir / rel
@@ -1624,13 +1667,14 @@ def import_bundle(
                     raise InvalidInputError(
                         f"staged bytes diverged from verified manifest for {rel!r}"
                     )
+                raw = targets[rel]
                 staged.write_bytes(raw)
                 if not skip_publish.get(rel):
                     journal_members.append(
                         {
                             "path": rel,
-                            "sha256": entry.sha256,
-                            "size": entry.size,
+                            "sha256": sha256_hex(raw),
+                            "size": len(raw),
                             "pre_existing": False,
                         }
                     )
@@ -1683,7 +1727,11 @@ def import_bundle(
                     except FileNotFoundError:
                         pass
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(publish_staging / rel, dest)
+                from magicite.core.trust_journal import _directory_fd, _replace_file
+                with _directory_fd(dest.parent) as destination_directory:
+                    held.assert_owned()
+                    _replace_file(destination_directory,dest.name,targets[rel],held.assert_owned)
+                held.assert_owned()
                 if rel.endswith(".egr.md"):
                     staged_egr.append(dest)
 
@@ -1714,8 +1762,8 @@ def import_bundle(
                     registry_dir=cfg.registry_dir,
                     cfg=cfg,
                     intake_channel="bundle_import",
-                    signature_valid=True,
-                    signer_fingerprint=verified.signer_fingerprint,
+                    signature_valid=None,
+                    signer_fingerprint=None,
                     resource_digest=resource,
                 )
                 if verr:
@@ -1755,11 +1803,6 @@ def review_approve(
     """Digest-bound local admission + verification_status flip + approval audit."""
     from magicite.errors import BusyError
 
-    if event_id:
-        for existing in trust_mod.list_decisions(cfg):
-            if existing.event_id == event_id and existing.decision == "admit":
-                return existing
-
     attempts = 0
     while True:
         attempts += 1
@@ -1770,6 +1813,7 @@ def review_approve(
                 if event_id:
                     for existing in trust_mod.list_decisions(cfg):
                         if existing.event_id == event_id and existing.decision == "admit":
+                            cross_lease.assert_owned()
                             return existing
                 decision = trust_mod.approve(
                     cfg,
@@ -1808,11 +1852,8 @@ def review_approve(
         except BusyError:
             if event_id is None or attempts >= 32:
                 raise
-            # Concurrent retry of the same event: wait for the winner, then
-            # return the single applied admit.
-            for existing in trust_mod.list_decisions(cfg):
-                if existing.event_id == event_id and existing.decision == "admit":
-                    return existing
+            # Wait for the winner, then inspect its committed event under
+            # the next acquired lease; an in-flight snapshot is not authority.
             time.sleep(0.01)
             continue
 

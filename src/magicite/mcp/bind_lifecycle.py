@@ -22,6 +22,7 @@ import uuid
 from magicite.core import approvals as approvals_mod
 from magicite.core import dream as dream_mod
 from magicite.core import lifecycle as lifecycle_mod
+from magicite.core import writer_guard
 from magicite.errors import NotFoundError, QuarantinedError, TransitionDeniedError
 from magicite.mcp.registry import ToolContext, magicite_tool
 from magicite.mcp.schemas import (
@@ -56,9 +57,7 @@ def _cross_process_lease(ctx: ToolContext, holder_prefix: str) -> lease_mod.Cros
     lease acquisition) must not interleave with a running Dream cycle
     either."""
     ctx.cfg.ensure_dirs()
-    return lease_mod.CrossProcessLease(
-        lock_path=ctx.cfg.dream_lock_path,
-        conn=ctx.conn,
+    return writer_guard.registry_writer_lease(ctx.cfg, ctx.conn,
         holder=f"{holder_prefix}:{os.getpid()}:{uuid.uuid4().hex[:6]}",
     )
 
@@ -204,7 +203,7 @@ def promote(ctx: ToolContext, params: PromoteInput) -> PromoteOutput:
     # guard) and outranks it -- a caller cannot leave a flagged engram
     # merely "denied" and routable-adjacent; it is quarantined immediately,
     # regardless of whether the engram is nascent, draft, probation, ...
-    scan = lifecycle_mod.check_injection_scan(project_root, row)
+    scan = lifecycle_mod.check_injection_scan(project_root, row, cfg=ctx.cfg)
     if scan.quarantine_recommended:
         with _cross_process_lease(ctx, "promote").acquire(), lease_mod.writer_lease(holder="promote"):
             durable_mod.set_verification_status(ctx.conn, engram_id=row["id"], to_status="quarantined")

@@ -27,7 +27,7 @@ SecretsRisk = Literal["none", "redacted", "raw"]
 
 #: Extension namespaces the runtime understands at activation time.
 #: Unknown keys with ``required: true`` fail closed (C1 / AC-S02-03).
-KNOWN_EXTENSIONS: frozenset[str] = frozenset()
+KNOWN_EXTENSIONS: frozenset[str] = frozenset({"magicite.trust_journal"})
 
 
 class VersionConstraint(BaseModel):

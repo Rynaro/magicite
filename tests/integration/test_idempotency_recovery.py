@@ -14,7 +14,16 @@ from magicite.mcp import app as app_mod
 PROTON = "proton-ge-proton-downgrade"
 
 
-def _die_after_event(project_root: str, arguments: dict[str, object]) -> None:
+def _die_after_event(
+    project_root: str, arguments: dict[str, object], custody_directory: str, registry_id: str
+) -> None:
+    from tests.support.custody_adapter import attach_fixture
+
+    with attach_fixture(Path(project_root), Path(custody_directory), registry_id):
+        _die_after_event_attached(project_root, arguments)
+
+
+def _die_after_event_attached(project_root: str, arguments: dict[str, object]) -> None:
     cfg = Config.load(Path(project_root), env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
     state = app_mod.build_state(cfg)
 
@@ -43,9 +52,12 @@ def test_process_death_after_event_replays_staged_response(cfg, embedder) -> Non
         "session_id": "process-death",
         "request_id": "recover-after-event",
     }
+    from magicite.core import writer_guard
+
+    provider = writer_guard.resolve_custody(cfg)[1]
     process = multiprocessing.get_context("spawn").Process(
         target=_die_after_event,
-        args=(str(cfg.project_root), arguments),
+        args=(str(cfg.project_root), arguments, str(provider.store.directory), provider.registry_id),
     )
     process.start()
     process.join(timeout=20)

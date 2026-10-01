@@ -24,8 +24,10 @@ validation remain separately [UNEVALUATED](evaluation/v1/unevaluated.md).
 `skill-graph.db` is local, rebuildable state and is ignored by default. Complete
 recovery also requires canonical bodies/assets, approvals, policy/trust state,
 evidence checkpoints and separately protected fingerprint-key custody; a copied DB
-is not a complete backup. S04 authenticated trust-history hardening is a proposal
-awaiting a human decision, not an implemented authority or waived release gate.
+is not a complete backup. Authenticated trust history is held by a separately
+provisioned custodian under the adopted trust-hardening amendment; the project-local
+journal is a verified projection, not an authority. Separate-UID Linux/macOS
+deployment qualification remains UNEVALUATED until actually run.
 
 ## Historical 0.3 semantic decisions (superseded where v1 differs)
 

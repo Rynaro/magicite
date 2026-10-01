@@ -20,6 +20,15 @@ captures actual outputs with local workspace paths redacted. Any failed required
 step exits nonzero. The steps below describe the same executed path; replace the
 fixture project path only when intentionally operating on a real registry.
 
+Trust-dependent commands, including `serve`, fail closed until the project has
+protected custody: a root-installed descriptor under `/etc/magicite/registries/`,
+a separately provisioned custodian account running `magicite custody serve`,
+explicit `magicite custody enroll`, and `magicite custody initialize-journal`.
+Magicite never creates accounts or writes `/etc`. The disposable tutorial cannot
+provision these, so it attaches a disposable in-process simulated custodian to
+each command and records `custody: disposable-simulated`; real separate-UID
+deployment custody remains UNEVALUATED.
+
 1. Start `magicite serve --project-root PROJECT`; the generic SDK client negotiates
    its actual protocol, lists exactly 16 tools, and calls `register` on the supplied
    `incoming` fixture directory. This is external intake, so content cannot grant
@@ -45,12 +54,21 @@ fixture project path only when intentionally operating on a real registry.
    custody must preserve monotonically increasing sequence history. Restore with
    `magicite backup restore --project-root PROJECT --backup-path SNAPSHOT
    --overlay OVERLAY_JSON --anchor ANCHOR_JSON`. Missing/stale custody stays closed.
-6. Run `magicite migration preview --project-root PROJECT` before upgrade. Then
-   `magicite migration apply --project-root PROJECT --operation-id YOUR_ID`, inspect
-   `magicite migration status --project-root PROJECT --operation-id YOUR_ID`, and
-   use `magicite migration resume` with that same ID after interruption. A matching
-   pre-upgrade backup is required for `magicite migration restore --project-root
-   PROJECT --backup-path BACKUP_FROM_APPLY`; tampered/unmatched backups are rejected.
+6. Run `magicite migration preview --project-root PROJECT`; it never writes. New
+   intake is already published in the bound `engram/1.0` form, so upgrade applies to
+   a pre-custody legacy project. The tutorial builds a disposable one and, against
+   it, runs `magicite custody legacy-preview --project-root LEGACY --registry-id ID
+   --actor OPERATOR`, reviews the printed plan, and records its `reviewed_sha256`.
+   `magicite custody legacy-backup --project-root LEGACY --plan PLAN_JSON
+   --reviewed-sha256 DIGEST --destination BACKUP` backs up the exact reviewed state.
+   Then `magicite migration apply --project-root LEGACY --reviewed-sha256 DIGEST
+   --backup-path BACKUP`, inspect `magicite migration status --project-root LEGACY
+   --operation-id OPERATION_ID`, and use `magicite migration resume` with the same
+   digest and backup after interruption. Apply grants nothing: every transformed
+   target still needs explicit review. `magicite migration restore --project-root
+   LEGACY --reviewed-sha256 DIGEST --backup-path BACKUP --staging-path STAGE` only
+   materializes the original bytes into inactive staging outside the project and
+   reports `reconciliation_required`; tampered/unmatched backups are rejected.
 
 Policy registration/review is separate from promotion: `policy register-evaluated
 --manifest FILE --evaluation-status STATUS --evidence REFERENCE`, then `policy approve
