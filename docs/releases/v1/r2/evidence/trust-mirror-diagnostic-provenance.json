@@ -1,0 +1,57 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/r2/evidence/trust-mirror-loss-custody.json",
+      "sha256": "3fa360dc6e893582911bb58b4da403b8880aa7906bd706b41fe7236cd413f920"
+    },
+    {
+      "path": "docs/releases/v1/r2/evidence/reproduce-trust-mirror-loss-custody.py",
+      "sha256": "6cdc73397ad84fe809eadce62a6f84c2b0273a908b8c79cf36348d847a049a86"
+    },
+    {
+      "path": "tests/support/custody_adapter.py",
+      "sha256": "0ef759ecb31443bdcf62ee54d78cd48166aba5462977c2b0f64bce8eb28c14a7"
+    },
+    {
+      "path": "tests/integration/test_trust_recovery.py",
+      "sha256": "7d00eb469088746ba4f373ba500508d53d041ee3278e760f3794aabad5bb3d0b"
+    },
+    {
+      "path": "src/magicite/core/trust.py",
+      "sha256": "c93abe31a6ce06f9b627ada9ff6ce2b9fe54a894b4bbf1a1526f74ce3557e8ae"
+    },
+    {
+      "path": "src/magicite/core/trust_journal.py",
+      "sha256": "ad7c6891ddf60d523750d897502d8b4b0c3ae48c1b573cf2846125a8922162f8"
+    },
+    {
+      "path": "src/magicite/core/registry.py",
+      "sha256": "3c1f67fe4ec9a266a1f55fb2e09076eadb31a026d40a9198fda974f0515bf0a2"
+    }
+  ],
+  "command": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python docs/releases/v1/r2/evidence/reproduce-trust-mirror-loss-custody.py > /private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16out/trust-mirror-loss-custody.json",
+  "environment": {
+    "path": "docs/releases/v1/r2/evidence/environment.json",
+    "sha256": "b301cb47010ddf28e98009b201590ba0211626915f1e931fa567ba9ec3337e02"
+  },
+  "exit_code": 0,
+  "interpreter": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "producer": "Vivi /s16-readjudication r2 maker",
+  "review_status": "APPROVED",
+  "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+  "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+  "schema": "magicite/diagnostic-provenance/1",
+  "script_sha256": "6cdc73397ad84fe809eadce62a6f84c2b0273a908b8c79cf36348d847a049a86",
+  "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",
+  "source_dirty": false,
+  "tracked_code_diff": false,
+  "untracked_scope": [
+    "docs/releases/v1/r2/evidence/probe-checkpoint-process-death-custody.py",
+    "docs/releases/v1/r2/evidence/reproduce-trust-mirror-loss-custody.py"
+  ],
+  "untracked_scope_note": "untracked docs/releases/v1/r2 scripts only; tracked tree identical to source"
+}

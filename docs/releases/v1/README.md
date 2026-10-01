@@ -1,5 +1,9 @@
 # V1 release decision draft: NO-GA
 
+> **Current revision:** [r2](r2/README.md) re-adjudicates the gates against source
+> `9bf9ca0` after trust hardening (still NO-GA; see its review record). The evidence in
+> this directory remains the historical observation of source `c0782fd`.
+
 This integration is **not eligible for GA**. It is a draft evidence package, not a
 release, tag, publisher authorization, or maintainer sign-off. The installed
 package remains 0.3.1. Frozen acceptance and release thresholds are unchanged.

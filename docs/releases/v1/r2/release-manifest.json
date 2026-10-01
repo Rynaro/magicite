@@ -1,0 +1,538 @@
+{
+  "criterion_ledger": {
+    "path": "docs/releases/v1/r2/criterion-ledger.json",
+    "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+  },
+  "draft_only": true,
+  "external": null,
+  "gates": [
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/r2/evidence/policy-nonadaptive-default.json",
+          "sha256": "682daa053b34590c363534abf23117c7d485a957714e3366ff611779c8a9ea99"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/policy-dream-isolation.json",
+          "sha256": "2b8ce58637ba843d5abd88a541aa67a89447cc938997bf6088bc1296b4d78051"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/policy-explicit-experimental.json",
+          "sha256": "f1ce598e4bfd2daa7bfbb870701de3ab3d44944ae579301f610f5fcb3b11d9af"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/policy-pinned-incumbent.json",
+          "sha256": "1b828e3406ad37c6201e0ce7622a24714d9242a928a45d5ab63071243103caa1"
+        }
+      ],
+      "id": "POLICY",
+      "obligations": [
+        "nonadaptive-default",
+        "dream-isolation",
+        "explicit-experimental",
+        "pinned-incumbent"
+      ],
+      "reason": "Nonadaptive default, Dream isolation, explicit experimental selection and dense-v1 incumbent have executable witnesses. Re-derived from the r2 junit.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "EVIDENCE",
+      "obligations": [
+        "manifested-predictions",
+        "independent-labels",
+        "claim-ci",
+        "negative-history"
+      ],
+      "reason": "Integrity and claim CI fixtures pass and negative history is retained, but independent final label provenance and a complete new-run chain are absent.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/r2/evidence/schema-frozen-schema.json",
+          "sha256": "4a8aa7a737b065502aa6e2398dca3d9e700087f25777504ef10dd6deaaabde84"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/schema-roundtrip-corpus.json",
+          "sha256": "d9f7e05cd1b38e0fef28e15c9157d4f8b4486b3689bcf8cf175b0c78565055d8"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/schema-migration-downgrade-replay.json",
+          "sha256": "a1efe18df0ecc6ded6e5c07976c3fd5a0597504f6104a1abb697676137b6820c"
+        }
+      ],
+      "id": "SCHEMA",
+      "obligations": [
+        "frozen-schema",
+        "roundtrip-corpus",
+        "migration-downgrade-replay"
+      ],
+      "reason": "Frozen schema, A01 roundtrip identity, migration/replay and complete-backup downgrade witnesses are available. Re-derived from the r2 junit.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "TRUST",
+      "obligation_proposals": {
+        "adversarial-corpus": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No named adversarial trust corpus exists."
+        },
+        "local-review-revocation": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Mirror-loss reinstatement not reproduced (custody replay NOT_REPRODUCED; regression nodes pass), but AC-TH-01/07 sub-clauses (splice, root projection, call-site completeness) lack witnesses."
+        },
+        "offline-tamper": {
+          "proposed_status": "PASS",
+          "reason": "Candidate: AC-S04-02 signed-bundle tamper/escape node and the local journal tamper matrix pass at r2; no fresh witness file produced."
+        },
+        "server-origin": {
+          "proposed_status": "PASS",
+          "reason": "Candidate: AC-S04-01 forged-origin node passes at r2; no fresh witness file produced."
+        }
+      },
+      "obligations": [
+        "offline-tamper",
+        "local-review-revocation",
+        "server-origin",
+        "adversarial-corpus"
+      ],
+      "reason": "Known v1 mirror-deletion defect is not reproduced at r2 and its regressions pass, but a named adversarial corpus is absent, additive trust rows remain partly unwitnessed and separate-UID custody is unqualified. No remaining known defect: adjudicated UNEVALUATED, not FAIL (independent checker).",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/trust-mirror-diagnostic-provenance.json",
+          "sha256": "5a898e5a27476875ba072fe84419673e82063e076f036de8d59339a37923a1eb"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "ROUTING",
+      "obligations": [
+        "full-content-indexes",
+        "eligibility",
+        "explanations",
+        "calibrated-abstention",
+        "e3-quality"
+      ],
+      "reason": "Index/eligibility/explanation mechanics exist; official final split, paired E3 quality and empirical abstention bounds are unrun.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "COMPOSITION",
+      "obligations": [
+        "independent-structural-corpus",
+        "actual-host-outcomes",
+        "safe-invalid-plan"
+      ],
+      "reason": "Structural fixtures and bounded safe invalid plans exist; independently authored actual host-task execution evidence is unavailable.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-data-map.json",
+          "sha256": "7e356c29c3aa8463cf032c705aa6de4405ac0086183013a89356e37768b39102"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-no-default-raw.json",
+          "sha256": "9600e1fd355bc0bfd510b840919c4a30b76ee69e97a2c5c5bdddd91f4f9f8166"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-historical-cleanup.json",
+          "sha256": "159f2915d4b5e41bf11f0f8a5ea28882adbc8c49d46de38dd5daa85e99834b19"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-checkpoint-rpo.json",
+          "sha256": "51f9ce936606ee9c6ec896e4afa5324b44d8de9fd4588b9324983fc50bca8e79"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-lifecycle-tests.json",
+          "sha256": "948519398a11a27c1f8d4c80518a683f541fa373d1be0ea54f77375b463197d7"
+        }
+      ],
+      "id": "PRIVACY",
+      "obligations": [
+        "data-map",
+        "no-default-raw",
+        "historical-cleanup",
+        "checkpoint-rpo",
+        "lifecycle-tests"
+      ],
+      "reason": "Re-derived from the r2 junit with one disclosed witness mapping change (lifecycle-tests: test_deleted_revoke_mirror_refuses_preserve -> test_deleted_revoke_mirror_preserves_authenticated_restriction). The data-map witness re-binds the c0782fd evidence-privacy map, which is scoped to evidence surfaces; it does not list trust authority/custodian surfaces and its last sentence is historical.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/r2/evidence/learning-containment.json",
+          "sha256": "18f32d8c388ae635c6a0c8d8bc8d39f1e5b2dd208a7a64f159a8cf868e31fd76"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/learning-fully-gated-or-unavailable.json",
+          "sha256": "76d1bfbb985045641790600af37eadab5cc46cb3c70fefaa9d560537d6de50fc"
+        }
+      ],
+      "id": "LEARNING",
+      "obligations": [
+        "containment",
+        "fully-gated-or-unavailable"
+      ],
+      "reason": "Stable containment is mandatory and tested; optional S10 efficacy explicitly held/unavailable. Re-derived from the r2 junit.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "PROTOCOL",
+      "obligation_proposals": {
+        "advertised-transcripts": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No archived real Claude Code host transcript (AC-S11-04)."
+        },
+        "retry-cancel-errors": {
+          "proposed_status": "PASS",
+          "reason": "Candidate: AC-S11-03 commit-boundary and AC-S11-01 stale-body nodes pass at r2."
+        },
+        "schemas": {
+          "proposed_status": "PASS",
+          "reason": "Candidate: AC-S11-02 payload parity passes at r2."
+        }
+      },
+      "obligations": [
+        "schemas",
+        "retry-cancel-errors",
+        "advertised-transcripts"
+      ],
+      "reason": "Generic protocol probes pass at r2 including the custody-revalidated body gate; the advertised real Claude Code transcript remains absent.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "RELIABILITY",
+      "obligation_proposals": {
+        "all-store-kill-replay-fencing": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Local evidence: lease multiprocess, custody writer guard, rotation real child exit, checkpoint process death at r2; supported OS/store matrix not run."
+        },
+        "backup-restore-upgrade-matrix": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Local 0.2/0.3 upgrade and restore nodes pass; published upgrade and OS/channel matrix not run."
+        },
+        "zero-write-doctor": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "AC-S12-01 matrix passes, but it does not cover custody/trust-history states (AC-TH-11 gap)."
+        }
+      },
+      "obligations": [
+        "all-store-kill-replay-fencing",
+        "backup-restore-upgrade-matrix",
+        "zero-write-doctor"
+      ],
+      "reason": "Local kill/replay/fencing coverage now includes custody fences, real child exits and an r2 checkpoint process-death probe; the advertised OS/channel/published-upgrade/store matrix is unrun.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/checkpoint-process-death-provenance.json",
+          "sha256": "edeb41429cf7947317a3ccf3f0e5a875793ec01283da646ab7aa21334dd817cd"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "PERFORMANCE",
+      "obligations": [
+        "dedicated-e6",
+        "production-model",
+        "supported-scale"
+      ],
+      "reason": "No dedicated production E6 budgets or licensed real 10k corpus evidence; hashing completeness is not performance qualification.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "DISTRIBUTION",
+      "obligations": [
+        "published-installs",
+        "supply-chain",
+        "testpypi-rehearsal"
+      ],
+      "reason": "Published channel installs, fetched signatures/checksums/SBOM/provenance and TestPyPI rehearsal are unrun; no publishing authority.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "DOCS",
+      "obligations": [
+        "generated-reference-claims",
+        "tested-operator-path",
+        "redirects",
+        "support-security-governance"
+      ],
+      "reason": "Generated/claims/support checks and scripted tutorial pass; required independent operator transcript remains absent.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "RC-CONTRACT",
+      "obligations": [
+        "two-independent-rcs",
+        "stable-fingerprints",
+        "passing-matrix"
+      ],
+      "reason": "No two independently built RCs across the declared supported matrix; validator fixtures are not RC artifacts.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "EXTERNAL",
+      "obligations": [
+        "independent-reproduction-or-two-pilots"
+      ],
+      "reason": "No independent external reproduction or two external production pilots; agent review is not product validation.",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "SECURITY",
+      "obligation_proposals": {
+        "bounded-fuzz-adversarial": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No fuzz harness or adversarial corpus; bounded frame/parser unit cases are targeted tests, not fuzzing."
+        },
+        "critical-resolved": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Original exploit closed in observation; four threat-model critical risks have mapped nodes, but additive rows AC-TH-01, AC-TH-02, AC-TH-03, AC-TH-04, AC-TH-05, AC-TH-06, AC-TH-07, AC-TH-09, AC-TH-10, AC-TH-11, AC-TH-12 are not PASS and no independent security review is recorded."
+        },
+        "threat-model": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Only the plan-scoped trust-custody threat model exists (.spectra/plans/magicite-v1-trust-hardening/threat-model.md); no release-scoped model for S04/S11/S12/S13."
+        }
+      },
+      "obligations": [
+        "threat-model",
+        "bounded-fuzz-adversarial",
+        "critical-resolved"
+      ],
+      "reason": "The v1 critical finding is not reproduced at r2, but no release-scoped threat model, bounded fuzz/adversarial evidence or independent security review of the r2 source is recorded. Adjudicated UNEVALUATED, not FAIL (independent checker).",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/trust-mirror-diagnostic-provenance.json",
+          "sha256": "5a898e5a27476875ba072fe84419673e82063e076f036de8d59339a37923a1eb"
+        },
+        {
+          "path": ".spectra/plans/magicite-v1-trust-hardening/threat-model.md",
+          "sha256": "d52b35771d6f827da44c99e1f280132440bf36cc5469dac9f05e48a175e54191"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "GA-ALL",
+      "obligation_proposals": {
+        "all-required-gates": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Thirteen gates are not PASS at r2."
+        },
+        "fetched-artifacts": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No published artifacts fetched or verified."
+        },
+        "maintainer-signoff": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No maintainer sign-off."
+        }
+      },
+      "obligations": [
+        "all-required-gates",
+        "maintainer-signoff",
+        "fetched-artifacts"
+      ],
+      "reason": "Required gates do not all pass; maintainer sign-off and fetched published artifact checks are absent. No gate is a known FAIL at r2: adjudicated UNEVALUATED, not FAIL (independent checker).",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
+        }
+      ]
+    }
+  ],
+  "generated_by": {
+    "path": "docs/releases/v1/r2/evidence/build_r2_package.py",
+    "sha256": "0ebe8da608bc929af960f1586e41a425da015e1d34e59d4982212d3187799743"
+  },
+  "held_decisions": [
+    "MCP surface amendment (16 tools remain)",
+    "Optional S10",
+    "Publishing",
+    "Worktree deletion",
+    "Shared venv resync (r2 used an isolated scratch venv)",
+    "Separate-UID Linux/macOS custodian provisioning and deployment qualification (account creation/service setup not authorized)"
+  ],
+  "historical_observation": {
+    "path": "docs/releases/v1/release-manifest.json",
+    "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+    "sha256": "916cb494ac7dea5fce6194df5d859e737f65028b65ed90b5fec8824bea786fe4",
+    "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620"
+  },
+  "maintainer_signoff": null,
+  "release_candidates": [],
+  "resolved_holds": {
+    "Trust ledger proposal/custody": "Adopted as the additive trust-hardening plan and implemented (merged at 9bf9ca025fc4513592f72d7f6f1c04563a31bc8c); qualification remains UNEVALUATED."
+  },
+  "revision": "r2",
+  "schema": "magicite/release-manifest/1",
+  "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",
+  "source_dirty": false,
+  "source_scope": "Recorded from a clean tracked and untracked worktree at 9bf9ca0 (git status empty before and after the full run); r2 files are evidence-only additions. Not a published RC or external reproduction."
+}
