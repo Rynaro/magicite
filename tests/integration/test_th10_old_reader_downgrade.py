@@ -10,8 +10,11 @@ supported runtime, not the old reader's policy, keep revoked content closed:
     mirror remains but the marked, re-digested target is refused (live and deleted DB);
 (c1) documented ``migration restore`` stages inactive bytes and leaves the project closed;
 (c2) hand-copied pre-migration backup: the supported runtime keeps the authenticated revoke and
-     head and does not route the subject;
-(c3) deleted local authority fails closed instead of resetting enrollment/history.
+     head and neither routes nor discloses the subject;
+(c3) deleted local authority fails closed instead of resetting enrollment/history;
+(c4) a complete pre-revoke backup restored through the supported runtime keeps the revoke.
+
+Under (c2) and (c4) the supported runtime neither routes nor discloses (``load_skill_body``).
 
 Disclosed residual (TH-A01, threat-model.md): running a pre-hardening binary against hand
 rolled-back bytes can re-disclose revoked content. That binary never reads authenticated
@@ -117,20 +120,30 @@ print(json.dumps(out, default=str))
 
 @pytest.fixture(scope="module")
 def old_src(tmp_path_factory) -> Path:
+    # Locally a missing old tree skips; under CI (GitHub sets CI=true) it fails, because the
+    # checkout must provide full history (fetch-depth: 0) for this node to be a witness.
+    unavailable = pytest.fail if os.environ.get("CI") else pytest.skip
     git = shutil.which("git")
     if git is None:
-        pytest.skip("git executable unavailable: 22ae4e0 old-reader witness NOT run")
+        unavailable("git executable unavailable: 22ae4e0 old-reader witness requires git + full history")
     probe = subprocess.run(
         [git, "-C", str(REPO), "cat-file", "-e", OLD_COMMIT + "^{commit}"], capture_output=True
     )
     if probe.returncode != 0:
-        pytest.skip(f"commit {OLD_COMMIT[:7]} unavailable (shallow clone?): old-reader witness NOT run")
+        unavailable(
+            f"commit {OLD_COMMIT[:7]} unavailable (shallow clone?): old-reader witness requires "
+            "full history (actions/checkout fetch-depth: 0)"
+        )
     archive = subprocess.run(
         [git, "-C", str(REPO), "archive", "--format=tar", OLD_COMMIT, "src"], check=True, capture_output=True
     ).stdout
     dest = tmp_path_factory.mktemp("old-22ae4e0")
     with tarfile.open(fileobj=BytesIO(archive)) as tar:
-        tar.extractall(dest, filter="data")
+        # extraction filters exist from Python 3.11.4 / 3.12; the archive is this repo's own tree.
+        if hasattr(tarfile, "data_filter"):
+            tar.extractall(dest, filter="data")
+        else:  # pragma: no cover - Python < 3.11.4
+            tar.extractall(dest)  # noqa: S202
     (dest / "old_side.py").write_text(OLD_SIDE)
     return dest
 
@@ -153,14 +166,18 @@ def run_old(old_src: Path, mode: str, root: Path, *names: str) -> dict:
 
 
 def assert_old_closed(out: dict, name: str) -> None:
-    if "open_error" in out:  # refusing to open the registry at all is closed
-        return
+    # Every phase must genuinely execute the old reader: no vacuous pass on a crashed probe.
+    assert "open_error" not in out, out
+    assert out["sync"] == "ok", out
+    assert "route_error" not in out, out
     item = out["subjects"][name]
     assert item["file_has_marker"] is True, out
     assert item["body_disclosed"] is False, out
-    # Closed by refusal (not indexed / not admitted), never by a broken probe.
-    assert item.get("error", "NotFoundError").startswith("NotFoundError"), out
-    assert "route_error" not in out, out
+    # Only tolerated old-side error: the subject was refused at indexing (marker) and is absent.
+    if "error" in item:
+        assert item["error"] == f"NotFoundError: no engram named or id'd {name!r}", out
+    else:
+        assert item["body_status"] == "stale_decision", out
     assert name not in out["routed_names"], out
 
 
@@ -181,13 +198,34 @@ def drop_db(cfg: Config) -> None:
         Path(str(cfg.db_path) + suffix).unlink(missing_ok=True)
 
 
-def new_routes(cfg: Config, name: str) -> bool:
+def new_exposure(cfg: Config, name: str, *, sync: bool = True) -> tuple[bool, bool]:
+    """(routed, body disclosed) for ``name`` under the supported runtime."""
+    from magicite.errors import NotFoundError
+    from magicite.mcp import bind_retrieval
+    from magicite.mcp.registry import ToolContext
+    from magicite.mcp.schemas import LoadSkillBodyInput
+
     conn = db_mod.connect(cfg.db_path)
     try:
         embedder = get_embedder(dim=256)
-        registry_mod.sync(cfg, conn, embedder)
+        if sync:
+            registry_mod.sync(cfg, conn, embedder)
         outcome = router_mod.route(cfg, conn, embedder, query=name.replace("-", " "), k=10)
-        return name in [candidate.name for candidate in outcome.candidates]
+        routed = name in [candidate.name for candidate in outcome.candidates]
+        row = conn.execute("SELECT content_sha256 FROM engram WHERE name=?", (name,)).fetchone()
+        live = (cfg.registry_dir / f"{name}.egr.md").read_bytes()
+        params = LoadSkillBodyInput(
+            name=name,
+            level="L2",
+            expected_content_digest=row["content_sha256"] if row else hashlib.sha256(live).hexdigest(),
+            expected_policy_digest=bind_retrieval._active_policy_digest(cfg) or "none",
+        )
+        try:
+            body = bind_retrieval.load_skill_body(ToolContext(cfg=cfg, conn=conn, embedder=embedder), params)
+        except NotFoundError:
+            assert row is None
+            return routed, False
+        return routed, body.status == "ok" or bool((body.procedure or "").strip())
     finally:
         conn.close()
 
@@ -206,10 +244,10 @@ def test_old_reader_rejects_new_format_after_revoke(
         if phase == "db-deleted":
             db_conn.close()
             drop_db(cfg)
-        out = run_old(old_src, "read", cfg.project_root, SUBJECT, OTHER)
-        assert_old_closed(out, SUBJECT)
-        # Unsupported reader rejects the new authority even for still-admitted content.
-        assert_old_closed(out, OTHER)
+        assert_old_closed(run_old(old_src, "read", cfg.project_root, SUBJECT), SUBJECT)
+        # Unsupported reader rejects the new authority even for still-admitted content
+        # (routed with OTHER's own query).
+        assert_old_closed(run_old(old_src, "read", cfg.project_root, OTHER), OTHER)
     assert latest(cfg, engram_id) == "revoke"
 
 
@@ -331,9 +369,33 @@ def test_downgrade_paths_preserve_revocation_and_enrollment(
     snapshot = trust_mod.authenticated_snapshot(cfg)
     assert snapshot.head == head
     assert snapshot.latest_by_engram[engram_id]["decision"] == "revoke"
-    assert new_routes(cfg, SUBJECT) is False
+    assert new_exposure(cfg, SUBJECT) == (False, False)
 
     # (c3) Local authority deleted: custody refuses re-genesis instead of resetting history.
     shutil.rmtree(cfg.data_dir / "trust/authority")
     with pytest.raises(trust_mod.TrustLedgerCorruptError, match="reconciliation required"):
         trust_mod.authenticated_snapshot(cfg)
+
+
+def test_supported_backup_restore_keeps_post_backup_revoke(
+    cfg, db_conn, embedder, review_fixture_artifacts, tmp_path
+) -> None:
+    """(c4) Complete pre-revoke backup restored by the supported runtime: revoke still wins."""
+    from magicite.core import backup, fingerprint_key
+
+    registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_fixture_artifacts(SUBJECT, OTHER)
+    db_conn.commit()
+    # Positive control: admitted before the backup, the supported runtime routes and discloses.
+    assert new_exposure(cfg, SUBJECT, sync=False) == (True, True)
+    fingerprint_key.load_or_create_fingerprint_key(cfg)
+    snapshot = tmp_path / "pre-revoke-backup"
+    backup.create_snapshot(cfg, db_conn, snapshot)
+    engram_id = revoke(cfg, db_conn, SUBJECT)
+    result = backup.restore_snapshot(cfg, db_conn, snapshot)
+    assert result["status"] == "ok", result
+    assert latest(cfg, engram_id) == "revoke"
+    digest = db_conn.execute("SELECT content_sha256 FROM engram WHERE id=?", (engram_id,)).fetchone()[0]
+    assert not trust_mod.admission_still_valid(cfg, engram_id=engram_id, content_digest=digest)
+    db_conn.commit()
+    assert new_exposure(cfg, SUBJECT) == (False, False)
