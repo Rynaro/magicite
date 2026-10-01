@@ -20,6 +20,7 @@ The original `.spectra/plans/magicite-v1/` packet remains unchanged. Its frozen
 This adopted additive plan supersedes the *unadopted proposal status* for this work;
 it does not retroactively change the historical S16 evidence or turn failed gates
 into PASS. Original criteria remain required alongside [AC-TH-01–12](acceptance.md).
+Amendments: [TH-A01](amendments/TH-A01-ac-th-10-supported-downgrade-scope.md) scopes AC-TH-10 downgrade to supported paths.
 
 Read [specification](spec.md), [threat model](threat-model.md), and
 [traceability and ownership](traceability.md). No main merge, release tags,
