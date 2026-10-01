@@ -8,8 +8,12 @@ Approval binds content, resources, scanner and policy revision; revocation or dr
 invalidates body disclosure. Policy activation/rollback uses reviewed manifests
 and expected-current compare-and-swap under the cross-process writer lease.
 Pending policy transactions fail closed until explicit `magicite policy reconcile`;
-doctor reads do not repair. Trust-history hardening beyond the implemented overlay
-and anchor model remains a human decision, not an adopted release guarantee.
+doctor reads do not repair. Trust decisions live in an authenticated, monotonic
+journal held by a separately provisioned custodian (the adopted trust-hardening
+amendment, AC-TH-01–12). Trust-dependent operations fail closed without protected
+enrollment, local authorship grants nothing without explicit review, and legacy
+projects upgrade only through reviewed reconciliation. Separate-UID Linux/macOS
+deployment qualification remains UNEVALUATED until actually run.
 
 See [AUTHORITY](AUTHORITY.md), [generated reference](generated/runtime-reference.json),
 and [operator tutorial](operator-tutorial.md).
