@@ -509,7 +509,7 @@
   ],
   "generated_by": {
     "path": "docs/releases/v1/r2/evidence/build_r2_package.py",
-    "sha256": "f5a35910db46ee46c111a01be0a31adf09b0e8a27b0ec734eb5fc9af8079ff25"
+    "sha256": "0ebe8da608bc929af960f1586e41a425da015e1d34e59d4982212d3187799743"
   },
   "held_decisions": [
     "MCP surface amendment (16 tools remain)",

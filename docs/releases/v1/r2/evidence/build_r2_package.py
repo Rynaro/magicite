@@ -1521,15 +1521,31 @@ class Builder:
             rel = os.path.relpath(ref["path"], R2)
             return f"[{Path(rel).stem}]({rel})"
 
+        pending = self.status == "PENDING"
+        short = self.reviewed_package[:7]
+        if pending:
+            review_sentence = (
+                "Statuses are maker proposals pending independent review; no review is recorded and no "
+                "release is authorized."
+            )
+        elif self.status == "APPROVED":
+            review_sentence = (
+                f"Statuses were independently adjudicated by {self.reviewer} at reviewed package `{short}`; "
+                "no release is authorized."
+            )
+        else:
+            review_sentence = (
+                f"Independent review by {self.reviewer} at reviewed package `{short}` is recorded as "
+                f"{self.status}; no release is authorized."
+            )
         lines = [
             "# V1 gate table r2 — NO-GA draft",
             "",
-            f"All 17 gates are explicit. Tested source is `{SOURCE[:7]}` (trust hardening merged). Statuses "
-            "are maker proposals pending independent review; no review is recorded and no release is "
-            f"authorized. The `{HISTORICAL_SOURCE[:7]}` table remains the historical observation "
+            f"All 17 gates are explicit. Tested source is `{SOURCE[:7]}` (trust hardening merged). "
+            f"{review_sentence} The `{HISTORICAL_SOURCE[:7]}` table remains the historical observation "
             "([v1 gate table](../gate-table.md)).",
             "",
-            "| Gate | Proposed status | Evidence and remaining obligation |",
+            f"| Gate | {'Proposed status' if pending else 'Status'} | Evidence and remaining obligation |",
             "|---|---|---|",
         ]
         for gate in self.gate_rows:
@@ -1566,6 +1582,33 @@ class Builder:
             for v in self.mirror["variants"]
         )
         revoke_mirrors = self.mirror["variants"][0]["mutation"].get("revoke_mirror_files_found")
+        not_pass = sum(g["status"] != "PASS" for g in self.gate_rows)
+        recording = (
+            "A review is recorded only by\nre-running the [builder](evidence/build_r2_package.py) with "
+            "`--reviewer`,\n`--review-status` and `--reviewed-package`; the maker "
+            f"(`{PRODUCER}`) cannot be the\nreviewer. Hand edits are not a review."
+        )
+        if pending:
+            review_paragraph = (
+                "Exit 1 and `eligible: false` are the expected result. **Review is pending:** every\n"
+                "reviewer and independent-checker field is empty and every review status is\n"
+                "`PENDING`, so the validator also rejects the regenerated witnesses for lacking an\n"
+                "independent named review. That rejection is intended. " + recording
+            )
+        elif self.status == "APPROVED":
+            review_paragraph = (
+                "Exit 1 and `eligible: false` remain the expected result. **Review recorded:** the\n"
+                f"statuses were independently adjudicated by {self.reviewer} at reviewed\n"
+                f"package `{short}`, so the PASS-gate witnesses now validate. The remaining\n"
+                f"validator errors are the {not_pass} non-PASS gates plus the absent release candidates,\n"
+                "external reproduction or pilots, and maintainer sign-off. " + recording
+            )
+        else:
+            review_paragraph = (
+                "Exit 1 and `eligible: false` are the expected result. **Review recorded as\n"
+                f"{self.status}:** by {self.reviewer} at reviewed package `{short}`; the validator does\n"
+                "not accept the regenerated witnesses until a review is APPROVED. " + recording
+            )
         readme = f"""# V1 release decision draft r2: NO-GA
 
 This revision is **not eligible for GA**. It is a draft evidence package, not a
@@ -1585,13 +1628,7 @@ The [gate table](gate-table.md) covers all 17 mandatory gates. The
 python scripts/check_release_manifest.py docs/releases/v1/r2/release-manifest.json
 ```
 
-Exit 1 and `eligible: false` are the expected result. **Review is pending:** every
-reviewer and independent-checker field is empty and every review status is
-`PENDING`, so the validator also rejects the regenerated witnesses for lacking an
-independent named review. That rejection is intended. A review is recorded only by
-re-running the [builder](evidence/build_r2_package.py) with `--reviewer`,
-`--review-status` and `--reviewed-package`; the maker (`{PRODUCER}`) cannot be the
-reviewer. Hand edits are not a review.
+{review_paragraph}
 
 ## What changed since the c0782fd package
 
