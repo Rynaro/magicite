@@ -28,6 +28,7 @@ from magicite.storage import db as db_mod
 
 def _cfg(project_root: str | Path) -> Config:
     cfg = Config.load(str(project_root))
+    writer_guard.preflight_custody(cfg)
     cfg.ensure_dirs()
     return cfg
 

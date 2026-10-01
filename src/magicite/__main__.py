@@ -92,6 +92,9 @@ def sync_cmd(project_root: str) -> None:
     from magicite.storage import db as db_mod
 
     cfg = Config.load(project_root)
+    from magicite.core.writer_guard import preflight_custody
+
+    preflight_custody(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     embedder = get_embedder(cfg)
@@ -116,6 +119,9 @@ def dream_cmd(once: bool, autonomous: bool, project_root: str) -> None:
     cfg = Config.load(project_root)
     if autonomous:
         cfg.autonomous = True
+    from magicite.core.writer_guard import preflight_custody
+
+    preflight_custody(cfg)
     cfg.ensure_dirs()
     conn = authorizer_mod.writer_connection(cfg.db_path)
     result = dream_mod.run(cfg, conn, trigger="cli")
@@ -152,6 +158,9 @@ def export_cmd(out_dir: str, project_root: str, min_status: str) -> None:
     from magicite.storage import db as db_mod
 
     cfg = Config.load(project_root)
+    from magicite.core.writer_guard import preflight_custody
+
+    preflight_custody(cfg)
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     outcome = registry_mod.export(cfg, conn, out_dir=out_dir, min_status=min_status)

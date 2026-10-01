@@ -34,6 +34,14 @@ def resolve_custody(cfg: Config) -> tuple[str, Custody]:
         raise CustodianError("protected custody enrollment required") from exc
 
 
+def preflight_custody(cfg: Config) -> None:
+    """Authenticate availability before an ordinary entrypoint creates local state."""
+    registry_id, client = resolve_custody(cfg)
+    head = client.call("read_current")
+    if head.get("registry_id") != registry_id or head.get("legacy_reconciliation") is not None:
+        raise CustodianError("custody reconciliation required before ordinary startup")
+
+
 class RegistryCustodyCoordinator:
     def __init__(self, registry_id: str, client: Custody):
         self.registry_id, self.client = registry_id, client
