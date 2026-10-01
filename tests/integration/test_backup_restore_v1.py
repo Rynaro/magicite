@@ -785,7 +785,9 @@ def test_restore_preserves_live_database_fence_and_immediate_writer(
 ) -> None:
     import hashlib
 
-    from magicite.core import migration
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from magicite.core import trust
 
     cfg = Config(project_root=tmp_path / "project")
     custody_for(cfg)
@@ -828,6 +830,10 @@ def test_restore_preserves_live_database_fence_and_immediate_writer(
             assert cfg.db_path.stat().st_ino == before_inode
             cross.assert_owned()
             assert cross._fencing_token == token
-        assert migration.apply(cfg, operation_id="immediate-after-restore").state == "completed"
+        before_head = trust.authenticated_snapshot(cfg).head["head_sequence"]
+        trust.pin_trust_root(
+            cfg, public_key_bytes=Ed25519PrivateKey.generate().public_key().public_bytes_raw()
+        )
+        assert trust.authenticated_snapshot(cfg).head["head_sequence"] == before_head + 1
     finally:
         conn.close()

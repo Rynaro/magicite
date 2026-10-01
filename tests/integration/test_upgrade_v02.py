@@ -8,8 +8,6 @@ import pytest
 
 from magicite.config import Config
 from magicite.core import migration as migration_mod
-from magicite.core import registry as registry_mod
-from magicite.embeddings.hashing_provider import get_embedder
 from magicite.errors import InvalidInputError
 from magicite.storage import db as db_mod
 from magicite.storage.migrations.registry import MAX_KNOWN_SCHEMA_VERSION
@@ -68,37 +66,35 @@ def test_v02_database_upgrades_without_losing_durable_rows(tmp_path: Path) -> No
         conn.close()
 
 
-def test_v1_restore_matches_backup_manifest(cfg: Config) -> None:
-    """AC-S03-04: downgrade restoration matches the supported backup manifest."""
-    cfg.ensure_dirs()
-    conn = db_mod.connect(cfg.db_path)
-    try:
-        registry_mod.register(cfg, conn, get_embedder(dim=256), path=".magicite/engrams")
-    finally:
-        conn.close()
+def test_v1_restore_matches_backup_manifest(legacy_migration_case, tmp_path: Path) -> None:
+    """AC-S03-04: legacy bytes materialize exactly but cannot replace live authority."""
+    from magicite.core import trust, trust_legacy
+    from magicite.core.trust_custodian import CustodianError
 
-    before = {path.name: path.read_bytes() for path in sorted(cfg.registry_dir.glob("*.egr.md"))}
-    result = migration_mod.apply(cfg, operation_id="mig_restore_demo")
+    cfg, plan, backup, _ = legacy_migration_case(tmp_path)
+    digest = trust_legacy.digest(plan)
+    before = {path.name: path.read_bytes() for path in cfg.registry_dir.glob("*.egr.md")}
+    result = migration_mod.apply(cfg, reviewed_sha256=digest, backup_path=backup)
     assert result.state == "completed"
-    assert result.backup_relpath is not None
-
-    op_dir = cfg.data_dir / "migrations" / "mig_restore_demo"
-    restored = migration_mod.restore(cfg, backup_path=op_dir)
-    assert restored.state == "completed"
+    active = {path.name: path.read_bytes() for path in cfg.registry_dir.glob("*.egr.md")}
+    head = trust.authenticated_snapshot(cfg).head
+    stage = tmp_path.parent / (tmp_path.name + "-downgrade-stage")
+    restored = migration_mod.restore(cfg, backup_path=backup, reviewed_sha256=digest, staging_path=stage)
+    assert restored.state == "reconciliation_required"
     assert restored.kind == "restore_backup"
-
-    after = {path.name: path.read_bytes() for path in sorted(cfg.registry_dir.glob("*.egr.md"))}
+    after = {path.name: path.read_bytes() for path in (stage / "files/engrams").glob("*.egr.md")}
     assert after == before
+    assert {path.name: path.read_bytes() for path in cfg.registry_dir.glob("*.egr.md")} == active
+    assert trust.authenticated_snapshot(cfg).head == head
+    _, manifest = trust_legacy.read_verified_backup(backup, reviewed_sha256=digest)
+    for rel, entry in manifest["files"].items():
+        if rel.endswith(".egr.md"):
+            assert hashlib.sha256(after[Path(rel).name]).hexdigest() == entry["sha256"]
+    assert migration_mod.status(cfg, result.operation_id).state == "completed"
+    from magicite.core.writer_guard import preflight_custody
 
-    manifest = json.loads((op_dir / "manifest.json").read_text(encoding="utf-8"))
-    for entry in manifest["files"]:
-        if not entry["path"].startswith("engrams/"):
-            continue
-        name = Path(entry["path"]).name
-        assert hashlib.sha256(after[name]).hexdigest() == entry["sha256"]
-
-    st = migration_mod.status(cfg, "mig_restore_demo")
-    assert st.state == "restored"
+    with pytest.raises(CustodianError):
+        preflight_custody(Config(project_root=stage))
 
 
 def test_future_backup_manifest_rejected(cfg: Config, tmp_path: Path) -> None:
@@ -115,4 +111,6 @@ def test_future_backup_manifest_rejected(cfg: Config, tmp_path: Path) -> None:
     }
     (backup / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(InvalidInputError, match="unsupported backup manifest|newer"):
-        migration_mod.restore(cfg, backup_path=backup)
+        migration_mod.restore(
+            cfg, backup_path=backup, staging_path=tmp_path.parent / (tmp_path.name + "-future-stage")
+        )
