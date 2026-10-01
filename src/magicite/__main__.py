@@ -39,7 +39,9 @@ class SafeGroup(click.Group):
                 click.echo(f"server startup failed ({exc.code.value})", err=True)
                 sys.exit(1)
             _die_magicite(exc)
-        except (click.ClickException, click.Abort):
+        except (click.ClickException, click.Abort, click.exceptions.Exit):
+            # click.exceptions.Exit (e.g. --help) subclasses RuntimeError; it is
+            # normal control flow, not an internal error.
             raise
         except Exception as exc:
             if ctx.invoked_subcommand == "serve":
