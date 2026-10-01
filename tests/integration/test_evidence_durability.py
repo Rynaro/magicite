@@ -181,7 +181,14 @@ def test_rebuild_restores_index_and_load_event(cfg, db_conn) -> None:
 # ── 3. Cross-process fencing ────────────────────────────────────────────────
 
 
-def _mp_checkpoint_worker(
+def _mp_checkpoint_worker(project_root, event_id, ready, start, results, custody_directory, registry_id):
+    from tests.support.custody_adapter import attach_fixture
+
+    with attach_fixture(Path(project_root), Path(custody_directory), registry_id):
+        _mp_checkpoint_worker_attached(project_root, event_id, ready, start, results)
+
+
+def _mp_checkpoint_worker_attached(
     project_root: str,
     event_id: str,
     ready: Any,
@@ -251,6 +258,9 @@ def test_multiprocess_concurrent_checkpoint_unique_sequences(cfg, db_conn) -> No
     # Touch DB schema / lease table in parent before spawn.
     assert db_mod.schema_version(db_conn) >= 6
 
+    from magicite.core import writer_guard
+
+    provider = writer_guard.resolve_custody(cfg)[1]
     ctx = mp.get_context("spawn")
     ready1, ready2 = ctx.Event(), ctx.Event()
     start = ctx.Event()
@@ -258,11 +268,27 @@ def test_multiprocess_concurrent_checkpoint_unique_sequences(cfg, db_conn) -> No
     workers = [
         ctx.Process(
             target=_mp_checkpoint_worker,
-            args=(str(cfg.project_root), "ev_mp_a", ready1, start, results),
+            args=(
+                str(cfg.project_root),
+                "ev_mp_a",
+                ready1,
+                start,
+                results,
+                str(provider.store.directory),
+                provider.registry_id,
+            ),
         ),
         ctx.Process(
             target=_mp_checkpoint_worker,
-            args=(str(cfg.project_root), "ev_mp_b", ready2, start, results),
+            args=(
+                str(cfg.project_root),
+                "ev_mp_b",
+                ready2,
+                start,
+                results,
+                str(provider.store.directory),
+                provider.registry_id,
+            ),
         ),
     ]
     for w in workers:

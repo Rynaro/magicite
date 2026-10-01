@@ -171,3 +171,21 @@ def threaded_calls(provider, monkeypatch):
             store.close()
 
     monkeypatch.setattr(provider, "call", call)
+
+
+def clone_fixture_timeline(provider, destination: Path):
+    """Copy simulated initial authority for independent crash/baseline timelines only."""
+    import os
+    import sqlite3
+
+    destination.mkdir(mode=0o700)
+    for name in ("journal.key", "signing.key"):
+        (destination / name).write_bytes((provider.store.directory / name).read_bytes())
+        os.chmod(destination / name, 0o600)
+    target = sqlite3.connect(destination / "authority.sqlite")
+    try:
+        provider.store._conn.backup(target)
+    finally:
+        target.close()
+    os.chmod(destination / "authority.sqlite", 0o600)
+    return destination
