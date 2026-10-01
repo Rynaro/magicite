@@ -1,0 +1,47 @@
+{
+  "checks": {
+    "docs": {
+      "command": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python scripts/check_docs.py",
+      "exit_code": 0,
+      "output": {
+        "path": "docs/releases/v1/r2/evidence/docs.txt",
+        "sha256": "95bb245045e53ccb29ddcc8b12671d7193d5041ca43f478a6665ccef8cf5971b"
+      }
+    },
+    "generated": {
+      "command": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python scripts/check_generated_docs.py",
+      "exit_code": 0,
+      "output": {
+        "path": "docs/releases/v1/r2/evidence/generated.txt",
+        "sha256": "c901f6b1c625776df96ce7b2bf0ac16a616f04b6977bcac4df948624ab2d89b3"
+      }
+    },
+    "mypy": {
+      "command": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python -m mypy src",
+      "exit_code": 0,
+      "output": {
+        "path": "docs/releases/v1/r2/evidence/mypy.txt",
+        "sha256": "d197d6017d587f21ad64746c2d6847a7ecaac183b973fcf4aa19a188a269cd3f"
+      }
+    },
+    "pytest": {
+      "command": "PATH=/tmp/uvtool/bin:$PATH /private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16out/junit.xml",
+      "exit_code": 0,
+      "output": {
+        "path": "docs/releases/v1/r2/evidence/pytest.txt",
+        "sha256": "3d9d9c95d40ad8ad4c4baaf83deda2a0e2b53d5c4005e87ab44ec2074c1a4f4b"
+      }
+    },
+    "ruff": {
+      "command": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/ruff check .",
+      "exit_code": 0,
+      "output": {
+        "path": "docs/releases/v1/r2/evidence/ruff.txt",
+        "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      }
+    }
+  },
+  "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",
+  "source_dirty": false,
+  "tracked_code_diff": false
+}

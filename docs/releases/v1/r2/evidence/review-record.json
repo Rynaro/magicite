@@ -1,0 +1,23 @@
+{
+  "evidence": {
+    "producer": "Vivi /s16-readjudication r2 maker",
+    "reviewed_head": "",
+    "reviewer": "",
+    "scope": "r2 local mechanical evidence re-adjudication and NO-GA draft: 88 criteria (76 frozen v1 + 12 additive AC-TH), 17 gates, fresh TRUST/PROTOCOL/RELIABILITY/SECURITY/GA-ALL proposals. Not GA approval, external reproduction or deployment qualification.",
+    "tested_source": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",
+    "verdict": "PENDING"
+  },
+  "historical_package": {
+    "manifest": {
+      "path": "docs/releases/v1/release-manifest.json",
+      "sha256": "916cb494ac7dea5fce6194df5d859e737f65028b65ed90b5fec8824bea786fe4"
+    },
+    "review_record": {
+      "path": "docs/releases/v1/evidence/review-record.json",
+      "sha256": "4feb576fef869627f2292ea771276cbaacba3e73413122214a154977db0d0910"
+    },
+    "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+    "tested_source": "c0782fd5ea477857b7fe6e7a967a9bbf85808620"
+  },
+  "schema": "magicite/review-record/2"
+}

@@ -1,0 +1,49 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/r2/evidence/checkpoint-process-death-custody.json",
+      "sha256": "3301fba0e22445a7542997d669cb7ff12c4f5c3af2352fa918e9d78ed7731dcd"
+    },
+    {
+      "path": "docs/releases/v1/r2/evidence/probe-checkpoint-process-death-custody.py",
+      "sha256": "bc89508a3af90e1d8c1d10be156ae980561a915167abe9095c7f4e6eea466dbc"
+    },
+    {
+      "path": "tests/support/custody_adapter.py",
+      "sha256": "0ef759ecb31443bdcf62ee54d78cd48166aba5462977c2b0f64bce8eb28c14a7"
+    },
+    {
+      "path": "tests/integration/test_evidence_durability.py",
+      "sha256": "2e37271f917b0e2eb4cf225de5f7193bf75f2545befdbda011fef0aa921d90c1"
+    },
+    {
+      "path": "src/magicite/core/evidence.py",
+      "sha256": "05f8a64fa29109af5c74491ea6d1688bef9a556fa9e047d3ad2da7d13c04b6d7"
+    }
+  ],
+  "command": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python docs/releases/v1/r2/evidence/probe-checkpoint-process-death-custody.py > /private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16out/checkpoint-process-death-custody.json",
+  "environment": {
+    "path": "docs/releases/v1/r2/evidence/environment.json",
+    "sha256": "b301cb47010ddf28e98009b201590ba0211626915f1e931fa567ba9ec3337e02"
+  },
+  "exit_code": 0,
+  "interpreter": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "producer": "Vivi /s16-readjudication r2 maker",
+  "review_status": "PENDING",
+  "reviewed_package": "",
+  "reviewer": "",
+  "schema": "magicite/diagnostic-provenance/1",
+  "script_sha256": "bc89508a3af90e1d8c1d10be156ae980561a915167abe9095c7f4e6eea466dbc",
+  "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",
+  "source_dirty": false,
+  "tracked_code_diff": false,
+  "untracked_scope": [
+    "docs/releases/v1/r2/evidence/probe-checkpoint-process-death-custody.py",
+    "docs/releases/v1/r2/evidence/reproduce-trust-mirror-loss-custody.py"
+  ],
+  "untracked_scope_note": "untracked docs/releases/v1/r2 scripts only; tracked tree identical to source"
+}

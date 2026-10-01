@@ -1,0 +1,133 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/r2/evidence/test-results.json",
+      "sha256": "f318c93abe8661130ff2083d2a203ec0beef03d3551f017a242c8b15b8d5d32d"
+    },
+    {
+      "path": "docs/releases/v1/r2/evidence/pytest.txt",
+      "sha256": "3d9d9c95d40ad8ad4c4baaf83deda2a0e2b53d5c4005e87ab44ec2074c1a4f4b"
+    },
+    {
+      "path": "docs/03-learning-model.md",
+      "sha256": "542f39beedfafa9c7f42c44e1a0cfd0b4b39c32ec3a545a5f6f5352d3a340f6b"
+    },
+    {
+      "path": "docs/AUTHORITY.md",
+      "sha256": "68d181ddd2f05837fcfdb7a297d2a762ea877ed267dfde0f6ebc3074d87be2db"
+    },
+    {
+      "path": "tests/unit/core/test_policy_boundary.py",
+      "sha256": "d1e01e99aa4a98a5f9164f9df9cb0147d8ee2f9395d7261f481fc0cc6b7645a7"
+    }
+  ],
+  "command": "PATH=/tmp/uvtool/bin:$PATH /private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16out/junit.xml",
+  "derived_from": {
+    "path": "docs/releases/v1/evidence/learning-fully-gated-or-unavailable.json",
+    "sha256": "d35501a4f53235f087a2655300d84d29d68569b30f4a5b4bc318600a874922f4"
+  },
+  "environment": {
+    "dependency_note": "Isolated venv built by UV_PROJECT_ENVIRONMENT=<venv> uv sync --frozen --all-extras --python 3.14 from uv.lock (editable magicite bound to the worktree; leiden/igraph extras included). Not the declared 3.11/3.12 matrix.",
+    "installed_distributions": {
+      "annotated-types": "0.8.0",
+      "anyio": "4.14.2",
+      "ast-serialize": "0.8.0",
+      "attrs": "26.1.0",
+      "certifi": "2026.7.22",
+      "cffi": "2.1.1",
+      "charset-normalizer": "3.5.0",
+      "click": "8.4.2",
+      "coverage": "7.15.4",
+      "cryptography": "50.0.0",
+      "fastembed": "0.8.0",
+      "filelock": "3.32.3",
+      "flatbuffers": "25.12.19",
+      "fsspec": "2026.7.0",
+      "h11": "0.16.0",
+      "hf-xet": "1.6.0",
+      "httpcore": "1.0.9",
+      "httpcore2": "2.13.1",
+      "httpx": "0.28.1",
+      "httpx2": "2.13.1",
+      "huggingface-hub": "1.27.0",
+      "idna": "3.18",
+      "igraph": "1.0.0",
+      "iniconfig": "2.3.0",
+      "jsonschema": "4.26.0",
+      "jsonschema-specifications": "2025.9.1",
+      "leidenalg": "0.12.0",
+      "librt": "0.15.0",
+      "loguru": "0.7.3",
+      "magicite": "0.3.1",
+      "mcp": "2.0.0",
+      "mcp-types": "2.0.0",
+      "mmh3": "5.2.1",
+      "mypy": "2.3.0",
+      "mypy-extensions": "1.1.0",
+      "numpy": "2.5.2",
+      "onnxruntime": "1.28.0",
+      "opentelemetry-api": "1.44.0",
+      "packaging": "26.3",
+      "pathspec": "1.1.1",
+      "pillow": "12.3.0",
+      "pluggy": "1.6.0",
+      "protobuf": "7.35.1",
+      "py-rust-stemmers": "0.1.8",
+      "pycparser": "3.0",
+      "pydantic": "2.13.4",
+      "pydantic-core": "2.46.4",
+      "pygments": "2.20.0",
+      "pyjwt": "2.15.1",
+      "pytest": "9.1.1",
+      "pytest-asyncio": "1.4.0",
+      "pytest-cov": "7.1.0",
+      "python-igraph": "1.0.0",
+      "python-multipart": "0.0.32",
+      "pyyaml": "6.0.3",
+      "referencing": "0.37.0",
+      "requests": "2.34.2",
+      "rpds-py": "2026.6.3",
+      "ruamel.yaml": "0.19.1",
+      "ruff": "0.16.3",
+      "sse-starlette": "3.4.8",
+      "starlette": "1.6.0",
+      "structlog": "26.1.0",
+      "texttable": "1.7.0",
+      "tokenizers": "0.23.1",
+      "tqdm": "4.70.0",
+      "truststore": "0.10.4",
+      "typing-extensions": "4.16.0",
+      "typing-inspection": "0.4.4",
+      "urllib3": "2.8.0",
+      "uvicorn": "0.52.3"
+    },
+    "interpreter": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python",
+    "packages": {
+      "magicite": "0.3.1",
+      "mcp": "2.0.0",
+      "mcp-types": "2.0.0",
+      "pytest": "9.1.1"
+    },
+    "path_prefix": "/tmp/uvtool/bin prepended to PATH for the pytest run only",
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "provider": "hashing fixtures except explicit isolated install/model checks",
+    "python": "3.14.6"
+  },
+  "executed_nodes": [
+    "tests/unit/core/test_policy_boundary.py::test_experimental_is_explicit"
+  ],
+  "gate": "LEARNING",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "obligation": "fully-gated-or-unavailable",
+  "producer": "Vivi /s16-readjudication r2 maker",
+  "review_status": "PENDING",
+  "reviewed_package": "",
+  "reviewer": "",
+  "schema": "magicite/release-witness/1",
+  "scope": "Draft r2 local mechanical evidence against clean tested source 9bf9ca025fc4513592f72d7f6f1c04563a31bc8c; same node mapping as the c0782fd witness; status derived from the r2 junit; no production, external or RC qualification.",
+  "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",
+  "status": "PASS"
+}

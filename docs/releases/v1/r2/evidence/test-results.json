@@ -1,0 +1,4979 @@
+{
+  "checker_scope": "Pending independent inspection of immutable r2 local execution evidence; not external product reproduction.",
+  "checker_status": "PENDING",
+  "command": "PATH=/tmp/uvtool/bin:$PATH /private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python -m pytest -q -p no:cacheprovider --junitxml=/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16out/junit.xml",
+  "environment": {
+    "path": "docs/releases/v1/r2/evidence/environment.json",
+    "sha256": "b301cb47010ddf28e98009b201590ba0211626915f1e931fa567ba9ec3337e02"
+  },
+  "failed": 0,
+  "independent_checker": "",
+  "junit": {
+    "path": "docs/releases/v1/r2/evidence/junit.xml",
+    "sha256": "f356cf2c9a2f7fc9803d27c55f67d4712e25e84759f6bbe6b78411687b1a547f"
+  },
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "passed": 1228,
+  "raw_junit_sha256": "f356cf2c9a2f7fc9803d27c55f67d4712e25e84759f6bbe6b78411687b1a547f",
+  "results": [
+    {
+      "node": "tests/acceptance/test_declared_edge_weight.py::test_inhibition_is_reachable_from_register",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_docker_smoke.py::test_offline_handshake",
+      "status": "SKIP"
+    },
+    {
+      "node": "tests/acceptance/test_docker_smoke.py::test_offline_register_uses_the_baked_model_with_egress_denied",
+      "status": "SKIP"
+    },
+    {
+      "node": "tests/acceptance/test_docker_smoke.py::test_offline_register_and_route_cycle",
+      "status": "SKIP"
+    },
+    {
+      "node": "tests/acceptance/test_docker_smoke.py::test_uid_override_preserves_host_file_ownership",
+      "status": "SKIP"
+    },
+    {
+      "node": "tests/acceptance/test_docker_smoke.py::test_without_uid_override_the_server_cannot_even_boot",
+      "status": "SKIP"
+    },
+    {
+      "node": "tests/acceptance/test_dream_idempotent.py::test_second_run_is_a_noop",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_dream_idempotent.py::test_third_run_after_more_of_the_same_evidence_is_still_a_noop",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_dream_idempotent.py::test_checkpoint_render_is_byte_identical_across_two_dream_runs",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_dream_idempotent.py::test_no_new_events_at_all_since_registration_writes_nothing_new",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_clean_wheel",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_probe_fails_for_broken_wheel_despite_repo_pythonpath",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_missing_model",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_channel_matrix[wheel-local-python-wheel-scaffold]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_channel_matrix[sdist-local-python-sdist-scaffold]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_channel_matrix[pip-pypi-pypi-published-channels]",
+      "status": "SKIP"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_channel_matrix[pipx-pipx-published-channels]",
+      "status": "SKIP"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_channel_matrix[uvx-uvx-published-channels]",
+      "status": "SKIP"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_channel_matrix[oci-digest-oci-published-channels]",
+      "status": "SKIP"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_published_channel_records_are_reserved",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_release_manifest_roundtrip",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_install_channels.py::test_immutable_supply_chain_inputs",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_operator_tutorial.py::test_disposable_operator_tutorial",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_p0_hot_path.py::test_authorizer_denies_durable_write",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_p0_hot_path.py::test_connection_split_actually_gates_durable_writes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_p0_hot_path.py::test_writer_tools_are_not_strangled_by_the_authorizer",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_p0_hot_path.py::test_dispatch_call_surfaces_a_denied_write_as_an_internal_error",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_rebuild_invariant.py::test_durable_state_survives_rebuild",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_rebuild_invariant.py::test_imported_engrams_survive_resync_and_rebuild",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_rebuild_invariant.py::test_only_tier_c_is_lost",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_rebuild_invariant.py::test_learned_synapses_survive_rebuild",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_rebuild_invariant.py::test_peak_storage_strength_and_content_sha256_survive_rebuild",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_rebuild_invariant.py::test_checkpoint_persists_provenance_journal_to_file",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_cancellation.py::test_commit_boundary",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_initialize",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_stdout_is_protocol_only",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_initialize_across_handshake_versions[2024-11-05]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_initialize_across_handshake_versions[2025-03-26]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_initialize_across_handshake_versions[2025-06-18]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_initialize_across_handshake_versions[2025-11-25]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_no_modern_era_leakage_on_unrecognized_version[2026-07-28]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_no_modern_era_leakage_on_unrecognized_version[2099-01-01]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_no_modern_era_leakage_on_unrecognized_version[not-a-real-protocol-version]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_stdio_handshake.py::test_stdout_diversion_survives_native_escapes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_tool_manifest.py::test_sixteen_tools",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_tool_manifest.py::test_tools_list_over_stdio",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_v1_conformance.py::test_host_support_manifest_pins_exact_versions",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_v1_conformance.py::test_conformance_probe_offline_fixture_route_and_body",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_v1_conformance.py::test_v1_conformance_schema_snapshots_exist",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_walking_skeleton.py::test_register_route_introspect",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/acceptance/test_walking_skeleton.py::test_register_route_introspect_over_mcp",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_complete_restore",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_policy_reapplication",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_snapshot_refuses_corrupt_tombstones",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_poison_live_overlay_refuses_preserve",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_missing_stale_overlay_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_route_refused_while_reconciliation_required",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_tamper_recovery_control_plane_stays_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_custody_key_install_no_rekey",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_registry_id_mismatch_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_preserves_authenticated_restriction",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_deleted_privacy_tombstone_refuses_preserve",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_backup_excludes_restore_generation_markers",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_restore_preserves_live_database_fence_and_immediate_writer[False]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_restore_preserves_live_database_fence_and_immediate_writer[True]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_restore_preserves_live_database_fence_and_immediate_writer[registry/./skill-graph.db]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_backup_restore_v1.py::test_restore_preserves_live_database_fence_and_immediate_writer[registry/SKILL-GRAPH.DB]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_bench.py::test_baseline_metrics_emitted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_bench.py::test_baseline_metrics_emitted_via_cli",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_bench.py::test_all_four_baselines_run_and_report_real_numbers",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_bench.py::test_structural_gold_loading_rejects_production_planner",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_cycle_and_budget",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_ambiguous_alternatives",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_host_verifier_report",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_producer_satisfies_consumer",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_shared_relation_semantics",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_edge_budget_never_exceeds_max",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_structural_corpus_cases[producer-before-consumer]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_structural_corpus_cases[ambiguous-two-producers]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_structural_corpus_cases[cycle-no-executable-prefix]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_structural_corpus_cases[before-ordering]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_composition_v1.py::test_structural_corpus_cases[supersedes-conflict]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_dream_crash_recovery.py::test_process_death_recovers_to_uninterrupted_state[phase:potentiate:after-write]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_dream_crash_recovery.py::test_process_death_recovers_to_uninterrupted_state[checkpoint:file]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_dream_cycle.py::test_single_writer_enforced",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_dream_cycle.py::test_session_end_debounce",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_dream_cycle.py::test_session_end_does_not_enqueue_when_disabled",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_dream_cycle.py::test_decay_floor_archives_never_deletes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_durability.py::test_checkpoint_retry_after_segment_fsync_zero_duplicates",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_durability.py::test_checkpoint_retry_after_index_before_meta_contiguous",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_durability.py::test_checkpoint_conflict_duplicate_event_id_fails_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_durability.py::test_rebuild_restores_index_and_load_event",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_durability.py::test_multiprocess_concurrent_checkpoint_unique_sequences",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_durability.py::test_enqueue_never_raises_with_unreadable_key_dir",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_durability.py::test_delete_physically_removes_payload_bytes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_durability.py::test_two_exports_are_unlinkable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_durability.py::test_torn_line_keeps_complete_lines",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_recovery.py::test_ack_survives_rebuild",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_recovery.py::test_privacy_history_and_export",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_recovery.py::test_migration_slot_six_applied",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_recovery.py::test_deletion_covers_managed_exports_only",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_evidence_recovery.py::test_export_carries_copy_deletion_notice",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_idempotency_recovery.py::test_process_death_after_event_replays_staged_response",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_idempotency_recovery.py::test_operator_can_inspect_and_complete_an_unstaged_reservation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_index_generation.py::test_fingerprint_invalidates",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_index_generation.py::test_atomic_swap_and_rollback",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_index_generation.py::test_write_atomic_fsyncs_file_and_parent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_concurrent_expired_acquisition_has_one_winner",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_periodic_heartbeat_preserves_ownership_across_ttl",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_ttl_overrun_fences_stale_writer",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_killed_holder_lease_reclaimed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_stale_writer_cannot_commit_domain_stores[evidence]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_stale_writer_cannot_commit_domain_stores[trust]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_stale_writer_cannot_commit_domain_stores[approvals]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_stale_writer_cannot_commit_domain_stores[policy]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_policy_mutators_obey_other_process_lease[register]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_policy_mutators_obey_other_process_lease[approve]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_policy_mutators_obey_other_process_lease[activate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_policy_mutators_obey_other_process_lease[rollback]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_lease_multiprocess.py::test_policy_concurrent_cas_has_one_winner",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_preview_zero_write_no_wal_shm",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_idempotent_apply",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_crash_matrix",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_partial_backup_resume_rebuilds",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_backup_source_dest_digest_match",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_restore_rejects_path_traversal",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_concurrent_apply_busy",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_lease_loss_mid_artifact_fencing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_unsupported_future_schema_fails_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_preview_sees_uncheckpointed_wal_without_data_dir_writes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_preview_wal_copy_retries_or_fails_on_checkpoint_tear",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_preview_wal_copy_fails_closed_when_never_stable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_preview_nonexistent_data_dir_creates_nothing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_mkdir_secure_fsyncs_parent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_migration_v1.py::test_mkdir_secure_nested_parents_mode_and_fsync",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_migration_readers_create_nothing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_cli_upgrade_status_restore_and_tamper_gate",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_cli_resumes_real_interrupted_migration",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_policy_registration_review_and_cas_are_public",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_cli_checkpoint_is_durable_idempotent_self_report",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_checkpoint_rejects_missing_original_decision",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_cli_exception_details_never_disclose_canaries[False]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_cli_exception_details_never_disclose_canaries[True]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_explicit_route_checkpoint_replays_original_and_conflicts",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_operator_cli_completeness.py::test_checkpoint_rejects_unknown_schema_before_creating_state",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_nested_scope_reuses_only_same_registry",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_token_loss_after_file_fsync_prevents_publication[policy]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_token_loss_after_file_fsync_prevents_publication[mirror]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_interrupted_policy_commit_is_recoverable_and_closed[before_state]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_interrupted_policy_commit_is_recoverable_and_closed[after_state]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_interrupted_policy_commit_is_recoverable_and_closed[after_mirror]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_conflicting_pending_mirror_never_repaired_from_untrusted_bytes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_prepared_mirror_directory_is_durable_before_state_commit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_public_cli_reconciliation_and_read_only_diagnostics[valid]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_public_cli_reconciliation_and_read_only_diagnostics[missing]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_public_cli_reconciliation_and_read_only_diagnostics[conflicting]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_policy_fencing.py::test_policy_directory_open_failure_does_not_acknowledge_commit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_recent_failure_context.py::test_recent_failure_context_is_populated_by_ingestion",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_register_import.py::test_import_profile_downgrades",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_register_import.py::test_import_profile_never_hard_fails_on_missing_not_when",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_register_import.py::test_exec_block_quarantined",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_register_import.py::test_caller_declared_verification_status_is_never_trusted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_register_import.py::test_register_auto_detects_both_formats_in_one_pass",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_topological_plan_order",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_route_after_sync_uses_derived_communities",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_sync_similar_to_edges_are_symmetric_neighbors_only",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_plan_confidence_is_one_when_fully_resolved",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_dangling_dependency_abstains_composition_invalid",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_eligibility_before_rerank",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_eligibility_risk_denied_under_restrictive_server_policy",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_eligibility_tool_denied_under_empty_allowed_tools",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_eligibility_context_required_unknown_host",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_eligibility_asset_invalid",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_route_honours_policy_store_activation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_index_generation_identity_differs_across_publish",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_subject_cache_detects_registry_drift",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_subject_cache_same_size_restored_mtime_still_drifts",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_subject_cache_identical_rewrite_stays_eligible",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_subject_cache_scoped_per_registry_root",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_missing_artifact_file_excluded",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_policy_store_missing_after_activation_fails_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_fresh_install_policy_source_and_cfg_immutable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_store_active_ignores_cfg_experimental",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_compose_valid_multi_node_ordered",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_compose_cycle_abstains_composition_invalid",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_compose_budget_exceeded_abstains",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_compose_ineligible_dependency_abstains_body_absent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_end_to_end.py::test_compose_context_required_abstains_with_missing_fields",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_latency.py::test_p95_under_100ms",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_route_reproducibility.py::test_rebuild_determinism",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_skillmd_roundtrip.py::test_export_import_stable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_skillmd_roundtrip.py::test_v1_fixture_corpus_preserves_skillmd_and_02_bytes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_stable_policy_activation.py::test_activation_without_learning",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_trust_recovery.py::test_review_replay_rebuild",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_upgrade_v02.py::test_v02_database_upgrades_without_losing_durable_rows",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_upgrade_v02.py::test_v1_restore_matches_backup_manifest",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/integration/test_upgrade_v02.py::test_future_backup_manifest_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_build_graph_row_normalizes_per_source",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_build_graph_drops_edges_outside_universe_and_nonpositive_weight",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_softmax_personalization_sums_to_one_over_seeds",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_softmax_personalization_empty_seeds_returns_zero_vector",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_personalized_pagerank_propagates_along_edges",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_personalized_pagerank_no_edges_reduces_to_personalization",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_apply_inhibition_lowers_target_only_when_inhibitor_is_active",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_apply_inhibition_noop_when_inhibitor_inactive",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_reciprocal_equal_strength_inhibition",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_page_rank_ranks_hub_above_leaf",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_combine_scores_matches_weighted_sum",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_apply_hub_penalty_dampens_only_above_percentile",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_activation.py::test_apply_hub_penalty_empty_scores_is_noop",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_propose_writes_the_db_row_and_the_json_mirror",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_decide_approve_then_execute_then_outcome_legal_sequence",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_decide_and_resume_transitions",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_resume_records_executor_failure_and_cannot_repeat",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_decide_reject_is_terminal",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_reload_from_mirror_repopulates_a_rebuilt_db",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_r3_requires_approval_by_default",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_reviewed_archive_can_be_resumed_without_reproposing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_r3_autonomous_mode_auto_executes_and_records_the_actor",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_approvals.py::test_archive_not_found_never_creates_a_proposal",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_audit.py::test_audit_report_is_reports_only",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_audit.py::test_audit_flags_silent_engrams",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_audit.py::test_audit_writes_a_json_report_file",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_audit.py::test_hub_detection",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_audit.py::test_audit_coverage_gaps_report_dangling_needs",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_audit.py::test_yields_reported_as_metadata_only",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_calibration.py::test_threshold_manifest",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_full_body_exact_terms",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_body_digest_uses_routing_body_digest_not_projection",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_rrf_ties",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_eligibility_mask_refill_skips_ineligible",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_query_escaping[E_FOO*-\"E_FOO\"*]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_query_escaping[NEAR-\"NEAR\"]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_query_escaping[hello \"world\"-\"hello\" AND \"world\"]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_query_escaping[body:title-\"body:title\"]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_query_escaping[AND OR NOT-\"AND\" AND \"OR\" AND \"NOT\"]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_query_escaping[foo\\x00bar-\"foo\" AND \"bar\"]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_query_escaping[say \"hi\"-\"say\" AND \"hi\"]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_operator_only_query_yields_no_match[*]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_operator_only_query_yields_no_match[   *  ]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_operator_only_query_yields_no_match[]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_operator_only_query_yields_no_match[   ]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_operator_only_query_yields_no_match[\\x00]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_fts5_operator_only_query_yields_no_match[**]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_candidates.py::test_sparse_bare_star_returns_no_candidates",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_communities.py::test_label_propagation_groups_two_disjoint_cliques",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_communities.py::test_label_propagation_is_deterministic_across_runs",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_communities.py::test_label_propagation_isolated_nodes_are_singleton_communities",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_communities.py::test_label_propagation_empty_registry",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_communities.py::test_get_detector_prefers_leiden_when_importable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_communities.py::test_fallback_detector",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_communities.py::test_get_detector_prefer_leiden_false_always_uses_fallback",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_communities.py::test_leiden_detector_groups_two_disjoint_cliques",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_expand_orders_dependency_before_winner",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_expand_transitive_chain_is_fully_ordered",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_expand_dangling_dependency_excluded_from_order",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_expand_breaks_cycle_and_warns",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_expand_respects_max_depth",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_expand_respects_max_size",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_plan_confidence_single_node_plan_is_one",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_plan_confidence_reflects_dangling_ratio",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_cycle_break_is_deterministic",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_denied_dependency_invalid",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_composition.py::test_stale_content_digest_invalid",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_admin.py::test_custody_admin_init_enroll_profile_explicit_only",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_admin.py::test_custody_enroll_rejects_unreviewed_bytes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_admin.py::test_normal_custody_status_is_failclosed_without_enrollment",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_admin.py::test_explicit_initialize_and_reconcile_use_authenticated_service_interface",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_admin.py::test_valid_profile_unavailable_service_has_no_local_writes[initialize-journal]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_admin.py::test_valid_profile_unavailable_service_has_no_local_writes[reconcile]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_admin.py::test_genesis_lost_lease_cannot_create_local_journal",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_test_fixture.py::test_enrollment_requires_explicit_allowlisted_review",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_test_fixture.py::test_fixture_provider_does_not_enroll_other_project",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_test_fixture.py::test_review_helper_rejects_empty_or_changed_source",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_writer_guard.py::test_custody_predecessor_capture_precedes_local_lease_and_nested_reuses",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_writer_guard.py::test_failed_custody_registration_releases_existing_local_lease",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_writer_guard.py::test_nested_custody_cannot_attach_to_already_acquired_bare_lease",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_writer_guard.py::test_real_factory_requires_protected_enrollment_before_any_acquisition",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_writer_guard.py::test_explicit_factory_adapter_binds_real_custodian_generation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_writer_guard.py::test_nested_direct_try_cannot_refresh_outer_custody_attempt",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_custody_writer_guard.py::test_queued_contender_captures_predecessor_after_flock_not_before",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_effective_value_never_anchored_is_unchanged",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_effective_value_decays_exponentially",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_effective_value_future_anchor_is_a_noop",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_materialize_retrieval_decays_every_row",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_storage_strength_not_materialized_below_epsilon",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_storage_strength_materialized_on_threshold_crossing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_purge_retention_deletes_only_old_rows",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_purge_retention_deletes_expired_idempotency_rows",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_archive_below_floor_moves_file_never_deletes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_archive_below_floor_requires_dream_context",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_brand_new_engram_is_never_archived_on_first_dream_run",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_engram_that_never_crossed_the_floor_is_never_archived",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_decay.py::test_engram_that_truly_decayed_below_the_floor_is_still_archived",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_distill.py::test_mine_frequent_paths_below_support_is_empty",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_distill.py::test_mine_frequent_paths_finds_an_uncovered_combination",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_distill.py::test_mine_frequent_paths_excludes_a_combination_already_covered",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_distill.py::test_mine_frequent_paths_ignores_low_valence_sessions",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_distill.py::test_mine_frequent_paths_ignores_single_skill_sessions",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_distill.py::test_run_distillation_creates_a_proposal_and_no_engram",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_distill.py::test_run_distillation_mirrors_the_approval_to_disk",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_distill.py::test_draft_skeleton_is_a_scaffold_not_a_valid_engram",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_enqueue_creates_a_queued_run",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_enqueue_dedups_to_the_existing_queued_run",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_enqueue_min_interval_throttle",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_enqueue_min_interval_does_not_apply_to_consolidate",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_run_advances_the_watermark",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_run_reports_every_phase_in_stats",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_run_phase5_distill_proposes_a_frequent_uncovered_path",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_run_marks_state_succeeded",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_run_failure_is_isolated_and_recorded",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_second_run_over_unchanged_state_writes_zero_files",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_zero_delta_s_burst_does_not_force_full_checkpoint_rewrite",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_zero_delta_s_burst_still_anchors_spacing_for_a_later_real_commit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_eph_event_flooding_cannot_move_storage_strength",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_burst_signal_use_does_not_fully_potentiate_all_pairs_in_one_run",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_edge_potentiates_only_after_a_properly_spaced_second_observation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream.py::test_run_raises_busy_when_lease_already_held",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream_recovery.py::test_resume_skips_every_committed_phase[replay-potentiate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream_recovery.py::test_resume_skips_every_committed_phase[potentiate-decay]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream_recovery.py::test_resume_skips_every_committed_phase[decay-renormalise]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream_recovery.py::test_resume_skips_every_committed_phase[renormalise-distill]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream_recovery.py::test_resume_skips_every_committed_phase[distill-audit]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream_recovery.py::test_resume_skips_every_committed_phase[audit-checkpoint]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream_recovery.py::test_failed_phase_resumes_the_same_consolidation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_dream_recovery.py::test_lost_lease_fences_writes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_edge_weight.py::test_w_authored_is_zero_for_every_non_declared_provenance",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_edge_weight.py::test_w_authored_is_declared_edge_strength_for_declared_provenance",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_edge_weight.py::test_effective_strength_is_a_floor_not_a_replacement",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_edge_weight.py::test_effective_strength_is_range_preserving",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_edge_weight.py::test_effective_strength_no_learned_suppresses_declared_potentiation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_edge_weight.py::test_effective_strength_no_learned_passes_through_derived_cosine",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_edge_weight.py::test_effective_strength_no_learned_is_zero_for_learned_co_activation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_edge_weight.py::test_declared_edge_enters_the_activation_graph",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_edge_weight.py::test_zero_declared_strength_is_an_exact_revert",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_unknown_required_context",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_request_cannot_elevate",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_transitive_denial",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_unsupported_constraints",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_plannable_requirement_is_not_host_denial",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_body_path_requires_content_digest",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_signature_alone_never_routable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_dependency_closure_cycle_and_budget",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_dependency_closure_version_pin",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_evaluate_eligibility_invalid_grant_denies",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_intersect_grants_normalization",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_consumer_fixture_paths_agree",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_asset_invalid_emitted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_host_id_lowercased",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_trust_view_exceptions_propagate",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_sample_host_tooling_engram_fixture",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_version_satisfies_semver_and_pep440",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_lifecycle_fail_closed[draft]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_lifecycle_fail_closed[archived]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_eligibility.py::test_lifecycle_fail_closed[unknown-status]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_events.py::test_adapter_secret_redacted_before_hashing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence.py::test_event_id_idempotence",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence.py::test_provenance_and_support",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence.py::test_enqueue_receipt_never_persists_raw_query",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence.py::test_refuse_raw_query_in_durable_event",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_checkpoint_replayed_after_index_meta_wipe",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_checkpoint_no_duplicate_sequence_after_meta_rewind",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_checkpoint_crash_between_segment_and_index",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_checkpoint_crash_between_index_and_meta",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_rebuild_restores_index_so_load_event_works",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_rebuild_fails_closed_on_conflicting_duplicate_digest",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_enqueue_with_failing_file_io_does_not_raise",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_enqueue_never_calls_fingerprint_key_disk",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_delete_physically_erases_payload_sentinel",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_export_rehmac_consistent_within_unlinkable_across",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_torn_tail_preserves_complete_lines",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_segment_rotation_seals_and_opens_new",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_atlas_fixes.py::test_obs_events_redacts_raw_query_field",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round2_integrity.py::test_delete_from_sealed_segment_updates_manifest_checksum",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round2_integrity.py::test_verify_segments_fails_closed_on_checksum_mismatch",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round2_integrity.py::test_delete_crash_after_tombstone_before_purge_hides_payload",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round2_integrity.py::test_delete_crash_after_sealed_purge_before_open_hides_and_recovers",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round2_integrity.py::test_authority_scan_deleted_stub_wins_over_later_live_row",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round2_integrity.py::test_export_after_index_wipe_contains_live_events",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round2_integrity.py::test_rotation_crash_after_seal_no_duplicates_or_resurrected_payload",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round3_export_registry.py::test_poisoned_registry_outside_roots_leaves_victim_untouched",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round3_export_registry.py::test_symlinked_export_dir_is_refused",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round3_export_registry.py::test_registry_entry_with_changed_bytes_is_not_deleted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round3_export_registry.py::test_valid_managed_export_files_are_deleted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round3_export_registry.py::test_registry_never_rmtrees_directory_entries",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round3_export_registry.py::test_export_outside_allowed_roots_is_refused",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round3_export_registry.py::test_checkpoint_after_tombstone_crash_completes_physical_purge",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round3_export_registry.py::test_corrupt_registered_exports_fails_closed_on_delete",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round4_export_hardening.py::test_data_dir_as_export_root_is_refused",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round4_export_hardening.py::test_poisoned_registry_targeting_sealed_segment_is_denied",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round4_export_hardening.py::test_legacy_registry_mac_scheme_fails_closed_with_reregister_hint",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round4_export_hardening.py::test_evidence_export_roots_env_uses_pathsep_not_colon_or_comma",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round4_export_hardening.py::test_checkpoint_skips_physical_purge_when_marker_complete",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round5_marker_auth.py::test_forged_purge_marker_does_not_suppress_repurge",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round5_marker_auth.py::test_valid_marker_invalidated_by_new_tombstone",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round5_marker_auth.py::test_hard_deny_casefold_path_logic",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round5_marker_auth.py::test_hard_deny_case_insensitive_fs_alias",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round5_marker_auth.py::test_truncated_tombstones_fail_closed_on_load",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round5_marker_auth.py::test_forged_index_cannot_resurrect_deleted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round6_authority.py::test_missing_mac_after_truncate_fails_closed_not_healed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round6_authority.py::test_migrate_tombstone_mac_refused_when_already_initialized",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round6_authority.py::test_mac_valid_marker_with_pending_payload_still_purges",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round6_authority.py::test_corrupt_stub_in_sealed_segment_never_returns_live",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round6_authority.py::test_forged_meta_retention_ignored_uses_config",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round7_migrate_empty_only.py::test_migrate_refuses_after_incomplete_delete_truncate_attack",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round7_migrate_empty_only.py::test_migrate_allowed_only_on_completely_empty_ledger",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round7_migrate_empty_only.py::test_forged_meta_backup_expiry_ignored_uses_config",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_evidence_round7_migrate_empty_only.py::test_forged_open_segment_id_cannot_overwrite_sealed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fingerprint_key.py::test_same_query_same_fingerprint_with_same_key",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fingerprint_key.py::test_different_key_different_fingerprint",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fingerprint_key.py::test_key_file_created_with_0600_permissions",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fingerprint_key.py::test_override_bypasses_disk_and_is_deterministic",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fingerprint_key.py::test_fingerprint_is_not_unsalted_sha256",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fingerprint_key.py::test_corrupt_key_file_fails_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fingerprint_key.py::test_concurrent_first_create_yields_one_key",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fingerprint_key.py::test_concurrent_first_create_threaded_stress",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_nascent_to_probation_passes_at_exact_boundary",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_nascent_to_probation_fails_just_below_boundary",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_nascent_to_probation_fails_on_dirty_injection_scan",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_probation_to_consolidated_passes_at_exact_boundary",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_probation_to_consolidated_names_every_unmet_guard",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_probation_to_consolidated_fails_on_recent_bad_valence",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_probation_to_consolidated_ignores_valence_outside_last_five",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_consolidated_to_promoted_passes_at_exact_boundary",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_consolidated_to_promoted_fails_just_below_every_boundary",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_consolidated_to_promoted_fails_on_evidence_decay",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_structural_rubric_full_marks",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_structural_rubric_penalizes_missing_negative_trigger_and_thin_pitfalls",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_structural_rubric_penalizes_self_referential_composition",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_fitness.py::test_structural_rubric_meets_nascent_to_probation_bar_at_full_marks",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_lifecycle.py::test_promote_denied_below_evidence_bar",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_lifecycle.py::test_promote_allowed_when_evidence_bar_cleared",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_lifecycle.py::test_unknown_transition_raises_value_error",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_lifecycle.py::test_nascent_to_probation_denial_names_guards",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_lifecycle.py::test_verification_status_quarantine_outranks_everything",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_lifecycle.py::test_verification_status_authored_lint_clean_scan_clean_is_verified",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_lifecycle.py::test_verification_status_imported_or_distilled_is_always_pending[imported]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_lifecycle.py::test_verification_status_imported_or_distilled_is_always_pending[distilled]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_lifecycle.py::test_verification_status_never_reads_a_caller_supplied_value",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_tier0_cannot_move_S",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_tier0_can_move_R_shaped_deltas_but_they_carry_zero_weight",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_tier1_and_tier2_move_S_with_the_docs05_weight[1-0.6]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_tier1_and_tier2_move_S_with_the_docs05_weight[2-1.0]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_unknown_tier_is_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_tier_weight_table_matches_docs05_exactly",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_compute_eta_eff_untiered_first_observation_is_zero_weight",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_compute_eta_eff_untiered_saturates_toward_w_max",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_compute_eta_eff_untiered_spacing_damps_rapid_repeats",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_metaplastic_saturation_bound",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_plasticity.py::test_compute_dw_magnitude_captured_from_three_sessions_stays_bounded",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_policy_boundary.py::test_stable_ignores_adaptation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_policy_boundary.py::test_dream_cannot_change_stable_policy",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_policy_boundary.py::test_experimental_is_explicit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_policy_boundary.py::test_no_raw_query_logging",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_policy_governance_evidence.py::test_in_place_mirror_edit_is_seen_after_cached_negative",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_policy_governance_evidence.py::test_new_mirror_is_seen_and_removed_mirror_is_forgotten",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry.py::test_invalid_authoritative_file_disables_projection",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry.py::test_sync_reconciles_removed_edges",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry_core.py::test_register_rejects_path_outside_project",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry_core.py::test_canonical_routing_view_v1",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry_core.py::test_register_is_idempotent_on_unchanged_content",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry_core.py::test_register_wires_declared_needs_edge",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry_core.py::test_register_reports_dangling_edge_for_unregistered_target",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry_core.py::test_register_skill_format_ingests_via_import_pipeline",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry_core.py::test_sync_removes_rows_for_deleted_files",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry_core.py::test_invalid_authoritative_file_disables_projection",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_registry_core.py::test_sync_reconciles_removed_edges",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_inhibition_lowers_score",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_negative_cue_penalty_is_diagnosable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_route_index_reused_for_same_generation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_route_index_invalidated_on_mutation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_cached_and_uncached_routes_match",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_hub_penalty_dampens_a_structural_hub",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_context_conditioning_project_tag_boosts_linked_engram",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_context_conditioning_unresolvable_strings_are_echoed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_context_conditioning_user_pref_hard_excludes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_recent_failures_boosts_matching_fault_class",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router.py::test_retrieval_strength_is_decayed_at_read_time",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router_core.py::test_route_mints_session_id_when_omitted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router_core.py::test_route_reuses_explicit_session_id",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router_core.py::test_route_on_empty_registry_returns_no_candidates",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router_core.py::test_route_respects_k",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router_core.py::test_route_context_strings_are_echoed_as_unresolved",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_router_policy.py::test_fallback_identity",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_resolve_mints_a_fresh_uuid_when_omitted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_resolve_reuses_an_explicit_session_id",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_resolve_flags_and_records_resumption_after_expiry",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_resolve_does_not_flag_a_still_live_session",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_session_end_closes_and_expires_stale_tags",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_session_end_does_not_suppress_a_freshly_set_tag",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_session_end_grace_floor_is_load_bearing_mutation_check",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_session_end_on_unknown_session_reports_not_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_session_end_never_writes_a_consolidation_run_row_from_the_hot_path",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_session_end_reports_an_already_queued_run_without_enqueuing_a_second",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_session.py::test_ended_session_is_terminal",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_tier_assigned_server_side",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_with_no_server_token[hook_verified]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_with_no_server_token[tier2]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_with_no_server_token[2]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_with_no_server_token[]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_with_no_server_token[Bearer sometoken]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_with_no_server_token[s3cr3t-host-token-guess]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_against_a_real_token[hook_verified]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_against_a_real_token[s3cr3t-host-token ]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_against_a_real_token[S3CR3T-HOST-TOKEN]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_against_a_real_token[s3cr3t-host-toke]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_adapter_token_spoof_attempt_never_earns_tier2_against_a_real_token[]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_correct_adapter_token_earns_tier2",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_use_tier_assignment_matches_signal_outcome",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_use_rejects_unknown_skill_id",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_use_rejects_non_routable_skill",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_use_nudges_retrieval_strength",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_use_caps_at_per_session_limit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_use_cap_is_per_session_not_global",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_use_generates_bidirectional_co_activation_candidates",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_use_does_not_reinflate_pairs_untouched_by_the_current_call",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_outcome_explicit_skill_ids_take_priority",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_outcome_retroactive_credit_on_high_salience",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_outcome_captures_nothing_below_salience_threshold",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_outcome_capture_weight_decays_with_recency",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_outcome_unknown_explicit_skill_id_is_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_outcome_retroactive_credit_is_bounded",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_outcome_captures_edge_tags_for_credited_pairs",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_outcome_does_not_capture_edges_unrelated_to_credit_set",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_signals.py::test_signal_outcome_never_writes_a_learned_S_value",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_artifact_transform.py::test_marker_transform_preserves_body_and_source_signature_is_not_target_signature",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_artifact_transform.py::test_unmarked_active_artifact_is_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_artifact_transform.py::test_exact_marker_transform_retry_does_not_change_target",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_artifact_transform.py::test_unknown_required_extensions_still_fail_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_artifact_transform.py::test_transform_record_has_no_admission_effect_and_is_immutable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_atlas_fixes.py::test_approve_requires_live_digest_match",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_atlas_fixes.py::test_corrupt_authority_fails_closed_while_mirror_is_only_projection",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_atlas_fixes.py::test_approve_under_and_without_outer_lease",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_atlas_fixes.py::test_reject_drive_letter_and_unc_members",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_atlas_fixes.py::test_asset_change_invalidates_admission",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_atlas_fixes.py::test_import_bundle_preserves_asset_hierarchy",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_actual_domain_mirror_loss_cannot_resurrect_revoke",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_policy_projection_cannot_reset_authenticated_policy",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_unenrolled_mirror_never_becomes_authority",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_all_production_outer_leases_use_explicit_registry_factory",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_real_register_review_revoke_flow_uses_custody",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_router_never_restores_invalid_authenticated_admission[policy]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_router_never_restores_invalid_authenticated_admission[content]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_actual_route_and_body_deny_after_authenticated_policy_change[policy]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_actual_route_and_body_deny_after_authenticated_policy_change[root_revocation]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_stale_root_pin_cannot_undo_interleaved_acknowledged_revocation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_nested_domain_rejects_unenrolled_or_foreign_outer_lease[backup]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_nested_domain_rejects_unenrolled_or_foreign_outer_lease[evidence]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_nested_domain_rejects_unenrolled_or_foreign_outer_lease[policy]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_nested_domain_rejects_unenrolled_or_foreign_outer_lease[trust]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_revoked_signer_is_denied_with_matching_current_policy_before_commit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_register_publishes_bound_marker_and_preserves_source",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_sync_never_transforms_or_admits_unmarked_artifact",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_skill_import_marks_target_before_indexing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_ingest_rejects_object_different_from_bound_file",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_skill_raw_source_archive_and_conversion_provenance",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_sharpen_preserves_v1_contract_and_invalidates_prior_admission",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_authored_edit_rejects_stale_source_before_journal_advance",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_source_root_restriction_survives_target_review_and_authored_edit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_changed_digest_review_never_inherits_target_publisher_signature",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_missing_source_decision_reference_rejected_before_preparation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_dream_checkpoint_preserves_v1_and_admitted_stable_bytes[False]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_dream_checkpoint_preserves_v1_and_admitted_stable_bytes[True]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_automatic_archive_preserves_admitted_bytes_but_explicit_archive_keeps_v1",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_unmarked_source_cannot_route_or_disclose_even_with_old_admission",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_archive_closes_without_unlinking_source_changed_during_publication",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_real_signed_bundle_binds_transformed_publication_and_source_only_signature",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_late_verified_source_provenance_restricts_existing_descendant",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_bundle_failure_after_target_publication_compensates_exact_marked_bytes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_signed_bundle_assets_use_registry_root_through_review_and_sync",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_pre_revoke_backup_restore_uses_current_authenticated_suffix",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_restore_rejects_unbound_trust_head_before_local_file_mutation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_missing_retained_custody_suffix_stops_restore_before_local_writes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_actual_promote_accepts_bound_marked_v1",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_authority_integration.py::test_actual_signed_legacy_bundle_pins_declared_dependency_by_id",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_bundle.py::test_tamper_and_escape",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_missing_registry_never_auto_enrolls",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_explicit_enrollment_is_durable_and_cannot_reset",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_preparation_does_not_advance_head_or_authorize_reads",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_exact_committed_retry_has_one_effect_and_conflict_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_stale_registration_rejected_even_when_head_unchanged",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_same_attempt_retry_cannot_reactivate_superseded_generation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_full_predecessor_compares_head_even_with_same_generation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_new_fence_rejects_old_commit_and_can_recover_exact_preparation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_prepared_record_tamper_cannot_advance_custodian[sequence-99]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_prepared_record_tamper_cannot_advance_custodian[record_id-other]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_prepared_record_tamper_cannot_advance_custodian[prev_mac-0000000000000000000000000000000000000000000000000000000000000000]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_prepared_record_tamper_cannot_advance_custodian[mac-0000000000000000000000000000000000000000000000000000000000000000]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_prepared_history_survives_store_restart",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_old_admission_cannot_be_resequenced_under_new_wrapper_after_revoke",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_invalid_domain_payload_cannot_be_prepared[decision-not-a-decision]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_invalid_domain_payload_cannot_be_prepared[content_digest-not-a-digest]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_invalid_domain_payload_cannot_be_prepared[source_channel-untrusted-guess]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_invalid_domain_payload_cannot_be_prepared[policy_revision-True]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_existing_private_custody_files_cannot_be_world_readable[journal.key]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_existing_private_custody_files_cannot_be_world_readable[signing.key]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_existing_private_custody_files_cannot_be_world_readable[authority.sqlite]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_aggregate_blob_store_upgrades_with_identical_history",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian.py::test_aggregate_blob_with_broken_chain_fails_closed_on_upgrade",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_same_uid_production_profile_denied",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_actual_peer_credentials_match_current_uid",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_oversized_frame_rejected_before_body_read",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_receipt_requires_fresh_nonce_identity_epoch_and_signature",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_profile_in_writable_project_tree_is_never_trusted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_receipt_wrong_key_and_boolean_epoch_are_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_production_service_refuses_running_as_client_identity",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_missing_operation_is_redacted_protocol_error_not_uncaught_keyerror",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_total_frame_deadline_rejects_slow_trickle",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_acl_inspection_rejects_extended_grant",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_parser_recursion_is_normalized_to_redacted_protocol_error",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_custodian_transport.py::test_descriptor_binds_mutable_profile_identity_and_pending_closes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_near_limit_signed_record_message_crosses_bounded_frames",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_history_larger_than_one_frame_roundtrips_with_pinned_pages",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_changed_history_page_binding_closes[offset]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_changed_history_page_binding_closes[head]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_changed_history_page_binding_closes[digest]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_near_limit_preparation_survives_lost_reply",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_malformed_fragment_rejected_before_dispatch[index]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_malformed_fragment_rejected_before_dispatch[transfer]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_malformed_fragment_rejected_before_dispatch[size]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_malformed_fragment_rejected_before_dispatch[digest]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_malformed_fragment_rejected_before_dispatch[extra]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_malformed_fragment_rejected_before_dispatch[truncated]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_malformed_fragment_rejected_before_dispatch[oversize]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_history_paging.py::test_logical_message_limit_and_total_deadline",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_intake.py::test_forged_origin",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_intake.py::test_digest_and_policy_binding",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_sequence_wins_over_future_admit_timestamp",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_whole_local_rollback_against_current_custody_closes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_local_journal_mutations_never_read_as_current[delete]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_local_journal_mutations_never_read_as_current[edit]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_local_journal_mutations_never_read_as_current[duplicate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_local_journal_mutations_never_read_as_current[reorder]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_local_journal_mutations_never_read_as_current[truncate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_missing_local_tree_cannot_be_implicitly_reenrolled",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_pending_preparation_closes_read_until_exact_reconciliation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_lost_commit_reply_closes_then_recovers_without_losing_revoke",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_pending_exact_record_is_finished_by_new_fence",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_predicted_temporary_symlink_never_overwrites_outside_file",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_journal_symlink_cannot_be_appended_through",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_exact_retry_checks_lease_after_remote_preparation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_hard_linked_journal_is_not_a_mutation_target",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_directory_symlink_is_not_followed_for_genesis",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_append_checks_lease_after_final_remote_snapshot",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_verified_snapshot_reuse_never_hides_a_later_revoke",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_verified_snapshot_reuse_closes_on_local_change[edit_journal]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_verified_snapshot_reuse_closes_on_local_change[edit_head]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_verified_snapshot_reuse_closes_on_local_change[delete]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_verified_snapshot_reuse_requires_reachable_custody",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_incremental_append_equals_full_reverification",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_same_size_edit_with_restored_mtime_still_closes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_concurrent_local_write_between_verification_and_append_closes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_journal.py::test_concurrent_local_write_during_append_window_closes_and_drops_cache",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_legacy_preview_is_zero_write_and_discloses_unsigned_history",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_logical_db_digest_excludes_only_lease_rows_and_includes_business_wal",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_legacy_preview_rejects_conflicting_decision_identity",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_reviewed_backup_includes_wal_and_all_managed_domains_before_migration",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_changed_business_row_or_manifest_denies_backup_before_migration",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_incomplete_backup_never_initializes_history_and_can_resume",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_existing_control_key_requires_encrypted_custody_and_is_not_archived",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_actual_reviewed_apply_preserves_original_revoke_and_resumes_nonempty_targets[False]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_actual_reviewed_apply_preserves_original_revoke_and_resumes_nonempty_targets[True]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_unsigned_legacy_signer_claim_only_restricts_and_never_verifies_target",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_real_child_exit_after_target_publish_leaves_gate_closed_then_resumes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_legacy_operator_cli_preview_backup_apply",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_apply_boundary_resume_never_implicitly_admits[begin_committed]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_apply_boundary_resume_never_implicitly_admits[record_committed:artifact_transform]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_apply_boundary_resume_never_implicitly_admits[record_committed:trust_decision]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_apply_boundary_resume_never_implicitly_admits[before_complete]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_apply_boundary_resume_never_implicitly_admits[complete_committed]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_apply_resource_drift_keeps_authenticated_gate_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_public_migration_missing_review_is_zero_write",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_public_migration_adapter_resumes_exact_plan[begin_committed]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_public_migration_adapter_resumes_exact_plan[target_published]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_public_migration_adapter_resumes_exact_plan[before_complete]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_public_migration_adapter_resumes_exact_plan[complete_committed]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_public_restore_stages_exact_backup_without_active_mutation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_public_migration_cli_uses_reviewed_backend",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_legacy.py::test_public_restore_rejects_unrelated_staging",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r2_import_safety.py::test_import_bundle_refuses_overwrite_existing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r2_import_safety.py::test_import_bundle_idempotent_same_engram_bytes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r2_import_safety.py::test_casefold_index_detects_collision_pure",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r2_import_safety.py::test_import_bundle_refuses_casefold_collision",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r3_staging_journal.py::test_leftover_import_staging_not_ingested_by_sync_or_register",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r3_staging_journal.py::test_direct_register_of_import_staging_path_refused",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r3_staging_journal.py::test_is_reserved_registry_path_helper",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r3_staging_journal.py::test_partial_publish_exception_removes_published_members",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r3_staging_journal.py::test_incomplete_publish_journal_rolled_back_on_sync",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r4_journal_auth.py::test_assert_import_destinations_all_skip_on_idempotent_reimport",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r4_journal_auth.py::test_planted_unauthenticated_journal_does_not_delete_authored",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r4_journal_auth.py::test_authenticated_journal_skips_path_owned_by_other_engram",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r4_journal_auth.py::test_authenticated_incomplete_journal_quarantines_published_members",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r5_path_containment.py::test_quarantine_rejects_path_escape_members",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r5_path_containment.py::test_safe_journal_member_path_rejects_escapes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_r5_path_containment.py::test_register_refuses_quarantine_rollback_debris",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_reconciliation.py::test_active_gate_closes_normal_snapshot_despite_fake_local_completion",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_reconciliation.py::test_plan_rejects_out_of_order_and_unlisted_admission_and_rotation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_reconciliation.py::test_exact_resume_and_completion_preserve_restriction_without_admission",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_rotation_preparation_is_durable_nonadvancing_and_blocks_ordinary_operations",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_rotation_commit_preserves_history_policy_and_requires_exact_finish",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_rotation_resumed_fence_rejects_old_commit_even_before_head_change",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_rotation_dual_signatures_bind_complete_tuple[new_epoch-4]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_rotation_dual_signatures_bind_complete_tuple[policy_digest-0000000000000000000000000000000000000000000000000000000000000000]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_rotation_dual_signatures_bind_complete_tuple[transition_id-different]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_rotation_keeps_acknowledged_revoke_and_supports_next_epoch",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_pending_journal_record_blocks_rotation_without_new_keys",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_rotation_preparation_survives_real_child_exit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_transition_certificate_binds_exact_prepared_record",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation.py::test_general_preparation_cannot_forge_rotation_or_genesis",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_rotation_service_profile_pending_blocks_normal_loader_and_finishes_exactly",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_pending_profile_rejects_substituted_transition_pin",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_profile_write_failure_keeps_authority_closed_and_exact_preparation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_socket_rotation_receipts_change_signer_only_after_commit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_crash_after_profile_advance_before_finish_remains_closed_and_resumes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_rotation_client_keeps_revoke_and_reconciles_epoch_under_existing_lease",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_client_resumes_fsynced_preparation_after_commit_interruption[before_commit]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_client_resumes_fsynced_preparation_after_commit_interruption[after_commit]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_client_resumes_fsynced_preparation_after_commit_interruption[before_finish]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_client_resumes_fsynced_preparation_after_commit_interruption[after_finish]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_real_maintenance_client_verifies_old_then_new_epoch_receipts",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/core/test_trust_rotation_transport.py::test_operator_rotate_command_uses_existing_profile_and_registry",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_cache.py::test_repeated_query_hits_cache_not_inner",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_cache.py::test_distinct_queries_each_miss",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_cache.py::test_lru_eviction_at_maxsize",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_cache.py::test_move_to_end_protects_recently_used_entry_from_eviction",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_cache.py::test_embed_batch_passthrough_never_cached",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_cache.py::test_model_name_and_dim_proxy_the_inner_embedder",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_cache.py::test_clear_resets_cache_and_stats",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_cache.py::test_maxsize_must_be_positive",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_construction_never_calls_the_factory",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_first_embed_call_constructs_the_model_exactly_once",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_first_embed_passes_offline_flag_as_local_files_only",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_default_is_offline",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_offline_false_by_default",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_model_name_and_dim_default_to_bge_small",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_embed_returns_l2_normalized_vector",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_embed_batch_empty_never_constructs_the_model",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_embed_batch_normalizes_every_row",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_construction_failure_raises_typed_error_on_first_use",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_offline_unavailable_includes_fetch_model_remediation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_online_unavailable_omits_fetch_model_remediation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_fastembed_provider.py::test_embed_failure_raises_typed_error_not_swallowed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_hashing_provider.py::test_embed_is_deterministic",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_hashing_provider.py::test_embed_is_l2_normalised",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_hashing_provider.py::test_similar_text_scores_higher_than_unrelated",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_hashing_provider.py::test_empty_text_returns_zero_vector_without_error",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_hashing_provider.py::test_embed_batch_matches_embed_one_at_a_time",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_ollama_provider.py::test_model_name_is_prefixed_for_provenance",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_ollama_provider.py::test_embed_posts_to_api_embed_with_model_and_input",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_ollama_provider.py::test_embed_batch_normalizes_every_row",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_ollama_provider.py::test_embed_batch_empty_never_posts",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_ollama_provider.py::test_mismatched_embeddings_count_raises",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_ollama_provider.py::test_missing_embeddings_key_raises",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_ollama_provider.py::test_default_poster_unreachable_host_raises_typed_error",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_provider_factory.py::test_hashing_provider_never_wrapped_in_cache",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_provider_factory.py::test_fastembed_provider_wrapped_in_cache_by_default",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_provider_factory.py::test_fastembed_cache_disabled_when_requested",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_provider_factory.py::test_ollama_provider_selected_and_wrapped",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/embeddings/test_provider_factory.py::test_unknown_provider_raises_invalid_input",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_ids.py::test_new_engram_id_is_deterministic",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_ids.py::test_new_engram_id_changes_with_intent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_ids.py::test_content_and_body_sha_are_distinct_digests",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_ids.py::test_is_valid_engram_id_rejects_malformed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_lint.py::test_strict_lint_passes_on_toy_fixture",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_lint.py::test_strict_lint_flags_too_few_positive_triggers",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_lint.py::test_strict_lint_flags_missing_not_when",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_lint.py::test_strict_lint_flags_unnumbered_procedure",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_lint.py::test_import_profile_downgrades_errors_to_warnings",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_parser.py::test_round_trip_sample_engram",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_parser.py::test_missing_frontmatter_fence_raises",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_parser.py::test_malformed_yaml_raises",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_parser.py::test_exec_blocks_captured_as_inert_text",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_parser.py::test_procedure_fault_class_is_parsed_from_canonical_marker",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_parse_source_extracts_name_and_description",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_parse_source_rejects_invalid_name",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_extract_intent_reads_use_when_and_not_when_lines",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_extract_intent_falls_back_when_not_when_absent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_extract_intent_falls_back_to_last_line_when_use_when_absent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_extract_intent_falls_back_to_general_purpose_when_single_sentence",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_extract_intent_finds_use_when_marker_mid_line",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_extract_intent_truncates_does_to_200_chars",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_derive_positive_triggers_dedups_and_targets_at_least_three",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_to_engram_lands_draft_status_for_a_stock_skillmd",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_to_engram_id_is_deterministic_given_identical_source",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_to_engram_unmatched_body_lands_as_procedure_verbatim",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_render_skillmd_round_trips_intent_fields",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_extract_intent_accepts_electionbuddy_markers_without_colons",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_arbitrary_markdown_body_survives_engram_persistence_and_export",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_export_fails_closed_when_preserved_body_projection_changed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_learning_stats_do_not_invalidate_preserved_body",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_preserves_electionbuddy_frontmatter_semantically",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_export_rejects_reserved_frontmatter_collision",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_skillmd.py::test_parse_source_rejects_non_json_yaml_extension_value",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_identity_preserved",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_required_unknown_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_asset_containment_and_digest",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_shared_relation_fixtures",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_routing_body_digest_is_lf_normalized_and_distinct_from_ids",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_v1_roundtrip_render_preserves_procedure_raw",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_render_as_refuses_v1_to_v02_downgrade",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_metadata_and_asset_digests_are_stable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_declared_depends_on_pins_to_relations_requires",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_version_constraint_rejects_wildcard_and_or",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_render_frontmatter_v1_is_pure_for_body_digest",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_v1_schema.py::test_validate_frontmatter_rejects_traversal_asset_key",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_writer.py::test_atomic_write_produces_final_file_only",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_writer.py::test_atomic_write_overwrites_cleanly",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_writer.py::test_atomic_write_requires_writer_lease",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_writer.py::test_atomic_replace_never_partial",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_writer.py::test_render_document_round_trips",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/engram/test_writer.py::test_render_is_deterministic",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_ablations.py::test_no_decay_does_not_mutate_the_caller_config",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_ablations.py::test_no_decay_result_shape",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_ablations.py::test_no_communities_does_not_mutate_the_caller_config",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_ablations.py::test_no_communities_config_switch_is_real",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_ablations.py::test_no_tag_capture_never_calls_signal_use_or_signal_outcome",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_ablations.py::test_no_tag_capture_demonstrates_instability",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_ablations.py::test_run_all_returns_every_named_ablation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_load_queries_reads_the_toy_fixture",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_profile_manifest",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_envelope_completeness_vs_budget_modes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_baseline_a_never_touches_embeddings",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_baseline_a_ranks_the_toy_registry_query",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_baseline_b_ranks_by_cosine",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_baseline_c_uses_graph_structure",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_baseline_c_seed_parity",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_baseline_c_inhibition_parity",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_baseline_d_is_the_real_route",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_run_baseline_rejects_unknown_name",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_plan_f1_reflects_the_declared_needs_edge",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_run_bench_defaults_to_all_four_baselines",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_bench_baselines.py::test_bench_against_empty_registry_does_not_report_a_vacuous_perfect_plan_f1",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_reproducible_predictions",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_leakage_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_claim_digest_failure",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_structural_to_efficacy_relabel_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_paired_bootstrap_and_abstention_helpers",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_offline_skillret_fixture_loads",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_plan_f1_deprecated_constant_stable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_result_manifest_prediction_binding",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_query_record_roundtrip_fields",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_composition_corpus_loads_as_structural_gold",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_historical_supported_claim_fails_new_run_gate",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_omitted_predictions_fail_when_result_present",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_claim_binds_experiment_and_corpus_digests",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_supported_claim_requires_experiment",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_supported_claim_requires_corpus",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_supported_claim_full_bundle_passes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_circular_plan_f1_cannot_be_supported",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_expand_gold_requires_explicit_diagnostic_flag",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_final_holdout_requires_seal",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_v03_checker_rejects_non_historical_evidence_class",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_supported_claim_requires_actual_finite_metric[made_up_accuracy-1.0]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_supported_claim_requires_actual_finite_metric[hit_at_1-None]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_supported_claim_requires_actual_finite_metric[hit_at_1-True]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_supported_claim_requires_actual_finite_metric[hit_at_1-nan]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_manifests.py::test_supported_claim_requires_actual_finite_metric[hit_at_1-inf]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_hit_at_k_true_within_k",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_hit_at_k_false_outside_k",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_reciprocal_rank_first_place",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_reciprocal_rank_second_place",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_reciprocal_rank_absent_is_zero",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_aggregate_ranking_hand_computed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_aggregate_ranking_empty_is_zero",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_plan_f1_perfect_match",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_plan_f1_partial_overlap",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_plan_f1_wrong_order_still_full_membership",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_plan_f1_no_overlap_is_zero",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_plan_f1_both_empty_is_perfect",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_aggregate_plan_f1_hand_computed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_aggregate_plan_f1_vacuous_pairs_excluded_from_the_average",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_aggregate_plan_f1_all_vacuous_reports_none_not_a_perfect_score",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_aggregate_plan_f1_empty_input_reports_none",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_ndcg_at_k_perfect_order_is_one",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_ndcg_at_k_worst_order_is_less_than_one",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_ndcg_at_k_no_relevant_items_is_zero",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_metrics.py::test_composition_corpus_is_independent_and_sufficient",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_noninferiority_boundary_pass_at_exact_margin",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_noninferiority_boundary_fail_when_upper_below_margin",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_noninferiority_inconclusive_when_ci_straddles_margin",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_noninferiority_insufficient_groups_is_inconclusive",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_improvement_requires_lower_ci_gt_zero_and_point_ge_001",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_critical_slice_margin_boundary",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_holm_adjust_alphas_hand_computed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_holm_critical_slice_family_detects_ordered_failure",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_holm_critical_slice_family_passes_when_all_clear",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_abstention_wilson_gates",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_usefulness_requires_lower_bound_gt_zero",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_overall_promotion_unevaluated_keeps_incumbent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_no_structural_efficacy_substitution",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_release_verdicts.py::test_paired_host_tasks_report_never_marks_structural",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_nested_gate_pass_is_demoted_even_under_inconclusive_parent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_invalid_budget_numbers_cannot_qualify[nan]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_invalid_budget_numbers_cannot_qualify[inf]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_invalid_budget_numbers_cannot_qualify[-1]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_invalid_budget_numbers_cannot_qualify[True]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_host_timeout_remains_in_paired_denominator",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_one_sided_false_selection_wilson_reference",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_holm_uses_p_values_and_step_down_stop",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_authentic_manifest_ingests_full_bodies_and_rejects_tampering",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_ga_requires_both_matching_complete_evidence_strata",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_archive_refuses_nonregular_or_nonportable_members[hardlink]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_archive_refuses_nonregular_or_nonportable_members[symlink]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_archive_refuses_nonregular_or_nonportable_members[device]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_archive_refuses_nonregular_or_nonportable_members[backslash]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_archive_refuses_nonregular_or_nonportable_members[duplicate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_s14_audit.py::test_corpus_context_keeps_typed_host_facts_and_permissions",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_unevaluated_catalog_has_operator_commands",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_official_skillret_status_is_unevaluated",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_min_groups_required_never_lowers_floor",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_run_predictions_hard_fails_on_digest_mismatch",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_acquire_skillret_offline_e2e",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_run_retrieval_offline_e2e",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_run_paired_policies_offline_e2e",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_run_abstention_gate_offline_e2e",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_run_host_tasks_offline_e2e",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_run_host_tasks_demotes_nested_pass",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_run_abstention_gate_demotes_nested_pass",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_demote_pass_rewrites_only_pass",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_paired_policies_labels_candidate_arm_and_never_nests_pass",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_cli_refuses_unsealed_or_mismatched_experiment[unsealed-final]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_cli_refuses_unsealed_or_mismatched_experiment[corpus-digest-mismatch]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_verify_acquired_corpus_rejects_content_identity_mismatch",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_acquire_rejects_malformed_expected_sha256",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_acquire_refuses_path_traversal_archive[../escape.json]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_acquire_refuses_path_traversal_archive[/tmp/magicite-abs-escape.json]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_acquire_refuses_symlink_member",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_matrix_synthetic_vs_manifest_corpus",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_ga_eligibility_requires_every_condition",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_composition_v1_structural_loader",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_structural_case_valid_and_invalid",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/eval/test_scale_unevaluated.py::test_structural_report_forbids_efficacy_claim",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_dream.py::test_consolidate_enqueues_a_run",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_dream.py::test_consolidate_is_idempotent_while_queued",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_dream.py::test_nucleate_proposes_a_frequent_uncovered_path",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_dream.py::test_nucleate_below_min_support_proposes_nothing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_flag_dead_flags_never_routed_engrams",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_flag_dead_excludes_recently_routed_engrams",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_flag_dead_respects_the_window",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_flag_dead_respects_limit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_flag_dead_recommendation_reflects_the_docs07_thresholds",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_flag_dead_excludes_archived_engrams",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_introspect_without_include_health_omits_health",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_introspect_include_health_reports_standing_kpis",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_introspect_consolidation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_introspect_projects_live_state",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_inspect.py::test_independent_state_dimensions",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_promote_nascent_to_probation_review_mode_creates_a_proposal",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_promote_nascent_to_probation_autonomous_mode_executes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_promote_denied_below_evidence_bar_end_to_end",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_promote_probation_to_consolidated_when_evidence_clears",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_promote_quarantines_on_injection_scan_hit",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_promote_revival_never_auto_executes_even_under_autonomous_mode",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_promote_not_found",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_sharpen_review_mode_creates_a_proposal_and_does_not_touch_the_file",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_sharpen_autonomous_mode_applies_the_patch_and_bumps_version",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_lifecycle.py::test_sharpen_lint_failure_leaves_the_file_untouched",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_ops_cli.py::test_doctor_cli_reports_reconciliation_field",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_ops_cli.py::test_trust_list_cli_empty",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_ops_cli.py::test_trust_approve_requires_actor",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_ops_cli.py::test_policy_status_cli",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_ops_cli.py::test_evidence_retention_status_carries_copy_notice",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_ops_cli.py::test_backup_status_surfaces_reconciliation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_ops_cli.py::test_bind_ops_trust_review_note_does_not_imply_approval",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_registry_checkpoint.py::test_checkpoint_tool_reports_write_ratio",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_registry_checkpoint.py::test_checkpoint_tool_is_idempotent_over_unchanged_state",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_route_tool_returns_composition_plan_via_adapter",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_public_plan_digest_matches_decision",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_valid_multi_node_plan_projected_in_topo_order",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_composition_invalid_abstain_projects_no_nodes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_route_tool_hard_excludes_via_context",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_load_skill_body_l2_via_adapter",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_load_skill_body_cursor_round_trip",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_load_skill_body_missing_digest_is_missing_context",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_load_skill_body_missing_policy_digest_is_missing_context",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_load_skill_body_matching_snapshot_ok",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_load_skill_body_snapshot_drift_is_stale",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_load_skill_body_unresolvable_snapshot_is_stale",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_withheld_valid_plan_is_not_advertised_executable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_plan_digest_mismatch_fails_closed",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_retrieval.py::test_composition_error_projects_no_plan",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_signals.py::test_signal_use_tool_tags_and_reports_tier",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_signals.py::test_signal_use_tool_reaches_tier2_with_the_correct_token",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_signals.py::test_signal_outcome_tool_captures_explicit_skill_ids",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_bind_signals.py::test_session_end_tool_closes_session",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_dispatch_call.py::test_every_successful_call_appends_a_tier0_ledger_row",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_dispatch_call.py::test_route_gets_both_the_generic_ledger_row_and_its_own_specific_one",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_dispatch_call.py::test_idempotency_replay_does_not_append_a_second_ledger_row",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_dispatch_call.py::test_route_ledger_row_uses_the_resolved_not_raw_session_id",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_dispatch_call.py::test_a_failed_call_does_not_append_a_ledger_row",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_dispatch_call.py::test_hot_path_tools_get_the_ephemeral_connection",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_dispatch_call.py::test_writer_class_tools_are_exactly_the_nine_r2_r3_mutators",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_dispatch_call.py::test_v1_payload_parity",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_dispatch_call.py::test_provider_exception_text_never_reaches_logs_or_wire",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_idempotency.py::test_replay_returns_cached_response",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_idempotency.py::test_replay_with_different_arguments_conflicts",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_idempotency.py::test_idempotency_is_keyed_by_tool_not_just_request_id",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_idempotency.py::test_idempotency_replay_still_works_within_the_same_tool",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_idempotency.py::test_replay_without_request_id_repeats_the_side_effect",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_idempotency.py::test_expired_idempotency_key_executes_again",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_idempotency.py::test_pending_idempotency_reservation_does_not_repeat_side_effect",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_idempotency.py::test_idempotency_hash_does_not_persist_adapter_secret_verifier",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_redact.py::test_redact_absolute_paths",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_redact.py::test_error_result_redacts_details_paths",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_redact.py::test_redact_error_payload_nested",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_redact.py::test_error_result_redacts_raw_query",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_redact.py::test_error_envelope_drops_untrusted_free_text",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_redact.py::test_error_code_is_trusted_only_at_envelope_root",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_registry.py::test_metadata_complete",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_registry.py::test_registration_is_idempotent_per_name",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_schemas.py::test_unknown_field_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_schemas.py::test_route_input_rejects_unknown_top_level_field",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_schemas.py::test_route_input_rejects_unknown_nested_field",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_schemas.py::test_route_input_accepts_well_formed_payload",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_schemas.py::test_register_input_rejects_unknown_field",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_typed_route_context.py::test_typed_route_body_and_live_ceiling_revocation[False]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_typed_route_context.py::test_typed_route_body_and_live_ceiling_revocation[True]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_typed_route_context.py::test_missing_unknown_empty_facts_and_client_escalation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_typed_route_context.py::test_operator_ceiling_toml_is_typed_and_pinned",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_v1_retrieval.py::test_stale_body_denied",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_v1_retrieval.py::test_policy_change_after_route_denied",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_v1_retrieval.py::test_admission_change_after_route_denied",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_v1_retrieval.py::test_local_admission_withdrawn_after_route_denied",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_v1_retrieval.py::test_full_procedure_survives_dual_format_body_gate",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_v1_retrieval.py::test_durable_trust_revocation_blocks_previously_routed_body",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/mcp/test_v1_retrieval.py::test_cas_policy_activation_blocks_previously_routed_body",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_registry_check_reports_missing_dir",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_registry_check_reports_unsynced_egr_files",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_registry_check_reports_indexed_size_once_synced",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_filesystem_check_never_raises_on_a_real_path",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_filesystem_check_flags_known_network_fstypes",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_embedding_check_hashing_provider",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_embedding_check_fastembed_offline_without_model",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_embedding_check_unknown_provider",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_governance_check_review_mode_default",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_governance_check_autonomous_mode",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_run_doctor_below_reference_size_is_not_reassuring",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_run_doctor_empty_project_never_raises",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_run_doctor_json_serializable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_layout_check_is_quiet_on_the_current_layout",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_layout_check_flags_the_legacy_directory",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_zero_write_matrix",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_doctor.py::test_doctor_report_is_doctor_v1",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_events.py::test_record_tool_call_appends_a_tier0_event",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_events.py::test_args_digest_is_order_independent_and_stable",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_events.py::test_args_digest_differs_for_different_arguments",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_events.py::test_adapter_secret_redacted_before_hashing",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_events.py::test_nested_adapter_secret_is_also_redacted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_events.py::test_persisted_event_cannot_verify_adapter_secret",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_events.py::test_record_tool_call_allows_a_null_session_id",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_kpi.py::test_cold_start_signal_below_reference_size",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_kpi.py::test_cold_start_signal_at_or_above_reference_size_does_not_assert_a_verdict",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_kpi.py::test_fitness_distribution_buckets_by_storage_strength",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_kpi.py::test_top_n_traffic_share_empty_registry_is_zero",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_kpi.py::test_top_n_traffic_share_flags_concentration",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/obs/test_kpi.py::test_compute_standing_kpis_is_read_only",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/server/test_app.py::test_expired_idempotency_key_executes_again",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/server/test_bind_inspect.py::test_introspect_consolidation",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/server/test_bind_retrieval.py::test_load_skill_body_cursor_round_trip",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables[engram]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables[edge]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables[consolidation_run]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables[writer_lease]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables[approval]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables[schema_meta]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables_with_valid_rows[approval]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables_with_valid_rows[consolidation_run]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables_with_valid_rows[edge]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables_with_valid_rows[engram]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables_with_valid_rows[schema_meta]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_non_eph_tables_with_valid_rows[writer_lease]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_insert_denied_on_engram_with_real_columns",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_pragma_denied_on_ephemeral_connection",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_attach_denied_on_ephemeral_connection",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writer_connection_pragma_and_attach_are_not_denied",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_update_denied_on_non_eph_table",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_delete_denied_on_non_eph_table",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_drop_table_denied_on_non_eph_table",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writes_allowed_on_every_eph_table[eph_session]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writes_allowed_on_every_eph_table[eph_bookkeeping]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writes_allowed_on_every_eph_table[eph_retrieval]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writes_allowed_on_every_eph_table[eph_tag]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writes_allowed_on_every_eph_table[eph_candidate_edge]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writes_allowed_on_every_eph_table[eph_embedding]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writes_allowed_on_every_eph_table[eph_event]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writes_allowed_on_every_eph_table[eph_idempotency]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_reads_are_never_guarded",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_writer_connection_has_no_authorizer_and_can_write_durable_tables",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_authorizer.py::test_ephemeral_and_writer_connections_share_the_same_database",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_db.py::test_connect_creates_schema_and_is_idempotent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_db.py::test_pragmas_applied",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_db.py::test_migrations_are_idempotent_even_after_user_version_is_reset",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_db.py::test_failed_migration_is_atomic",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_durable.py::test_authored_weight_is_never_persisted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_bump_retrieval_first_call_always_bumps",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_bump_retrieval_within_refractory_window_is_a_noop",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_bump_retrieval_after_refractory_window_bumps_again",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_bump_retrieval_refractory_disabled_by_default_zero",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_bump_retrieval_windowing_is_keyed_on_engram_not_session",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_expire_session_tags_does_not_touch_captured_tags",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_expire_session_tags_still_expires_uncaptured_tags",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_expire_session_tags_grace_floor_protects_a_fresh_tag",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_expire_session_tags_grace_floor_still_expires_a_stale_tag",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_expire_session_tags_grace_floor_mutation_check",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_ephemeral.py::test_live_tagged_engram_ids_recent_orders_by_recency_and_caps",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_assert_single_writer_denies_without_a_held_lease",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_writer_lease_context_manager_grants_and_releases",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_writer_lease_is_reentrant_within_the_same_context",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_writer_lease_contention_raises_busy",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_release_writer_lease_is_idempotent",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_assert_dream_context_denies_outside_dream",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_dream_context_grants_and_releases",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_dream_context_error_is_a_busy_error",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_cross_process_lease_acquire_and_release",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_cross_process_lease_contention_raises_busy",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_cross_process_lease_reclaims_an_expired_lease",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_cross_process_lease_heartbeat_extends_expiry",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_cross_process_lease_context_manager_releases_on_exception",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_concurrent_expired_acquisition_has_one_winner",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_ttl_overrun_fences_stale_writer",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_context_heartbeats_during_long_work",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_lease.py::test_lost_token_fences_durable_write",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_migration_ops.py::test_index_generation_atomic_swap_and_rollback",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_migration_registry.py::test_shipped_migrations_are_contiguous_and_match_sql_files",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_queries.py::test_edge_rows_report_effective_strength",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/storage/test_queries.py::test_skill_detail_defaults_declared_edge_strength_when_omitted",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_doctor.py::test_doctor_cli_emits_json_report",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_doctor.py::test_doctor_cli_unhealthy_exits_nonzero",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_serve_startup_error_is_redacted_stderr[PermissionError]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_serve_startup_error_is_redacted_stderr[RuntimeError]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_serve_startup_error_is_redacted_stderr[MagiciteError]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_operator_error_remains_json_stdout",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_stateful_entrypoint_missing_custody_is_zero_write[command0]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_stateful_entrypoint_missing_custody_is_zero_write[command1]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_stateful_entrypoint_missing_custody_is_zero_write[command2]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_stateful_entrypoint_missing_custody_is_zero_write[command3]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_stateful_entrypoint_missing_custody_is_zero_write[command4]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_cli_serve_errors.py::test_build_state_unavailable_custody_is_zero_write",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_data_dir_defaults_to_dot_magicite",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_default_embedding_operation_is_offline",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_documented_retrieval_default_matches_runtime",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_data_dir_ensure_dirs_creates_under_magicite",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_fresh_project_resolves_to_magicite",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_legacy_registry_is_still_found",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_fresh_project_ignores_esl_changes_dir",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_new_layout_wins_when_both_exist",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_env_override_beats_default_and_legacy",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_blank_env_override_is_ignored",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_config.py::test_toml_cannot_relocate_its_own_directory",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_runtime_snapshot_drift_rejected[version]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_runtime_snapshot_drift_rejected[engram_schemas]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_runtime_snapshot_drift_rejected[mcp_tools]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_runtime_snapshot_drift_rejected[cli]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_runtime_snapshot_drift_rejected[config_defaults]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_missing_runtime_snapshot_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_current_generated_snapshot_matches",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_unmanifested_readme_claim_rejected[Routing latency is 10 ms.]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_unmanifested_readme_claim_rejected[99 percent accuracy]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_unmanifested_readme_claim_rejected[2\\xd7 faster]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_unmanifested_readme_claim_rejected[Supports 10,000 artifacts]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_unmanifested_readme_claim_rejected[Accuracy reaches 99%.]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_unmanifested_readme_claim_rejected[Hit@1 is 0.99]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_readme_claim_uses_full_integrity_chain[None]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_readme_claim_uses_full_integrity_chain[value]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_readme_claim_uses_full_integrity_chain[metric]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_readme_claim_uses_full_integrity_chain[scope]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_readme_claim_uses_full_integrity_chain[missing_predictions]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_readme_claim_uses_full_integrity_chain[historical]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_support_rows_require_replacement_and_deadline[replacement]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_support_rows_require_replacement_and_deadline[support_deadline]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_docs_v1.py::test_short_deprecation_window_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_g3_enforcement.py::test_only_core_dream_calls_the_g3_setter",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_g3_enforcement.py::test_write_plasticity_denied_outside_dream_context",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_g3_enforcement.py::test_write_synapses_denied_outside_dream_context",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_g3_enforcement.py::test_write_plasticity_and_synapses_succeed_inside_checkpoint_phase",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_g3_enforcement.py::test_atomic_write_itself_is_not_g3_gated",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_g3_enforcement.py::test_dream_context_active_during_checkpoint_phase",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_g3_enforcement.py::test_dream_context_import_alias_is_the_real_one",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_p0_enforcement.py::test_forbidden_imports",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_p0_enforcement.py::test_edge_weight_helper_is_the_only_weighting_site",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_complete_synthetic_candidate",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_gate_set_fail_closed[missing]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_gate_set_fail_closed[duplicate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_gate_set_fail_closed[unknown]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_gate_set_fail_closed[waived]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_gate_set_fail_closed[unsupported]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_gate_set_fail_closed[lowercase]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_evidence_fail_closed[bytes]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_evidence_fail_closed[missing]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_evidence_fail_closed[escape]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_evidence_fail_closed[wrong_obligation]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_evidence_fail_closed[self_review]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_evidence_fail_closed[wrong_head]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_rc_pair_requires_fresh_compatible_independent_builds[fingerprint]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_rc_pair_requires_fresh_compatible_independent_builds[same_artifact]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_rc_pair_requires_fresh_compatible_independent_builds[same_builder]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_rc_pair_requires_fresh_compatible_independent_builds[missing_matrix]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_rc_pair_requires_fresh_compatible_independent_builds[failed_matrix]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_external_independence_not_agent_code_review[author]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_external_independence_not_agent_code_review[self_review]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_external_independence_not_agent_code_review[missing_check]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_external_independence_not_agent_code_review[one_pilot]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_external_independence_not_agent_code_review[same_operator]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_explicit_maintainer_signoff_required[absent]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_explicit_maintainer_signoff_required[unapproved]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_explicit_maintainer_signoff_required[wrong_head]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_unevaluated_never_eligible",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_malformed_input_returns_closed_result[None]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_malformed_input_returns_closed_result[value1]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_malformed_input_returns_closed_result[value2]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_malformed_input_returns_closed_result[value3]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_malformed_input_returns_closed_result[value4]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_two_independent_pilots_qualify",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_duplicate_json_keys_rejected",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_rc_latest_source_must_match_candidate",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_all_obligations_required",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_lock_bytes_are_verified",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_hash_valid_report_contradictions_rejected[signoff-approved-False]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_hash_valid_report_contradictions_rejected[signoff-source_commit-dddddddddddddddddddddddddddddddddddddddd]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_hash_valid_report_contradictions_rejected[signoff-identity-somebody-else]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_hash_valid_report_contradictions_rejected[external-status-UNEVALUATED]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_hash_valid_report_contradictions_rejected[external-independent-False]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_hash_valid_report_contradictions_rejected[rc-fingerprints-value5]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_hash_valid_report_contradictions_rejected[rc-matrix-value6]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_distinct_rc_reports_cannot_reuse_one_build",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_immutable_report_requires_json_booleans[signoff]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_immutable_report_requires_json_booleans[external]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[None-candidate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[None-rc]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[True-candidate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[True-rc]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[0-candidate]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_release_sources_require_explicit_clean_boolean[0-rc]",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_release_manifest.py::test_rc_immutable_report_cannot_hide_dirty_source",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_verify_wheel_install.py::test_resolve_wheel_relative_path_is_absolute",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_version.py::test_package_and_release_notes_identify_031",
+      "status": "PASS"
+    },
+    {
+      "node": "tests/unit/test_version.py::test_package_metadata_has_no_self_digest",
+      "status": "PASS"
+    }
+  ],
+  "schema": "magicite/local-verification/1",
+  "skip_scope": "5 local Docker-image checks ('magicite:verify' image not built), 4 unpublished channel reservations (pip-pypi, pipx, uvx, oci-digest)",
+  "skipped": 9,
+  "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",
+  "source_dirty": false,
+  "source_scope": "Recorded from a clean tracked and untracked worktree at 9bf9ca0 (git status empty before and after the full run); r2 files are evidence-only additions. Not a published RC or external reproduction.",
+  "tracked_code_diff": false,
+  "untracked_scope": []
+}

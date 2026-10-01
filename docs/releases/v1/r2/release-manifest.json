@@ -1,0 +1,538 @@
+{
+  "criterion_ledger": {
+    "path": "docs/releases/v1/r2/criterion-ledger.json",
+    "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+  },
+  "draft_only": true,
+  "external": null,
+  "gates": [
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/r2/evidence/policy-nonadaptive-default.json",
+          "sha256": "80e0c5ad1d5e13987edeb3463b2e2388ea871c7819cef346ee7782ac1a9aff74"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/policy-dream-isolation.json",
+          "sha256": "33fb86778de85440dd0e9f4d62e49f6f555d665b3e885738b6ffc613277e7787"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/policy-explicit-experimental.json",
+          "sha256": "3a13a0304c1bc46cc6633cd120da26b7b858e8d5f4c6b093e06e03f8a4945fbc"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/policy-pinned-incumbent.json",
+          "sha256": "d553cf8b4c85e6d9c203273cd60b7844e48d638f2a04bad903a241831f5bcfff"
+        }
+      ],
+      "id": "POLICY",
+      "obligations": [
+        "nonadaptive-default",
+        "dream-isolation",
+        "explicit-experimental",
+        "pinned-incumbent"
+      ],
+      "reason": "Nonadaptive default, Dream isolation, explicit experimental selection and dense-v1 incumbent have executable witnesses. Re-derived from the r2 junit.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "EVIDENCE",
+      "obligations": [
+        "manifested-predictions",
+        "independent-labels",
+        "claim-ci",
+        "negative-history"
+      ],
+      "reason": "Integrity and claim CI fixtures pass and negative history is retained, but independent final label provenance and a complete new-run chain are absent.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/r2/evidence/schema-frozen-schema.json",
+          "sha256": "122dc243521e193ef64d483b2f4c0c4da8744b3943e092202b33076cbe9b10c5"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/schema-roundtrip-corpus.json",
+          "sha256": "716972c23a2d947b27d41db41d50f5d118fed26ff46a2d0933218f0cce7b2f8e"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/schema-migration-downgrade-replay.json",
+          "sha256": "d2d7eb1b4085dfa050b0699fec370ab58ea8566b5bdf3d2cc684925d615df23d"
+        }
+      ],
+      "id": "SCHEMA",
+      "obligations": [
+        "frozen-schema",
+        "roundtrip-corpus",
+        "migration-downgrade-replay"
+      ],
+      "reason": "Frozen schema, A01 roundtrip identity, migration/replay and complete-backup downgrade witnesses are available. Re-derived from the r2 junit.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "TRUST",
+      "obligation_proposals": {
+        "adversarial-corpus": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No named adversarial trust corpus exists."
+        },
+        "local-review-revocation": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Mirror-loss reinstatement not reproduced (custody replay NOT_REPRODUCED; regression nodes pass), but AC-TH-01/07 sub-clauses (splice, root projection, call-site completeness) lack witnesses."
+        },
+        "offline-tamper": {
+          "proposed_status": "PASS",
+          "reason": "Candidate: AC-S04-02 signed-bundle tamper/escape node and the local journal tamper matrix pass at r2; no fresh witness file produced."
+        },
+        "server-origin": {
+          "proposed_status": "PASS",
+          "reason": "Candidate: AC-S04-01 forged-origin node passes at r2; no fresh witness file produced."
+        }
+      },
+      "obligations": [
+        "offline-tamper",
+        "local-review-revocation",
+        "server-origin",
+        "adversarial-corpus"
+      ],
+      "reason": "Known v1 mirror-deletion defect is not reproduced at r2 and its regressions pass, but a named adversarial corpus is absent, additive trust rows remain partly unwitnessed and separate-UID custody is unqualified. No remaining known defect: proposed UNEVALUATED, not FAIL (checker decision).",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/trust-mirror-diagnostic-provenance.json",
+          "sha256": "d72f573c97bdd403953ba4dd039fc1a26c1428060cb23e35ef03fec351280875"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "ROUTING",
+      "obligations": [
+        "full-content-indexes",
+        "eligibility",
+        "explanations",
+        "calibrated-abstention",
+        "e3-quality"
+      ],
+      "reason": "Index/eligibility/explanation mechanics exist; official final split, paired E3 quality and empirical abstention bounds are unrun.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "COMPOSITION",
+      "obligations": [
+        "independent-structural-corpus",
+        "actual-host-outcomes",
+        "safe-invalid-plan"
+      ],
+      "reason": "Structural fixtures and bounded safe invalid plans exist; independently authored actual host-task execution evidence is unavailable.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-data-map.json",
+          "sha256": "b3be126c9b88a0084d7059db47ea45bfbd17d6f94e7b8289b9e9f3ad456d9fb2"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-no-default-raw.json",
+          "sha256": "0a242724bc47a6c0eef34626f31eb07ff30b6364e86636cf6220ceb36e48b460"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-historical-cleanup.json",
+          "sha256": "0cec51146f87d3164dfd496a1dc3e05d001d416e11e4dd82718e6742331ddbf0"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-checkpoint-rpo.json",
+          "sha256": "e9c1982c8cc5c020b11573c4db248d8567cc1b98b7515f2d5a7ec1b6ffd99528"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/privacy-lifecycle-tests.json",
+          "sha256": "7bf966bf1240fd1555399312231b2af9c74acd6ce11c3857ca5c6393e544b1b4"
+        }
+      ],
+      "id": "PRIVACY",
+      "obligations": [
+        "data-map",
+        "no-default-raw",
+        "historical-cleanup",
+        "checkpoint-rpo",
+        "lifecycle-tests"
+      ],
+      "reason": "Strict v1 node mapping is not fully executed at r2: tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_refuses_preserve is not a passed r2 node; a successor node is disclosed in the witness for the checker. Other obligations re-derived PASS.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/r2/evidence/learning-containment.json",
+          "sha256": "3bd057f1a1e95817396fe1c6943dcf1f290b832eb3d21fc0366d482cff5c38ee"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/learning-fully-gated-or-unavailable.json",
+          "sha256": "01f4b3c216bf3c4f502e6c37f236e248a4d97c35d6c404efbf7ce87fc9fc96af"
+        }
+      ],
+      "id": "LEARNING",
+      "obligations": [
+        "containment",
+        "fully-gated-or-unavailable"
+      ],
+      "reason": "Stable containment is mandatory and tested; optional S10 efficacy explicitly held/unavailable. Re-derived from the r2 junit.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "PASS",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "PROTOCOL",
+      "obligation_proposals": {
+        "advertised-transcripts": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No archived real Claude Code host transcript (AC-S11-04)."
+        },
+        "retry-cancel-errors": {
+          "proposed_status": "PASS",
+          "reason": "Candidate: AC-S11-03 commit-boundary and AC-S11-01 stale-body nodes pass at r2."
+        },
+        "schemas": {
+          "proposed_status": "PASS",
+          "reason": "Candidate: AC-S11-02 payload parity passes at r2."
+        }
+      },
+      "obligations": [
+        "schemas",
+        "retry-cancel-errors",
+        "advertised-transcripts"
+      ],
+      "reason": "Generic protocol probes pass at r2 including the custody-revalidated body gate; the advertised real Claude Code transcript remains absent.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "RELIABILITY",
+      "obligation_proposals": {
+        "all-store-kill-replay-fencing": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Local evidence: lease multiprocess, custody writer guard, rotation real child exit, checkpoint process death at r2; supported OS/store matrix not run."
+        },
+        "backup-restore-upgrade-matrix": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Local 0.2/0.3 upgrade and restore nodes pass; published upgrade and OS/channel matrix not run."
+        },
+        "zero-write-doctor": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "AC-S12-01 matrix passes, but it does not cover custody/trust-history states (AC-TH-11 gap)."
+        }
+      },
+      "obligations": [
+        "all-store-kill-replay-fencing",
+        "backup-restore-upgrade-matrix",
+        "zero-write-doctor"
+      ],
+      "reason": "Local kill/replay/fencing coverage now includes custody fences, real child exits and an r2 checkpoint process-death probe; the advertised OS/channel/published-upgrade/store matrix is unrun.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/checkpoint-process-death-provenance.json",
+          "sha256": "24da83e3679d16f4ae6b89ca6b8daeda75e11855cfdc81f9fcc202b76a2c5b51"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "PERFORMANCE",
+      "obligations": [
+        "dedicated-e6",
+        "production-model",
+        "supported-scale"
+      ],
+      "reason": "No dedicated production E6 budgets or licensed real 10k corpus evidence; hashing completeness is not performance qualification.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "DISTRIBUTION",
+      "obligations": [
+        "published-installs",
+        "supply-chain",
+        "testpypi-rehearsal"
+      ],
+      "reason": "Published channel installs, fetched signatures/checksums/SBOM/provenance and TestPyPI rehearsal are unrun; no publishing authority.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "DOCS",
+      "obligations": [
+        "generated-reference-claims",
+        "tested-operator-path",
+        "redirects",
+        "support-security-governance"
+      ],
+      "reason": "Generated/claims/support checks and scripted tutorial pass; required independent operator transcript remains absent.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "RC-CONTRACT",
+      "obligations": [
+        "two-independent-rcs",
+        "stable-fingerprints",
+        "passing-matrix"
+      ],
+      "reason": "No two independently built RCs across the declared supported matrix; validator fixtures are not RC artifacts.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "evidence": [],
+      "id": "EXTERNAL",
+      "obligations": [
+        "independent-reproduction-or-two-pilots"
+      ],
+      "reason": "No independent external reproduction or two external production pilots; agent review is not product validation.",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "SECURITY",
+      "obligation_proposals": {
+        "bounded-fuzz-adversarial": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No fuzz harness or adversarial corpus; bounded frame/parser unit cases are targeted tests, not fuzzing."
+        },
+        "critical-resolved": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Original exploit closed in observation; four threat-model critical risks have mapped nodes, but additive rows AC-TH-01, AC-TH-02, AC-TH-03, AC-TH-04, AC-TH-05, AC-TH-06, AC-TH-07, AC-TH-09, AC-TH-10, AC-TH-11, AC-TH-12 are not PASS and no independent security review is recorded."
+        },
+        "threat-model": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Only the plan-scoped trust-custody threat model exists (.spectra/plans/magicite-v1-trust-hardening/threat-model.md); no release-scoped model for S04/S11/S12/S13."
+        }
+      },
+      "obligations": [
+        "threat-model",
+        "bounded-fuzz-adversarial",
+        "critical-resolved"
+      ],
+      "reason": "The v1 critical finding is not reproduced at r2, but no release-scoped threat model, bounded fuzz/adversarial evidence or independent security review of the r2 source is recorded. Proposed UNEVALUATED, not FAIL (checker decision).",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        },
+        {
+          "path": "docs/releases/v1/r2/evidence/trust-mirror-diagnostic-provenance.json",
+          "sha256": "d72f573c97bdd403953ba4dd039fc1a26c1428060cb23e35ef03fec351280875"
+        },
+        {
+          "path": ".spectra/plans/magicite-v1-trust-hardening/threat-model.md",
+          "sha256": "d52b35771d6f827da44c99e1f280132440bf36cc5469dac9f05e48a175e54191"
+        }
+      ]
+    },
+    {
+      "adjudication": "fresh (traceability.md)",
+      "evidence": [],
+      "id": "GA-ALL",
+      "obligation_proposals": {
+        "all-required-gates": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "Fourteen gates are not PASS at r2."
+        },
+        "fetched-artifacts": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No published artifacts fetched or verified."
+        },
+        "maintainer-signoff": {
+          "proposed_status": "UNEVALUATED",
+          "reason": "No maintainer sign-off."
+        }
+      },
+      "obligations": [
+        "all-required-gates",
+        "maintainer-signoff",
+        "fetched-artifacts"
+      ],
+      "reason": "Required gates do not all pass; maintainer sign-off and fetched published artifact checks are absent. No gate is a known FAIL at r2: proposed UNEVALUATED (checker decision).",
+      "review_status": "PENDING",
+      "reviewed_package": "",
+      "reviewer": "",
+      "status": "UNEVALUATED",
+      "supporting_artifacts": [
+        {
+          "path": "docs/releases/v1/r2/criterion-ledger.json",
+          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+        }
+      ]
+    }
+  ],
+  "generated_by": {
+    "path": "docs/releases/v1/r2/evidence/build_r2_package.py",
+    "sha256": "f481810ec84149118e70e34ec19811f239c1282234a0d1db1efed98ba3cef683"
+  },
+  "held_decisions": [
+    "MCP surface amendment (16 tools remain)",
+    "Optional S10",
+    "Publishing",
+    "Worktree deletion",
+    "Shared venv resync (r2 used an isolated scratch venv)",
+    "Separate-UID Linux/macOS custodian provisioning and deployment qualification (account creation/service setup not authorized)"
+  ],
+  "historical_observation": {
+    "path": "docs/releases/v1/release-manifest.json",
+    "reviewed_package": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+    "sha256": "916cb494ac7dea5fce6194df5d859e737f65028b65ed90b5fec8824bea786fe4",
+    "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620"
+  },
+  "maintainer_signoff": null,
+  "release_candidates": [],
+  "resolved_holds": {
+    "Trust ledger proposal/custody": "Adopted as the additive trust-hardening plan and implemented (merged at 9bf9ca025fc4513592f72d7f6f1c04563a31bc8c); qualification remains UNEVALUATED."
+  },
+  "revision": "r2",
+  "schema": "magicite/release-manifest/1",
+  "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",
+  "source_dirty": false,
+  "source_scope": "Recorded from a clean tracked and untracked worktree at 9bf9ca0 (git status empty before and after the full run); r2 files are evidence-only additions. Not a published RC or external reproduction."
+}
