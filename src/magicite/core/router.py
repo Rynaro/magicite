@@ -500,9 +500,13 @@ def compose_route_plan(
         row = _row_by_engram_id(conn, engram_id)
         if row is None:
             raise KeyError(engram_id)
+        try:
+            resource_digest: str | None = _build_subject_entry(cfg, row).resource_digest
+        except Exception:
+            resource_digest = None
         return _route_trust_view(
             cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy,
-                snapshot=trust_snapshot
+            snapshot=trust_snapshot, resource_digest=resource_digest
         )
 
     try:
@@ -578,6 +582,7 @@ class _SubjectCacheEntry:
     subject: eligibility_mod.EligibilitySubject
     db_digest: str
     asset_idents: tuple[tuple[Any, ...], ...]
+    resource_digest: str
 
 
 _SUBJECT_CACHE: OrderedDict[tuple[Any, ...], _SubjectCacheEntry] = OrderedDict()
@@ -649,6 +654,20 @@ def _build_subject_from_row(
     cfg: Config,
     row: sqlite3.Row,
 ) -> eligibility_mod.EligibilitySubject:
+    return _build_subject_entry(cfg, row).subject
+
+
+def _subject_scope(cfg: Config) -> tuple[Path, str]:
+    """Resolved registry root and enrolled registry id, constant within one route."""
+    from magicite.core.writer_guard import resolve_custody
+
+    registry_id, _ = resolve_custody(cfg)
+    return cfg.registry_dir.resolve(), registry_id
+
+
+def _build_subject_entry(
+    cfg: Config, row: sqlite3.Row, scope: tuple[Path, str] | None = None
+) -> _SubjectCacheEntry:
     """Build a full EligibilitySubject from live bytes; drift/missing → deny.
 
     Cache key: (resolved registry root, engram_id, artifact file identity).
@@ -660,7 +679,7 @@ def _build_subject_from_row(
     db_digest = str(row["content_sha256"]) if "content_sha256" in row.keys() else ""
     rel = str(row["path"]) if "path" in row.keys() else ""
     full = Path(rel) if Path(rel).is_absolute() else (cfg.project_root / rel)
-    registry_root = cfg.registry_dir.resolve()
+    registry_root, registry_id = scope if scope is not None else _subject_scope(cfg)
     root_key = str(registry_root)
 
     if not full.is_file():
@@ -680,15 +699,14 @@ def _build_subject_from_row(
         ) from exc
 
     from magicite.core.trust_artifacts import require_enrollment_marker
-    from magicite.core.writer_guard import resolve_custody
-    registry_id, _ = resolve_custody(cfg)
+
     cache_key: tuple[Any, ...] = (root_key, registry_id, engram_id, file_ident)
     cached = _cache_get(cache_key)
     if cached is not None and cached.db_digest == db_digest:
         # Re-stat asset files the subject's validity depended on.
         asset_paths = {str(item[0]): None for item in cached.asset_idents if item and item[0] is not None}
         if cached.asset_idents == _asset_identities(asset_paths, registry_root=registry_root):
-            return cached.subject
+            return cached
 
     raw_bytes = full.read_bytes()
     live_digest = ids_mod.content_sha256(raw_bytes)
@@ -708,7 +726,9 @@ def _build_subject_from_row(
                 admit=False,
                 require_asset_files=False,
             )
+            inside_registry = True
         except ValueError:
+            inside_registry = False
             artifact, _doc = parser_mod.parse_artifact(
                 raw_bytes.decode("utf-8"),
                 relpath=rel,
@@ -750,11 +770,18 @@ def _build_subject_from_row(
             "unsupported_artifact_type",
         )
 
-    _cache_put(
-        cache_key,
-        _SubjectCacheEntry(subject=subject, db_digest=db_digest, asset_idents=asset_idents),
+    # Same binding as trust.compute_resource_digest_at, which cannot parse an
+    # artifact outside the registry root and binds it to no resources.
+    resource_digest = (
+        trust_mod.resource_digest_for_artifact(cfg, artifact)
+        if inside_registry
+        else trust_mod.assets_manifest_digest({})
     )
-    return subject
+    entry = _SubjectCacheEntry(
+        subject=subject, db_digest=db_digest, asset_idents=asset_idents, resource_digest=resource_digest
+    )
+    _cache_put(cache_key, entry)
+    return entry
 
 
 def _route_trust_view(
@@ -764,11 +791,13 @@ def _route_trust_view(
     cached_decision: trust_mod.TrustDecision | None,
     cached_policy: trust_mod.TrustPolicy,
     snapshot: trust_mod.TrustSnapshot | None = None,
+    resource_digest: str | None = None,
 ) -> trust_mod.TrustDecisionView:
-    """Build TrustDecisionView for route eligibility without per-row file I/O.
+    """Build TrustDecisionView for route eligibility.
 
-    Uses the batched ledger decision + durable row fields. Default local
-    authorship admission is the named Config knob (N1).
+    Uses the batched ledger decision + durable row fields. ``resource_digest``
+    is the live-asset binding from the identity-checked subject cache; when
+    absent it is recomputed from live files.
     """
     engram_id = str(row["id"])
     content_digest = str(row["content_sha256"]) if "content_sha256" in row.keys() else ""
@@ -782,8 +811,8 @@ def _route_trust_view(
     )
 
     try:
-        resource_digest = (trust_mod.compute_resource_digest_at(cfg, relpath=str(row["path"]))
-                           if "path" in row.keys() else None)
+        if resource_digest is None and "path" in row.keys():
+            resource_digest = trust_mod.compute_resource_digest_at(cfg, relpath=str(row["path"]))
         admitted = trust_mod.decision_valid_under_policy(
             decision, cached_policy, content_digest=content_digest,
             resource_digest=resource_digest, snapshot=snapshot)
@@ -840,6 +869,11 @@ def _evaluate_route_eligibility(
     except trust_mod.TrustLedgerCorruptError:
         decisions = {}
         ledger_corrupt = True
+    scope: tuple[Path, str] | None
+    try:
+        scope = _subject_scope(cfg)
+    except Exception:
+        scope = None
 
     for row in rows:
         engram_id = str(row["id"])
@@ -852,10 +886,11 @@ def _evaluate_route_eligibility(
             )
             continue
         try:
-            subject = _build_subject_from_row(cfg, row)
+            entry = _build_subject_entry(cfg, row, scope)
+            subject = entry.subject
             trust = _route_trust_view(
                 cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy,
-                snapshot=trust_snapshot
+                snapshot=trust_snapshot, resource_digest=entry.resource_digest
             )
             result = eligibility_mod.evaluate_eligibility(
                 subject, route_context, trust, server_policy, path="route"

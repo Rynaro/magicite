@@ -144,14 +144,34 @@ def prior_policy_governance_evidence(cfg: Config) -> bool:
             return True
     approvals_dir = cfg.approvals_dir
     if approvals_dir.is_dir():
+        seen: set[str] = set()
         for path in approvals_dir.glob("*.json"):
+            key = str(path)
+            seen.add(key)
             try:
-                data = json.loads(path.read_text(encoding="utf-8"))
+                st = path.stat()
+                identity = (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+                cached = _APPROVAL_OP_CACHE.get(key)
+                if cached is not None and cached[0] == identity:
+                    is_policy_op = cached[1]
+                else:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    is_policy_op = data.get("op") in _POLICY_APPROVAL_OPS
+                    _APPROVAL_OP_CACHE[key] = (identity, is_policy_op)
             except (OSError, json.JSONDecodeError):
+                _APPROVAL_OP_CACHE.pop(key, None)
                 continue
-            if data.get("op") in {"policy_activate", "policy_rollback"}:
+            if is_policy_op:
                 return True
+        for key in [k for k in _APPROVAL_OP_CACHE if k not in seen and Path(k).parent == approvals_dir]:
+            del _APPROVAL_OP_CACHE[key]
     return False
+
+
+_POLICY_APPROVAL_OPS = frozenset({"policy_activate", "policy_rollback"})
+# Keyed by mirror path; ctime is in the identity because utime() can restore
+# mtime but never ctime, so any in-place edit forces a re-read.
+_APPROVAL_OP_CACHE: dict[str, tuple[tuple[int, int, int, int, int], bool]] = {}
 
 
 def _mac_subkey(cfg: Config) -> bytes:

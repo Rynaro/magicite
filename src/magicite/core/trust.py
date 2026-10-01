@@ -533,9 +533,6 @@ def live_resource_digest(cfg: Config, conn: sqlite3.Connection, engram_id: str) 
 def compute_resource_digest_at(cfg: Config, *, relpath: str) -> str:
     """Compute ``assets_manifest_digest`` from live files under the registry."""
     from magicite.engram import parser as parser_mod
-    from magicite.engram.assets import resolve_asset_path
-    from magicite.engram.digests import asset_bytes_digest
-    from magicite.engram.model_v1 import EngramV1
 
     full = (cfg.project_root / relpath).resolve()
     try:
@@ -545,6 +542,15 @@ def compute_resource_digest_at(cfg: Config, *, relpath: str) -> str:
     except Exception:
         # 0.2 / unreadable → empty resource binding (content digest still binds).
         return assets_manifest_digest({})
+    return resource_digest_for_artifact(cfg, artifact)
+
+
+def resource_digest_for_artifact(cfg: Config, artifact: Any) -> str:
+    """``assets_manifest_digest`` of the live asset bytes a parsed artifact declares."""
+    from magicite.engram.assets import resolve_asset_path
+    from magicite.engram.digests import asset_bytes_digest
+    from magicite.engram.model_v1 import EngramV1
+
     if not isinstance(artifact, EngramV1) or not artifact.frontmatter.assets:
         return assets_manifest_digest({})
 
