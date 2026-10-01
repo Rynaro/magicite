@@ -387,11 +387,12 @@ def verify_receipt(
 
 
 class CustodianClient:
-    def __init__(self, profile: CustodyProfile):
+    def __init__(self, profile: CustodyProfile, *, maintenance: bool = False):
         self.profile = profile
+        self.maintenance = maintenance
 
     def call(self, operation: str, **arguments: Any) -> Any:
-        profile = self.profile.refresh()
+        profile = self.profile.refresh(maintenance=self.maintenance)
         self.profile = profile
         if os.getuid() != profile.client_uid:
             raise CustodianError("unauthorized custody client identity")
@@ -414,15 +415,40 @@ class CustodianClient:
                 deadline = time.monotonic() + TIMEOUT
                 send_message(connection, request, deadline=deadline)
                 receipt = receive_message(connection, deadline=deadline)
-            return verify_receipt(
-                receipt,
-                profile.public_key,
-                nonce=nonce,
-                registry_id=profile.registry_id,
-                epoch=profile.epoch,
-                operation=operation,
-                request_id=request_id,
-            )
+            pins = [profile.public_key]
+            if self.maintenance and profile.transition is not None:
+                from magicite.core.trust_rotation_service import ROTATION_OPERATIONS
+
+                if operation not in ROTATION_OPERATIONS:
+                    raise CustodianError("pending custody permits only rotation maintenance")
+                pins.append(profile.transition["body"]["new_public_key"])
+            for pin in pins:
+                try:
+                    result = verify_receipt(
+                        receipt,
+                        pin,
+                        nonce=nonce,
+                        registry_id=profile.registry_id,
+                        epoch=profile.epoch,
+                        operation=operation,
+                        request_id=request_id,
+                    )
+                except CustodianError:
+                    continue
+                if operation in {"rotate_prepare", "rotate_commit", "rotation_status"}:
+                    from magicite.core.trust_rotation import verify_transition_record
+
+                    verify_transition_record(result["transition"], result["record"])
+                    body = result["transition"]["body"]
+                    if result["phase"] not in {"PREPARED", "COMMITTED", "FINISHED"}:
+                        raise CustodianError("invalid rotation phase")
+                    expected_pin = (
+                        body["old_public_key"] if result["phase"] == "PREPARED" else body["new_public_key"]
+                    )
+                    if pin != expected_pin:
+                        raise CustodianError("rotation phase proof signed by wrong epoch")
+                return result
+            raise CustodianError("invalid current custody receipt")
         except (OSError, ValueError) as exc:
             raise CustodianError("custody unavailable; reconciliation required") from exc
 
@@ -474,6 +500,7 @@ class CustodianService:
             "commit_record": self.store.commit_record,
             "history_page": self.store.history_page,
             "prepared_record": self.store.prepared_record,
+            "transition_certificate": self.store.transition_certificate,
         }
         try:
             operation = request["operation"]

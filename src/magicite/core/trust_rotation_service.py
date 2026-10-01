@@ -16,6 +16,7 @@ ROTATION_OPERATIONS = frozenset(
         "rotate_register",
         "rotate_commit",
         "rotate_finish",
+        "rotate_history_page",
     }
 )
 
@@ -39,11 +40,12 @@ def _write_profile(service: Any, status: dict[str, Any], *, active: bool) -> Non
     ):
         raise CustodianError("protected rotation pin mismatch")
     if identity == new:
-        if profile.transition is not None or status["phase"] != "COMMITTED":
+        if profile.transition is not None or status["phase"] not in {"COMMITTED", "FINISHED"}:
             raise CustodianError("invalid advanced rotation profile")
         return  # Crash after profile fsync, before clearing durable maintenance.
     if active and (
-        status["phase"] != "COMMITTED" or not _match(status["head"], body["new_head"], HEAD_FIELDS)
+        status["phase"] not in {"COMMITTED", "FINISHED"}
+        or not _match(status["head"], body["new_head"], HEAD_FIELDS)
     ):
         raise CustodianError("rotation not durably committed")
     epoch, pin = new if active else old
@@ -89,8 +91,13 @@ def rotation_operation(service: Any, operation: str, arguments: dict[str, Any]) 
     if operation == "rotate_prepare":
         store.rotate_prepare(registry, **arguments)
     elif operation == "rotation_status":
-        if arguments:
+        if set(arguments) - {"transition_id"}:
             raise CustodianError("unexpected rotation status arguments")
+        status = store.rotation_status(registry, **arguments)
+        _write_profile(service, status, active=status["phase"] == "FINISHED")
+        return status
+    elif operation == "rotate_history_page":
+        return store.rotate_history_page(registry, **arguments)
     elif operation == "rotate_register":
         result = store.rotate_register(registry, **arguments)
         _write_profile(service, store.rotation_status(registry), active=False)
@@ -99,7 +106,7 @@ def rotation_operation(service: Any, operation: str, arguments: dict[str, Any]) 
         _write_profile(service, store.rotation_status(registry), active=False)
         store.rotate_commit(registry, **arguments)
     elif operation == "rotate_finish":
-        status = store.rotation_status(registry)
+        status = store.rotation_status(registry, transition_id=arguments.get("transition_id"))
         if (
             set(arguments) != {"transition_id", "expected_head"}
             or arguments["transition_id"] != status["transition_id"]

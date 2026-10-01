@@ -77,6 +77,20 @@ def registry_writer_lease(
     else:
         registry_id, client = resolve_custody(cfg)
         coordinator = RegistryCustodyCoordinator(registry_id, client)
+    return _bound_lease(
+        cfg, conn, coordinator, holder=holder, ttl_s=ttl_s, heartbeat_interval_s=heartbeat_interval_s
+    )
+
+
+def _bound_lease(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    coordinator: RegistryCustodyCoordinator,
+    *,
+    holder: str | None = None,
+    ttl_s: float = lease.DEFAULT_LEASE_TTL_S,
+    heartbeat_interval_s: float = lease.DEFAULT_HEARTBEAT_INTERVAL_S,
+) -> lease.CrossProcessLease:
     return lease.CrossProcessLease(
         lock_path=cfg.dream_lock_path,
         conn=conn,
@@ -102,3 +116,48 @@ def bound_journal(cfg: Config) -> tuple[TrustJournal, lease.CrossProcessLease, d
         raise CustodianError("writer custody registration is incomplete")
     journal = TrustJournal(cfg.data_dir / "trust" / "authority", coordinator.registry_id, coordinator.client)
     return journal, current, coordinator.fence
+
+
+class RotationCoordinator(RegistryCustodyCoordinator):
+    def __init__(self, registry_id: str, client: Custody, transition_id: str):
+        super().__init__(registry_id, client)
+        self.transition_id = transition_id
+        self.pending = False
+
+    def capture(self) -> None:
+        try:
+            status = self.client.call("rotation_status", transition_id=self.transition_id)
+            self.predecessor = status["head"]
+            self.pending = status["phase"] != "FINISHED"
+        except CustodianError:
+            # Only an authenticated ordinary head can establish absence of
+            # maintenance; unavailable custody still closes before acquisition.
+            self.predecessor = self.client.call("read_current")
+            self.pending = False
+        if self.predecessor["registry_id"] != self.registry_id:
+            raise CustodianError("rotation enrollment mismatch")
+        self.attempt_id = secrets.token_hex(32)
+        self.fence = None
+
+    def register(self, holder: str, local_token: int) -> None:
+        if self.predecessor is None or self.attempt_id is None:
+            raise CustodianError("rotation predecessor not captured")
+        args: dict[str, Any] = dict(
+            predecessor=self.predecessor,
+            attempt_id=self.attempt_id,
+            holder=holder,
+            local_token=local_token,
+        )
+        operation = "register_fence"
+        if self.pending:
+            operation = "rotate_register"
+            args["transition_id"] = self.transition_id
+        self.fence = self.client.call(operation, **args)
+
+
+def rotation_writer_lease(
+    cfg: Config, conn: sqlite3.Connection, *, client: Custody, registry_id: str, transition_id: str
+) -> lease.CrossProcessLease:
+    if lease.current_cross_process_lease() is not None:
+        raise CustodianError("rotation requires its own existing-lease acquisition")
+    return _bound_lease(cfg, conn, RotationCoordinator(registry_id, client, transition_id))

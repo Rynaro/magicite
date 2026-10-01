@@ -222,6 +222,19 @@ class TrustJournal:
                         source_signers[key] = source_signers.get(key, frozenset()) | {
                             decision["signer_fingerprint"]
                         }
+                elif record["kind"] == "epoch_transition":
+                    intent = record["payload"]
+                    if (
+                        intent["schema"] != "EpochTransitionIntent/1"
+                        or intent["registry_id"] != self.registry_id
+                        or intent["new_epoch"] != record["epoch"]
+                        or intent["old_epoch"] + 1 != intent["new_epoch"]
+                        or intent["old_head"]["head_mac"] != record["prev_mac"]
+                        or intent["old_head"]["head_sequence"] + 1 != record["sequence"]
+                        or intent["policy_digest"] != hashlib.sha256(_bytes(policy)).hexdigest()
+                    ):
+                        raise CustodianError("invalid authenticated epoch continuity")
+                    # Rotation preserves policy and every ordered decision.
                 elif record["kind"] == "artifact_transform":
                     lineage = record["payload"]
                     source_key = (lineage["engram_id"], lineage["source_digest"])
@@ -266,8 +279,6 @@ class TrustJournal:
                     if merged != old:
                         source_signers[target_key] = merged
                         pending.append(target_key)
-            import hashlib
-
             if hashlib.sha256(_bytes(policy)).hexdigest() != head["policy_digest"]:
                 raise CustodianError("snapshot policy commitment mismatch")
             return TrustSnapshot(head, policy, tuple(decisions), latest, tuple(records), source_signers)

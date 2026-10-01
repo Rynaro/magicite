@@ -99,7 +99,7 @@ def create_profile(
     protected_path(socket_path.parent, os.getuid(), directory=True)
     with _store(directory) as store:
         head = store.read_current(registry_id)
-        public = store.signing_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+        public = store.signer_for(registry_id).public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
         profile = CustodyProfile(registry_id, head["epoch"], socket_path, os.getuid(), client_uid, public)
         value = {
             "state": "ACTIVE",
@@ -140,10 +140,20 @@ def create_profile(
 @click.option("--profile-path", required=True, type=click.Path(path_type=Path))
 def serve_custody(directory: Path, profile_path: Path) -> None:
     """Run the bounded Unix-socket service as the custodian account."""
-    profile = CustodyProfile.load(profile_path, expected_owner_uid=os.getuid())
+    profile = CustodyProfile.load(profile_path, expected_owner_uid=os.getuid(), maintenance=True)
     with _store(directory) as store:
-        if store.read_current(profile.registry_id)["epoch"] != profile.epoch:
-            raise CustodianError("profile epoch does not match authority")
+        try:
+            head = store.read_current(profile.registry_id)
+            if head["epoch"] != profile.epoch:
+                raise CustodianError("profile epoch does not match authority")
+        except CustodianError:
+            status = store.rotation_status(profile.registry_id)
+            body = status["transition"]["body"]
+            if (profile.epoch, profile.public_key) not in {
+                (body["old_epoch"], body["old_public_key"]),
+                (body["new_epoch"], body["new_public_key"]),
+            }:
+                raise CustodianError("profile rotation pin mismatch") from None
         CustodianService(store, profile).serve()
 
 
@@ -195,5 +205,38 @@ def reconcile(project_root: Path) -> None:
             journal, held, fence = bound_journal(cfg)
             snapshot = journal.reconcile(fence=fence, assert_owned=held.assert_owned)
             _emit(snapshot.head)
+    finally:
+        conn.close()
+
+
+@custody_cli.command(name="rotate")
+@click.option("--project-root", default=".", type=click.Path(path_type=Path))
+@click.option("--transition-id", required=True)
+@click.option("--actor", required=True)
+def rotate(project_root: Path, transition_id: str, actor: str) -> None:
+    """Rotate or resume the same explicit key epoch under the registry lease."""
+    from magicite.core.trust_custodian_transport import CustodianClient
+    from magicite.core.trust_rotation_client import rotate_registry
+    from magicite.core.writer_guard import protected_profile_path
+    from magicite.storage import db
+
+    cfg = Config.load(project_root)
+    profile = CustodyProfile.from_enrollment(
+        protected_profile_path(cfg), project_root=cfg.project_root, maintenance=True
+    )
+    client = CustodianClient(profile, maintenance=True)
+    try:
+        client.call("rotation_status", transition_id=transition_id)
+    except CustodianError:
+        client.call("read_current")  # must authenticate BEFORE touching local DB
+    if not cfg.db_path.is_file():
+        raise CustodianError("rotation requires an existing initialized registry")
+    conn = db.connect(cfg.db_path)
+    try:
+        _emit(
+            rotate_registry(
+                cfg, conn, client, registry_id=profile.registry_id, transition_id=transition_id, actor=actor
+            )
+        )
     finally:
         conn.close()

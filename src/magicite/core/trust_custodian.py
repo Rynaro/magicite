@@ -256,7 +256,7 @@ class CustodianStore:
             state = self._load(registry)
             if transition_id is None:
                 self._ordinary(state)
-            elif state.get("rotation", {}).get("transition_id") != transition_id:
+            elif (state.get("rotation") or {}).get("transition_id") != transition_id:
                 raise CustodianError("rotation identity mismatch")
             binding = {
                 "attempt_id": attempt_id,
@@ -450,6 +450,27 @@ class CustodianStore:
     def history_page(self, registry: str, *, expected_head: dict[str, Any], offset: int) -> dict[str, Any]:
         state = self._load(registry)
         self._ordinary(state)
+        return self._history_page(state, expected_head=expected_head, offset=offset)
+
+    def rotate_history_page(
+        self, registry: str, *, transition_id: str, expected_head: dict[str, Any], offset: int
+    ) -> dict[str, Any]:
+        state = self._load(registry)
+        if (state.get("rotation") or {}).get("transition_id") != transition_id:
+            raise CustodianError("rotation identity mismatch")
+        return self._history_page(state, expected_head=expected_head, offset=offset)
+
+    def transition_certificate(self, registry: str, *, transition_id: str) -> dict[str, Any]:
+        state = self._load(registry)
+        self._ordinary(state)
+        certificate = state.get("transitions", {}).get(transition_id)
+        if certificate is None:
+            raise CustodianError("unknown completed transition")
+        return dict(certificate)
+
+    def _history_page(
+        self, state: dict[str, Any], *, expected_head: dict[str, Any], offset: int
+    ) -> dict[str, Any]:
         head = self._head(state)
         if not _match(expected_head, head, HEAD_FIELDS):
             raise CustodianError("history head changed")
@@ -477,11 +498,24 @@ class CustodianStore:
         pending: dict[str, Any] | None = state["pending"]
         return pending
 
-    def rotation_status(self, registry: str) -> dict[str, Any]:
+    def rotation_status(self, registry: str, *, transition_id: str | None = None) -> dict[str, Any]:
         state = self._load(registry)
         rotation = state.get("rotation")
         if rotation is None:
-            raise CustodianError("no pending custody rotation")
+            certificate = state.get("transitions", {}).get(transition_id)
+            if certificate is None:
+                raise CustodianError("no matching custody rotation")
+            return {
+                "phase": "FINISHED",
+                "head": self._head(state),
+                "transition": certificate,
+                "transition_id": transition_id,
+                "record": next(
+                    row for row in state["records"] if row["record_id"] == "epoch-" + str(transition_id)
+                ),
+            }
+        if transition_id is not None and rotation["transition_id"] != transition_id:
+            raise CustodianError("rotation identity mismatch")
         return {
             "phase": rotation["phase"],
             "head": self._head(state),

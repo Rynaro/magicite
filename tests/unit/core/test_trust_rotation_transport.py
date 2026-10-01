@@ -209,3 +209,216 @@ def test_crash_after_profile_advance_before_finish_remains_closed_and_resumes(ro
         "rotate_finish", {"transition_id": "rotation", "expected_head": committed["head"]}
     )
     assert store.read_current("r")["epoch"] == 2
+
+
+def test_rotation_client_keeps_revoke_and_reconciles_epoch_under_existing_lease(
+    rotation_service, tmp_path, monkeypatch
+):
+    from magicite.config import Config
+    from magicite.core.trust_journal import TrustJournal
+    from magicite.core.trust_rotation_client import rotate_registry
+    from magicite.core.trust_rotation_service import ROTATION_OPERATIONS
+    from magicite.storage import db
+
+    store, service, _ = rotation_service
+    cfg = Config(project_root=tmp_path)
+    cfg.ensure_dirs()
+    conn = db.connect(cfg.db_path)
+
+    class Adapter:
+        def call(self, operation, **arguments):
+            if operation in ROTATION_OPERATIONS:
+                return service.rotation_operation(operation, arguments)
+            return getattr(store, operation)("r", **arguments)
+
+    client = Adapter()
+    journal = TrustJournal(cfg.data_dir / "trust/authority", "r", client)
+    journal.initialize_reviewed_genesis()
+    from magicite.core import trust, writer_guard
+
+    monkeypatch.setattr(writer_guard, "resolve_custody", lambda cfg: ("r", client))
+    policy = default_policy()
+    trust.persist_decision(
+        cfg,
+        conn,
+        trust.TrustDecision(
+            decision_id="revoke",
+            engram_id="subject",
+            content_digest="a" * 64,
+            decision="revoke",
+            source_channel="local_authored",
+            policy_id=policy.policy_id,
+            policy_revision=policy.revision,
+            policy_digest=policy.digest(),
+            actor="operator",
+            timestamp="2026-09-30T00:00:00Z",
+        ),
+    )
+    try:
+        result = rotate_registry(
+            cfg, conn, client, registry_id="r", transition_id="operator-rotation", actor="operator"
+        )
+        assert result["epoch"] == 2
+        snapshot = journal.snapshot()
+        assert snapshot.head == result
+        assert snapshot.records[-1]["kind"] == "epoch_transition"
+        assert snapshot.latest_by_engram["subject"]["decision"] == "revoke"
+        # Lost completion reply resumes the SAME transition, never creates epoch3.
+        repeated = rotate_registry(
+            cfg, conn, client, registry_id="r", transition_id="operator-rotation", actor="operator"
+        )
+        assert repeated["epoch"] == 2
+        assert len(journal.snapshot().records) == 3
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("boundary", ["before_commit", "after_commit", "before_finish", "after_finish"])
+def test_client_resumes_fsynced_preparation_after_commit_interruption(
+    rotation_service, tmp_path, monkeypatch, boundary
+):
+    from magicite.config import Config
+    from magicite.core.trust_journal import TrustJournal
+    from magicite.core.trust_rotation_client import rotate_registry
+    from magicite.core.trust_rotation_service import ROTATION_OPERATIONS
+    from magicite.storage import db
+
+    store, service, _ = rotation_service
+    cfg = Config(project_root=tmp_path)
+    cfg.ensure_dirs()
+    conn = db.connect(cfg.db_path)
+
+    class Adapter:
+        def call(self, operation, **arguments):
+            if operation in ROTATION_OPERATIONS:
+                return service.rotation_operation(operation, arguments)
+            return getattr(store, operation)("r", **arguments)
+
+    client = Adapter()
+    journal = TrustJournal(cfg.data_dir / "trust/authority", "r", client)
+    journal.initialize_reviewed_genesis()
+    method = "rotate_commit" if boundary.endswith("commit") else "rotate_finish"
+    original = getattr(store, method)
+
+    def interrupt(*args, **kwargs):
+        if boundary.startswith("after"):
+            original(*args, **kwargs)
+        raise OSError("interrupt")
+
+    monkeypatch.setattr(store, method, interrupt)
+    try:
+        with pytest.raises(OSError):
+            rotate_registry(cfg, conn, client, registry_id="r", transition_id="resume", actor="operator")
+        status = store.rotation_status("r", transition_id="resume")
+        expected_phase = (
+            "PREPARED"
+            if boundary == "before_commit"
+            else ("FINISHED" if boundary == "after_finish" else "COMMITTED")
+        )
+        assert status["phase"] == expected_phase
+        assert json.loads(journal.journal_path.read_bytes().splitlines()[-1]) == status["record"]
+        monkeypatch.setattr(store, method, original)
+        result = rotate_registry(cfg, conn, client, registry_id="r", transition_id="resume", actor="operator")
+        assert result["epoch"] == 2
+        assert journal.snapshot().records[-1] == status["record"]
+    finally:
+        conn.close()
+
+
+def test_real_maintenance_client_verifies_old_then_new_epoch_receipts(rotation_service, monkeypatch):
+    import socket
+    import tempfile
+    import threading
+    from pathlib import Path
+
+    store, service, path = rotation_service
+    actual_uid = os.getuid()
+    main_thread = threading.current_thread()
+    monkeypatch.setattr(
+        transport.os,
+        "getuid",
+        lambda: actual_uid if threading.current_thread() is main_thread else actual_uid + 1,
+    )
+    monkeypatch.setattr(transport, "check_peer", lambda *a: None)  # peer isolation is not qualified here
+    temporary = tempfile.TemporaryDirectory(prefix="rotation-wire-", dir="/private/tmp")
+    value = json.loads(path.read_bytes())
+    value["socket_path"] = str(Path(temporary.name) / "socket")
+    path.write_bytes(_bytes(value))
+    service.profile = transport.CustodyProfile.load(path, expected_owner_uid=actual_uid)
+    client = transport.CustodianClient(service.profile, maintenance=True)
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(str(service.profile.socket_path))
+    listener.listen(1)
+
+    def call(operation, **arguments):
+        results, errors = [], []
+
+        def invoke():
+            try:
+                results.append(client.call(operation, **arguments))
+            except Exception as exc:
+                errors.append(exc)
+
+        thread = threading.Thread(target=invoke)
+        thread.start()
+        connection, _ = listener.accept()
+        with connection:
+            service.handle(connection)
+        thread.join(timeout=2)
+        assert not thread.is_alive()
+        if errors:
+            raise errors[0]
+        return results[0]
+
+    try:
+        head = store.read_current("r")
+        fence = store.register_fence("r", predecessor=head, attempt_id="a", holder="h", local_token=1)
+        head = store.read_current("r")
+        prepared = call(
+            "rotate_prepare", fence=fence, expected_head=head, transition_id="wire", actor="operator"
+        )
+        assert prepared["phase"] == "PREPARED"
+        committed = call("rotate_commit", fence=fence, expected_head=head, transition_id="wire")
+        assert committed["phase"] == "COMMITTED"
+        proof = call("rotation_status", transition_id="wire")
+        result = call("rotate_finish", transition_id="wire", expected_head=proof["head"])
+        assert result["epoch"] == 2
+        assert call("read_current")["epoch"] == 2
+        assert json.loads(path.read_bytes())["state"] == "ACTIVE"
+    finally:
+        listener.close()
+        temporary.cleanup()
+
+
+def test_operator_rotate_command_uses_existing_profile_and_registry(rotation_service, tmp_path, monkeypatch):
+    from click.testing import CliRunner
+
+    from magicite.config import Config
+    from magicite.core.custody_admin import custody_cli
+    from magicite.core.trust_journal import TrustJournal
+    from magicite.core.trust_rotation_service import ROTATION_OPERATIONS
+    from magicite.storage import db
+
+    store, service, _ = rotation_service
+    cfg = Config(project_root=tmp_path)
+    cfg.ensure_dirs()
+    conn = db.connect(cfg.db_path)
+    conn.close()
+
+    class Adapter:
+        def call(self, operation, **arguments):
+            if operation in ROTATION_OPERATIONS:
+                return service.rotation_operation(operation, arguments)
+            return getattr(store, operation)("r", **arguments)
+
+    client = Adapter()
+    TrustJournal(cfg.data_dir / "trust/authority", "r", client).initialize_reviewed_genesis()
+    monkeypatch.setattr(transport.CustodyProfile, "from_enrollment", lambda *a, **k: service.profile)
+    monkeypatch.setattr(transport, "CustodianClient", lambda *a, **k: client)
+    result = CliRunner().invoke(
+        custody_cli,
+        ["rotate", "--project-root", str(tmp_path), "--transition-id", "cli-rotation", "--actor", "operator"],
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["epoch"] == 2
+    assert store.read_current("r")["epoch"] == 2
