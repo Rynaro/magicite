@@ -10,6 +10,8 @@ from magicite.core import routing_policy as policy_mod
 from magicite.mcp import bind_retrieval
 from magicite.mcp.registry import ToolContext
 from magicite.mcp.schemas import LoadSkillBodyInput, RouteInput
+from tests.conftest import TOY_ENGRAM_NAMES
+from tests.support.custody_adapter import review_toy_sources
 
 
 def test_stale_body_denied(cfg, db_conn, embedder) -> None:
@@ -18,6 +20,7 @@ def test_stale_body_denied(cfg, db_conn, embedder) -> None:
     THEN the call SHALL return stale_decision without the body.
     """
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     routed = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=3))
     assert routed.candidates
@@ -53,6 +56,7 @@ def test_stale_body_denied(cfg, db_conn, embedder) -> None:
 
 def _route_top(cfg, db_conn, embedder):
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     routed = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=3))
     top = routed.candidates[0]
@@ -134,15 +138,30 @@ def test_full_procedure_survives_dual_format_body_gate(cfg, db_conn, embedder) -
     path.write_text("---\n" + stream.getvalue() + "---\n" + body)
     registered = registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     assert not registered.validation_errors, registered.validation_errors
-    # Model an admitted artifact with preserved procedure prose (also supported for imports).
+    # Model an explicitly reviewed authored/imported body with full prose.
+    # The direct body gate must preserve it even beyond the registration rubric.
+    from magicite.core import trust_artifacts, writer_guard
+
+    original = trust_artifacts.require_bound_artifact(cfg, path)
+    front, _ = parser.split_frontmatter(path.read_text())
+    doc = parser.load_frontmatter_doc(front)
     procedure = "Critical unnumbered instruction.\n" + procedure + "\nFinal unnumbered instruction."
-    raw = path.read_text().replace("1. Numbered instruction.", procedure)
-    path.write_text(raw)
-    db_conn.execute(
-        "UPDATE engram SET content_sha256 = ? WHERE name = ?",
-        (hashlib.sha256(raw.encode()).hexdigest(), "sample-host-tooling"),
+    body = "## Procedure\n" + procedure + "\n"
+    digest = hashlib.sha256(body.encode()).hexdigest()
+    doc["routing"]["body_digest"] = digest
+    doc["origin"]["content_hashes"]["body_sha256"] = digest
+    stream = StringIO()
+    YAML().dump(doc, stream)
+    target = ("---\n" + stream.getvalue() + "---\n" + body).encode()
+    with writer_guard.registry_writer_lease(cfg, db_conn).acquire():
+        trust_artifacts.publish_authored_edit(
+            cfg, path, target, expected_source_digest=original.content_sha256, actor="test-author"
+        )
+    target_digest = hashlib.sha256(target).hexdigest()
+    db_conn.execute("UPDATE engram SET content_sha256=? WHERE id=?", (target_digest, original.id))
+    registry_mod.review_approve(
+        cfg, db_conn, engram_id=original.id, expected_digest=target_digest, actor="test-reviewer"
     )
-    db_conn.commit()
     row = db_conn.execute("SELECT content_sha256 FROM engram WHERE name = 'sample-host-tooling'").fetchone()
     assert row is not None
     out = bind_retrieval.load_skill_body(

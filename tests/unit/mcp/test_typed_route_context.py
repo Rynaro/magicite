@@ -29,7 +29,11 @@ def _subject(cfg, conn, embedder):
     stream = StringIO()
     YAML().dump(doc, stream)
     (cfg.registry_dir / "subject.egr.md").write_text("---\n" + stream.getvalue() + "---\n" + body)
+    from tests.support.custody_adapter import review_sources
+
+    original_source = (cfg.registry_dir / "subject.egr.md").read_bytes()
     outcome = registry.register(cfg, conn, embedder, path=".magicite/engrams")
+    review_sources(cfg, conn, sources={"sample-host-tooling": original_source})
     assert not outcome.validation_errors
     return ToolContext(cfg=cfg, conn=conn, embedder=embedder)
 

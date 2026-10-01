@@ -18,7 +18,11 @@ def test_recent_failure_context_is_populated_by_ingestion(cfg, db_conn, embedder
         ),
         encoding="utf-8",
     )
+    from tests.support.custody_adapter import review_sources
+
+    sources = {p.name.removesuffix(".egr.md"): p.read_bytes() for p in cfg.registry_dir.glob("*.egr.md")}
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_sources(cfg, db_conn, sources=sources)
     row = db_conn.execute(
         "SELECT fault_class FROM engram_step WHERE engram_id = 'egr_b5320dfd' AND step_no = 1"
     ).fetchone()

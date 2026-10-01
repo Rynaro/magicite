@@ -7,7 +7,7 @@ import pytest
 pytestmark = pytest.mark.acceptance
 
 
-def test_register_route_introspect(cfg, db_conn, embedder) -> None:
+def test_register_route_introspect(cfg, db_conn, embedder, review_fixture_artifacts) -> None:
     from magicite.core import registry as registry_mod
     from magicite.core import router as router_mod
     from magicite.storage import queries as queries_mod
@@ -16,9 +16,10 @@ def test_register_route_introspect(cfg, db_conn, embedder) -> None:
     assert register_outcome.ingested == 7
     assert register_outcome.validation_errors == []
 
-    route_outcome = router_mod.route(
-        cfg, db_conn, embedder, query="rollback proton for a steam game", k=5
-    )
+    from tests.conftest import TOY_ENGRAM_NAMES
+
+    review_fixture_artifacts(*TOY_ENGRAM_NAMES)
+    route_outcome = router_mod.route(cfg, db_conn, embedder, query="rollback proton for a steam game", k=5)
     assert route_outcome.candidates, "expected at least one routable candidate"
     assert route_outcome.candidates[0].name == "proton-ge-proton-downgrade"
 
@@ -54,14 +55,10 @@ async def test_register_route_introspect_over_mcp(project_root) -> None:
             assert reg.is_error is False, reg.structured_content
             assert reg.structured_content["ingested"] == 7
 
-            rt = await session.call_tool(
-                "route", {"query": "rollback proton for a steam game", "k": 5}
-            )
+            rt = await session.call_tool("route", {"query": "rollback proton for a steam game", "k": 5})
             assert rt.is_error is False, rt.structured_content
             assert rt.structured_content["candidates"][0]["name"] == "proton-ge-proton-downgrade"
 
-            intro = await session.call_tool(
-                "introspect", {"skill_id": "proton-ge-proton-downgrade"}
-            )
+            intro = await session.call_tool("introspect", {"skill_id": "proton-ge-proton-downgrade"})
             assert intro.is_error is False, intro.structured_content
             assert intro.structured_content["skill"]["name"] == "proton-ge-proton-downgrade"

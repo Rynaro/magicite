@@ -80,3 +80,57 @@ def review_sources(cfg, conn, *, sources: dict[str, bytes]):
             )
         )
     return receipts
+
+
+def review_inserted_source(cfg, conn, *, path: Path, source: bytes) -> str:
+    """Bind explicit synthetic SQL fixtures without altering their routing weights."""
+    from magicite.core import trust_artifacts
+    from magicite.core.trust_journal import _directory_fd, _replace_file
+
+    held = writer_guard.registry_writer_lease(cfg, conn)
+    with held.acquire():
+        journal, _, _ = writer_guard.bound_journal(cfg)
+        marked = trust_artifacts.mark_artifact(
+            source, registry_id=journal.registry_id, relpath=str(path), actor="test-fixture-author"
+        )
+        trust_artifacts.bind_prepared_transform(cfg, marked)
+        with _directory_fd(path.parent) as directory:
+            _replace_file(directory, path.name, marked.target, held.assert_owned)
+        artifact = trust_artifacts.require_bound_artifact(cfg, path)
+        cursor = conn.execute(
+            "UPDATE engram SET content_sha256=?, body_sha256=?, spec_version='engram/1.0' WHERE id=?",
+            (artifact.content_sha256, artifact.body_sha256, artifact.id),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("explicit SQL fixture row is required")
+    review_sources(cfg, conn, sources={artifact.name: source})
+    return artifact.content_sha256
+
+
+def review_toy_sources(cfg, conn, *, names: list[str]):
+    fixture_root = Path(__file__).resolve().parents[1] / "fixtures/toy-registry/engrams"
+    return review_sources(
+        cfg, conn, sources={name: (fixture_root / (name + ".egr.md")).read_bytes() for name in names}
+    )
+
+
+def publish_generated_source(cfg, *, path: Path, source: bytes) -> str:
+    """Publish a caller-supplied synthetic source; deliberately leave it unadmitted."""
+    from magicite.core import trust_artifacts
+    from magicite.core.trust_journal import _directory_fd, _replace_file
+    from magicite.storage import db
+
+    conn = db.connect(cfg.db_path)
+    try:
+        held = writer_guard.registry_writer_lease(cfg, conn)
+        with held.acquire():
+            journal, _, _ = writer_guard.bound_journal(cfg)
+            marked = trust_artifacts.mark_artifact(
+                source, registry_id=journal.registry_id, relpath=str(path), actor="test-fixture-author"
+            )
+            trust_artifacts.bind_prepared_transform(cfg, marked)
+            with _directory_fd(path.parent) as directory:
+                _replace_file(directory, path.name, marked.target, held.assert_owned)
+        return hashlib.sha256(marked.target).hexdigest()
+    finally:
+        conn.close()

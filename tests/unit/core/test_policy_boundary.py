@@ -10,6 +10,8 @@ from magicite.core import router as router_mod
 from magicite.core import routing_policy as policy_mod
 from magicite.core import signals as signals_mod
 from magicite.storage import ephemeral as ephemeral_mod
+from tests.conftest import TOY_ENGRAM_NAMES
+from tests.support.custody_adapter import review_toy_sources
 
 
 def _now() -> str:
@@ -85,7 +87,9 @@ trust:
             now,
         ),
     )
-    return digest
+    from tests.support.custody_adapter import review_inserted_source
+
+    return review_inserted_source(cfg, conn, path=full, source=data)
 
 
 def _insert_edge(
@@ -103,9 +107,7 @@ def _insert_edge(
 
 
 def _embed_and_store(conn, embedder, engram_id: str, text: str) -> None:
-    row = conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()
+    row = conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (engram_id,)).fetchone()
     digest = row["content_sha256"] if row is not None else engram_id
     vec = embedder.embed(text)
     ephemeral_mod.upsert_embedding(
@@ -139,8 +141,7 @@ def test_stable_ignores_adaptation(cfg, db_conn, embedder) -> None:
 
     # Vary usage / retrieval / node+edge strength / community assignment.
     db_conn.execute(
-        "UPDATE engram SET exposure_count = 999, storage_strength = 0.95 "
-        "WHERE id = 'egr_aa02ee0a'"
+        "UPDATE engram SET exposure_count = 999, storage_strength = 0.95 WHERE id = 'egr_aa02ee0a'"
     )
     db_conn.execute("UPDATE engram SET excitability = 0.99 WHERE id = 'egr_aa02ee0b'")
     db_conn.execute(
@@ -168,6 +169,7 @@ def test_dream_cannot_change_stable_policy(cfg, db_conn, embedder) -> None:
     from magicite.core import registry as registry_mod
 
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     digest_before = policy_mod.active_stable_policy_digest(cfg)
 
     # Capture a real signal so Phase 2 has something to potentiate when possible.

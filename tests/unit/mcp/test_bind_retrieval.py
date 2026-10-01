@@ -21,6 +21,8 @@ from magicite.mcp.app import _error_result
 from magicite.mcp.registry import ToolContext
 from magicite.mcp.schemas import LoadSkillBodyInput, RouteContext, RouteInput
 from magicite.storage import lease as lease_mod
+from tests.conftest import TOY_ENGRAM_NAMES
+from tests.support.custody_adapter import review_toy_sources
 
 
 def _digest_for(conn, name: str) -> str:
@@ -39,6 +41,7 @@ def _policy_digest(cfg) -> str:
 
 def test_route_tool_returns_composition_plan_via_adapter(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=5))
@@ -59,6 +62,7 @@ def test_route_tool_returns_composition_plan_via_adapter(cfg, db_conn, embedder)
 def test_public_plan_digest_matches_decision(cfg, db_conn, embedder) -> None:
     """FIX 1: public plan_digest is exactly decision.plan_digest."""
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     outcome = router_mod.route(
         cfg, db_conn, embedder, query="rollback proton for a steam game", k=5
     )
@@ -75,6 +79,7 @@ def test_public_plan_digest_matches_decision(cfg, db_conn, embedder) -> None:
 
 def test_valid_multi_node_plan_projected_in_topo_order(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     out = bind_retrieval.route(ctx, RouteInput(query="rollback proton for a steam game", k=5))
 
@@ -92,6 +97,7 @@ def test_valid_multi_node_plan_projected_in_topo_order(cfg, db_conn, embedder) -
 
 def test_composition_invalid_abstain_projects_no_nodes(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     winner_id = db_conn.execute(
         "SELECT id FROM engram WHERE name = 'proton-ge-proton-downgrade'"
     ).fetchone()["id"]
@@ -126,6 +132,7 @@ def test_composition_invalid_abstain_projects_no_nodes(cfg, db_conn, embedder) -
 def test_route_tool_hard_excludes_via_context(cfg, db_conn, embedder) -> None:
     cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
 
     out = bind_retrieval.route(
@@ -147,6 +154,7 @@ def test_route_tool_hard_excludes_via_context(cfg, db_conn, embedder) -> None:
 
 def test_load_skill_body_l2_via_adapter(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     digest = _digest_for(db_conn, "proton-ge-proton-downgrade")
 
@@ -166,6 +174,7 @@ def test_load_skill_body_l2_via_adapter(cfg, db_conn, embedder) -> None:
 
 def test_load_skill_body_cursor_round_trip(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     digest = _digest_for(db_conn, "proton-ge-proton-downgrade")
     full = bind_retrieval.load_skill_body(
@@ -203,6 +212,7 @@ def test_load_skill_body_cursor_round_trip(cfg, db_conn, embedder) -> None:
 
 def test_load_skill_body_missing_digest_is_missing_context(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     out = bind_retrieval.load_skill_body(
         ctx, LoadSkillBodyInput(name="proton-ge-proton-downgrade", level="L2")
@@ -215,6 +225,7 @@ def test_load_skill_body_missing_digest_is_missing_context(cfg, db_conn, embedde
 
 def test_load_skill_body_missing_policy_digest_is_missing_context(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     out = bind_retrieval.load_skill_body(
         ctx,
@@ -262,6 +273,7 @@ def _publish_generation(db_conn, embedder, snapshot_id: str) -> None:
 
 def test_load_skill_body_matching_snapshot_ok(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     _publish_generation(db_conn, embedder, "snap-s11-a")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     params = _routed_body_input(ctx)
@@ -273,6 +285,7 @@ def test_load_skill_body_matching_snapshot_ok(cfg, db_conn, embedder) -> None:
 
 def test_load_skill_body_snapshot_drift_is_stale(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     _publish_generation(db_conn, embedder, "snap-s11-a")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     params = _routed_body_input(ctx)
@@ -289,6 +302,7 @@ def test_load_skill_body_unresolvable_snapshot_is_stale(
     cfg, db_conn, embedder, monkeypatch
 ) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     _publish_generation(db_conn, embedder, "snap-s11-a")
     ctx = ToolContext(cfg=cfg, conn=db_conn, embedder=embedder)
     params = _routed_body_input(ctx)
@@ -305,6 +319,7 @@ def test_load_skill_body_unresolvable_snapshot_is_stale(
 def test_withheld_valid_plan_is_not_advertised_executable(cfg, db_conn, embedder) -> None:
     """B5: a valid Plan carried on an abstained route never projects valid/executable."""
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     outcome = router_mod.route(
         cfg, db_conn, embedder, query="rollback proton for a steam game", k=5
     )
@@ -326,6 +341,7 @@ def test_withheld_valid_plan_is_not_advertised_executable(cfg, db_conn, embedder
 
 def test_plan_digest_mismatch_fails_closed(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
     outcome = router_mod.route(
         cfg, db_conn, embedder, query="rollback proton for a steam game", k=5
     )
@@ -342,6 +358,7 @@ def test_plan_digest_mismatch_fails_closed(cfg, db_conn, embedder) -> None:
 
 def test_composition_error_projects_no_plan(cfg, db_conn, embedder, monkeypatch) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_toy_sources(cfg, db_conn, names=TOY_ENGRAM_NAMES)
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("compose exploded")
