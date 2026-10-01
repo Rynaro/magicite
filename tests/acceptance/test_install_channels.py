@@ -152,6 +152,8 @@ def test_clean_wheel(built_wheel: Path, tmp_path: Path, monkeypatch: pytest.Monk
     assert result["ok"] is True
     assert result["top"] == "proton-ge-proton-downgrade"
     assert result["ingested"] >= 1
+    assert result["fail_closed_without_custody"] is True
+    assert result["deployment_custody"] == "UNEVALUATED"
     pkg_file = Path(result["pkg_file"])
     assert (keep / "venv").resolve() in pkg_file.parents or str(pkg_file).startswith(
         str((keep / "venv").resolve())

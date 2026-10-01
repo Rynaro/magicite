@@ -609,6 +609,8 @@ def test_matrix_synthetic_vs_manifest_corpus(tmp_path: Path) -> None:
             "hashing",
             "--envelope-mode",
             "completeness",
+            "--custody",
+            "disposable-simulated",
             "--project-root-for-lock",
             str(ROOT),
             "--output",
@@ -621,6 +623,11 @@ def test_matrix_synthetic_vs_manifest_corpus(tmp_path: Path) -> None:
     )
     assert completed.returncode == 0, completed.stderr
     syn = json.loads(syn_out.read_text(encoding="utf-8"))
+    assert syn["custody"] == {"mode": "disposable-simulated", "deployment_qualification": "UNEVALUATED"}
+    assert any("custody=" in reason for reason in syn["corpus"]["ga_ineligible_reasons"])
+    assert syn["legacy_measurements"][0]["warm_selected_routes"] == 8, (
+        "measured routes must select reviewed candidates, not time refusals"
+    )
     assert syn["corpus"]["kind"] == "synthetic"
     assert syn["corpus"]["actual_artifacts"] is True
     assert len(syn["corpus"]["artifact_inventory_sha256"]) == 64

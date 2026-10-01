@@ -38,10 +38,12 @@ cannot satisfy `status=supported`.
 Synthetic matrix runs always set `corpus.kind=synthetic` and `ga_eligible=false`. Supplying `--corpus-manifest` validates the CorpusManifest, builds/measures that registry, and sets `corpus.kind=manifest`. A manifest run is still `ga_eligible=false` unless it uses the production provider, a profile with `ga_support_claim`, `--envelope-mode budget` with a passing envelope, and a non-fixture licensed corpus at the profile's size; every unmet condition is listed in `corpus.ga_ineligible_reasons`.
 
 
+The benchmark builds a disposable registry, which cannot hold protected custody enrollment. The default `--custody protected` therefore fails closed. `--custody disposable-simulated` uses an in-process evaluation custodian and explicitly reviews exactly the generated or digest-bound bytes; such runs record `custody.deployment_qualification=UNEVALUATED` and are never GA-eligible. Dedicated-runner GA evidence needs a protected enrolled benchmark registry, which the matrix does not yet support, so those claims remain UNEVALUATED.
+
 ```bash
 # Shared CI completeness (hashing or production; no budget PASS claim)
 python scripts/run_benchmark_matrix.py --profile ci-smoke --provider hashing \
-  --envelope-mode completeness --output /tmp/ci-smoke.json
+  --envelope-mode completeness --custody disposable-simulated --output /tmp/ci-smoke.json
 
 # Dedicated runner production budgets (reference hardware)
 python scripts/run_benchmark_matrix.py --profile supported-10k --provider production \

@@ -62,13 +62,14 @@ def _build_synthetic_registry(cfg, conn, embedder, *, n: int, seed: int = 1234) 
 
     rows = []
     digests = []
+    sources = []
     for eid, name in zip(ids, names, strict=True):
-        body = f"## Procedure\n{name}\n"
+        body = f"## Procedure\n1. Execute {name} safely.\n"
         raw = (
             f"---\nspec: engram/0.2\nname: {name}\nid: {eid}\nversion: 1\n"
-            f"provenance: authored\nintent:\n  does: \"does {name}\"\n"
-            f"  use_when: \"use when {name}\"\n  not_when: \"never\"\n"
-            f"triggers:\n  positive: [\"{name}\"]\n  negative: []\n"
+            f'provenance: authored\nintent:\n  does: "does {name}"\n'
+            f'  use_when: "use when {name}"\n  not_when: "never"\n'
+            f'triggers:\n  positive: ["{name}"]\n  negative: []\n'
             f"context_affinity: []\nplasticity:\n  storage_strength: 0.0\n"
             f"  exposure_count: 0\n  outcome:\n    success: 0\n    failure: 0\n"
             f"  excitability: 0.05\n  status: nascent\nneeds: []\ninhibits: []\n"
@@ -80,10 +81,25 @@ def _build_synthetic_registry(cfg, conn, embedder, *, n: int, seed: int = 1234) 
         (cfg.project_root / rel).write_bytes(data)
         digest = ids_mod.content_sha256(data)
         digests.append(digest)
+        sources.append((cfg.project_root / rel, data))
         rows.append(
             (
-                eid, name, rel, "engram/0.2", 1, "authored", "verified", "nascent",
-                f"does {name}", f"use when {name}", now, digest, digest, digest, now, now,
+                eid,
+                name,
+                rel,
+                "engram/0.2",
+                1,
+                "authored",
+                "verified",
+                "nascent",
+                f"does {name}",
+                f"use when {name}",
+                now,
+                digest,
+                digest,
+                digest,
+                now,
+                now,
             )
         )
 
@@ -96,6 +112,22 @@ def _build_synthetic_registry(cfg, conn, embedder, *, n: int, seed: int = 1234) 
         ) VALUES (?,?,?,?,?,?,?,?, ?,?, 0.0, ?, 0.05, ?,?,?, 0, ?, ?)
         """,
         rows,
+    )
+
+    # Explicitly bind/review every generated source outside the measured route loop.
+    # One outer lease reuses the same custody fence; all real approval checks run.
+    from tests.support.custody_adapter import review_inserted_source
+
+    from magicite.core import trust, writer_guard
+
+    with writer_guard.registry_writer_lease(cfg, conn).acquire():
+        digests = [review_inserted_source(cfg, conn, path=path, source=source) for path, source in sources]
+    snapshot = trust.authenticated_snapshot(cfg)
+    assert len(snapshot.latest_by_engram) == n
+    assert all(
+        snapshot.latest_by_engram[eid]["decision"] == "admit"
+        and snapshot.latest_by_engram[eid]["content_digest"] == digest
+        for eid, digest in zip(ids, digests, strict=True)
     )
 
     # L2-normalised random embeddings -- clustered into ~20 groups so
@@ -113,8 +145,12 @@ def _build_synthetic_registry(cfg, conn, embedder, *, n: int, seed: int = 1234) 
 
     for eid, vec, digest in zip(ids, vectors, digests, strict=True):
         ephemeral_mod.upsert_embedding(
-            conn, engram_id=eid, model_name=embedder.model_name, dim=dim,
-            vec=vec.astype(np.float32), source_sha256=digest,
+            conn,
+            engram_id=eid,
+            model_name=embedder.model_name,
+            dim=dim,
+            vec=vec.astype(np.float32),
+            source_sha256=digest,
         )
 
     # Community assignment (as sync() step 9 would have produced).
@@ -127,19 +163,33 @@ def _build_synthetic_registry(cfg, conn, embedder, *, n: int, seed: int = 1234) 
     # edges per node (avg out-degree ~5, realistic for a kNN + declared-
     # composition graph), plus a small number of hub nodes and inhibits
     # edges so every route() step actually has data to chew on.
+    #
+    # Declared prerequisites (composes/depends_on) are kept sparse and
+    # acyclic: every 50th node's first edge depends_on a non-source leaf,
+    # and the remaining random draws keep their activation weight as
+    # co_activation/similar_to. A dense random prerequisite graph closes
+    # over far more than the composition node budget, so every measured
+    # call would abstain and the benchmark would time refusals.
     edge_rows = []
     edge_types = ("composes", "depends_on", "co_activation", "similar_to")
+    activation_type = {"composes": "co_activation", "depends_on": "similar_to"}
     hub_indices = set(rng.choice(n, size=10, replace=False).tolist())
     for i in range(n):
         src = ids[i]
         degree = 5
         targets = rng.choice(n, size=degree, replace=False)
+        first_edge = True
         for t in targets:
             if t == i:
                 continue
             dst_idx = int(t) if int(t) not in hub_indices else next(iter(hub_indices))
-            dst = ids[dst_idx]
             edge_type = edge_types[int(rng.integers(0, len(edge_types)))]
+            edge_type = activation_type.get(edge_type, edge_type)
+            if first_edge and i % 50 == 0:
+                dst_idx = (i + 1) % n
+                edge_type = "depends_on"
+            first_edge = False
+            dst = ids[dst_idx]
             strength = float(rng.uniform(0.1, 0.9))
             edge_rows.append((src, names[dst_idx], dst, edge_type, strength, now, now))
         if i % 97 == 0:  # sparse inhibits edges
@@ -163,7 +213,11 @@ def _build_synthetic_registry(cfg, conn, embedder, *, n: int, seed: int = 1234) 
 @pytest.mark.benchmark
 def test_p95_under_100ms(cfg, db_conn, embedder) -> None:
     router_mod._SUBJECT_CACHE.clear()
+    setup_start = time.perf_counter()
     _build_synthetic_registry(cfg, db_conn, embedder, n=N_ENGRAMS)
+    print(
+        f"authenticated fixture setup: {time.perf_counter() - setup_start:.2f}s (outside route measurement)"
+    )
 
     query = "rollback proton for a steam game after a bad update"
 
@@ -176,6 +230,7 @@ def test_p95_under_100ms(cfg, db_conn, embedder) -> None:
         outcome = router_mod.route(cfg, db_conn, embedder, query=query, k=5)
         durations.append(time.perf_counter() - start)
         assert outcome.registry_size == N_ENGRAMS
+        assert outcome.candidates, "measured route must select authenticated candidates"
 
     p95 = float(np.percentile(durations, 95))
     p50 = float(np.percentile(durations, 50))
