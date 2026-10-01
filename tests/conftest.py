@@ -83,3 +83,23 @@ def db_conn(cfg: Config) -> sqlite3.Connection:
     conn = db_mod.connect(cfg.db_path)
     yield conn
     conn.close()
+
+
+@pytest.fixture
+def custody_for(monkeypatch, tmp_path_factory):
+    """Explicit enrollment factory for tests owning independent Config instances."""
+    from tests.support.custody_adapter import enroll_fixture
+
+    providers = {}
+
+    def enroll(config):
+        root = config.project_root.resolve()
+        if root not in providers:
+            providers[root] = enroll_fixture(
+                config, monkeypatch, tmp_path_factory.mktemp("explicit-custody") / "private"
+            )
+        return providers[root]
+
+    yield enroll
+    for provider in providers.values():
+        provider.close()
