@@ -236,3 +236,80 @@ def test_existing_private_custody_files_cannot_be_world_readable(store, name):
     os.chmod(directory / name, 0o644)
     with pytest.raises(CustodianError):
         CustodianStore.open(directory)
+
+
+def _downgrade_to_aggregate_blob(directory):
+    """Rewrite a store into the pre-table layout: history inside the state blob."""
+    import json
+    import sqlite3
+
+    conn = sqlite3.connect(directory / "authority.sqlite")
+    try:
+        rows = conn.execute("SELECT registry, body FROM record ORDER BY registry, sequence").fetchall()
+        history: dict[str, list] = {}
+        for registry, body in rows:
+            history.setdefault(registry, []).append(json.loads(body))
+        for registry, records in history.items():
+            row = conn.execute("SELECT state FROM registry WHERE id=?", (registry,)).fetchone()
+            state = json.loads(row[0])
+            state["records"] = records
+            conn.execute("UPDATE registry SET state=? WHERE id=?", (json.dumps(state), registry))
+        conn.execute("DROP TABLE record")
+        conn.commit()
+    finally:
+        conn.close()
+    return history
+
+
+def test_aggregate_blob_store_upgrades_with_identical_history(tmp_path):
+    directory = tmp_path / "custody"
+    authority = CustodianStore.create(directory)
+    authority.enroll("registry-one", default_policy().to_dict(), actor="operator", reviewed=True)
+    fence = register(authority)
+    record = prepare(authority, fence)
+    authority.commit_record(
+        "registry-one", fence=fence, expected_head=authority.read_current("registry-one"), record=record
+    )
+    head = authority.read_current("registry-one")
+    page = authority.history_page("registry-one", expected_head=head, offset=0)
+    records = authority.committed_records("registry-one")
+    authority.close()
+    _downgrade_to_aggregate_blob(directory)
+
+    upgraded = CustodianStore.open(directory)
+    try:
+        assert upgraded.read_current("registry-one") == head
+        assert upgraded.committed_records("registry-one") == records
+        assert upgraded.history_page("registry-one", expected_head=head, offset=0) == page
+    finally:
+        upgraded.close()
+
+
+def test_aggregate_blob_with_broken_chain_fails_closed_on_upgrade(tmp_path):
+    import json
+    import sqlite3
+
+    directory = tmp_path / "custody"
+    authority = CustodianStore.create(directory)
+    authority.enroll("registry-one", default_policy().to_dict(), actor="operator", reviewed=True)
+    fence = register(authority)
+    record = prepare(authority, fence)
+    authority.commit_record(
+        "registry-one", fence=fence, expected_head=authority.read_current("registry-one"), record=record
+    )
+    authority.close()
+    _downgrade_to_aggregate_blob(directory)
+    conn = sqlite3.connect(directory / "authority.sqlite")
+    state = json.loads(conn.execute("SELECT state FROM registry").fetchone()[0])
+    state["records"][1]["prev_mac"] = "f" * 64
+    conn.execute("UPDATE registry SET state=?", (json.dumps(state),))
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(CustodianError):
+        CustodianStore.open(directory)
+    conn = sqlite3.connect(directory / "authority.sqlite")
+    try:
+        assert conn.execute("SELECT name FROM sqlite_master WHERE name='record'").fetchone() is None
+    finally:
+        conn.close()

@@ -312,3 +312,120 @@ def test_append_checks_lease_after_final_remote_snapshot(journal, monkeypatch):
             fence=fence,
             assert_owned=assert_owned,
         )
+
+
+def test_verified_snapshot_reuse_never_hides_a_later_revoke(journal):
+    from magicite.core import trust_journal
+
+    ledger, store = journal
+    commit(ledger, store, "admit", "admit", "2026-01-01T00:00:00Z")
+    assert ledger.snapshot().latest_by_engram["subject"]["decision"] == "admit"
+    assert ledger.snapshot() is ledger.snapshot()
+    key = (str(ledger.directory.absolute()), "registry-one", None)
+    stale = trust_journal._VERIFIED_SNAPSHOTS[key]
+    # Another process revokes; this process still holds the earlier verification.
+    commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
+    trust_journal._VERIFIED_SNAPSHOTS[key] = stale
+    assert ledger.snapshot().latest_by_engram["subject"]["decision"] == "revoke"
+
+
+@pytest.mark.parametrize("mutation", ["edit_journal", "edit_head", "delete"])
+def test_verified_snapshot_reuse_closes_on_local_change(journal, mutation):
+    ledger, store = journal
+    commit(ledger, store, "admit", "admit", "2026-01-01T00:00:00Z")
+    commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
+    ledger.snapshot()
+    if mutation == "edit_journal":
+        rows = ledger.journal_path.read_text().splitlines()
+        row = json.loads(rows[-1])
+        row["payload"]["decision"] = "admit"
+        rows[-1] = json.dumps(row)
+        ledger.journal_path.write_text("\n".join(rows) + "\n")
+    elif mutation == "edit_head":
+        head = json.loads(ledger.head_path.read_bytes())
+        head["head_sequence"] -= 1
+        ledger.head_path.write_text(json.dumps(head))
+    else:
+        ledger.journal_path.unlink()
+    with pytest.raises(CustodianError):
+        ledger.snapshot()
+
+
+def test_verified_snapshot_reuse_requires_reachable_custody(journal, monkeypatch):
+    ledger, store = journal
+    commit(ledger, store, "admit", "admit", "2026-01-01T00:00:00Z")
+    ledger.snapshot()
+
+    def unavailable(operation, **arguments):
+        raise CustodianError("custody unavailable")
+
+    monkeypatch.setattr(ledger.client, "call", unavailable)
+    with pytest.raises(CustodianError):
+        ledger.snapshot()
+
+
+def test_incremental_append_equals_full_reverification(journal, monkeypatch):
+    from magicite.core import trust_journal
+
+    ledger, store = journal
+    ledger.snapshot()
+    remote_calls = 0
+    real_remote = ledger._remote
+
+    def counting_remote(**arguments):
+        nonlocal remote_calls
+        remote_calls += 1
+        return real_remote(**arguments)
+
+    monkeypatch.setattr(ledger, "_remote", counting_remote)
+    commit(ledger, store, "admit", "admit", "2026-01-01T00:00:00Z")
+    commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
+    incremental = ledger.snapshot()
+    assert remote_calls == 0, "own appends extend the verified replay without re-reading history"
+    trust_journal._VERIFIED_SNAPSHOTS.clear()
+    cold = ledger.snapshot()
+    assert remote_calls == 1
+    assert cold.head == incremental.head
+    assert cold.policy == incremental.policy
+    assert cold.decisions == incremental.decisions
+    assert cold.latest_by_engram == incremental.latest_by_engram
+    assert cold.records == incremental.records
+    assert cold.source_signers == incremental.source_signers
+    assert ledger.journal_path.read_bytes().count(b"\n") == 3
+
+
+def test_same_size_edit_with_restored_mtime_still_closes(journal):
+    import os
+
+    ledger, store = journal
+    commit(ledger, store, "admit", "admit", "2026-01-01T00:00:00Z")
+    commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
+    ledger.snapshot()
+    before = os.stat(ledger.journal_path)
+    content = ledger.journal_path.read_bytes()
+    forged = content.replace(b'"decision":"revoke"', b'"decision":"reject"')
+    assert len(forged) == len(content) and forged != content
+    ledger.journal_path.write_bytes(forged)
+    os.utime(ledger.journal_path, ns=(before.st_atime_ns, before.st_mtime_ns))
+    with pytest.raises(CustodianError):
+        ledger.snapshot()
+
+
+def test_concurrent_local_write_between_verification_and_append_closes(journal, monkeypatch):
+    ledger, store = journal
+    commit(ledger, store, "admit", "admit", "2026-01-01T00:00:00Z")
+    real_call = ledger.client.call
+
+    def interleave(operation, **arguments):
+        result = real_call(operation, **arguments)
+        if operation == "prepare_record":
+            with ledger.journal_path.open("ab") as stream:
+                stream.write(b"{}\n")
+        return result
+
+    monkeypatch.setattr(ledger.client, "call", interleave)
+    with pytest.raises(CustodianError):
+        commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
+    monkeypatch.setattr(ledger.client, "call", real_call)
+    with pytest.raises(CustodianError):
+        ledger.snapshot()
