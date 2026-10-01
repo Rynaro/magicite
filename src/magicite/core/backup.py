@@ -676,9 +676,7 @@ def _append_journal(cfg: Config, entry: dict[str, Any], *, key: bytes | None) ->
         prev = _journal_prev_mac(cfg)
         payload["prev_mac"] = prev
         body = {k: v for k, v in payload.items() if k != "entry_mac"}
-        payload["entry_mac"] = _mac_hex(
-            key, _JOURNAL_MAC_LABEL, _canonical_json(body).encode("utf-8")
-        )
+        payload["entry_mac"] = _mac_hex(key, _JOURNAL_MAC_LABEL, _canonical_json(body).encode("utf-8"))
     line = _canonical_json(payload) + "\n"
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(line)
@@ -790,15 +788,15 @@ def _write_activation_seal(
 
 
 @contextmanager
-def _backup_lease(
-    cfg: Config, conn: sqlite3.Connection, holder: str
-) -> Iterator[None]:
+def _backup_lease(cfg: Config, conn: sqlite3.Connection, holder: str) -> Iterator[None]:
     if lease_mod.cross_process_lease_held():
         writer_guard.bound_journal(cfg)
         with lease_mod.writer_lease(holder=holder):
             yield
         return
-    cross = writer_guard.registry_writer_lease(cfg, conn,
+    cross = writer_guard.registry_writer_lease(
+        cfg,
+        conn,
         holder=holder,
     )
     with cross.acquire(), lease_mod.writer_lease(holder=holder):
@@ -1043,6 +1041,11 @@ def create_snapshot(
         lease_mod.assert_single_writer()
         registry_id = ensure_registry_id(cfg)
         sequences = _domain_sequences(cfg)
+        trust_snapshot = trust_mod.authenticated_snapshot(cfg)
+        trust_authority = {
+            field: trust_snapshot.head[field]
+            for field in ("registry_id", "epoch", "head_sequence", "head_mac", "policy_digest")
+        }
 
         if dest_root.exists():
             shutil.rmtree(dest_root)
@@ -1097,6 +1100,7 @@ def create_snapshot(
             "registry_id": registry_id,
             "domains": list(selected),
             "recovery_point_sequences": sequences,
+            "trust_authority": trust_authority,
             "max_known_schema_version_at_backup": MAX_KNOWN_SCHEMA_VERSION,
             "secrets_excluded": not include_secrets,
             "fingerprint_key_custody": custody_note,
@@ -1104,12 +1108,8 @@ def create_snapshot(
             "known_deletion_ids": known_deletion_ids,
             "known_revocation_count": len(known_revocation_ids),
             "known_deletion_count": len(known_deletion_ids),
-            "known_revocation_digest": _sha256_bytes(
-                ",".join(known_revocation_ids).encode("utf-8")
-            ),
-            "known_deletion_digest": _sha256_bytes(
-                ",".join(known_deletion_ids).encode("utf-8")
-            ),
+            "known_revocation_digest": _sha256_bytes(",".join(known_revocation_ids).encode("utf-8")),
+            "known_deletion_digest": _sha256_bytes(",".join(known_deletion_ids).encode("utf-8")),
             "files": entries,
             "notes": {
                 "sqlite_projection": "rebuildable; restore file domains then rebuild",
@@ -1119,8 +1119,7 @@ def create_snapshot(
                     "the key fails closed with reconciliation_required — never re-key."
                 ),
                 "policy_store": (
-                    "opaque file-level copy when present; semantic verification forward "
-                    "for S07 merge"
+                    "opaque file-level copy when present; semantic verification forward for S07 merge"
                 ),
                 "anti_shrink": (
                     "known_revocation_ids / known_deletion_ids are bound into this "
@@ -1288,10 +1287,7 @@ def _apply_overlay(
         deletion_records=overlay.deletion_records,
         policy_digest=overlay.policy_digest,
         content_hashes=tuple(
-            sorted(
-                _sha256_bytes(_canonical_json(r).encode("utf-8"))
-                for r in overlay.deletion_records
-            )
+            sorted(_sha256_bytes(_canonical_json(r).encode("utf-8")) for r in overlay.deletion_records)
         ),
         operator_provenance=overlay.operator_provenance,
     )
@@ -1361,6 +1357,44 @@ def _assert_registry_ids_consistent(
         )
 
 
+def _verify_restore_custody(cfg: Config, manifest: dict[str, Any]) -> None:
+    """Bind an archive's old recovery point to retained current custody history.
+
+    The archive never supplies authority or replaces the current protected pin.
+    Missing suffix/custody fails before any restore file mutation.
+    """
+    from magicite.core.trust_custodian import _bytes
+
+    expected = manifest.get("trust_authority")
+    required = {"registry_id", "epoch", "head_sequence", "head_mac", "policy_digest"}
+    if not isinstance(expected, dict) or set(expected) != required:
+        raise InvalidInputError("backup lacks protected trust recovery point; reconciliation_required")
+    journal, held, _ = writer_guard.bound_journal(cfg)
+    head, records = journal._remote()
+    sequence = expected["head_sequence"]
+    if (
+        type(sequence) is not int
+        or not 1 <= sequence <= len(records)
+        or expected["registry_id"] != head["registry_id"]
+    ):
+        raise InvalidInputError("backup trust enrollment/head mismatch; reconciliation_required")
+    record = records[sequence - 1]
+    policy = records[0]["payload"]["policy"]
+    for item in records[:sequence]:
+        if item["kind"] == "policy_snapshot":
+            policy = item["payload"]
+    actual = {
+        "registry_id": record["registry_id"],
+        "epoch": record["epoch"],
+        "head_sequence": record["sequence"],
+        "head_mac": record["mac"],
+        "policy_digest": hashlib.sha256(_bytes(policy)).hexdigest(),
+    }
+    if _bytes(actual) != _bytes(expected):
+        raise InvalidInputError("backup trust history is not retained; reconciliation_required")
+    held.assert_owned()
+
+
 def restore_snapshot(
     cfg: Config,
     conn: sqlite3.Connection,
@@ -1398,6 +1432,7 @@ def restore_snapshot(
 
     with _backup_lease(cfg, conn, holder):
         lease_mod.assert_single_writer()
+        _verify_restore_custody(cfg, manifest)
         _mkdir_secure(recovery_dir(cfg))
 
         auth_key: bytes | None = None

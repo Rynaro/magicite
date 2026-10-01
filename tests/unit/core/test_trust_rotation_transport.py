@@ -234,9 +234,12 @@ def test_rotation_client_keeps_revoke_and_reconciles_epoch_under_existing_lease(
     client = Adapter()
     journal = TrustJournal(cfg.data_dir / "trust/authority", "r", client)
     journal.initialize_reviewed_genesis()
-    from magicite.core import trust, writer_guard
+    from magicite.core import backup, fingerprint_key, trust, writer_guard
 
     monkeypatch.setattr(writer_guard, "resolve_custody", lambda cfg: ("r", client))
+    fingerprint_key.load_or_create_fingerprint_key(cfg)
+    backup_path = tmp_path / "before-revoke-and-rotation"
+    backup.create_snapshot(cfg, conn, backup_path, domains=("trust",))
     policy = default_policy()
     trust.persist_decision(
         cfg,
@@ -269,6 +272,10 @@ def test_rotation_client_keeps_revoke_and_reconciles_epoch_under_existing_lease(
         )
         assert repeated["epoch"] == 2
         assert len(journal.snapshot().records) == 3
+        restored = backup.restore_snapshot(cfg, conn, backup_path)
+        assert restored["status"] == "ok", restored
+        assert journal.snapshot().head["epoch"] == 2
+        assert journal.snapshot().latest_by_engram["subject"]["decision"] == "revoke"
     finally:
         conn.close()
 

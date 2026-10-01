@@ -975,3 +975,73 @@ def test_signed_bundle_assets_use_registry_root_through_review_and_sync(enrolled
     assert bind_retrieval.load_skill_body(ctx, params).status != "ok"
     assert not router.route(cfg, conn, embedder, query="prepare proton tooling", k=5).candidates
     assert registry.sync(cfg, conn, embedder).validation_errors
+
+
+def test_pre_revoke_backup_restore_uses_current_authenticated_suffix(enrolled, tmp_path):
+    from magicite.core import backup, fingerprint_key
+
+    cfg, conn, _ = enrolled
+    fingerprint_key.load_or_create_fingerprint_key(cfg)
+    trust.persist_decision(cfg, conn, decision("admit-before-backup", "admit"))
+    destination = tmp_path / "before-revoke"
+    manifest = backup.create_snapshot(cfg, conn, destination, domains=("trust",))
+    assert manifest["trust_authority"]["head_sequence"] == 2
+    trust.persist_decision(cfg, conn, decision("revoke-after-backup", "revoke"))
+    result = backup.restore_snapshot(cfg, conn, destination)
+    assert result["status"] == "ok", result
+    assert trust.latest_decision_for(cfg, "subject").decision_id == "revoke-after-backup"
+    assert not trust.admission_still_valid(cfg, engram_id="subject", content_digest="a" * 64)
+
+
+def test_restore_rejects_unbound_trust_head_before_local_file_mutation(enrolled, tmp_path):
+    from magicite.core import backup, fingerprint_key
+    from magicite.errors import InvalidInputError
+
+    cfg, conn, _ = enrolled
+    fingerprint_key.load_or_create_fingerprint_key(cfg)
+    destination = tmp_path / "wrong-head"
+    backup.create_snapshot(cfg, conn, destination, domains=("trust",))
+    manifest_path = destination / "manifest.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    manifest["trust_authority"]["registry_id"] = "different-protected-enrollment"
+    manifest_path.write_text(json.dumps(manifest))
+    before = {
+        str(p.relative_to(cfg.data_dir)): p.read_bytes()
+        for p in cfg.data_dir.rglob("*")
+        if p.is_file() and not p.name.startswith("skill-graph.db")
+    }
+    with pytest.raises(InvalidInputError):
+        backup.restore_snapshot(cfg, conn, destination)
+    after = {
+        str(p.relative_to(cfg.data_dir)): p.read_bytes()
+        for p in cfg.data_dir.rglob("*")
+        if p.is_file() and not p.name.startswith("skill-graph.db")
+    }
+    assert before == after
+
+
+def test_missing_retained_custody_suffix_stops_restore_before_local_writes(enrolled, tmp_path, monkeypatch):
+    from magicite.core import backup, fingerprint_key
+
+    cfg, conn, store = enrolled
+    fingerprint_key.load_or_create_fingerprint_key(cfg)
+    destination = tmp_path / "missing-suffix"
+    backup.create_snapshot(cfg, conn, destination, domains=("trust",))
+    before = {
+        str(p.relative_to(cfg.data_dir)): p.read_bytes()
+        for p in cfg.data_dir.rglob("*")
+        if p.is_file() and not p.name.startswith("skill-graph.db")
+    }
+
+    def missing(*args, **kwargs):
+        raise CustodianError("retained suffix unavailable")
+
+    monkeypatch.setattr(store, "history_page", missing)
+    with pytest.raises(CustodianError):
+        backup.restore_snapshot(cfg, conn, destination)
+    after = {
+        str(p.relative_to(cfg.data_dir)): p.read_bytes()
+        for p in cfg.data_dir.rglob("*")
+        if p.is_file() and not p.name.startswith("skill-graph.db")
+    }
+    assert before == after
