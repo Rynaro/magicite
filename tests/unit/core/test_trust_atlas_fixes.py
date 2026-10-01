@@ -59,9 +59,9 @@ def test_approve_requires_live_digest_match(cfg, db_conn, embedder) -> None:
     outcome = registry_mod.register(cfg, db_conn, embedder, path="external-intake", fmt="egr")
     assert outcome.ingested == 1
     entry = outcome.registered[0]
-    live = db_conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)
-    ).fetchone()["content_sha256"]
+    live = db_conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)).fetchone()[
+        "content_sha256"
+    ]
 
     # Clear durable mirrors so approve has no prior staged digest to compare.
     for path in trust_mod.trust_decisions_dir(cfg).glob("*.json"):
@@ -80,9 +80,7 @@ def test_approve_requires_live_digest_match(cfg, db_conn, embedder) -> None:
             event_id="evt-forged-digest",
         )
 
-    row = db_conn.execute(
-        "SELECT verification_status FROM engram WHERE id = ?", (entry.id,)
-    ).fetchone()
+    row = db_conn.execute("SELECT verification_status FROM engram WHERE id = ?", (entry.id,)).fetchone()
     assert row["verification_status"] != "verified"
     assert not trust_mod.admission_still_valid(cfg, engram_id=entry.id, content_digest=live)
 
@@ -90,13 +88,13 @@ def test_approve_requires_live_digest_match(cfg, db_conn, embedder) -> None:
 # ── MAJOR 2: corrupt mirror fails closed ──────────────────────────────────
 
 
-def test_corrupt_mirror_fails_closed(cfg, db_conn, embedder) -> None:
+def test_corrupt_authority_fails_closed_while_mirror_is_only_projection(cfg, db_conn, embedder) -> None:
     _external_subject(cfg, name="corrupt-subj", eid="egr_c0c0c0c0")
     outcome = registry_mod.register(cfg, db_conn, embedder, path="external-intake", fmt="egr")
     entry = outcome.registered[0]
-    live = db_conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)
-    ).fetchone()["content_sha256"]
+    live = db_conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)).fetchone()[
+        "content_sha256"
+    ]
 
     registry_mod.review_approve(
         cfg, db_conn, engram_id=entry.id, expected_digest=live, actor="reviewer", event_id="evt-ok"
@@ -104,6 +102,10 @@ def test_corrupt_mirror_fails_closed(cfg, db_conn, embedder) -> None:
 
     corrupt = trust_mod.trust_decisions_dir(cfg) / "td_corrupt.json"
     corrupt.write_text("{not-json", encoding="utf-8")
+    # The unauthenticated projection cannot override a valid custody history.
+    assert trust_mod.admission_still_valid(cfg, engram_id=entry.id, content_digest=live)
+    authority = cfg.data_dir / "trust/authority/journal.jsonl"
+    authority.write_bytes(authority.read_bytes() + b"{not-json\n")
 
     with pytest.raises((InvalidInputError, trust_mod.TrustLedgerCorruptError)):
         trust_mod.list_decisions(cfg)
@@ -135,9 +137,9 @@ def test_approve_under_and_without_outer_lease(cfg, db_conn, embedder) -> None:
     _external_subject(cfg, name="lease-subj", eid="egr_1ea5e001")
     outcome = registry_mod.register(cfg, db_conn, embedder, path="external-intake", fmt="egr")
     entry = outcome.registered[0]
-    live = db_conn.execute(
-        "SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)
-    ).fetchone()["content_sha256"]
+    live = db_conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (entry.id,)).fetchone()[
+        "content_sha256"
+    ]
 
     held: list[bool] = []
     _orig_live = trust_mod.live_content_digest
@@ -244,13 +246,13 @@ def test_asset_change_invalidates_admission(cfg, db_conn, embedder) -> None:
         "routing:\n"
         "  positive: [asset bound]\n"
         "  negative: [mutable asset]\n"
-        f"  body_digest: \"{body_digest}\"\n"
+        f'  body_digest: "{body_digest}"\n'
         "origin:\n"
         "  channel: imported\n"
         "  verification_status: pending\n"
         "assets:\n"
         f"  {asset_rel}:\n"
-        f"    sha256: \"{sha}\"\n"
+        f'    sha256: "{sha}"\n'
         f"    size: {size}\n"
         "    media_type: text/plain\n"
         "---\n"
@@ -258,30 +260,10 @@ def test_asset_change_invalidates_admission(cfg, db_conn, embedder) -> None:
         encoding="utf-8",
     )
 
-    # Load via registry_root=registry_dir for asset containment, then ingest.
-    from magicite.engram import parser as parser_mod
-
-    artifact, _doc = parser_mod.load_artifact_file(
-        egr, registry_root=reg, require_asset_files=True
-    )
-    engram = registry_mod._artifact_to_engram(artifact, intake_channel="external_file")
-    engram.path = str(egr.resolve().relative_to(cfg.project_root.resolve()))
-    resource = assets_manifest_digest(
-        {asset_rel: {"sha256": sha, "size": size, "media_type": "text/plain"}}
-    )
-    with lease_mod.writer_lease(holder="test"):
-        entry, verr, _skipped, _dangling = registry_mod._ingest_one(
-            db_conn,
-            embedder,
-            engram,
-            profile="import",
-            registry_dir=reg,
-            cfg=cfg,
-            intake_channel="external_file",
-            resource_digest=resource,
-        )
-    assert verr is None and entry is not None
-    engram_id = entry.id
+    resource = assets_manifest_digest({asset_rel: {"sha256": sha, "size": size, "media_type": "text/plain"}})
+    outcome = registry_mod.register(cfg, db_conn, embedder, path=str(egr))
+    assert outcome.ingested == 1
+    engram_id = outcome.registered[0].id
     content_digest = db_conn.execute(
         "SELECT content_sha256 FROM engram WHERE id = ?", (engram_id,)
     ).fetchone()["content_sha256"]
@@ -354,13 +336,13 @@ def test_import_bundle_preserves_asset_hierarchy(cfg, db_conn, embedder, tmp_pat
         "routing:\n"
         "  positive: [nested bundle]\n"
         "  negative: [flattened import]\n"
-        f"  body_digest: \"{body_digest}\"\n"
+        f'  body_digest: "{body_digest}"\n'
         "origin:\n"
         "  channel: imported\n"
         "  verification_status: pending\n"
         "assets:\n"
         "  skills/assets/helper.bin:\n"
-        f"    sha256: \"{sha}\"\n"
+        f'    sha256: "{sha}"\n'
         f"    size: {len(asset_bytes)}\n"
         "    media_type: application/octet-stream\n"
         "---\n"
