@@ -1619,7 +1619,7 @@ def import_bundle(
             targets[rel] = raw
             if rel.endswith(".egr.md"):
                 artifact, _ = parser_mod.parse_artifact(raw.decode(), relpath=rel, admit=True)
-                revisions[artifact.name] = artifact.frontmatter.version
+                revisions[artifact.id] = artifact.frontmatter.version
         for rel, raw in list(targets.items()):
             if rel.endswith(".egr.md"):
                 marked = trust_artifacts.mark_artifact(raw,registry_id=journal.registry_id,relpath=rel,

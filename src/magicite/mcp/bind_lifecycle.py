@@ -203,7 +203,7 @@ def promote(ctx: ToolContext, params: PromoteInput) -> PromoteOutput:
     # guard) and outranks it -- a caller cannot leave a flagged engram
     # merely "denied" and routable-adjacent; it is quarantined immediately,
     # regardless of whether the engram is nascent, draft, probation, ...
-    scan = lifecycle_mod.check_injection_scan(project_root, row)
+    scan = lifecycle_mod.check_injection_scan(project_root, row, cfg=ctx.cfg)
     if scan.quarantine_recommended:
         with _cross_process_lease(ctx, "promote").acquire(), lease_mod.writer_lease(holder="promote"):
             durable_mod.set_verification_status(ctx.conn, engram_id=row["id"], to_status="quarantined")

@@ -45,7 +45,6 @@ from magicite.core import writer_guard
 from magicite.core.decay_math import effective_value
 from magicite.engram import ids as ids_mod
 from magicite.engram import lint as lint_mod
-from magicite.engram import parser as parser_mod
 from magicite.engram import writer as writer_mod
 from magicite.engram.lint import InjectionScanResult
 from magicite.engram.model import PitfallEntry, ProcedureStep, ProvenanceJournalEntry, VerificationStatus
@@ -265,7 +264,9 @@ class UpwardCheck:
         return self.to_status is not None and not self.unmet
 
 
-def check_injection_scan(project_root: Path, engram_row: sqlite3.Row) -> lint_mod.InjectionScanResult:
+def check_injection_scan(
+    project_root: Path, engram_row: sqlite3.Row, *, cfg: Config | None = None
+) -> lint_mod.InjectionScanResult:
     """spec §5.1's "any -> quarantined" row is unconditional on the
     engram's current ``status`` -- unlike the upward ladder below, which
     only re-scans as a *side effect* of evaluating the nascent branch's
@@ -275,8 +276,11 @@ def check_injection_scan(project_root: Path, engram_row: sqlite3.Row) -> lint_mo
     still caught -- not only a `nascent` one mid-evaluation of a different
     gate entirely."""
     file_path = project_root / str(engram_row["path"])
-    parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-    return lint_mod.injection_scan(parsed.engram)
+    from magicite.core import registry, trust_artifacts
+
+    artifact = trust_artifacts.require_bound_artifact(cfg or Config(project_root=project_root), file_path)
+    engram = registry._artifact_to_engram(artifact, intake_channel="local_register")
+    return lint_mod.injection_scan(engram)
 
 
 def evaluate_upward_transition(
@@ -312,8 +316,10 @@ def evaluate_upward_transition(
         # (nucleate()/core.distill lands in M6), so it is `n/a` (True) for
         # every origin this milestone can actually produce.
         file_path = project_root / str(engram_row["path"])
-        parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-        engram = parsed.engram
+        from magicite.core import registry, trust_artifacts
+
+        artifact = trust_artifacts.require_bound_artifact(cfg, file_path)
+        engram = registry._artifact_to_engram(artifact, intake_channel="local_register")
         if scan is None:
             scan = lint_mod.injection_scan(engram)
         rubric = fitness_mod.structural_rubric_score(engram)

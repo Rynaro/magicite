@@ -1045,3 +1045,61 @@ def test_missing_retained_custody_suffix_stops_restore_before_local_writes(enrol
         if p.is_file() and not p.name.startswith("skill-graph.db")
     }
     assert before == after
+
+
+def test_actual_promote_accepts_bound_marked_v1(enrolled):
+    from magicite.core import registry
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.mcp import bind_lifecycle
+    from magicite.mcp.registry import ToolContext
+    from magicite.mcp.schemas import PromoteInput
+
+    cfg, conn, _ = enrolled
+    fixture = (
+        Path(__file__).resolve().parents[2]
+        / "fixtures/toy-registry/engrams/proton-ge-proton-downgrade.egr.md"
+    )
+    (cfg.registry_dir / fixture.name).write_bytes(fixture.read_bytes())
+    embedder = get_embedder(dim=256)
+    registry.register(cfg, conn, embedder, path=".magicite/engrams")
+    result = bind_lifecycle.promote(
+        ToolContext(cfg=cfg, conn=conn, embedder=embedder), PromoteInput(name="proton-ge-proton-downgrade")
+    )
+    assert result.state == "proposed"
+    assert result.requires_approval is True
+    assert result.evidence["rubric_score"] == 12
+
+
+def test_actual_signed_legacy_bundle_pins_declared_dependency_by_id(enrolled, tmp_path):
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from magicite.core import bundles, registry, trust_artifacts
+    from magicite.embeddings.hashing_provider import get_embedder
+
+    cfg, conn, _ = enrolled
+    key = Ed25519PrivateKey.generate()
+    trust.pin_trust_root(cfg, public_key_bytes=key.public_key().public_bytes_raw())
+    source = tmp_path / "dependency-bundle"
+    source.mkdir()
+    fixture_root = Path(__file__).resolve().parents[2] / "fixtures/toy-registry/engrams"
+    source_raw = (fixture_root / "proton-ge-proton-downgrade.egr.md").read_text()
+    dependency_raw = (fixture_root / "steam-prefix-access.egr.md").read_text()
+    from magicite.engram import parser
+
+    dependency, _ = parser.parse_artifact(dependency_raw, relpath="dependency.egr.md")
+    source_raw = source_raw.replace(
+        "needs:",
+        "synapses:\n  - target: " + dependency.id + "\n"
+        "    type: depends_on\n    storage_strength: 0.0\n    evidence_count: 0\n"
+        "    provenance: declared\n    first_observed: '2026-09-30T00:00:00Z'\nneeds:",
+    )
+    (source / "source.egr.md").write_text(source_raw)
+    (source / "dependency.egr.md").write_text(dependency_raw)
+    archive = tmp_path / "dependency.zip"
+    bundles.write_signed_bundle(source_dir=source, out_path=archive, private_key=key)
+    outcome = registry.import_bundle(cfg, conn, get_embedder(dim=256), archive_path=archive)
+    assert outcome.ingested == 2, outcome.validation_errors
+    artifact = trust_artifacts.require_bound_artifact(cfg, cfg.registry_dir / "source.egr.md")
+    assert [(item.id, item.version) for item in artifact.frontmatter.relations.requires] == [
+        (dependency.id, dependency.frontmatter.version)
+    ]
