@@ -6,7 +6,7 @@
 | TH-05–06 | C0/C9; S12 fencing | Existing lease composition with monotonic external generation; minimal centrally owned lease helper |
 | TH-07 | S04, S07 router, S11 body gate | Validated sequence snapshot for every reader/writer; fresh pre-disclosure check |
 | TH-08 | C8; S03 migration | Explicit zero-write preview and reviewed legacy reconciliation; no inferred virgin state |
-| TH-09–10 | C8; S12 backup/restore | Authenticated retained suffix, epoch continuity, no direct mirror authority or unsafe downgrade |
+| TH-09–10 | C8; S12 backup/restore | Authenticated retained suffix, epoch continuity, no direct mirror authority or unsafe downgrade (supported paths, TH-A01) |
 | TH-11 | S12 doctor; S15 operations | Zero-write/redacted diagnosis, archive key exclusion, custody runbook |
 | TH-12 | S16 TRUST/SECURITY/GA-ALL | Original exploit closure and separate honest deployment qualification |
 

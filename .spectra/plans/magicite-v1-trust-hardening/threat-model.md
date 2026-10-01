@@ -19,6 +19,15 @@ or content safety. Rollback of both custodian authority and every independently 
 copy is outside the promised anti-shrink boundary. The service must durably persist
 before acknowledging; weaker periodic anchoring is not a conforming implementation.
 
+Pre-hardening binaries are outside the downgrade guarantee (TH-A01). After a
+post-migration revocation, hand-copying pre-migration bytes over the registry and
+running the frozen 22ae4e0 or earlier binary can route and disclose the revoked
+subject, because that binary never reads authenticated custody. The supported
+runtime on the same bytes keeps the revocation authoritative. Mitigation is operator
+procedure: never run pre-hardening binaries against a hardened registry, never
+hand-copy backups or `trust/sources/` over active files, and use
+`magicite migration restore`.
+
 No production qualification follows from unit tests with injected transports, fake
 peer credentials or same-account fixtures. Linux and macOS distinct-UID deployment
 rows start UNEVALUATED. The task authorizes functional code, tests and operator

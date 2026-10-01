@@ -69,6 +69,7 @@ deployment custody remains UNEVALUATED.
    LEGACY --reviewed-sha256 DIGEST --backup-path BACKUP --staging-path STAGE` only
    materializes the original bytes into inactive staging outside the project and
    reports `reconciliation_required`; tampered/unmatched backups are rejected.
+   Do not copy BACKUP contents over LEGACY by hand; see operations.md §backup (TH-A01).
 
 Policy registration/review is separate from promotion: `policy register-evaluated
 --manifest FILE --evaluation-status STATUS --evidence REFERENCE`, then `policy approve

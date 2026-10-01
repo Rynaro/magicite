@@ -1,6 +1,6 @@
 # Frozen additive trust-history acceptance criteria
 
-Version: 1. Adopted scope is additive to the original v1 packet. Changing these
+Version: 1 (Amended by amendments/TH-A01). Adopted scope is additive to the original v1 packet. Changing these
 obligations requires a recorded planning review; implementation may not weaken them.
 Fixture success is not production custody qualification.
 
@@ -60,9 +60,9 @@ VERIFY: pre-revoke backup/current-suffix restoration, anchor-ahead missing suffi
 
 ### AC-TH-10 — Rotation and downgrade continuity
 GIVEN an initialized authenticated epoch and current revocation state
-WHEN keys/epochs rotate, an old reader opens the new authority format, or downgrade is attempted
-THEN rotation SHALL bind old/new keys, epochs and heads through custodian CAS; unsupported readers SHALL reject the new authority; downgrade SHALL NOT reactivate revoked content or silently reset enrollment
-VERIFY: dual-bound epoch transition, stale/wrong-key rotation, old-format rejection and revocation-preserving downgrade/restricted recovery
+WHEN keys/epochs rotate, an old reader opens the new authority format, a supported downgrade path runs (documented `migration restore` into inactive staging, complete-backup restore through the supported runtime, or the frozen 22ae4e0 reader on migrated bytes including after derived database deletion), or the supported runtime opens rolled-back local bytes
+THEN rotation SHALL bind old/new keys, epochs and heads through custodian CAS; unsupported readers SHALL reject the new authority; supported downgrade paths SHALL NOT reactivate revoked content or silently reset enrollment; the supported runtime SHALL keep the latest authenticated revocation authoritative over any rolled-back local bytes or remain closed
+VERIFY: dual-bound epoch transition, stale/wrong-key rotation (tests/unit/core/test_trust_rotation.py, tests/unit/core/test_trust_rotation_transport.py), old-format rejection, and tests/integration/test_th10_old_reader_downgrade.py (new-format revoke vs 22ae4e0 reader; old admit → reviewed migration → revoke; migration restore staging; trust/authority deletion fails closed; hand-rollback residual: supported runtime still enforces revoke)
 
 ### AC-TH-11 — Diagnosis and confidentiality
 GIVEN unavailable, corrupt, stale or restricted custody/history

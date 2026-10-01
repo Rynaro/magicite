@@ -106,6 +106,7 @@ Rotation binds old/new keys, epochs and heads and preserves revocation continuit
 through custodian CAS. Old readers reject the new authority format. Downgrade must
 preserve current restrictions or remain closed; a pre-revoke snapshot alone cannot
 authorize restoration. Doctor only diagnoses; it does not reconcile or enroll.
+Downgrade scope is defined by TH-A01.
 
 ## Verification and release claims
 

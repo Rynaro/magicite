@@ -483,8 +483,13 @@ are protected. The recovery-point objective is the last verified checkpoint or
 snapshot; uncheckpointed evidence remains outside that recovery point. Keep current
 trust overlays and sequence anchors in independent custody: stale/missing material
 must keep restored routing closed. A restore must pass its recovery gate before
-activation. Retain complete pre-upgrade snapshots for rollback; do not reconstruct
-authoritative trust/policy decisions from the rebuildable database alone.
+activation. Retain complete pre-upgrade snapshots, but restore them only through
+`magicite migration restore` (inactive staging) or the supported backup restore; do
+not reconstruct authoritative trust/policy decisions from the rebuildable database
+alone. Never copy a backup, `trust/sources/` bytes or a VCS checkout over an active
+hardened registry, and never run a pre-hardening Magicite binary against it: such a
+binary ignores authenticated custody and can re-disclose content revoked after
+migration (TH-A01). The current runtime still enforces those revocations.
 
 The domain API `create_snapshot(..., include_secrets=True, encrypted_custody_path=...)`
 copies key bytes to the supplied custody path; Magicite does **not** encrypt
