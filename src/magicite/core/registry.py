@@ -29,6 +29,7 @@ import hashlib
 import hmac
 import json
 import os
+import random
 import re
 import shutil
 import sqlite3
@@ -1790,6 +1791,17 @@ def import_bundle(
     )
 
 
+#: Bound on how long an idempotent ``review_approve`` replay (one carrying an
+#: ``event_id``) waits for a competing holder of the trust-approve writer lease.
+#: A wall-clock budget (not an attempt count) so slow runners cannot exhaust it;
+#: 10s is a generous multiple of any healthy critical section yet well inside
+#: ``lease.DEFAULT_LEASE_TTL_S`` (60s, heartbeat 10s), so a wedged holder still
+#: fails closed with ``BusyError`` long before its lease could be considered stale.
+_REPLAY_BUSY_WAIT_S = 10.0
+_REPLAY_BUSY_SLEEP_MIN_S = 0.01
+_REPLAY_BUSY_SLEEP_MAX_S = 0.1
+
+
 def review_approve(
     cfg: Config,
     conn: sqlite3.Connection,
@@ -1803,9 +1815,9 @@ def review_approve(
     """Digest-bound local admission + verification_status flip + approval audit."""
     from magicite.errors import BusyError
 
-    attempts = 0
+    deadline = time.monotonic() + _REPLAY_BUSY_WAIT_S
+    delay = _REPLAY_BUSY_SLEEP_MIN_S
     while True:
-        attempts += 1
         try:
             cross_lease = _cross_process_lease(cfg, conn, "trust-approve")
             with cross_lease.acquire(), lease_mod.writer_lease():
@@ -1850,11 +1862,12 @@ def review_approve(
                 )
             return decision
         except BusyError:
-            if event_id is None or attempts >= 32:
+            if event_id is None or time.monotonic() >= deadline:
                 raise
             # Wait for the winner, then inspect its committed event under
             # the next acquired lease; an in-flight snapshot is not authority.
-            time.sleep(0.01)
+            time.sleep(delay * (0.5 + random.random() / 2))
+            delay = min(delay * 2, _REPLAY_BUSY_SLEEP_MAX_S)
             continue
 
 
