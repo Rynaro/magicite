@@ -25,7 +25,7 @@ def test_doctor_cli_reports_reconciliation_field(project_root: Path) -> None:
     assert "reconciliation_required" in report
 
 
-def test_trust_list_cli_empty(project_root: Path) -> None:
+def test_trust_list_cli_empty(cfg, project_root: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         cli,
@@ -56,7 +56,7 @@ def test_trust_approve_requires_actor(project_root: Path) -> None:
     assert result.exit_code != 0
 
 
-def test_policy_status_cli(project_root: Path) -> None:
+def test_policy_status_cli(cfg, project_root: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         cli,
@@ -69,7 +69,7 @@ def test_policy_status_cli(project_root: Path) -> None:
     assert "records" in payload
 
 
-def test_evidence_retention_status_carries_copy_notice(project_root: Path) -> None:
+def test_evidence_retention_status_carries_copy_notice(cfg, project_root: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         cli,
@@ -90,9 +90,7 @@ def test_backup_status_surfaces_reconciliation(project_root: Path) -> None:
     assert status["reconciliation_required"] is False
 
 
-def test_bind_ops_trust_review_note_does_not_imply_approval(
-    cfg, db_conn, embedder
-) -> None:
+def test_bind_ops_trust_review_note_does_not_imply_approval(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     row = db_conn.execute("SELECT id FROM engram LIMIT 1").fetchone()
     view = bind_ops.trust_review(cfg.project_root, engram_id=row["id"])

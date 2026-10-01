@@ -1,4 +1,5 @@
 """Public CLI completeness for existing fenced migration/policy/evidence domains."""
+
 from __future__ import annotations
 
 import json
@@ -20,8 +21,11 @@ def _run(root: Path, *args: str, success: bool = True) -> dict:
 
 
 def _tree(root: Path) -> dict:
-    return {str(p.relative_to(root)): (p.read_bytes(), p.stat().st_mtime_ns)
-            for p in root.rglob("*") if p.is_file()}
+    return {
+        str(p.relative_to(root)): (p.read_bytes(), p.stat().st_mtime_ns)
+        for p in root.rglob("*")
+        if p.is_file()
+    }
 
 
 def test_migration_readers_create_nothing(tmp_path: Path) -> None:
@@ -32,69 +36,137 @@ def test_migration_readers_create_nothing(tmp_path: Path) -> None:
     assert not (tmp_path / ".magicite").exists()
 
 
-def test_cli_upgrade_status_restore_and_tamper_gate(project_root: Path) -> None:
-    cfg = Config(project_root=project_root)
+def test_cli_upgrade_status_restore_and_tamper_gate(legacy_migration_case, tmp_path: Path) -> None:
+    from magicite.core import trust_legacy
+
+    cfg, plan, backup, _ = legacy_migration_case(tmp_path)
+    root = cfg.project_root
     original = {p.name: p.read_bytes() for p in cfg.registry_dir.glob("*.egr.md")}
-    _run(project_root, "migration", "preview")
-    applied = _run(project_root, "migration", "apply", "--operation-id", "cli-upgrade")
+    digest = trust_legacy.digest(plan)
+    args = ["--reviewed-sha256", digest, "--backup-path", str(backup)]
+    _run(root, "migration", "preview")
+    applied = _run(root, "migration", "apply", *args)
     assert applied["state"] == "completed"
     before = _tree(cfg.data_dir)
-    assert _run(project_root, "migration", "status", "--operation-id", "cli-upgrade")["state"] == "completed"
+    assert (
+        _run(root, "migration", "status", "--operation-id", applied["operation_id"])["state"] == "completed"
+    )
     assert _tree(cfg.data_dir) == before
-    backup = cfg.data_dir / applied["backup_relpath"]
-    alias = project_root / "backup-alias"
-    alias.symlink_to(backup, target_is_directory=True)
-    _run(project_root, "migration", "restore", "--backup-path", str(alias))
-    assert {p.name: p.read_bytes() for p in cfg.registry_dir.glob("*.egr.md")} == original
-    # A forged backup manifest must never authorize restore.
-    manifest = backup.parent / "manifest.json"
-    manifest.write_text('{}')
-    before = _tree(cfg.registry_dir)
-    _run(project_root, "migration", "restore", "--backup-path", str(backup), success=False)
-    assert _tree(cfg.registry_dir) == before
+    stage = tmp_path.parent / (tmp_path.name + "-operator-stage")
+    staged = _run(root, "migration", "restore", *args, "--staging-path", str(stage))
+    assert staged["state"] == "reconciliation_required"
+    assert {p.name: p.read_bytes() for p in (stage / "files/engrams").glob("*.egr.md")} == original
+    assert _tree(cfg.data_dir) == before
+    # A forged backup manifest must never authorize even restricted materialization.
+    (backup / "manifest.json").write_text("{}")
+    staged_before = _tree(stage)
+    _run(root, "migration", "restore", *args, "--staging-path", str(stage), success=False)
+    assert _tree(cfg.data_dir) == before
+    assert _tree(stage) == staged_before
 
 
-def test_cli_resumes_real_interrupted_migration(project_root: Path) -> None:
-    cfg = Config(project_root=project_root)
+def test_cli_resumes_real_interrupted_migration(legacy_migration_case, tmp_path: Path) -> None:
+    from magicite.core import trust_legacy
+
+    cfg, plan, backup, _ = legacy_migration_case(tmp_path)
+    digest = trust_legacy.digest(plan)
+    operation_id = "legacy-" + digest[:32]
+
     def crash(boundary: str) -> None:
-        if boundary == "boundary:backup_committed":
+        if boundary == "target_published":
             raise RuntimeError("injected interruption")
+
     with pytest.raises(RuntimeError):
-        migration.apply(cfg, operation_id="cli-resume", fault_hook=crash)
-    result = _run(project_root, "migration", "resume", "--operation-id", "cli-resume")
+        migration.apply(cfg, reviewed_sha256=digest, backup_path=backup, fault_hook=crash)
+    args = ["--operation-id", operation_id, "--reviewed-sha256", digest, "--backup-path", str(backup)]
+    result = _run(cfg.project_root, "migration", "resume", *args)
     assert result["state"] == "completed"
-    assert _run(project_root, "migration", "resume", "--operation-id", "cli-resume")["state"] == "completed"
+    retry = _run(cfg.project_root, "migration", "resume", *args)
+    assert retry["state"] == "completed" and retry["duplicate_noop"]
 
 
-def test_policy_registration_review_and_cas_are_public(tmp_path: Path) -> None:
-    manifest = policy_store.PolicyManifest(policy_id="dense-v1", policy_digest="a" * 64,
-        policy_family="stable", config_digest="c", calibration_digest=None,
-        index_generation_id="g", snapshot_id="s", selection="cosine_similarity")
+def test_policy_registration_review_and_cas_are_public(custody_for, tmp_path: Path) -> None:
+    custody_for(Config(project_root=tmp_path))
+    manifest = policy_store.PolicyManifest(
+        policy_id="dense-v1",
+        policy_digest="a" * 64,
+        policy_family="stable",
+        config_digest="c",
+        calibration_digest=None,
+        index_generation_id="g",
+        snapshot_id="s",
+        selection="cosine_similarity",
+    )
     path = tmp_path / "policy.json"
     path.write_text(json.dumps(manifest.to_dict()))
-    _run(tmp_path, "policy", "register-evaluated", "--manifest", str(path),
-         "--evaluation-status", "inconclusive", "--evidence", "fixture-only")
-    approval = _run(tmp_path, "policy", "approve", "--policy-digest", manifest.policy_digest,
-                    "--actor", "fixture")["approval_id"]
-    _run(tmp_path, "policy", "activate", "--candidate-digest", manifest.policy_digest,
-         "--approval-id", approval)
-    _run(tmp_path, "policy", "activate", "--candidate-digest", manifest.policy_digest,
-         "--approval-id", approval, "--expected-current", "stale", success=False)
+    _run(
+        tmp_path,
+        "policy",
+        "register-evaluated",
+        "--manifest",
+        str(path),
+        "--evaluation-status",
+        "inconclusive",
+        "--evidence",
+        "fixture-only",
+    )
+    approval = _run(
+        tmp_path, "policy", "approve", "--policy-digest", manifest.policy_digest, "--actor", "fixture"
+    )["approval_id"]
+    _run(
+        tmp_path,
+        "policy",
+        "activate",
+        "--candidate-digest",
+        manifest.policy_digest,
+        "--approval-id",
+        approval,
+    )
+    _run(
+        tmp_path,
+        "policy",
+        "activate",
+        "--candidate-digest",
+        manifest.policy_digest,
+        "--approval-id",
+        approval,
+        "--expected-current",
+        "stale",
+        success=False,
+    )
 
 
-def test_cli_checkpoint_is_durable_idempotent_self_report(tmp_path: Path) -> None:
+def test_cli_checkpoint_is_durable_idempotent_self_report(custody_for, tmp_path: Path) -> None:
     from magicite.core import evidence
+
     cfg = Config(project_root=tmp_path)
+    custody_for(cfg)
     cfg.ensure_dirs()
     conn = db.connect(cfg.db_path)
-    decision = evidence.EvidenceEvent(event_id="ev_decision", decision_id="dec_fixture",
-        event_type="decision", recorded_at="2026-09-30T00:00:00Z", chosen_action="skill_a",
-        candidate_ids=("skill_a",), candidate_revisions=("digest_a",),
-        behavior_policy_id="dense-v1", behavior_policy_digest="policy_digest", source_tier=0)
+    decision = evidence.EvidenceEvent(
+        event_id="ev_decision",
+        decision_id="dec_fixture",
+        event_type="decision",
+        recorded_at="2026-09-30T00:00:00Z",
+        chosen_action="skill_a",
+        candidate_ids=("skill_a",),
+        candidate_revisions=("digest_a",),
+        behavior_policy_id="dense-v1",
+        behavior_policy_digest="policy_digest",
+        source_tier=0,
+    )
     evidence.checkpoint(cfg, conn, decision)
     conn.close()
-    args = ("evidence", "checkpoint", "--decision-event-id", "ev_decision", "--event-id", "ev_fixture",
-            "--outcome", "success")
+    args = (
+        "evidence",
+        "checkpoint",
+        "--decision-event-id",
+        "ev_decision",
+        "--event-id",
+        "ev_fixture",
+        "--outcome",
+        "success",
+    )
     first = _run(tmp_path, *args)
     second = _run(tmp_path, *args)
     assert first["sequence"] == second["sequence"]
@@ -116,8 +188,18 @@ def test_cli_checkpoint_is_durable_idempotent_self_report(tmp_path: Path) -> Non
 
 
 def test_checkpoint_rejects_missing_original_decision(tmp_path: Path) -> None:
-    _run(tmp_path, "evidence", "checkpoint", "--decision-event-id", "missing",
-         "--event-id", "ev_new", "--outcome", "success", success=False)
+    _run(
+        tmp_path,
+        "evidence",
+        "checkpoint",
+        "--decision-event-id",
+        "missing",
+        "--event-id",
+        "ev_new",
+        "--outcome",
+        "success",
+        success=False,
+    )
     assert not list((tmp_path / ".magicite/evidence/segments").glob("*.events.jsonl"))
 
 
@@ -125,11 +207,15 @@ def test_checkpoint_rejects_missing_original_decision(tmp_path: Path) -> None:
 def test_cli_exception_details_never_disclose_canaries(tmp_path: Path, monkeypatch, unexpected) -> None:
     from magicite.errors import InvalidInputError
     from magicite.mcp import bind_ops
+
     def fail(*args, **kwargs):
         if unexpected:
             raise RuntimeError("raw-query-canary /private/tmp/secret")
-        raise InvalidInputError("raw-query-canary /private/tmp/secret",
-            details={"code":"detail-secret-canary", "nested":{"code":"nested-secret-canary"}})
+        raise InvalidInputError(
+            "raw-query-canary /private/tmp/secret",
+            details={"code": "detail-secret-canary", "nested": {"code": "nested-secret-canary"}},
+        )
+
     monkeypatch.setattr(bind_ops, "migration_preview", fail)
     result = CliRunner().invoke(cli, ["migration", "preview", "--project-root", str(tmp_path)])
     assert result.exit_code == 1
@@ -138,28 +224,55 @@ def test_cli_exception_details_never_disclose_canaries(tmp_path: Path, monkeypat
     assert json.loads(result.output)["code"]
 
 
-def test_explicit_route_checkpoint_replays_original_and_conflicts(project_root: Path, monkeypatch) -> None:
+def test_explicit_route_checkpoint_replays_original_and_conflicts(
+    cfg, project_root: Path, monkeypatch
+) -> None:
     from magicite.core import registry
     from magicite.embeddings.hashing_provider import get_embedder
     from magicite.mcp import bind_ops
+
     monkeypatch.setenv("MAGICITE_EMBEDDING_PROVIDER", "hashing")
     cfg = Config(project_root=project_root)
     conn = db.connect(cfg.db_path)
     registry.register(cfg, conn, get_embedder(dim=256), path=".magicite/engrams")
+    from tests.conftest import TOY_ENGRAM_NAMES
+    from tests.support.custody_adapter import review_toy_sources
+
+    review_toy_sources(cfg, conn, names=TOY_ENGRAM_NAMES)
     conn.close()
-    request = {"query":"force game onto nvidia gpu", "k":1}
+    request = {"query": "force game onto nvidia gpu", "k": 1}
     first = bind_ops.evidence_route_checkpoint(project_root, request=request, event_id="ev_real")
     second = bind_ops.evidence_route_checkpoint(project_root, request=request, event_id="ev_real")
     assert first["decision_id"] == second["decision_id"]
     assert first["selected_content_digests"] == second["selected_content_digests"]
     assert second["checkpoint"]["replayed"]
     from magicite.errors import IdempotencyKeyConflictError
+
     with pytest.raises(IdempotencyKeyConflictError):
-        bind_ops.evidence_route_checkpoint(project_root, request={"query":"different"}, event_id="ev_real")
-    _run(project_root, "evidence", "checkpoint", "--decision-event-id", "ev_real",
-         "--event-id", "ev_feedback", "--outcome", "success")
-    _run(project_root, "evidence", "checkpoint", "--decision-event-id", "ev_real",
-         "--event-id", "ev_feedback", "--outcome", "failure", success=False)
+        bind_ops.evidence_route_checkpoint(project_root, request={"query": "different"}, event_id="ev_real")
+    _run(
+        project_root,
+        "evidence",
+        "checkpoint",
+        "--decision-event-id",
+        "ev_real",
+        "--event-id",
+        "ev_feedback",
+        "--outcome",
+        "success",
+    )
+    _run(
+        project_root,
+        "evidence",
+        "checkpoint",
+        "--decision-event-id",
+        "ev_real",
+        "--event-id",
+        "ev_feedback",
+        "--outcome",
+        "failure",
+        success=False,
+    )
     ledger = "".join(p.read_text() for p in (cfg.data_dir / "evidence/segments").glob("*.jsonl"))
     assert request["query"] not in ledger
 
@@ -167,8 +280,19 @@ def test_explicit_route_checkpoint_replays_original_and_conflicts(project_root: 
 def test_checkpoint_rejects_unknown_schema_before_creating_state(tmp_path: Path) -> None:
     request = tmp_path / "request.json"
     request.write_text(json.dumps({"schema_version": "RouteInput/future", "query": "private-query"}))
-    result = CliRunner().invoke(cli, ["evidence", "checkpoint", "--project-root", str(tmp_path),
-        "--route-request", str(request), "--event-id", "unsupported"])
+    result = CliRunner().invoke(
+        cli,
+        [
+            "evidence",
+            "checkpoint",
+            "--project-root",
+            str(tmp_path),
+            "--route-request",
+            str(request),
+            "--event-id",
+            "unsupported",
+        ],
+    )
     assert result.exit_code != 0
     assert "private-query" not in result.output
     assert not (tmp_path / ".magicite").exists()
