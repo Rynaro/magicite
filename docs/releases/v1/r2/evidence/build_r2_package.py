@@ -71,13 +71,43 @@ WITNESSES = (
     ("LEARNING", "containment", "learning-containment.json"),
     ("LEARNING", "fully-gated-or-unavailable", "learning-fully-gated-or-unavailable.json"),
 )
-# Disclosed for the checker only; never applied automatically (strict v1 node mapping).
-SUCCESSOR_CANDIDATES = {
-    "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_refuses_preserve": [
-        "tests/integration/test_backup_restore_v1.py::"
-        "test_deleted_revoke_mirror_preserves_authenticated_restriction"
+# Witness node remaps adjudicated by the independent checker (RAMZA REQUEST-CHANGES on 49e144a).
+MAPPING_CHANGES = {
+    "privacy-lifecycle-tests.json": [
+        {
+            "from": "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_refuses_preserve",
+            "to": "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_preserves_authenticated_restriction",
+            "reason": "Trust hardening (9bf9ca0, PR #32) made decision mirrors non-authoritative; the successor exercises the same backup -> revoke-mirror deletion -> restore(preserve_live_overlay=True) scenario and asserts the revocation remains effective and admission invalid",
+            "adjudicated_by": "independent checker",
+        }
     ],
 }
+PRIVACY_REASON = (
+    "Re-derived from the r2 junit with one disclosed witness mapping change (lifecycle-tests: "
+    "test_deleted_revoke_mirror_refuses_preserve -> test_deleted_revoke_mirror_preserves_authenticated_restriction). "
+    "The data-map witness re-binds the c0782fd evidence-privacy map, which is scoped to evidence surfaces; it does "
+    "not list trust authority/custodian surfaces and its last sentence is historical."
+)
+NUMBER_WORDS = (
+    "Zero",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+)
 GATE_ORDER = (
     "POLICY",
     "EVIDENCE",
@@ -1038,7 +1068,17 @@ class Builder:
             if (old["gate"], old["obligation"]) != (gate, obligation):
                 raise BuildError(f"historical witness mismatch: {name}")
             nodes = list(old["executed_nodes"])
+            changes = MAPPING_CHANGES.get(name, [])
+            for change in changes:
+                if change["from"] not in nodes:
+                    raise BuildError(f"mapping change source absent from {name}")
+                nodes[nodes.index(change["from"])] = change["to"]
             status, bad = self.node_status(nodes)
+            mapping = (
+                "same node mapping as the c0782fd witness except one disclosed successor (see mapping_changes)"
+                if changes
+                else "same node mapping as the c0782fd witness"
+            )
             artifacts = [
                 remap[a["path"]]() if a["path"] in remap else self.ref(a["path"]) for a in old["artifacts"]
             ]
@@ -1054,17 +1094,16 @@ class Builder:
                 "producer": PRODUCER,
                 "schema": "magicite/release-witness/1",
                 "scope": "Draft r2 local mechanical evidence against clean tested source "
-                f"{SOURCE}; same node mapping as the c0782fd witness; status derived from the r2 "
+                f"{SOURCE}; {mapping}; status derived from the r2 "
                 "junit; no production, external or RC qualification.",
                 "source_commit": SOURCE,
                 "status": status,
                 **self.review_fields(),
             }
+            if changes:
+                body["mapping_changes"] = changes
             if bad:
                 body["unpassed_or_missing_nodes"] = bad
-                candidates = {n: SUCCESSOR_CANDIDATES[n] for n in bad if n in SUCCESSOR_CANDIDATES}
-                if candidates:
-                    body["successor_candidates_for_checker"] = candidates
             self.witness_status[(gate, obligation)] = (status, bad)
             self.witness_refs.setdefault(gate, []).append(self.write(f"{EV}/{name}", dump(body)))
 
@@ -1287,8 +1326,8 @@ class Builder:
             "TRUST": (
                 "Known v1 mirror-deletion defect is not reproduced at r2 and its regressions pass, but a "
                 "named adversarial corpus is absent, additive trust rows remain partly unwitnessed and "
-                "separate-UID custody is unqualified. No remaining known defect: proposed UNEVALUATED, "
-                "not FAIL (checker decision).",
+                "separate-UID custody is unqualified. No remaining known defect: adjudicated UNEVALUATED, "
+                "not FAIL (independent checker).",
                 {
                     "offline-tamper": (
                         "PASS",
@@ -1314,7 +1353,7 @@ class Builder:
             "SECURITY": (
                 "The v1 critical finding is not reproduced at r2, but no release-scoped threat model, "
                 "bounded fuzz/adversarial evidence or independent security review of the r2 source is "
-                "recorded. Proposed UNEVALUATED, not FAIL (checker decision).",
+                "recorded. Adjudicated UNEVALUATED, not FAIL (independent checker).",
                 {
                     "threat-model": (
                         u,
@@ -1378,9 +1417,9 @@ class Builder:
             ),
             "GA-ALL": (
                 "Required gates do not all pass; maintainer sign-off and fetched published artifact checks "
-                "are absent. No gate is a known FAIL at r2: proposed UNEVALUATED (checker decision).",
+                "are absent. No gate is a known FAIL at r2: adjudicated UNEVALUATED, not FAIL (independent checker).",
                 {
-                    "all-required-gates": (u, "Fourteen gates are not PASS at r2."),
+                    "all-required-gates": (u, "{not_pass} gates are not PASS at r2."),
                     "maintainer-signoff": (u, "No maintainer sign-off."),
                     "fetched-artifacts": (u, "No published artifacts fetched or verified."),
                 },
@@ -1403,21 +1442,16 @@ class Builder:
                     status="PASS" if ok else "UNEVALUATED",
                     supporting_artifacts=ledger_support,
                 )
-                if ok:
+                if ok and gate == "PRIVACY":
+                    entry["reason"] = PRIVACY_REASON
+                elif ok:
                     entry["reason"] = old[gate]["reason"] + " Re-derived from the r2 junit."
                 else:
                     missing = sorted({n for _, b in statuses for n in b})
-                    successor = all(n in SUCCESSOR_CANDIDATES for n in missing)
                     entry["reason"] = (
-                        "Strict v1 node mapping is not fully executed at r2: "
+                        "Witness node mapping is not fully executed at r2: "
                         + ", ".join(missing)
-                        + " is not a passed r2 node"
-                        + (
-                            "; a successor node is disclosed in the witness for the checker"
-                            if successor
-                            else ""
-                        )
-                        + ". Other obligations re-derived PASS."
+                        + " is not a passed r2 node."
                     )
             elif gate in fresh:
                 reason, proposals, support = fresh[gate]
@@ -1439,6 +1473,10 @@ class Builder:
                     supporting_artifacts=ledger_support,
                 )
             out.append(entry)
+        not_pass = sum(g["status"] != "PASS" for g in out)
+        for entry in out:
+            for proposal in entry.get("obligation_proposals", {}).values():
+                proposal["reason"] = proposal["reason"].replace("{not_pass}", NUMBER_WORDS[not_pass])
         return out
 
     def manifest(self) -> None:
@@ -1511,7 +1549,7 @@ class Builder:
         lines += [
             "",
             f"{tally['PASS']} mechanical PASS gates, {tally['UNEVALUATED']} UNEVALUATED gates and "
-            f"{tally['FAIL']} FAIL gates are proposed. Obligation-level PASS candidates are not gate PASS: "
+            f"{tally['FAIL']} FAIL gates. Obligation-level PASS candidates are not gate PASS: "
             "no witness file was produced for them and their gates have other unmet obligations.",
             "",
             "Missing external evidence is not waived. Absent mandatory evidence independently blocks GA. "
@@ -1582,12 +1620,11 @@ reviewer. Hand edits are not a review.
   [custody-attached probe](evidence/probe-checkpoint-process-death-custody.py)
   ({self.checkpoint["status"]}). The AC-S14-01 hashing-smoke subcheck was not
   re-executed and is marked UNEVALUATED (that row was already UNEVALUATED).
-- TRUST and SECURITY move from FAIL to a proposed UNEVALUATED, and GA-ALL from FAIL
-  to a proposed UNEVALUATED: no known defect is reproduced at r2, but obligations
-  are unrun or unwitnessed.
-  PRIVACY moves from PASS to a proposed UNEVALUATED only because the strict v1
-  lifecycle-tests mapping names a node absent from the r2 run; the successor node
-  is disclosed in the witness for the checker. These are proposals, not findings.
+- TRUST and SECURITY move from FAIL to an adjudicated UNEVALUATED, and GA-ALL from
+  FAIL to an adjudicated UNEVALUATED: no known defect is reproduced at r2, but
+  obligations are unrun or unwitnessed.
+  PRIVACY remains PASS with one independently adjudicated, disclosed witness mapping
+  change (see privacy-lifecycle-tests.json mapping_changes).
 
 Criterion PASS is the complete stated mechanical obligation only. It does not
 substitute for an empirical release gate, and fixture or same-account custody is
@@ -1604,9 +1641,10 @@ synced from `uv.lock`. That is not the declared Python 3.11/3.12 release matrix.
 - The PRIVACY data-map witness still binds `docs/releases/v1/privacy-data-map.md`,
   whose last sentence describes the historical live trust-mirror weakness and which
   does not list the trust authority journal or custodian surfaces.
-- Whether gates with no remaining known defect but unrun obligations (TRUST,
-  SECURITY, GA-ALL) are FAIL or UNEVALUATED; whether to adopt the PRIVACY successor
-  node; whether obligation-level PASS candidates deserve fresh witness files.
+- Checker decisions recorded: TRUST, SECURITY and GA-ALL are adjudicated
+  UNEVALUATED, not FAIL (no known defect remains reproduced, obligations unrun);
+  the PRIVACY lifecycle-tests successor node is adopted as a disclosed mapping change.
+- Still open: whether obligation-level PASS candidates deserve fresh witness files.
 
 ## Still required
 

@@ -126,7 +126,7 @@
         "server-origin",
         "adversarial-corpus"
       ],
-      "reason": "Known v1 mirror-deletion defect is not reproduced at r2 and its regressions pass, but a named adversarial corpus is absent, additive trust rows remain partly unwitnessed and separate-UID custody is unqualified. No remaining known defect: proposed UNEVALUATED, not FAIL (checker decision).",
+      "reason": "Known v1 mirror-deletion defect is not reproduced at r2 and its regressions pass, but a named adversarial corpus is absent, additive trust rows remain partly unwitnessed and separate-UID custody is unqualified. No remaining known defect: adjudicated UNEVALUATED, not FAIL (independent checker).",
       "review_status": "PENDING",
       "reviewed_package": "",
       "reviewer": "",
@@ -204,7 +204,7 @@
         },
         {
           "path": "docs/releases/v1/r2/evidence/privacy-lifecycle-tests.json",
-          "sha256": "7bf966bf1240fd1555399312231b2af9c74acd6ce11c3857ca5c6393e544b1b4"
+          "sha256": "3c6925de40c0b3cf8cc436e389136b3a6f4f04de2cc84ca036382e6e0dc12db1"
         }
       ],
       "id": "PRIVACY",
@@ -215,11 +215,11 @@
         "checkpoint-rpo",
         "lifecycle-tests"
       ],
-      "reason": "Strict v1 node mapping is not fully executed at r2: tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_refuses_preserve is not a passed r2 node; a successor node is disclosed in the witness for the checker. Other obligations re-derived PASS.",
+      "reason": "Re-derived from the r2 junit with one disclosed witness mapping change (lifecycle-tests: test_deleted_revoke_mirror_refuses_preserve -> test_deleted_revoke_mirror_preserves_authenticated_restriction). The data-map witness re-binds the c0782fd evidence-privacy map, which is scoped to evidence surfaces; it does not list trust authority/custodian surfaces and its last sentence is historical.",
       "review_status": "PENDING",
       "reviewed_package": "",
       "reviewer": "",
-      "status": "UNEVALUATED",
+      "status": "PASS",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
@@ -451,7 +451,7 @@
         "bounded-fuzz-adversarial",
         "critical-resolved"
       ],
-      "reason": "The v1 critical finding is not reproduced at r2, but no release-scoped threat model, bounded fuzz/adversarial evidence or independent security review of the r2 source is recorded. Proposed UNEVALUATED, not FAIL (checker decision).",
+      "reason": "The v1 critical finding is not reproduced at r2, but no release-scoped threat model, bounded fuzz/adversarial evidence or independent security review of the r2 source is recorded. Adjudicated UNEVALUATED, not FAIL (independent checker).",
       "review_status": "PENDING",
       "reviewed_package": "",
       "reviewer": "",
@@ -478,7 +478,7 @@
       "obligation_proposals": {
         "all-required-gates": {
           "proposed_status": "UNEVALUATED",
-          "reason": "Fourteen gates are not PASS at r2."
+          "reason": "Thirteen gates are not PASS at r2."
         },
         "fetched-artifacts": {
           "proposed_status": "UNEVALUATED",
@@ -494,7 +494,7 @@
         "maintainer-signoff",
         "fetched-artifacts"
       ],
-      "reason": "Required gates do not all pass; maintainer sign-off and fetched published artifact checks are absent. No gate is a known FAIL at r2: proposed UNEVALUATED (checker decision).",
+      "reason": "Required gates do not all pass; maintainer sign-off and fetched published artifact checks are absent. No gate is a known FAIL at r2: adjudicated UNEVALUATED, not FAIL (independent checker).",
       "review_status": "PENDING",
       "reviewed_package": "",
       "reviewer": "",
@@ -509,7 +509,7 @@
   ],
   "generated_by": {
     "path": "docs/releases/v1/r2/evidence/build_r2_package.py",
-    "sha256": "f481810ec84149118e70e34ec19811f239c1282234a0d1db1efed98ba3cef683"
+    "sha256": "f5a35910db46ee46c111a01be0a31adf09b0e8a27b0ec734eb5fc9af8079ff25"
   },
   "held_decisions": [
     "MCP surface amendment (16 tools remain)",

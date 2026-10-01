@@ -52,12 +52,11 @@ reviewer. Hand edits are not a review.
   [custody-attached probe](evidence/probe-checkpoint-process-death-custody.py)
   (PASS). The AC-S14-01 hashing-smoke subcheck was not
   re-executed and is marked UNEVALUATED (that row was already UNEVALUATED).
-- TRUST and SECURITY move from FAIL to a proposed UNEVALUATED, and GA-ALL from FAIL
-  to a proposed UNEVALUATED: no known defect is reproduced at r2, but obligations
-  are unrun or unwitnessed.
-  PRIVACY moves from PASS to a proposed UNEVALUATED only because the strict v1
-  lifecycle-tests mapping names a node absent from the r2 run; the successor node
-  is disclosed in the witness for the checker. These are proposals, not findings.
+- TRUST and SECURITY move from FAIL to an adjudicated UNEVALUATED, and GA-ALL from
+  FAIL to an adjudicated UNEVALUATED: no known defect is reproduced at r2, but
+  obligations are unrun or unwitnessed.
+  PRIVACY remains PASS with one independently adjudicated, disclosed witness mapping
+  change (see privacy-lifecycle-tests.json mapping_changes).
 
 Criterion PASS is the complete stated mechanical obligation only. It does not
 substitute for an empirical release gate, and fixture or same-account custody is
@@ -74,9 +73,10 @@ synced from `uv.lock`. That is not the declared Python 3.11/3.12 release matrix.
 - The PRIVACY data-map witness still binds `docs/releases/v1/privacy-data-map.md`,
   whose last sentence describes the historical live trust-mirror weakness and which
   does not list the trust authority journal or custodian surfaces.
-- Whether gates with no remaining known defect but unrun obligations (TRUST,
-  SECURITY, GA-ALL) are FAIL or UNEVALUATED; whether to adopt the PRIVACY successor
-  node; whether obligation-level PASS candidates deserve fresh witness files.
+- Checker decisions recorded: TRUST, SECURITY and GA-ALL are adjudicated
+  UNEVALUATED, not FAIL (no known defect remains reproduced, obligations unrun);
+  the PRIVACY lifecycle-tests successor node is adopted as a disclosed mapping change.
+- Still open: whether obligation-level PASS candidates deserve fresh witness files.
 
 ## Still required
 

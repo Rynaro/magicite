@@ -130,7 +130,7 @@
     "tests/integration/test_backup_restore_v1.py::test_complete_restore",
     "tests/integration/test_backup_restore_v1.py::test_custody_key_install_no_rekey",
     "tests/integration/test_backup_restore_v1.py::test_deleted_privacy_tombstone_refuses_preserve",
-    "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_refuses_preserve",
+    "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_preserves_authenticated_restriction",
     "tests/integration/test_backup_restore_v1.py::test_missing_stale_overlay_closed",
     "tests/integration/test_backup_restore_v1.py::test_poison_live_overlay_refuses_preserve",
     "tests/integration/test_backup_restore_v1.py::test_policy_reapplication",
@@ -179,21 +179,21 @@
     "path": "uv.lock",
     "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
   },
+  "mapping_changes": [
+    {
+      "adjudicated_by": "independent checker",
+      "from": "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_refuses_preserve",
+      "reason": "Trust hardening (9bf9ca0, PR #32) made decision mirrors non-authoritative; the successor exercises the same backup -> revoke-mirror deletion -> restore(preserve_live_overlay=True) scenario and asserts the revocation remains effective and admission invalid",
+      "to": "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_preserves_authenticated_restriction"
+    }
+  ],
   "obligation": "lifecycle-tests",
   "producer": "Vivi /s16-readjudication r2 maker",
   "review_status": "PENDING",
   "reviewed_package": "",
   "reviewer": "",
   "schema": "magicite/release-witness/1",
-  "scope": "Draft r2 local mechanical evidence against clean tested source 9bf9ca025fc4513592f72d7f6f1c04563a31bc8c; same node mapping as the c0782fd witness; status derived from the r2 junit; no production, external or RC qualification.",
+  "scope": "Draft r2 local mechanical evidence against clean tested source 9bf9ca025fc4513592f72d7f6f1c04563a31bc8c; same node mapping as the c0782fd witness except one disclosed successor (see mapping_changes); status derived from the r2 junit; no production, external or RC qualification.",
   "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",
-  "status": "UNEVALUATED",
-  "successor_candidates_for_checker": {
-    "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_refuses_preserve": [
-      "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_preserves_authenticated_restriction"
-    ]
-  },
-  "unpassed_or_missing_nodes": [
-    "tests/integration/test_backup_restore_v1.py::test_deleted_revoke_mirror_refuses_preserve"
-  ]
+  "status": "PASS"
 }
