@@ -78,6 +78,10 @@ def check_next(
     payload: dict[str, Any],
 ) -> None:
     active = active_plan(records)
+    if kind == "artifact_transform" and payload.get("legacy_provenance") is not None:
+        legacy = payload["legacy_provenance"]
+        if active is None or any(legacy[key] != active[key] for key in ("manifest_digest", "backup_digest")):
+            raise CustodianError("legacy provenance requires its authenticated reviewed plan")
     if kind == "legacy_reconciliation":
         validate(payload)
         if (

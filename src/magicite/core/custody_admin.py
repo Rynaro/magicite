@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -21,7 +22,7 @@ class CustodyCommands(click.Group):
     def invoke(self, ctx: click.Context) -> object:
         try:
             return super().invoke(ctx)
-        except (CustodianError, OSError, ValueError, KeyError) as exc:
+        except (CustodianError, OSError, ValueError, KeyError, sqlite3.Error) as exc:
             raise click.ClickException(
                 "reconciliation_required: verify protected custody and reviewed inputs"
             ) from exc
@@ -240,3 +241,59 @@ def rotate(project_root: Path, transition_id: str, actor: str) -> None:
         )
     finally:
         conn.close()
+
+
+@custody_cli.command(name="legacy-preview")
+@click.option("--project-root", default=".", type=click.Path(path_type=Path))
+@click.option("--registry-id", required=True)
+@click.option("--actor", required=True)
+def legacy_preview(project_root: Path, registry_id: str, actor: str) -> None:
+    """Print zero-write unsigned legacy inventory for explicit operator review."""
+    from magicite.core import trust_legacy
+
+    plan = trust_legacy.preview(Config.load(project_root), registry_id=registry_id, actor=actor)
+    _emit({"reviewed_sha256": trust_legacy.digest(plan), "plan": plan})
+
+
+@custody_cli.command(name="legacy-backup")
+@click.option("--project-root", default=".", type=click.Path(path_type=Path))
+@click.option("--plan", "plan_path", required=True, type=click.Path(path_type=Path, exists=True))
+@click.option("--reviewed-sha256", required=True)
+@click.option("--destination", required=True, type=click.Path(path_type=Path))
+@click.option("--encrypted-custody-reference", type=click.Path(path_type=Path, exists=True))
+def legacy_backup(
+    project_root: Path,
+    plan_path: Path,
+    reviewed_sha256: str,
+    destination: Path,
+    encrypted_custody_reference: Path | None,
+) -> None:
+    """Back up exact reviewed legacy state before any migration changes."""
+    from magicite.core import trust_legacy
+
+    plan = json.loads(plan_path.read_bytes())
+    reference = json.loads(encrypted_custody_reference.read_bytes()) if encrypted_custody_reference else None
+    _emit(
+        trust_legacy.backup_reviewed(
+            Config.load(project_root),
+            plan=plan,
+            reviewed_sha256=reviewed_sha256,
+            destination=destination,
+            encrypted_custody=reference,
+        )
+    )
+
+
+@custody_cli.command(name="legacy-apply")
+@click.option("--project-root", default=".", type=click.Path(path_type=Path))
+@click.option("--backup", "backup_path", required=True, type=click.Path(path_type=Path, exists=True))
+@click.option("--reviewed-sha256", required=True)
+def legacy_apply(project_root: Path, backup_path: Path, reviewed_sha256: str) -> None:
+    """Apply or resume an exact reviewed backup; every target still needs review."""
+    from magicite.core import trust_legacy
+
+    _emit(
+        trust_legacy.apply_reviewed(
+            Config.load(project_root), backup_path=backup_path, reviewed_sha256=reviewed_sha256
+        )
+    )

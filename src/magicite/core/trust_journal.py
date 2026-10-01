@@ -267,6 +267,15 @@ class TrustJournal:
                             raise CustodianError("invalid source decision reference")
                         if original.get("signature_valid") is True and original.get("signer_fingerprint"):
                             signers.add(original["signer_fingerprint"])
+                    legacy = lineage.get("legacy_provenance")
+                    if legacy is not None:
+                        # Unsigned historical claims can restrict, never verify
+                        # a publisher or grant transformed-target admission.
+                        signers.update(
+                            original["signer_fingerprint"]
+                            for original in legacy["original_decisions"]
+                            if original.get("signer_fingerprint")
+                        )
                     provenance = lineage["signature_provenance"]["source"]
                     if provenance is not None and provenance["signature_valid"] is True:
                         signers.add(provenance["signer_fingerprint"])

@@ -94,7 +94,13 @@ def _read(cfg: Config, rel: str) -> bytes:
         return _read_file(directory, path.name)
 
 
-def _preview(cfg: Config, *, registry_id: str, actor: str, conn: sqlite3.Connection) -> dict[str, Any]:
+def _preview(
+    cfg: Config, *, registry_id: str, actor: str, conn: sqlite3.Connection, prepared_at: str | None = None
+) -> dict[str, Any]:
+    from datetime import UTC, datetime
+
+    if prepared_at is None:
+        prepared_at = datetime.now(UTC).isoformat()
     if not registry_id or not actor:
         raise CustodianError("explicit protected identity and reviewer required")
     files, physical_db = _files(cfg)
@@ -157,6 +163,7 @@ def _preview(cfg: Config, *, registry_id: str, actor: str, conn: sqlite3.Connect
         )
     return {
         "schema": "LegacyTrustMigration/1",
+        "prepared_at": prepared_at,
         "registry_id": registry_id,
         "actor": actor,
         "historical_provenance": "unsigned-incomplete-operator-reconciliation-required",
@@ -286,7 +293,9 @@ def _complete_backup(
     else:
         _write_new_or_exact(path, raw, held.assert_owned)
     entries[rel] = {"sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)}
-    actual = _preview(cfg, registry_id=plan["registry_id"], actor=plan["actor"], conn=conn)
+    actual = _preview(
+        cfg, registry_id=plan["registry_id"], actor=plan["actor"], conn=conn, prepared_at=plan["prepared_at"]
+    )
     if not _same_reviewed_state(plan, actual):
         raise CustodianError("legacy inventory drift during backup")
     manifest = {
@@ -336,12 +345,16 @@ def backup_reviewed(
     )
     conn.row_factory = sqlite3.Row
     try:
-        actual = _preview(cfg, registry_id=registry_id, actor=plan["actor"], conn=conn)
+        actual = _preview(
+            cfg, registry_id=registry_id, actor=plan["actor"], conn=conn, prepared_at=plan["prepared_at"]
+        )
         if not _same_reviewed_state(plan, actual):
             raise CustodianError("reviewed legacy inputs changed")
         held = writer_guard.registry_writer_lease(cfg, conn)
         with held.acquire():
-            actual = _preview(cfg, registry_id=registry_id, actor=plan["actor"], conn=conn)
+            actual = _preview(
+                cfg, registry_id=registry_id, actor=plan["actor"], conn=conn, prepared_at=plan["prepared_at"]
+            )
             if not _same_reviewed_state(plan, actual):
                 raise CustodianError("reviewed legacy inputs changed under lease")
             return _complete_backup(
@@ -384,6 +397,15 @@ def read_verified_backup(destination: Path, *, reviewed_sha256: str) -> tuple[di
             raw = read(destination / "files" / rel)
             if meta != {"sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)}:
                 raise CustodianError("legacy backup member changed")
+        for item in plan["artifacts"]:
+            rel = item["path"]
+            if (
+                not isinstance(rel, str)
+                or rel not in expected
+                or not rel.endswith(".egr.md")
+                or item["source_digest"] != expected[rel]["sha256"]
+            ):
+                raise CustodianError("invalid reviewed artifact source binding")
         db_path = destination / "files" / db_paths[0]
         conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True)
         try:
@@ -397,3 +419,228 @@ def read_verified_backup(destination: Path, *, reviewed_sha256: str) -> tuple[di
         return plan, manifest
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error) as exc:
         raise CustodianError("complete reviewed legacy backup required") from exc
+
+
+def _migration_records(
+    plan: dict[str, Any], backup_manifest: dict[str, Any], backup_path: Path
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    from magicite.core.trust import TrustDecision, TrustPolicy
+    from magicite.engram.digests import assets_manifest_digest
+
+    migration_id = digest(plan)[:32]
+    policy = TrustPolicy.from_dict(plan["policy"])
+    records, marked_by_path, pending = [], {}, []
+    for item in plan["artifacts"]:
+        path = backup_path / "files" / item["path"]
+        with _directory_fd(path.parent) as directory:
+            source = _read_file(directory, path.name)
+        originals = [row for row in plan["decisions"] if row["engram_id"] == item["engram_id"]]
+        signers = sorted({row["signer_fingerprint"] for row in originals if row.get("signer_fingerprint")})
+        signature = (
+            {
+                "signature_valid": False,
+                "signer_fingerprint": signers[0],
+                "historical_provenance": "unsigned-operator-reviewed",
+            }
+            if signers
+            else None
+        )
+        marked = trust_artifacts.mark_artifact(
+            source,
+            registry_id=plan["registry_id"],
+            relpath=item["path"],
+            actor=plan["actor"],
+            revision_map=plan["revision_map"],
+            source_signature=signature,
+        )
+        if any(marked.lineage[key] != item[key] for key in ("source_digest", "target_digest", "resources")):
+            raise CustodianError("reviewed transform changed")
+        if originals:
+            marked.lineage["legacy_provenance"] = {
+                "manifest_digest": digest(plan),
+                "backup_digest": digest(backup_manifest),
+                "original_decisions": originals,
+            }
+        trust_artifacts.validate_transform_lineage(marked.lineage)
+        marked_by_path[item["path"]] = marked
+        records.append(
+            {
+                "record_id": "transform-" + digest(marked.lineage),
+                "kind": "artifact_transform",
+                "payload": marked.lineage,
+            }
+        )
+        identity = "legacy-pending-" + digest([migration_id, item["engram_id"], item["target_digest"]])
+        payload = TrustDecision(
+            decision_id=identity,
+            engram_id=item["engram_id"],
+            content_digest=item["target_digest"],
+            resource_digest=assets_manifest_digest(item["resources"]),
+            decision="pending",
+            source_channel="local_register",
+            policy_id=policy.policy_id,
+            policy_revision=policy.revision,
+            policy_digest=policy.digest(),
+            scanner_revision=policy.scanner_revision,
+            actor=plan["actor"],
+            timestamp=plan["prepared_at"],
+            reasons=("reviewed legacy transform; unsigned history; separate exact-target review required",),
+        ).to_dict()
+        pending.append({"record_id": identity, "kind": "trust_decision", "payload": payload})
+    records.extend(pending)
+    records.extend(
+        {"record_id": row["decision_id"], "kind": "trust_decision", "payload": row}
+        for row in plan["decisions"]
+        if row["decision"] in {"reject", "revoke", "quarantine"}
+    )
+    return records, marked_by_path
+
+
+def _validate_live_migration(cfg: Config, conn: sqlite3.Connection, plan: dict[str, Any]) -> None:
+    actual, _ = _files(cfg)
+    targets = {item["path"]: item["target_digest"] for item in plan["artifacts"]}
+    sources = {"trust/sources/" + item["source_digest"]: item["source_digest"] for item in plan["artifacts"]}
+    controls = {"trust/authority/journal.jsonl", "trust/authority/head.json"}
+    for rel, expected in plan["files"].items():
+        if rel not in actual:
+            raise CustodianError("reviewed legacy source is missing")
+        if actual[rel] != expected and actual[rel]["sha256"] != targets.get(rel):
+            raise CustodianError("unreviewed legacy source change")
+    for rel, meta in actual.items():
+        if rel in plan["files"] or rel in controls:
+            continue
+        if meta["sha256"] != sources.get(rel):
+            raise CustodianError("unreviewed additional legacy file")
+    if logical_db_digest(conn) != plan["logical_db_digest"]:
+        raise CustodianError("legacy business state changed; reconciliation required")
+
+
+def apply_reviewed(
+    cfg: Config, *, backup_path: Path, reviewed_sha256: str, fault_hook: Any = None
+) -> dict[str, Any]:
+    """Apply/resume exactly reviewed transformations; never import admission."""
+    from magicite.core import writer_guard
+    from magicite.core.trust_journal import TrustJournal, _replace_file
+
+    plan, backup_manifest = read_verified_backup(backup_path, reviewed_sha256=reviewed_sha256)
+    records, marked = _migration_records(plan, backup_manifest, backup_path)
+    registry_id, client = writer_guard.resolve_custody(cfg)
+    if registry_id != plan["registry_id"]:
+        raise CustodianError("reviewed enrollment mismatch")
+    migration_id = reviewed_sha256[:32]
+    journal = TrustJournal(
+        cfg.data_dir / "trust/authority", registry_id, client, reconciliation_id=migration_id
+    )
+    head, history = journal._remote(allow_pending=True)
+    if canonical(history[0]["payload"]["policy"]) != canonical(plan["policy"]):
+        raise CustodianError("reviewed protected policy mismatch")
+    begin = {
+        "schema": "LegacyReconciliation/1",
+        "phase": "BEGIN",
+        "migration_id": migration_id,
+        "registry_id": registry_id,
+        "epoch": head["epoch"],
+        "manifest_digest": reviewed_sha256,
+        "backup_digest": digest(backup_manifest),
+        "expected_records": [
+            {"record_id": row["record_id"], "kind": row["kind"], "payload_digest": digest(row["payload"])}
+            for row in records
+        ],
+        "targets": [
+            {
+                "engram_id": row["engram_id"],
+                "target_digest": row["target_digest"],
+                "resources_digest": digest(row["resources"]),
+            }
+            for row in plan["artifacts"]
+        ],
+    }
+    begin_id = "legacy-" + migration_id + "-begin"
+    existing = next((row for row in history if row["record_id"] == begin_id), None)
+    if (existing is None and head["head_sequence"] != 1) or (
+        existing is not None and canonical(existing["payload"]) != canonical(begin)
+    ):
+        raise CustodianError("protected history belongs to a different migration")
+    if not cfg.db_path.is_file() or cfg.db_path.is_symlink():
+        raise CustodianError("existing migration database required")
+    conn = sqlite3.connect(
+        cfg.db_path.resolve().as_uri() + "?mode=rw", uri=True, isolation_level=None, check_same_thread=False
+    )
+    conn.row_factory = sqlite3.Row
+    try:
+        _validate_live_migration(cfg, conn, plan)
+        held = writer_guard.registry_writer_lease(cfg, conn)
+        with held.acquire():
+            _validate_live_migration(cfg, conn, plan)
+            _, _, fence = writer_guard.bound_journal(cfg)
+            if not journal.directory.exists() and head["head_sequence"] == 1:
+                journal.initialize_reviewed_genesis(assert_owned=held.assert_owned)
+            else:
+                journal.reconcile(fence=fence, assert_owned=held.assert_owned)
+            journal.append(
+                record_id=begin_id,
+                kind="legacy_reconciliation",
+                payload=begin,
+                fence=fence,
+                assert_owned=held.assert_owned,
+            )
+            if fault_hook:
+                fault_hook("begin_committed")
+            by_digest = {value.lineage["target_digest"]: (rel, value) for rel, value in marked.items()}
+            for record in records:
+                journal.append(**record, fence=fence, assert_owned=held.assert_owned)
+                if fault_hook:
+                    fault_hook("record_committed:" + record["kind"])
+                if record["kind"] == "artifact_transform":
+                    rel, value = by_digest[record["payload"]["target_digest"]]
+                    _write_new_or_exact(
+                        cfg.data_dir / "trust/sources" / value.lineage["source_digest"],
+                        value.source,
+                        held.assert_owned,
+                    )
+                    target = cfg.data_dir / rel
+                    with _directory_fd(target.parent) as directory:
+                        current = _read_file(directory, target.name)
+                        if hashlib.sha256(current).hexdigest() not in {
+                            value.lineage["source_digest"],
+                            value.lineage["target_digest"],
+                        }:
+                            raise CustodianError("legacy target changed during publication")
+                        if current != value.target:
+                            _replace_file(directory, target.name, value.target, held.assert_owned)
+                    held.assert_owned()
+                    if fault_hook:
+                        fault_hook("target_published")
+            _validate_live_migration(cfg, conn, plan)
+            for item in plan["artifacts"]:
+                artifact, _ = trust_artifacts.load_registry_artifact(cfg, cfg.data_dir / item["path"])
+                if artifact.id != item["engram_id"] or artifact.content_sha256 != item["target_digest"]:
+                    raise CustodianError("published migration target mismatch")
+            if fault_hook:
+                fault_hook("before_complete")
+            complete = {
+                **{key: value for key, value in begin.items() if key not in {"expected_records", "targets"}},
+                "phase": "COMPLETE",
+            }
+            journal.append(
+                record_id="legacy-" + migration_id + "-complete",
+                kind="legacy_reconciliation",
+                payload=complete,
+                fence=fence,
+                assert_owned=held.assert_owned,
+            )
+            if fault_hook:
+                fault_hook("complete_committed")
+            final = journal.snapshot()
+            held.assert_owned()
+            return {
+                "status": "complete_requires_target_review",
+                "migration_id": migration_id,
+                "manifest_digest": reviewed_sha256,
+                "backup_digest": digest(backup_manifest),
+                "targets": len(marked),
+                "head": final.head,
+                "historical_provenance": plan["historical_provenance"],
+            }
+    finally:
+        conn.close()

@@ -128,7 +128,10 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
         "review",
         "grants_admission",
     }
-    if set(payload) - {"conversion_provenance"} != expected or payload["schema"] != "ArtifactTransform/1":
+    if (
+        set(payload) - {"conversion_provenance", "legacy_provenance"} != expected
+        or payload["schema"] != "ArtifactTransform/1"
+    ):
         raise CustodianError("invalid artifact transform schema")
     if (
         payload["transform_id"]
@@ -176,7 +179,8 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
     if source_signature is not None:
         if (
             not isinstance(source_signature, dict)
-            or set(source_signature) - {"manifest_digest"} != {"signature_valid", "signer_fingerprint"}
+            or set(source_signature) - {"manifest_digest", "historical_provenance"}
+            != {"signature_valid", "signer_fingerprint"}
             or type(source_signature["signature_valid"]) is not bool
             or not isinstance(source_signature["signer_fingerprint"], str)
             or re.fullmatch("[0-9a-f]{64}", source_signature["signer_fingerprint"]) is None
@@ -187,6 +191,36 @@ def validate_transform_lineage(payload: dict[str, Any]) -> None:
             or re.fullmatch("[0-9a-f]{64}", source_signature["manifest_digest"]) is None
         ):
             raise CustodianError("invalid signed manifest commitment")
+    historical = source_signature is not None and "historical_provenance" in source_signature
+    legacy = payload.get("legacy_provenance")
+    if historical and (
+        source_signature["historical_provenance"] != "unsigned-operator-reviewed"
+        or source_signature["signature_valid"] is not False
+        or legacy is None
+    ):
+        raise CustodianError("unsigned historical provenance cannot verify a signature")
+    if legacy is not None:
+        from magicite.core.trust_custodian import CustodianStore
+
+        if (
+            not isinstance(legacy, dict)
+            or set(legacy) != {"manifest_digest", "backup_digest", "original_decisions"}
+            or any(
+                not isinstance(legacy[k], str) or re.fullmatch("[0-9a-f]{64}", legacy[k]) is None
+                for k in ("manifest_digest", "backup_digest")
+            )
+            or not isinstance(legacy["original_decisions"], list)
+        ):
+            raise CustodianError("invalid reviewed legacy provenance")
+        for original in legacy["original_decisions"]:
+            CustodianStore._validate_payload("trust_decision", original)
+            if original["engram_id"] != payload["engram_id"]:
+                raise CustodianError("legacy provenance identity mismatch")
+        if historical and not any(
+            original.get("signer_fingerprint") == source_signature["signer_fingerprint"]
+            for original in legacy["original_decisions"]
+        ):
+            raise CustodianError("legacy signer reference is missing")
     if not isinstance(payload["source_decision_ids"], list) or any(
         not isinstance(value, str) or not value for value in payload["source_decision_ids"]
     ):
