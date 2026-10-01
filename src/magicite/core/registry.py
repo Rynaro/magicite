@@ -63,6 +63,7 @@ from magicite.engram.model import (
     Intent,
     Plasticity,
     ProvenanceJournalEntry,
+    Synapse,
     Triggers,
     Trust,
 )
@@ -216,6 +217,9 @@ def project_v1_to_durable_engram(artifact: EngramV1, *, server_origin: str) -> E
         else [],
         affinity=[str(v) for v in legacy.get("affinity", [])]
         if isinstance(legacy, dict) and isinstance(legacy.get("affinity"), list)
+        else [],
+        synapses=[Synapse.model_validate(item) for item in legacy.get("synapses", [])]
+        if isinstance(legacy, dict) and isinstance(legacy.get("synapses"), list)
         else [],
         provenance_journal=journal,
         trust=Trust(
