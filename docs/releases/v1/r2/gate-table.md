@@ -1,8 +1,8 @@
 # V1 gate table r2 — NO-GA draft
 
-All 17 gates are explicit. Tested source is `9bf9ca0` (trust hardening merged). Statuses are maker proposals pending independent review; no review is recorded and no release is authorized. The `c0782fd` table remains the historical observation ([v1 gate table](../gate-table.md)).
+All 17 gates are explicit. Tested source is `9bf9ca0` (trust hardening merged). Statuses were independently adjudicated by RAMZA (independent Claude Opus subagent, session dd0f761a) at reviewed package `84189e3`; no release is authorized. The `c0782fd` table remains the historical observation ([v1 gate table](../gate-table.md)).
 
-| Gate | Proposed status | Evidence and remaining obligation |
+| Gate | Status | Evidence and remaining obligation |
 |---|---|---|
 | POLICY | **PASS** | Nonadaptive default, Dream isolation, explicit experimental selection and dense-v1 incumbent have executable witnesses. Re-derived from the r2 junit. [policy-nonadaptive-default](evidence/policy-nonadaptive-default.json), [policy-dream-isolation](evidence/policy-dream-isolation.json), [policy-explicit-experimental](evidence/policy-explicit-experimental.json), [policy-pinned-incumbent](evidence/policy-pinned-incumbent.json) |
 | EVIDENCE | **UNEVALUATED** | Integrity and claim CI fixtures pass and negative history is retained, but independent final label provenance and a complete new-run chain are absent. [criterion-ledger](criterion-ledger.json) |

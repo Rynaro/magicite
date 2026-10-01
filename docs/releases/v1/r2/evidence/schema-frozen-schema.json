@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "path": "docs/releases/v1/r2/evidence/test-results.json",
-      "sha256": "f318c93abe8661130ff2083d2a203ec0beef03d3551f017a242c8b15b8d5d32d"
+      "sha256": "3e351e357630a773f58f6babfd8a25d3eacbab3fa4ec25fb8baf8383445e6060"
     },
     {
       "path": "docs/releases/v1/r2/evidence/pytest.txt",
@@ -130,9 +130,9 @@
   },
   "obligation": "frozen-schema",
   "producer": "Vivi /s16-readjudication r2 maker",
-  "review_status": "PENDING",
-  "reviewed_package": "",
-  "reviewer": "",
+  "review_status": "APPROVED",
+  "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+  "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
   "schema": "magicite/release-witness/1",
   "scope": "Draft r2 local mechanical evidence against clean tested source 9bf9ca025fc4513592f72d7f6f1c04563a31bc8c; same node mapping as the c0782fd witness; status derived from the r2 junit; no production, external or RC qualification.",
   "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c",

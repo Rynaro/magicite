@@ -17,10 +17,11 @@ The [gate table](gate-table.md) covers all 17 mandatory gates. The
 python scripts/check_release_manifest.py docs/releases/v1/r2/release-manifest.json
 ```
 
-Exit 1 and `eligible: false` are the expected result. **Review is pending:** every
-reviewer and independent-checker field is empty and every review status is
-`PENDING`, so the validator also rejects the regenerated witnesses for lacking an
-independent named review. That rejection is intended. A review is recorded only by
+Exit 1 and `eligible: false` remain the expected result. **Review recorded:** the
+statuses were independently adjudicated by RAMZA (independent Claude Opus subagent, session dd0f761a) at reviewed
+package `84189e3`, so the PASS-gate witnesses now validate. The remaining
+validator errors are the 13 non-PASS gates plus the absent release candidates,
+external reproduction or pilots, and maintainer sign-off. A review is recorded only by
 re-running the [builder](evidence/build_r2_package.py) with `--reviewer`,
 `--review-status` and `--reviewed-package`; the maker (`Vivi /s16-readjudication r2 maker`) cannot be the
 reviewer. Hand edits are not a review.

@@ -1,7 +1,7 @@
 {
   "criterion_ledger": {
     "path": "docs/releases/v1/r2/criterion-ledger.json",
-    "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+    "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
   },
   "draft_only": true,
   "external": null,
@@ -10,19 +10,19 @@
       "evidence": [
         {
           "path": "docs/releases/v1/r2/evidence/policy-nonadaptive-default.json",
-          "sha256": "80e0c5ad1d5e13987edeb3463b2e2388ea871c7819cef346ee7782ac1a9aff74"
+          "sha256": "682daa053b34590c363534abf23117c7d485a957714e3366ff611779c8a9ea99"
         },
         {
           "path": "docs/releases/v1/r2/evidence/policy-dream-isolation.json",
-          "sha256": "33fb86778de85440dd0e9f4d62e49f6f555d665b3e885738b6ffc613277e7787"
+          "sha256": "2b8ce58637ba843d5abd88a541aa67a89447cc938997bf6088bc1296b4d78051"
         },
         {
           "path": "docs/releases/v1/r2/evidence/policy-explicit-experimental.json",
-          "sha256": "3a13a0304c1bc46cc6633cd120da26b7b858e8d5f4c6b093e06e03f8a4945fbc"
+          "sha256": "f1ce598e4bfd2daa7bfbb870701de3ab3d44944ae579301f610f5fcb3b11d9af"
         },
         {
           "path": "docs/releases/v1/r2/evidence/policy-pinned-incumbent.json",
-          "sha256": "d553cf8b4c85e6d9c203273cd60b7844e48d638f2a04bad903a241831f5bcfff"
+          "sha256": "1b828e3406ad37c6201e0ce7622a24714d9242a928a45d5ab63071243103caa1"
         }
       ],
       "id": "POLICY",
@@ -33,14 +33,14 @@
         "pinned-incumbent"
       ],
       "reason": "Nonadaptive default, Dream isolation, explicit experimental selection and dense-v1 incumbent have executable witnesses. Re-derived from the r2 junit.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "PASS",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -54,14 +54,14 @@
         "negative-history"
       ],
       "reason": "Integrity and claim CI fixtures pass and negative history is retained, but independent final label provenance and a complete new-run chain are absent.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -69,15 +69,15 @@
       "evidence": [
         {
           "path": "docs/releases/v1/r2/evidence/schema-frozen-schema.json",
-          "sha256": "122dc243521e193ef64d483b2f4c0c4da8744b3943e092202b33076cbe9b10c5"
+          "sha256": "4a8aa7a737b065502aa6e2398dca3d9e700087f25777504ef10dd6deaaabde84"
         },
         {
           "path": "docs/releases/v1/r2/evidence/schema-roundtrip-corpus.json",
-          "sha256": "716972c23a2d947b27d41db41d50f5d118fed26ff46a2d0933218f0cce7b2f8e"
+          "sha256": "d9f7e05cd1b38e0fef28e15c9157d4f8b4486b3689bcf8cf175b0c78565055d8"
         },
         {
           "path": "docs/releases/v1/r2/evidence/schema-migration-downgrade-replay.json",
-          "sha256": "d2d7eb1b4085dfa050b0699fec370ab58ea8566b5bdf3d2cc684925d615df23d"
+          "sha256": "a1efe18df0ecc6ded6e5c07976c3fd5a0597504f6104a1abb697676137b6820c"
         }
       ],
       "id": "SCHEMA",
@@ -87,14 +87,14 @@
         "migration-downgrade-replay"
       ],
       "reason": "Frozen schema, A01 roundtrip identity, migration/replay and complete-backup downgrade witnesses are available. Re-derived from the r2 junit.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "PASS",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -127,18 +127,18 @@
         "adversarial-corpus"
       ],
       "reason": "Known v1 mirror-deletion defect is not reproduced at r2 and its regressions pass, but a named adversarial corpus is absent, additive trust rows remain partly unwitnessed and separate-UID custody is unqualified. No remaining known defect: adjudicated UNEVALUATED, not FAIL (independent checker).",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         },
         {
           "path": "docs/releases/v1/r2/evidence/trust-mirror-diagnostic-provenance.json",
-          "sha256": "d72f573c97bdd403953ba4dd039fc1a26c1428060cb23e35ef03fec351280875"
+          "sha256": "5a898e5a27476875ba072fe84419673e82063e076f036de8d59339a37923a1eb"
         }
       ]
     },
@@ -153,14 +153,14 @@
         "e3-quality"
       ],
       "reason": "Index/eligibility/explanation mechanics exist; official final split, paired E3 quality and empirical abstention bounds are unrun.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -173,14 +173,14 @@
         "safe-invalid-plan"
       ],
       "reason": "Structural fixtures and bounded safe invalid plans exist; independently authored actual host-task execution evidence is unavailable.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -188,23 +188,23 @@
       "evidence": [
         {
           "path": "docs/releases/v1/r2/evidence/privacy-data-map.json",
-          "sha256": "b3be126c9b88a0084d7059db47ea45bfbd17d6f94e7b8289b9e9f3ad456d9fb2"
+          "sha256": "7e356c29c3aa8463cf032c705aa6de4405ac0086183013a89356e37768b39102"
         },
         {
           "path": "docs/releases/v1/r2/evidence/privacy-no-default-raw.json",
-          "sha256": "0a242724bc47a6c0eef34626f31eb07ff30b6364e86636cf6220ceb36e48b460"
+          "sha256": "9600e1fd355bc0bfd510b840919c4a30b76ee69e97a2c5c5bdddd91f4f9f8166"
         },
         {
           "path": "docs/releases/v1/r2/evidence/privacy-historical-cleanup.json",
-          "sha256": "0cec51146f87d3164dfd496a1dc3e05d001d416e11e4dd82718e6742331ddbf0"
+          "sha256": "159f2915d4b5e41bf11f0f8a5ea28882adbc8c49d46de38dd5daa85e99834b19"
         },
         {
           "path": "docs/releases/v1/r2/evidence/privacy-checkpoint-rpo.json",
-          "sha256": "e9c1982c8cc5c020b11573c4db248d8567cc1b98b7515f2d5a7ec1b6ffd99528"
+          "sha256": "51f9ce936606ee9c6ec896e4afa5324b44d8de9fd4588b9324983fc50bca8e79"
         },
         {
           "path": "docs/releases/v1/r2/evidence/privacy-lifecycle-tests.json",
-          "sha256": "3c6925de40c0b3cf8cc436e389136b3a6f4f04de2cc84ca036382e6e0dc12db1"
+          "sha256": "948519398a11a27c1f8d4c80518a683f541fa373d1be0ea54f77375b463197d7"
         }
       ],
       "id": "PRIVACY",
@@ -216,14 +216,14 @@
         "lifecycle-tests"
       ],
       "reason": "Re-derived from the r2 junit with one disclosed witness mapping change (lifecycle-tests: test_deleted_revoke_mirror_refuses_preserve -> test_deleted_revoke_mirror_preserves_authenticated_restriction). The data-map witness re-binds the c0782fd evidence-privacy map, which is scoped to evidence surfaces; it does not list trust authority/custodian surfaces and its last sentence is historical.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "PASS",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -231,11 +231,11 @@
       "evidence": [
         {
           "path": "docs/releases/v1/r2/evidence/learning-containment.json",
-          "sha256": "3bd057f1a1e95817396fe1c6943dcf1f290b832eb3d21fc0366d482cff5c38ee"
+          "sha256": "18f32d8c388ae635c6a0c8d8bc8d39f1e5b2dd208a7a64f159a8cf868e31fd76"
         },
         {
           "path": "docs/releases/v1/r2/evidence/learning-fully-gated-or-unavailable.json",
-          "sha256": "01f4b3c216bf3c4f502e6c37f236e248a4d97c35d6c404efbf7ce87fc9fc96af"
+          "sha256": "76d1bfbb985045641790600af37eadab5cc46cb3c70fefaa9d560537d6de50fc"
         }
       ],
       "id": "LEARNING",
@@ -244,14 +244,14 @@
         "fully-gated-or-unavailable"
       ],
       "reason": "Stable containment is mandatory and tested; optional S10 efficacy explicitly held/unavailable. Re-derived from the r2 junit.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "PASS",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -279,14 +279,14 @@
         "advertised-transcripts"
       ],
       "reason": "Generic protocol probes pass at r2 including the custody-revalidated body gate; the advertised real Claude Code transcript remains absent.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -314,18 +314,18 @@
         "zero-write-doctor"
       ],
       "reason": "Local kill/replay/fencing coverage now includes custody fences, real child exits and an r2 checkpoint process-death probe; the advertised OS/channel/published-upgrade/store matrix is unrun.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         },
         {
           "path": "docs/releases/v1/r2/evidence/checkpoint-process-death-provenance.json",
-          "sha256": "24da83e3679d16f4ae6b89ca6b8daeda75e11855cfdc81f9fcc202b76a2c5b51"
+          "sha256": "edeb41429cf7947317a3ccf3f0e5a875793ec01283da646ab7aa21334dd817cd"
         }
       ]
     },
@@ -338,14 +338,14 @@
         "supported-scale"
       ],
       "reason": "No dedicated production E6 budgets or licensed real 10k corpus evidence; hashing completeness is not performance qualification.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -358,14 +358,14 @@
         "testpypi-rehearsal"
       ],
       "reason": "Published channel installs, fetched signatures/checksums/SBOM/provenance and TestPyPI rehearsal are unrun; no publishing authority.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -379,14 +379,14 @@
         "support-security-governance"
       ],
       "reason": "Generated/claims/support checks and scripted tutorial pass; required independent operator transcript remains absent.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -399,14 +399,14 @@
         "passing-matrix"
       ],
       "reason": "No two independently built RCs across the declared supported matrix; validator fixtures are not RC artifacts.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -417,14 +417,14 @@
         "independent-reproduction-or-two-pilots"
       ],
       "reason": "No independent external reproduction or two external production pilots; agent review is not product validation.",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     },
@@ -452,18 +452,18 @@
         "critical-resolved"
       ],
       "reason": "The v1 critical finding is not reproduced at r2, but no release-scoped threat model, bounded fuzz/adversarial evidence or independent security review of the r2 source is recorded. Adjudicated UNEVALUATED, not FAIL (independent checker).",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         },
         {
           "path": "docs/releases/v1/r2/evidence/trust-mirror-diagnostic-provenance.json",
-          "sha256": "d72f573c97bdd403953ba4dd039fc1a26c1428060cb23e35ef03fec351280875"
+          "sha256": "5a898e5a27476875ba072fe84419673e82063e076f036de8d59339a37923a1eb"
         },
         {
           "path": ".spectra/plans/magicite-v1-trust-hardening/threat-model.md",
@@ -495,14 +495,14 @@
         "fetched-artifacts"
       ],
       "reason": "Required gates do not all pass; maintainer sign-off and fetched published artifact checks are absent. No gate is a known FAIL at r2: adjudicated UNEVALUATED, not FAIL (independent checker).",
-      "review_status": "PENDING",
-      "reviewed_package": "",
-      "reviewer": "",
+      "review_status": "APPROVED",
+      "reviewed_package": "84189e367e258db57fd68f324fc85784e914872a",
+      "reviewer": "RAMZA (independent Claude Opus subagent, session dd0f761a)",
       "status": "UNEVALUATED",
       "supporting_artifacts": [
         {
           "path": "docs/releases/v1/r2/criterion-ledger.json",
-          "sha256": "3b599ecdcd30575e2fc0a947ceeeb8584ce437b0f54532b12e6f24cbfdf8b77e"
+          "sha256": "2f55ac520140c9fa605b4b6dfbbb46219be7038792358c6618c96d4b6aeacf1e"
         }
       ]
     }
