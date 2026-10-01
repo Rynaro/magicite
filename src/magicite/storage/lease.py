@@ -357,14 +357,18 @@ class CrossProcessLease:
         """
         if self._held or _CROSS_PROCESS_LEASE.get() is not None:
             raise BusyError("direct nested lease acquisition cannot refresh custody")
-        if self.custody is not None:
-            self.custody.capture()
         if not self._try_flock():
             raise BusyError(
                 "writer lease flock is held by another process",
                 hint="another `magicite dream`/writer process is already running on this host",
             )
         try:
+            # Capture the custody predecessor only while holding the flock and
+            # before the lease row is written: a queued contender must not carry
+            # a predecessor captured before the previous holder registered its
+            # fence. Failure here releases the flock via the handler below.
+            if self.custody is not None:
+                self.custody.capture()
             now = _now()
             acquired_at = _iso(now)
             expires_at = _iso(now + _td(self.ttl_s))

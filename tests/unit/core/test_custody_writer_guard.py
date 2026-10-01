@@ -152,3 +152,50 @@ def test_nested_direct_try_cannot_refresh_outer_custody_attempt(tmp_path, monkey
     finally:
         store.close()
         connection.close()
+
+
+def test_queued_contender_captures_predecessor_after_flock_not_before(tmp_path, monkeypatch):
+    """A contender whose flock wait overlaps a previous holder's full
+    acquire/register/release must not register with a predecessor captured
+    before that holder's fence (stale fence predecessor)."""
+    from magicite.core import writer_guard
+    from magicite.core.trust import default_policy
+    from magicite.core.trust_custodian import CustodianStore
+
+    cfg = Config(project_root=tmp_path)
+    cfg.ensure_dirs()
+    connection = db.connect(cfg.db_path)
+    store = CustodianStore.create(tmp_path / "custody")
+    store.enroll("r", default_policy().to_dict(), actor="operator", reviewed=True)
+
+    class Adapter:
+        def call(self, operation, **arguments):
+            return getattr(store, operation)("r", **arguments)
+
+    monkeypatch.setattr(writer_guard, "resolve_custody", lambda cfg: ("r", Adapter()))
+    try:
+        contender = writer_guard.registry_writer_lease(cfg, connection)
+        real_try_flock = contender._try_flock
+        raced = []
+
+        def racing_try_flock():
+            # Previous holder acquires, registers a new fence, and releases
+            # while the contender is still queued for the flock.
+            if not raced:
+                raced.append(True)
+                with writer_guard.registry_writer_lease(cfg, connection).acquire():
+                    pass
+            return real_try_flock()
+
+        monkeypatch.setattr(contender, "_try_flock", racing_try_flock)
+        generation_before = store.read_current("r")["fence_generation"]
+        result = contender.try_acquire()
+        try:
+            assert raced
+            assert result.fencing_token >= 1
+            assert store.read_current("r")["fence_generation"] == generation_before + 2
+        finally:
+            contender.release()
+    finally:
+        store.close()
+        connection.close()
