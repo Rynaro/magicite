@@ -64,3 +64,21 @@ def test_build_state_unavailable_custody_is_zero_write(tmp_path, monkeypatch):
     with pytest.raises(CustodianError):
         build_state(Config(project_root=tmp_path))
     assert list(tmp_path.iterdir()) == []
+
+
+def _all_command_paths(group=cli, prefix=()):
+    paths = []
+    for name, command in sorted(group.commands.items()):
+        path = (*prefix, name)
+        paths.append(path)
+        if hasattr(command, "commands"):
+            paths.extend(_all_command_paths(command, path))
+    return paths
+
+
+@pytest.mark.parametrize("path", _all_command_paths(), ids=" ".join)
+def test_help_exits_zero_without_internal_error(path):
+    result = CliRunner().invoke(cli, [*path, "--help"])
+    assert result.exit_code == 0
+    assert "Usage:" in result.output
+    assert "internal command error" not in result.output
