@@ -62,15 +62,9 @@ def _signed_bundle(tmp_path: Path, cfg, members: dict[str, bytes]) -> Path:
 # ── MAJOR 1: .import-staging must not be sync/register-visible ────────────
 
 
-def test_leftover_import_staging_not_ingested_by_sync_or_register(
-    cfg, db_conn, embedder
-) -> None:
+def test_leftover_import_staging_not_ingested_by_sync_or_register(cfg, db_conn, embedder) -> None:
     leftover = (
-        cfg.registry_dir
-        / registry_mod._IMPORT_STAGING_DIRNAME
-        / "crash-job"
-        / "skills"
-        / "leftover.egr.md"
+        cfg.registry_dir / registry_mod._IMPORT_STAGING_DIRNAME / "crash-job" / "skills" / "leftover.egr.md"
     )
     leftover.parent.mkdir(parents=True, exist_ok=True)
     leftover.write_text(
@@ -79,9 +73,7 @@ def test_leftover_import_staging_not_ingested_by_sync_or_register(
     )
 
     sync_out = registry_mod.sync(cfg, db_conn, embedder)
-    assert db_conn.execute(
-        "SELECT id FROM engram WHERE id = ?", ("egr_57a91e01",)
-    ).fetchone() is None
+    assert db_conn.execute("SELECT id FROM engram WHERE id = ?", ("egr_57a91e01",)).fetchone() is None
     _ = sync_out
 
     reg_out = registry_mod.register(
@@ -92,26 +84,22 @@ def test_leftover_import_staging_not_ingested_by_sync_or_register(
         fmt="egr",
     )
     assert all(e.id != "egr_57a91e01" for e in reg_out.registered)
-    assert db_conn.execute(
-        "SELECT id FROM engram WHERE id = ?", ("egr_57a91e01",)
-    ).fetchone() is None
+    assert db_conn.execute("SELECT id FROM engram WHERE id = ?", ("egr_57a91e01",)).fetchone() is None
 
     # rebuild == sync after wipe projection; leftover must still stay out.
     rebuild = registry_mod.sync(cfg, db_conn, embedder)
-    assert db_conn.execute(
-        "SELECT id, origin, verification_status FROM engram WHERE id = ?",
-        ("egr_57a91e01",),
-    ).fetchone() is None
+    assert (
+        db_conn.execute(
+            "SELECT id, origin, verification_status FROM engram WHERE id = ?",
+            ("egr_57a91e01",),
+        ).fetchone()
+        is None
+    )
     assert rebuild.synced == db_conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"]
 
 
 def test_direct_register_of_import_staging_path_refused(cfg, db_conn, embedder) -> None:
-    staging_file = (
-        cfg.registry_dir
-        / registry_mod._IMPORT_STAGING_DIRNAME
-        / "job"
-        / "direct.egr.md"
-    )
+    staging_file = cfg.registry_dir / registry_mod._IMPORT_STAGING_DIRNAME / "job" / "direct.egr.md"
     staging_file.parent.mkdir(parents=True, exist_ok=True)
     staging_file.write_text(
         _lint_valid_egr(name="direct-staging", eid="egr_d1ec7001"),
@@ -120,19 +108,13 @@ def test_direct_register_of_import_staging_path_refused(cfg, db_conn, embedder) 
     rel = str(staging_file.relative_to(cfg.project_root))
     with pytest.raises(InvalidInputError, match="reserved|staging|import-staging"):
         registry_mod.register(cfg, db_conn, embedder, path=rel, fmt="egr")
-    assert db_conn.execute(
-        "SELECT id FROM engram WHERE id = ?", ("egr_d1ec7001",)
-    ).fetchone() is None
+    assert db_conn.execute("SELECT id FROM engram WHERE id = ?", ("egr_d1ec7001",)).fetchone() is None
 
 
 def test_is_reserved_registry_path_helper() -> None:
     root = Path("/tmp/registry")
-    assert registry_mod._is_reserved_registry_path(
-        root / ".import-staging" / "x.egr.md", registry_root=root
-    )
-    assert not registry_mod._is_reserved_registry_path(
-        root / "skills" / "ok.egr.md", registry_root=root
-    )
+    assert registry_mod._is_reserved_registry_path(root / ".import-staging" / "x.egr.md", registry_root=root)
+    assert not registry_mod._is_reserved_registry_path(root / "skills" / "ok.egr.md", registry_root=root)
 
 
 # ── MINOR 2: publish journal + compensating rollback ──────────────────────
@@ -150,32 +132,38 @@ def test_partial_publish_exception_removes_published_members(
     real_replace = os.replace
     calls: list[str] = []
 
-    def flaky_replace(src: Any, dst: Any) -> None:
+    def flaky_replace(src: Any, dst: Any, **kwargs) -> None:
         dst_s = str(dst)
         dst_parts = Path(dst_s).parts
         # Journal writes stay under staging; quarantine moves must succeed.
         if (
-            registry_mod._IMPORT_STAGING_DIRNAME not in dst_parts
+            Path(dst_s).name in {"a.egr.md", "b.egr.md"}
+            and kwargs.get("dst_dir_fd") is not None
+            and os.fstat(kwargs["dst_dir_fd"]).st_ino == (cfg.registry_dir / "skills").stat().st_ino
+            and registry_mod._IMPORT_STAGING_DIRNAME not in dst_parts
             and "quarantine" not in dst_parts
         ):
             calls.append(dst_s)
             if len(calls) >= 2:
                 raise OSError("injected publish failure")
-        return real_replace(src, dst)
+        return real_replace(src, dst, **kwargs)
 
     monkeypatch.setattr(os, "replace", flaky_replace)
 
-    with pytest.raises(OSError, match="injected publish failure"):
+    from magicite.core.trust_custodian import CustodianError
+
+    with pytest.raises(CustodianError, match="unsafe or unavailable journal directory") as raised:
         registry_mod.import_bundle(cfg, db_conn, embedder, archive_path=archive)
+    assert isinstance(raised.value.__cause__, OSError)
+    assert "injected publish failure" in str(raised.value.__cause__)
+    assert len(calls) == 2
 
     assert not (cfg.registry_dir / "skills" / "a.egr.md").exists()
     assert not (cfg.registry_dir / "skills" / "b.egr.md").exists()
     assert db_conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"] == 0
 
 
-def test_incomplete_publish_journal_rolled_back_on_sync(
-    cfg, db_conn, embedder
-) -> None:
+def test_incomplete_publish_journal_rolled_back_on_sync(cfg, db_conn, embedder) -> None:
     """Simulate SIGKILL: authenticated incomplete journal + published member."""
     rel = "skills/orphaned.egr.md"
     payload = _lint_valid_egr(name="orphaned-pub", eid="egr_0faded01").encode()
@@ -206,9 +194,7 @@ def test_incomplete_publish_journal_rolled_back_on_sync(
         },
     )
     journal_path = job / registry_mod._PUBLISH_JOURNAL_NAME
-    journal_path.write_text(
-        json.dumps(journal, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    journal_path.write_text(json.dumps(journal, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     registry_mod.sync(cfg, db_conn, embedder)
 
@@ -217,6 +203,4 @@ def test_incomplete_publish_journal_rolled_back_on_sync(
     q = cfg.data_dir / "quarantine" / "import-rollback" / job_id / rel
     assert q.is_file()
     assert q.read_bytes() == payload
-    assert db_conn.execute(
-        "SELECT id FROM engram WHERE id = ?", ("egr_0faded01",)
-    ).fetchone() is None
+    assert db_conn.execute("SELECT id FROM engram WHERE id = ?", ("egr_0faded01",)).fetchone() is None

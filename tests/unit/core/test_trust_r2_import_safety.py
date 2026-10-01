@@ -83,15 +83,18 @@ def test_import_bundle_idempotent_same_engram_bytes(cfg, db_conn, embedder, tmp_
     rel = "skills/reimport.egr.md"
     payload = _minimal_egr(name="reimport", eid="egr_ae100001").encode("utf-8")
     dest = cfg.registry_dir / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(payload)
 
     archive = _signed_bundle(tmp_path, cfg, {rel: payload})
+    first = registry_mod.import_bundle(cfg, db_conn, embedder, archive_path=archive)
+    assert first.ingested == 1
+    marked = dest.read_bytes()
+    assert marked != payload and b"magicite.trust_journal" in marked
     outcome = registry_mod.import_bundle(cfg, db_conn, embedder, archive_path=archive)
-    assert dest.read_bytes() == payload
+    assert dest.read_bytes() == marked
     assert outcome.validation_errors == []
-    assert outcome.ingested == 1
-    assert outcome.registered[0].id == "egr_ae100001"
+    assert outcome.ingested == 0
+    assert db_conn.execute("SELECT COUNT(*) FROM engram WHERE id=?", ("egr_ae100001",)).fetchone()[0] == 1
+    assert first.registered[0].id == "egr_ae100001"
 
 
 # ── MAJOR 2: casefold collision ───────────────────────────────────────────
