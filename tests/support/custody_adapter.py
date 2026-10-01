@@ -8,6 +8,7 @@ never grants artifact admission; each positive scenario requests review.
 from __future__ import annotations
 
 import hashlib
+from contextlib import contextmanager
 from pathlib import Path
 
 from magicite.core import registry, trust, writer_guard
@@ -134,3 +135,25 @@ def publish_generated_source(cfg, *, path: Path, source: bytes) -> str:
         return hashlib.sha256(marked.target).hexdigest()
     finally:
         conn.close()
+
+
+@contextmanager
+def attach_fixture(root: Path, directory: Path, registry_id: str):
+    """Attach an existing authority in this process; never enroll or create history."""
+    provider = object.__new__(FixtureCustody)
+    provider.store = CustodianStore.open(directory)
+    provider.registry_id = registry_id
+    original = writer_guard.resolve_custody
+
+    def resolve(candidate):
+        if candidate.project_root.resolve() == root.resolve():
+            return registry_id, provider
+        return original(candidate)
+
+    writer_guard.resolve_custody = resolve
+    try:
+        provider.call("read_current")
+        yield provider
+    finally:
+        writer_guard.resolve_custody = original
+        provider.close()
