@@ -347,7 +347,8 @@ def test_real_maintenance_client_verifies_old_then_new_epoch_receipts(rotation_s
         lambda: actual_uid if threading.current_thread() is main_thread else actual_uid + 1,
     )
     monkeypatch.setattr(transport, "check_peer", lambda *a: None)  # peer isolation is not qualified here
-    temporary = tempfile.TemporaryDirectory(prefix="rotation-wire-", dir="/private/tmp")
+    # Short, symlink-free socket parent on both macOS (/private/tmp) and Linux.
+    temporary = tempfile.TemporaryDirectory(prefix="rotation-wire-", dir=Path("/tmp").resolve())
     value = json.loads(path.read_bytes())
     value["socket_path"] = str(Path(temporary.name) / "socket")
     path.write_bytes(_bytes(value))
