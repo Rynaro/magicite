@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from magicite.core import trust_journal
 from magicite.core.trust import TrustDecision, default_policy
 from magicite.core.trust_custodian import CustodianError, CustodianStore
 from magicite.core.trust_journal import TrustJournal
@@ -427,5 +428,27 @@ def test_concurrent_local_write_between_verification_and_append_closes(journal, 
     with pytest.raises(CustodianError):
         commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
     monkeypatch.setattr(ledger.client, "call", real_call)
+    with pytest.raises(CustodianError):
+        ledger.snapshot()
+
+
+def test_concurrent_local_write_during_append_window_closes_and_drops_cache(journal, monkeypatch):
+    ledger, store = journal
+    commit(ledger, store, "admit", "admit", "2026-01-01T00:00:00Z")
+    real_append = trust_journal._append_file
+
+    def raced_append(directory, name, content, expected, assert_owned):
+        def owned_then_foreign_write():
+            # Runs after the pre-write identity check, before our own write.
+            with ledger.journal_path.open("ab") as stream:
+                stream.write(b"{}\n")
+            assert_owned()
+
+        return real_append(directory, name, content, expected, owned_then_foreign_write)
+
+    monkeypatch.setattr(trust_journal, "_append_file", raced_append)
+    with pytest.raises(CustodianError):
+        commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
+    monkeypatch.setattr(trust_journal, "_append_file", real_append)
     with pytest.raises(CustodianError):
         ledger.snapshot()

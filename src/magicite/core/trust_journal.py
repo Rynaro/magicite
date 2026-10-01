@@ -255,7 +255,12 @@ def _append_file(
         while view:
             view = view[os.write(descriptor, view) :]
         os.fsync(descriptor)
-        return _identity(os.fstat(descriptor))
+        after = _safe_identity(os.fstat(descriptor))
+        # A same-size in-place overwrite in this window is only caught by full
+        # re-verification (mtime/ctime on the next read, or history comparison).
+        if after[:2] != expected[:2] or after[2] != expected[2] + len(content):
+            raise CustodianError("local trust history changed since verification")
+        return after
     finally:
         os.close(descriptor)
 
@@ -507,6 +512,8 @@ class TrustJournal:
         if prior is not None and prior.snapshot is not before:
             prior = None
         identity: _FileIdentity | None = None
+        # No failure below may leave a reusable cache entry for this key.
+        _VERIFIED_SNAPSHOTS.pop(self._cache_key(), None)
         with _directory_fd(self.directory) as directory:
             if prior is not None:
                 identity = _append_file(

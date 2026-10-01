@@ -51,6 +51,8 @@ python scripts/run_benchmark_matrix.py --profile supported-10k --provider produc
   --envelope-mode budget --output artifacts/e6-supported-10k-production.json
 ```
 
+The dedicated-runner command omits `--custody`, so it uses the default `--custody protected`; it requires an enrolled protected custody and otherwise exits 2 and stays UNEVALUATED.
+
 ## Offline SkillRet adapter
 
 Fixture: `fixtures/skillret-tiny/`. Official download is explicit via
