@@ -187,19 +187,37 @@ def test_cli_checkpoint_is_durable_idempotent_self_report(custody_for, tmp_path:
         conn.close()
 
 
-def test_checkpoint_rejects_missing_original_decision(tmp_path: Path) -> None:
-    _run(
-        tmp_path,
-        "evidence",
-        "checkpoint",
-        "--decision-event-id",
-        "missing",
-        "--event-id",
-        "ev_new",
-        "--outcome",
-        "success",
-        success=False,
+def test_checkpoint_rejects_missing_original_decision(tmp_path: Path, custody_for, monkeypatch) -> None:
+    from magicite.core import evidence
+
+    custody_for(Config(project_root=tmp_path))
+    observed = []
+    original_load = evidence.load_event
+
+    def load(config, event_id):
+        result = original_load(config, event_id)
+        observed.append((event_id, result))
+        return result
+
+    monkeypatch.setattr(evidence, "load_event", load)
+    result = CliRunner().invoke(
+        cli,
+        [
+            "evidence",
+            "checkpoint",
+            "--project-root",
+            str(tmp_path),
+            "--decision-event-id",
+            "missing",
+            "--event-id",
+            "ev_new",
+            "--outcome",
+            "success",
+        ],
     )
+    assert result.exit_code != 0
+    assert json.loads(result.output)["code"] == "invalid_input"
+    assert observed == [("missing", None)]
     assert not list((tmp_path / ".magicite/evidence/segments").glob("*.events.jsonl"))
 
 

@@ -157,3 +157,17 @@ def attach_fixture(root: Path, directory: Path, registry_id: str):
     finally:
         writer_guard.resolve_custody = original
         provider.close()
+
+
+def threaded_calls(provider, monkeypatch):
+    """Use a fresh existing-store connection per call for explicit threaded tests."""
+    directory, registry_id = provider.store.directory, provider.registry_id
+
+    def call(operation, **arguments):
+        store = CustodianStore.open(directory)
+        try:
+            return getattr(store, operation)(registry_id, **arguments)
+        finally:
+            store.close()
+
+    monkeypatch.setattr(provider, "call", call)

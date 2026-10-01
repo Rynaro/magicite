@@ -1803,11 +1803,6 @@ def review_approve(
     """Digest-bound local admission + verification_status flip + approval audit."""
     from magicite.errors import BusyError
 
-    if event_id:
-        for existing in trust_mod.list_decisions(cfg):
-            if existing.event_id == event_id and existing.decision == "admit":
-                return existing
-
     attempts = 0
     while True:
         attempts += 1
@@ -1818,6 +1813,7 @@ def review_approve(
                 if event_id:
                     for existing in trust_mod.list_decisions(cfg):
                         if existing.event_id == event_id and existing.decision == "admit":
+                            cross_lease.assert_owned()
                             return existing
                 decision = trust_mod.approve(
                     cfg,
@@ -1856,11 +1852,8 @@ def review_approve(
         except BusyError:
             if event_id is None or attempts >= 32:
                 raise
-            # Concurrent retry of the same event: wait for the winner, then
-            # return the single applied admit.
-            for existing in trust_mod.list_decisions(cfg):
-                if existing.event_id == event_id and existing.decision == "admit":
-                    return existing
+            # Wait for the winner, then inspect its committed event under
+            # the next acquired lease; an in-flight snapshot is not authority.
             time.sleep(0.01)
             continue
 

@@ -28,12 +28,17 @@ def _manifest(cfg, *, policy_id: str, digest: str | None = None, family: str = "
     )
 
 
-def test_activation_without_learning(cfg) -> None:
+def test_activation_without_learning(cfg, monkeypatch) -> None:
     """GIVEN S10 is not installed and reviewed simple/hybrid policy artifacts exist
     WHEN activation and rollback use the expected-current API
     THEN the active digest SHALL follow exactly the approved compare-and-swap transitions
     including stale-current rejection; inconclusive hybrid SHALL be refused (N4).
     """
+    from tests.support.custody_adapter import threaded_calls
+
+    from magicite.core import writer_guard
+
+    threaded_calls(writer_guard.resolve_custody(cfg)[1], monkeypatch)
     cfg.ensure_dirs()
     fk.set_fingerprint_key_override(b"\x22" * fk.KEY_BYTES)
     try:
