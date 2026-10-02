@@ -51,7 +51,7 @@ python scripts/run_benchmark_matrix.py --profile supported-10k --provider produc
   --envelope-mode budget --output artifacts/e6-supported-10k-production.json
 ```
 
-The dedicated-runner commands in this file and in `unevaluated.md` omit `--custody`, so it uses the default `--custody protected`; it requires an enrolled protected custody and otherwise exits 2 and stays UNEVALUATED.
+The dedicated-runner commands in this file and in `unevaluated.md` omit `--custody`, so they use the default `--custody protected`; that requires an enrolled protected custody and otherwise exits 2 and stays UNEVALUATED.
 
 ## Offline SkillRet adapter
 
