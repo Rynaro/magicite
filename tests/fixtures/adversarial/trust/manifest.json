@@ -1,0 +1,3624 @@
+{
+  "schema": "magicite/trust-adversarial-corpus/1",
+  "corpus_id": "magicite-v1-trust-adversarial",
+  "version": 2,
+  "description": "Named adversarial trust corpus (TRUST gate obligation adversarial-corpus; SECURITY bounded-fuzz-adversarial companion). Each entry is a distinct attack with assumed attacker capability, targeted criteria (AC-TH per magicite-v1-trust-hardening incl. TH-A01; AC-S per magicite-v1), exact fail-closed outcome and a witness: a data-driven case in tests/integration/test_trust_adversarial_corpus.py (with per-entry positive control) or an existing collected test node. Fixture custody only: nothing here qualifies a separate-UID deployment.",
+  "threat_model": ".spectra/plans/magicite-v1-trust-hardening/threat-model.md",
+  "amendments": [
+    ".spectra/plans/magicite-v1-trust-hardening/amendments/TH-A01-ac-th-10-supported-downgrade-scope.md"
+  ],
+  "capabilities": {
+    "same-uid-local-writer": "Edits, erases, reorders, replays or copies any byte in the writable registry (journal, head, mirrors, policy/roots projections, SQLite, backups) under the client UID; holds no custodian key.",
+    "wire-relay": "Captures, replays, splices or rewrites custodian wire frames/receipts on the local channel; cannot sign as the custodian.",
+    "malicious-bundle-author": "Supplies crafted bundle archives, manifests or external engram files to intake/import.",
+    "crash-and-withhold": "Kills the client at any persistence boundary, drops replies, or withholds custody availability.",
+    "concurrent-stale-writer": "Schedules a paused or older lease holder to resume after a newer holder registered.",
+    "backup-restorer": "Restores old backups, overlays or legacy bytes through supported runtime paths (TH-A01 scope).",
+    "misconfigured-deployment": "Custody profile/keys/service placed where the registry writer can reach them, or on an unsupported OS.",
+    "foreign-uid-peer": "A process running under an OS UID other than the expected custodian/client peer connects to or answers on the custody socket; kernel peer credentials (SO_PEERCRED/getpeereid) must reject it (threat-model: kernel peer credentials establish the intended local service)."
+  },
+  "classes": {
+    "tamper": "Authenticated or signed bytes altered.",
+    "replay": "Previously valid bytes or requests presented again.",
+    "splice": "Bytes from another transfer, registry or position combined.",
+    "rollback": "Local state returned to an older authenticated state.",
+    "resequence": "Record identity/ordering rearranged to change precedence.",
+    "receipt-nonce-substitution": "Custodian receipt bound to another nonce/request/operation reused.",
+    "wrong-key-epoch-registry": "Authority from another key, epoch, registry or policy binding.",
+    "profile-substitution": "Protected enrollment/profile/pin replaced or made writable.",
+    "overlay-mac-substitution": "RecoveryOverlay or local-MAC records substituted for custody authority.",
+    "mirror-resurrection": "Non-authoritative decision mirrors/projections used to resurrect admission.",
+    "legacy-downgrade": "Supported downgrade/migration paths (TH-A01) used to reactivate revoked content.",
+    "bundle-archive": "Zip-slip, symlink, case-fold, bomb and smuggling via bundle archives/imports.",
+    "oversized-fragmented-frames": "Frame/fragment size, count, order and deadline abuse.",
+    "deep-json-recursion": "Deeply nested JSON to trigger recursion faults.",
+    "noncanonical-duplicate-key": "Non-canonical, duplicate-key or type-confused payloads.",
+    "stale-fence-lease-loss": "Stale writer fence or lost lease used to commit.",
+    "crash-ack-ordering": "Crash/lost reply at persistence boundaries to break acknowledgement order.",
+    "policy-root-projection-mutation": "Policy/root projection files mutated to change authority.",
+    "pending-record-abuse": "Prepared/pending/intake state treated as committed authority.",
+    "custody-unavailable": "Custody, peer identity or local authority missing or unverifiable.",
+    "enrollment-reset": "Re-enrollment or genesis used to reset authenticated history.",
+    "secret-disclosure": "Custody secrets or raw internals exposed via files, archives or errors."
+  },
+  "not_covered": [
+    {
+      "class": "separate-uid-os-isolation",
+      "reason": "Linux/macOS distinct-UID custodian deployment needs provisioned accounts/services; the task authorizes no account creation or privilege escalation. Peer-credential and protected-path logic is exercised only with injected fixtures.",
+      "residual": "Deployment qualification rows remain UNEVALUATED (AC-TH-04, AC-TH-12); fixture success is not production custody qualification."
+    },
+    {
+      "class": "pre-hardening-binary-hand-rollback",
+      "reason": "TH-A01: a frozen 22ae4e0-or-earlier binary run on hand-copied pre-migration bytes routes and discloses the revoked subject because it never reads authenticated custody; no new-code change can retrofit it.",
+      "residual": "Disclosed residual, mitigated by operator procedure (never run pre-hardening binaries on a hardened registry; use `magicite migration restore`). The corpus asserts only the supported-runtime half (TAC entries in rollback/legacy-downgrade); it does not assert the vulnerability."
+    },
+    {
+      "class": "real-network-transport",
+      "reason": "Custody transport is a local Unix socket; no TCP/remote custodian path exists. Wire attacks use in-memory socket fakes, not a live relay process.",
+      "residual": "A live MITM on a real socket is bounded by peer-credential checks that are themselves only fixture-tested."
+    },
+    {
+      "class": "custodian-or-root-compromise",
+      "reason": "Threat model excludes compromise of root, kernel, signing/MAC keys, the custodian account or the authorized client process.",
+      "residual": "Out of guarantee by design; rollback of custodian authority and every independent copy is outside anti-shrink."
+    },
+    {
+      "class": "content-safety-and-human-intent",
+      "reason": "An authorized client may request reviewed trust changes; signature validity does not establish safety or efficacy.",
+      "residual": "Malicious-but-reviewed content is out of scope for this corpus."
+    },
+    {
+      "class": "duplicate-key-custody-wire-json",
+      "reason": "Custody frame/message parsers (receive_frame/receive_message) use json.loads, so a duplicate key is accepted last-wins rather than rejected. Not an exploitable authority path: receipts are verified over the canonical re-encoding of the parsed payload (a relay cannot make the client accept a value the custodian did not sign), requests come from the authorized client, and profiles/descriptors live inside the protected boundary. Bundle manifests, which cross the trust boundary, do reject duplicate keys (see the noncanonical-duplicate-key entries).",
+      "residual": "Observation only, no product defect recorded; strict duplicate-key rejection on the custody wire would be hardening, not a fix."
+    }
+  ],
+  "entries": [
+    {
+      "id": "TAC-001",
+      "class": "tamper",
+      "title": "Signed receipt result altered after signing",
+      "attack": "Relay rewrites result.head_sequence inside a genuinely signed custodian receipt.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_result_tamper",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-002",
+      "class": "tamper",
+      "title": "Custody message body rewritten in flight",
+      "attack": "Bytes of a framed MTC2 message are rewritten (operation name) without fixing the header digest.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody message digest"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "message_body_tamper",
+        "control": {
+          "message": true
+        }
+      }
+    },
+    {
+      "id": "TAC-003",
+      "class": "tamper",
+      "title": "Bundle resource bytes swapped under a valid signed manifest",
+      "attack": "Archive carries different bytes for a listed resource while the signed manifest keeps the original digest.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "digest mismatch for staged resource 'assets/a.txt'"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_resource_tamper",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-004",
+      "class": "tamper",
+      "title": "Local head forged ahead of custody",
+      "attack": "head.json sequence is bumped past the custodian head to claim un-acknowledged history.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust head does not match custody"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "journal_forged_head_sequence",
+        "control": {
+          "latest": "revoke"
+        }
+      }
+    },
+    {
+      "id": "TAC-005",
+      "class": "tamper",
+      "title": "Committed revoke row edited to admit in local journal",
+      "attack": "Last journal row payload.decision is rewritten from revoke to admit.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust history does not match custody"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_local_journal_mutations_never_read_as_current[edit]",
+        "asserts": "snapshot() raises CustodianError after the edited row; never reads as current",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-006",
+      "class": "tamper",
+      "title": "Prepared record MAC forged before commit",
+      "attack": "Caller replaces the custodian-issued MAC of a prepared record and asks custody to commit it.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-02",
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "record does not match durable preparation"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_prepared_record_tamper_cannot_advance_custodian[mac-0000000000000000000000000000000000000000000000000000000000000000]",
+        "asserts": "commit_record raises CustodianError and read_current() is unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-007",
+      "class": "tamper",
+      "title": "Asset bytes changed after admission",
+      "attack": "An admitted engram's asset file is edited in place, keeping the engram body unchanged.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-S04-03",
+        "AC-TH-07"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "admitted": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_atlas_fixes.py::test_asset_change_invalidates_admission",
+        "asserts": "admission_still_valid is True before and False after the live resource digest drifts",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-008",
+      "class": "tamper",
+      "title": "Engram content edited after approval",
+      "attack": "Approved engram content is changed on disk; prior approval is replayed as authority for new digest.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-S04-03",
+        "AC-S11-01"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "admitted": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_intake.py::test_digest_and_policy_binding",
+        "asserts": "new content digest is not admitted under the old approval nor after a policy change",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-009",
+      "class": "replay",
+      "title": "Captured journal row replayed as a duplicate",
+      "attack": "A committed journal row is appended again to the local journal (replay of authenticated bytes).",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust history does not match custody"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_local_journal_mutations_never_read_as_current[duplicate]",
+        "asserts": "snapshot() raises CustodianError with a duplicated committed row",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-010",
+      "class": "replay",
+      "title": "Warm verified cache served after custody advanced",
+      "attack": "A revoke commits after a verified admit snapshot was cached; attacker relies on cache reuse to hide it.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-07"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "latest": "revoke"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_verified_snapshot_reuse_never_hides_a_later_revoke",
+        "asserts": "the snapshot after the revoke reports revoke; cached admit snapshot is not reused",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-011",
+      "class": "replay",
+      "title": "Request replayed after a lost commit reply",
+      "attack": "Commit reply is dropped and the same request is replayed; replay must not double-apply.",
+      "capability": "crash-and-withhold",
+      "criteria": [
+        "AC-TH-02",
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "latest": "revoke",
+          "duplicate_records": 0
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_fault_ack_matrix.py::test_fault_matrix_lost_reply_retry_is_exact_and_not_duplicated",
+        "asserts": "retry takes the exact-retry path: committed record count unchanged, latest decision revoke",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-012",
+      "class": "receipt-nonce-substitution",
+      "title": "Cached receipt replayed under a fresh nonce",
+      "attack": "A valid receipt captured for an earlier request is presented in answer to a request with a new nonce.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_nonce_replay",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-013",
+      "class": "receipt-nonce-substitution",
+      "title": "Receipt for another request id substituted",
+      "attack": "Receipt bound to request-1 is substituted into the exchange for request-2.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_request_id_substitution",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-014",
+      "class": "receipt-nonce-substitution",
+      "title": "Read receipt substituted as commit acknowledgement",
+      "attack": "A read_current receipt is offered as the acknowledgement of commit_record.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_operation_substitution",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-015",
+      "class": "receipt-nonce-substitution",
+      "title": "Receipt signature without the receipt domain tag",
+      "attack": "Custodian key signature over bare payload bytes (other protocol context) is reused as a receipt.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_missing_domain_separation",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-016",
+      "class": "wrong-key-epoch-registry",
+      "title": "Receipt signed by a non-enrolled key",
+      "attack": "Receipt is validly signed but by a key other than the enrolled custodian signer.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_wrong_signing_key",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-017",
+      "class": "wrong-key-epoch-registry",
+      "title": "Receipt from another registry",
+      "attack": "Receipt for registry-one is presented to a client bound to registry-two.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_wrong_registry",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-018",
+      "class": "wrong-key-epoch-registry",
+      "title": "Receipt from a stale epoch",
+      "attack": "Receipt signed for epoch 2 is presented after the client advanced to epoch 3.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_stale_epoch",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-019",
+      "class": "wrong-key-epoch-registry",
+      "title": "Boolean epoch type confusion",
+      "attack": "Receipt signs epoch=true which equals 1 under Python truthiness; binding must compare canonical bytes.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_boolean_epoch",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-020",
+      "class": "wrong-key-epoch-registry",
+      "title": "Rotation certificate with altered epoch",
+      "attack": "Dual-signed rotation tuple is replayed with new_epoch changed.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody epoch transition"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_rotation.py::test_rotation_dual_signatures_bind_complete_tuple[new_epoch-4]",
+        "asserts": "verification of the altered tuple raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-021",
+      "class": "wrong-key-epoch-registry",
+      "title": "Old-epoch fence commits after rotation resumed",
+      "attack": "A writer holding a pre-rotation fence commits after a resumed rotation fence registered.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-06",
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "stale writer fence"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_rotation.py::test_rotation_resumed_fence_rejects_old_commit_even_before_head_change",
+        "asserts": "old commit raises CustodianError even before head changes; committed epoch is 2",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-022",
+      "class": "wrong-key-epoch-registry",
+      "title": "Custody head with substituted policy digest",
+      "attack": "A fresh custody head is served whose policy_digest does not match the replayed policy.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-07"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "snapshot policy commitment mismatch"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_mutation_binding.py::test_custody_head_with_wrong_policy_digest_closes_reads[True]",
+        "asserts": "warm and cold reads raise 'snapshot policy commitment mismatch'",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-023",
+      "class": "wrong-key-epoch-registry",
+      "title": "Transition certificate for a different prepared record",
+      "attack": "Rotation certificate issued for one prepared record is reused for another.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody transition record"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_rotation.py::test_transition_certificate_binds_exact_prepared_record",
+        "asserts": "mismatched certificate binding raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-024",
+      "class": "wrong-key-epoch-registry",
+      "title": "Ordinary preparation forging rotation or genesis",
+      "attack": "General prepare_record is used to smuggle an epoch_transition or genesis record.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-02",
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid record payload"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_rotation.py::test_general_preparation_cannot_forge_rotation_or_genesis",
+        "asserts": "prepare raises CustodianError and read_current() is unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-025",
+      "class": "wrong-key-epoch-registry",
+      "title": "Bundle signed by a revoked publisher re-admitted",
+      "attack": "Publisher root is revoked; content signed by it is presented for review under matching policy.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-TH-07",
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "admission conflicts with current authenticated trust policy"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_authority_integration.py::test_revoked_signer_is_denied_with_matching_current_policy_before_commit",
+        "asserts": "route view denies, approval raises InvalidInputError, custody head unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-026",
+      "class": "profile-substitution",
+      "title": "Substituted transition pin in pending profile",
+      "attack": "Pending rotation profile has its transition pin replaced with an attacker key.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-04",
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "protected custody profile unavailable"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_rotation_transport.py::test_pending_profile_rejects_substituted_transition_pin",
+        "asserts": "loading the substituted pending profile raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-027",
+      "class": "profile-substitution",
+      "title": "Mutable profile identity swapped behind descriptor",
+      "attack": "Enrollment profile file is replaced after its descriptor identity was bound.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "protected custody enrollment unavailable"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian_transport.py::test_descriptor_binds_mutable_profile_identity_and_pending_closes",
+        "asserts": "after the swap the loader raises CustodianError; pending state closes",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-028",
+      "class": "profile-substitution",
+      "title": "Enrollment profile planted inside the writable project",
+      "attack": "Attacker writes a custody profile in the registry tree they control.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-04",
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "unprotected custody path"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian_transport.py::test_profile_in_writable_project_tree_is_never_trusted",
+        "asserts": "protected_path raises CustodianError for a profile not owned by the custodian UID",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-029",
+      "class": "profile-substitution",
+      "title": "Protected custody path with Linux POSIX ACL xattr",
+      "attack": "A system.posix_acl_access xattr grants the registry writer access to a protected custody path (Linux branch, faked on any host).",
+      "capability": "misconfigured-deployment",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "extended custody ACL is unsupported"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "acl_linux_posix_acl_xattr",
+        "control": {
+          "accepted": true
+        }
+      }
+    },
+    {
+      "id": "TAC-030",
+      "class": "profile-substitution",
+      "title": "Protected custody path with Darwin extended ACL entry",
+      "attack": "An extended ACL write-grant entry on a protected custody path (Darwin acl_get_fd_np/acl_to_text branch, faked on any host).",
+      "capability": "misconfigured-deployment",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "extended custody ACL is unsupported"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "acl_darwin_extended_entry",
+        "control": {
+          "accepted": true
+        }
+      }
+    },
+    {
+      "id": "TAC-031",
+      "class": "overlay-mac-substitution",
+      "title": "Valid-MAC overlay record absent from custody history",
+      "attack": "RecoveryOverlay carries a correctly MAC'd admit record that custody never committed.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-09"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "recovery overlay trust record lacks authenticated custody history"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_th_restore_overlay_authority.py::test_valid_mac_overlay_record_not_in_custody_history_is_refused[absent_from_custody]",
+        "asserts": "restore raises the custody refusal; gate stays closed; route/body/admission closed",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-032",
+      "class": "overlay-mac-substitution",
+      "title": "Overlay record resequenced with later timestamp",
+      "attack": "Overlay record re-emitted with a later timestamp to outrank a committed revoke.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-07",
+        "AC-TH-09"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "recovery overlay trust record lacks authenticated custody history"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_th_restore_overlay_authority.py::test_valid_mac_overlay_record_not_in_custody_history_is_refused[resequenced_later_timestamp]",
+        "asserts": "restore refused; admission stays closed",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-033",
+      "class": "overlay-mac-substitution",
+      "title": "Overlay record with substituted id/content",
+      "attack": "Overlay record MAC'd with the local fingerprint key binds a different decision id/content.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-09"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "recovery overlay trust record lacks authenticated custody history"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_th_restore_overlay_authority.py::test_valid_mac_overlay_record_not_in_custody_history_is_refused[wrong_id_content]",
+        "asserts": "restore refused; admission stays closed",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-034",
+      "class": "overlay-mac-substitution",
+      "title": "Planted decision mirror inside a backup snapshot",
+      "attack": "Backup archive includes a forged trust/decisions/*.json admit mirror copied verbatim on restore.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-09"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "latest": "revoke",
+          "admitted": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_th_restore_overlay_authority.py::test_planted_decision_mirror_in_snapshot_is_inert_after_restore",
+        "asserts": "mirror copied but inert: decision list unchanged, latest revoke, admission invalid",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-035",
+      "class": "mirror-resurrection",
+      "title": "Original S16 exploit: erase every decision copy after revoke",
+      "attack": "After admit->revoke, all decision mirrors and SQLite decision rows are deleted.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-12"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "admitted": false,
+          "latest": "revoke"
+        }
+      },
+      "witness": {
+        "type": "runner",
+        "case": "domain_mirror_deletion",
+        "control": {
+          "admitted": true,
+          "latest": "admit"
+        }
+      }
+    },
+    {
+      "id": "TAC-036",
+      "class": "mirror-resurrection",
+      "title": "SQLite decision projection flipped to admit",
+      "attack": "trust_decision rows are rewritten to admit and the revoke row deleted; rebuild is then run.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-S04-04"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "admitted": false,
+          "latest": "revoke",
+          "rebuilt_rows": {
+            "admit": "admit",
+            "revoke": "revoke"
+          }
+        }
+      },
+      "witness": {
+        "type": "runner",
+        "case": "domain_sqlite_projection_flip",
+        "control": {
+          "admitted": true,
+          "latest": "admit",
+          "rebuilt_rows": {
+            "admit": "admit"
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-037",
+      "class": "mirror-resurrection",
+      "title": "Planted admit mirror on a never-enrolled registry",
+      "attack": "Fresh tree has only a planted admit mirror and default policy file; no enrollment exists.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08",
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "TrustLedgerCorruptError",
+        "message": "trust custody unavailable; reconciliation required"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "domain_unenrolled_planted_mirror",
+        "control": {
+          "admitted": true,
+          "policy_id": "local-trust-v1"
+        }
+      }
+    },
+    {
+      "id": "TAC-038",
+      "class": "mirror-resurrection",
+      "title": "Revoked engram served after forging all projections",
+      "attack": "Real register/approve/revoke, then admit mirror re-planted and SQLite row flipped; route and body requested.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-07",
+        "AC-S11-01",
+        "AC-TH-12"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "body_status": "stale_decision",
+          "body_reason_codes": [
+            "stale_decision",
+            "not_admitted"
+          ],
+          "body_disclosed": false,
+          "routed_subject": false
+        }
+      },
+      "witness": {
+        "type": "runner",
+        "case": "domain_route_body_after_revoke_with_forged_projections",
+        "control": {
+          "body_status": "ok",
+          "body_reason_codes": [],
+          "body_disclosed": true,
+          "routed_subject": true
+        }
+      }
+    },
+    {
+      "id": "TAC-039",
+      "class": "mirror-resurrection",
+      "title": "Admit mirror planted after an acknowledged revoke",
+      "attack": "A stale admit decision JSON is written back into trust/decisions after revoke.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-12"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "admitted": false,
+          "latest": "revoke"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_authority_integration.py::test_actual_domain_mirror_loss_cannot_resurrect_revoke",
+        "asserts": "admission_still_valid False and latest decision revoke after planting",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-040",
+      "class": "mirror-resurrection",
+      "title": "Corrupt authority with intact mirror",
+      "attack": "Authenticated history is corrupted while mirror projections still claim admission.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "TrustLedgerCorruptError",
+        "message": "trust custody unavailable; reconciliation required"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_atlas_fixes.py::test_corrupt_authority_fails_closed_while_mirror_is_only_projection",
+        "asserts": "trust reads raise; trust view admitted is False",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-041",
+      "class": "rollback",
+      "title": "Whole local journal+head rolled back to pre-revoke",
+      "attack": "journal.jsonl and head.json are both replaced with pre-revoke bytes.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust head does not match custody"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_whole_local_rollback_against_current_custody_closes",
+        "asserts": "snapshot() raises CustodianError against the newer custody head",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-042",
+      "class": "rollback",
+      "title": "Hand-copied pre-revoke trust/ tree under supported runtime",
+      "attack": "Entire .magicite/data/trust (authority, policy, mirrors) is replaced with a pre-revoke copy (TH-A01 c2).",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "TrustLedgerCorruptError",
+        "message": "trust custody unavailable; reconciliation required"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "domain_hand_rollback_trust_tree",
+        "control": {
+          "latest": "revoke"
+        }
+      }
+    },
+    {
+      "id": "TAC-043",
+      "class": "rollback",
+      "title": "Commit against a rolled-back expected head",
+      "attack": "Writer presents the pre-revoke head as expected_head to commit an admit over the revoke.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-06"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "stale commit head"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "store_commit_rolled_back_expected_head",
+        "control": {
+          "head_sequence": 3
+        }
+      }
+    },
+    {
+      "id": "TAC-044",
+      "class": "rollback",
+      "title": "Journal truncated to drop the revoke",
+      "attack": "Last committed row (the revoke) is removed from journal.jsonl.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust history does not match custody"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_local_journal_mutations_never_read_as_current[truncate]",
+        "asserts": "snapshot() raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-045",
+      "class": "rollback",
+      "title": "Restore with missing retained custody suffix",
+      "attack": "Backup restore is attempted while the retained authenticated suffix to the anchor is unavailable.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-09"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "restore_refused": true,
+          "local_bytes_unchanged": true
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_authority_integration.py::test_missing_retained_custody_suffix_stops_restore_before_local_writes",
+        "asserts": "restore raises CustodianError and local bytes are unchanged (the raised message is injected by the test's fault stub, so only the node's state assertions are cited)",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-046",
+      "class": "rollback",
+      "title": "Restore of backup with unbound trust head",
+      "attack": "Backup manifest carries a trust head not bound to current custody.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-09"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "backup trust enrollment/head mismatch; reconciliation_required"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_authority_integration.py::test_restore_rejects_unbound_trust_head_before_local_file_mutation",
+        "asserts": "restore raises InvalidInputError before any local file mutation",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-047",
+      "class": "rollback",
+      "title": "Clean-machine restore without current overlay/anchor",
+      "attack": "Backup is restored on a machine lacking the current RecoveryOverlay/sequence anchor.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-S12-05",
+        "AC-TH-09"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "routing disabled: reconciliation_required"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_backup_restore_v1.py::test_missing_stale_overlay_closed",
+        "asserts": "restore not activated; routing/evidence raise reconciliation_required; doctor reports fail",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-048",
+      "class": "rollback",
+      "title": "Post-backup revocation re-applied after restore",
+      "attack": "Old backup restored after a later revoke and privacy deletion.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-S12-03"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "latest": "revoke"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_backup_restore_v1.py::test_policy_reapplication",
+        "asserts": "after restore the deleted evidence stays deleted and latest decision is revoke",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-049",
+      "class": "splice",
+      "title": "Fragment spliced from another transfer",
+      "attack": "Second fragment of a message is replaced by the same-index fragment of a different captured transfer.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody fragment"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "message_fragment_transfer_splice",
+        "control": {
+          "message": true
+        }
+      }
+    },
+    {
+      "id": "TAC-050",
+      "class": "splice",
+      "title": "Another registry's authenticated history transplanted",
+      "attack": "Complete journal+head from a different enrolled registry (admit) replaces this registry's (revoke).",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust head does not match custody"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "journal_cross_registry_transplant",
+        "control": {
+          "latest": "revoke"
+        }
+      }
+    },
+    {
+      "id": "TAC-051",
+      "class": "splice",
+      "title": "Foreign row inserted into journal (cold read)",
+      "attack": "A row authenticated for another registry is inserted into this journal.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust history does not match custody"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_mutation_binding.py::test_spliced_journal_closes_cold[foreign_insert]",
+        "asserts": "cold snapshot raises CustodianError with the splice message",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-052",
+      "class": "splice",
+      "title": "Foreign row replaces a row with warm cache",
+      "attack": "Same-count replacement with a foreign row while a verified snapshot is cached.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-07"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust history does not match custody"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_mutation_binding.py::test_spliced_journal_closes_with_warm_verified_cache[foreign_replace_same_count]",
+        "asserts": "warm snapshot raises CustodianError with the splice message",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-053",
+      "class": "splice",
+      "title": "Same-size splice with restored mtime",
+      "attack": "In-place same-size splice with mtime restored to defeat cache identity checks.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust history does not match custody"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_mutation_binding.py::test_same_size_splice_with_restored_mtime_closes_warm",
+        "asserts": "warm snapshot raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-054",
+      "class": "splice",
+      "title": "History page digest substituted",
+      "attack": "A paged history response is served with a page whose binding digest is changed.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid authenticated history page"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_history_paging.py::test_changed_history_page_binding_closes[digest]",
+        "asserts": "paged read raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-055",
+      "class": "resequence",
+      "title": "Record id reused with changed payload",
+      "attack": "Committed revoke record id is re-prepared carrying an admit payload.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "conflicting immutable record identity"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "store_record_id_payload_reuse",
+        "control": {
+          "head_sequence": 2
+        }
+      }
+    },
+    {
+      "id": "TAC-056",
+      "class": "resequence",
+      "title": "Prepared record sequence rewritten",
+      "attack": "Prepared record's sequence is changed to 99 before commit.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "record does not match durable preparation"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_prepared_record_tamper_cannot_advance_custodian[sequence-99]",
+        "asserts": "commit raises CustodianError; read_current unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-057",
+      "class": "resequence",
+      "title": "Old admission resequenced under new wrapper after revoke",
+      "attack": "A pre-revoke admit payload is re-wrapped as a new record to land after the revoke.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "decision identity must equal immutable journal identity"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_old_admission_cannot_be_resequenced_under_new_wrapper_after_revoke",
+        "asserts": "prepare raises CustodianError; head unchanged; last committed is revoke",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-058",
+      "class": "resequence",
+      "title": "Journal rows reordered",
+      "attack": "Committed rows are reversed so admit follows revoke.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust history does not match custody"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_local_journal_mutations_never_read_as_current[reorder]",
+        "asserts": "snapshot() raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-059",
+      "class": "resequence",
+      "title": "Record id reused with changed kind",
+      "attack": "A committed trust_decision id is reused as a policy_snapshot.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "conflicting immutable record identity"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_retry_matrix.py::test_same_record_id_with_changed_kind_is_rejected_without_advancing[trust_decision->policy_snapshot]",
+        "asserts": "raises 'conflicting immutable record identity'; head, history and pending unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-060",
+      "class": "resequence",
+      "title": "Backdated revoke vs future-dated admit",
+      "attack": "Admit carries timestamp 2099, revoke 2020; attacker relies on timestamp ordering.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-07"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "latest": "revoke"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_sequence_wins_over_future_admit_timestamp",
+        "asserts": "latest_by_engram is the higher-sequence revoke",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-061",
+      "class": "legacy-downgrade",
+      "title": "Frozen 22ae4e0 reader on new-format revoke",
+      "attack": "Pre-hardening reader opens a registry whose revoke exists only in authenticated custody.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "old_reader_routes": false,
+          "old_reader_discloses": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_th10_old_reader_downgrade.py::test_old_reader_rejects_new_format_after_revoke",
+        "asserts": "old reader routes/discloses nothing; new runtime latest is revoke",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-062",
+      "class": "legacy-downgrade",
+      "title": "Old admit mirror after reviewed migration and journal-only revoke",
+      "attack": "Stale pre-migration admit mirror remains on disk; revoke recorded only in journal.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-10",
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "old_reader_routes": false,
+          "latest": "revoke"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_th10_old_reader_downgrade.py::test_old_reader_after_migration_and_journal_only_revoke",
+        "asserts": "old reader stays closed despite the mirror; new runtime latest is revoke",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-063",
+      "class": "legacy-downgrade",
+      "title": "Staged migration restore read by the frozen 22ae4e0 reader",
+      "attack": "`magicite migration restore` stages pre-migration bytes in inactive staging; the frozen old reader is pointed at the registry hoping the staged copy reactivates the revoked subject (TH-A01 c1).",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "active_bytes_unchanged": true,
+          "old_reader_routes": false,
+          "latest": "revoke"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_th10_old_reader_downgrade.py::test_downgrade_paths_preserve_revocation_and_enrollment",
+        "asserts": "c1: restore state reconciliation_required, active registry bytes unchanged, old reader closed, new runtime latest revoke (c2/c3 of the same node are covered by runner entries)",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-064",
+      "class": "legacy-downgrade",
+      "title": "Complete pre-revoke backup via supported runtime",
+      "attack": "Complete backup taken before the revoke is restored by the supported runtime.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-10",
+        "AC-TH-09",
+        "AC-S12-03"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "latest": "revoke",
+          "exposure": [
+            false,
+            false
+          ]
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/integration/test_th10_old_reader_downgrade.py::test_supported_backup_restore_keeps_post_backup_revoke",
+        "asserts": "restore ok; latest revoke; neither route nor body exposes the subject (merged: also the AC-TH-09 retained-suffix restore case)",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-065",
+      "class": "legacy-downgrade",
+      "title": "Conflicting legacy decision identity in preview",
+      "attack": "Legacy inventory contains two decisions sharing an id with different content.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "conflicting legacy decision identity"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_legacy.py::test_legacy_preview_rejects_conflicting_decision_identity",
+        "asserts": "preview raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-066",
+      "class": "legacy-downgrade",
+      "title": "Unsigned legacy signer claim",
+      "attack": "Legacy decision claims a verified signer without any signature evidence.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "admission conflicts with current authenticated trust policy"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_legacy.py::test_unsigned_legacy_signer_claim_only_restricts_and_never_verifies_target",
+        "asserts": "claim recorded as unsigned provenance only; target never verified; approval raises",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-067",
+      "class": "legacy-downgrade",
+      "title": "Interrupted legacy apply resumed to sneak admission",
+      "attack": "Migration apply is killed after a decision record commits and then resumed.",
+      "capability": "crash-and-withhold",
+      "criteria": [
+        "AC-TH-08",
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "latest": "pending"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_legacy.py::test_apply_boundary_resume_never_implicitly_admits[record_committed:trust_decision]",
+        "asserts": "gate closed while incomplete; resumed state is pending with unique record ids",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-068",
+      "class": "legacy-downgrade",
+      "title": "Restore into unrelated non-empty staging",
+      "attack": "migration restore targets a staging directory holding unrelated files.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-10",
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "restore staging is not empty or bound to this backup"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_legacy.py::test_public_restore_rejects_unrelated_staging",
+        "asserts": "restore raises 'not empty'; unrelated file untouched",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-069",
+      "class": "bundle-archive",
+      "title": "Zip-slip parent traversal member",
+      "attack": "Archive member '../escape.txt' attempts to write outside staging.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "path escape rejected for archive member: '../escape.txt'"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_zip_slip",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-070",
+      "class": "bundle-archive",
+      "title": "Absolute path member",
+      "attack": "Archive member '/tmp/abs.txt' uses an absolute path.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "absolute archive member path rejected: '/tmp/abs.txt'"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_absolute_member",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-071",
+      "class": "bundle-archive",
+      "title": "Backslash traversal member",
+      "attack": "Archive member uses Windows separators 'assets\\..\\..\\x.txt'.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "archive member path must use POSIX separators: 'assets\\\\..\\\\..\\\\x.txt'"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_backslash_member",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-072",
+      "class": "bundle-archive",
+      "title": "Symlink archive member",
+      "attack": "Member with S_IFLNK mode pointing at /etc/passwd.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "symlink archive member rejected: 'assets/link'"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_symlink_member",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-073",
+      "class": "bundle-archive",
+      "title": "Case-fold colliding members",
+      "attack": "'SKILL.egr.md' shadows 'skill.egr.md' on case-insensitive filesystems.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "case-folding duplicate paths rejected: 'skill.egr.md' vs 'SKILL.egr.md'"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_casefold_collision",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-074",
+      "class": "bundle-archive",
+      "title": "Duplicate member name",
+      "attack": "Second 'assets/a.txt' entry with different bytes overrides the signed one at extract.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "duplicate archive member path: 'assets/a.txt'"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_duplicate_member",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-075",
+      "class": "bundle-archive",
+      "title": "Single-member decompression bomb",
+      "attack": "1 MiB of zeros compressed into a tiny member, over the per-file limit.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "archive member 'assets/bomb.bin' exceeds per-file limit (1048576 > 16384)"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_decompression_bomb",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-076",
+      "class": "bundle-archive",
+      "title": "Aggregate uncompressed size bomb",
+      "attack": "Each member under the per-file limit, but the total exceeds the bundle limit.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "bundle exceeds total uncompressed limit (76800 > 65536)"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_total_size_bomb",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-077",
+      "class": "bundle-archive",
+      "title": "Entry-count flood",
+      "attack": "Archive with more members than the configured entry limit.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "bundle exceeds entry limit (14 > 8)"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_entry_count_flood",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-078",
+      "class": "bundle-archive",
+      "title": "Unlisted smuggled member",
+      "attack": "Extra executable member not listed in the signed manifest.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "staged file not listed in manifest: 'assets/smuggled.sh'"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_unlisted_member",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-079",
+      "class": "bundle-archive",
+      "title": "Unsigned bundle",
+      "attack": "manifest.sig omitted entirely.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02",
+        "AC-S04-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "bundle missing manifest.sig (detached Ed25519 signature)"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_missing_signature",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-080",
+      "class": "bundle-archive",
+      "title": "Bundle signed by an unpinned key",
+      "attack": "Manifest validly signed by a key that is not a local trust root.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "bundle signature does not match any non-revoked local trust root"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_untrusted_signer",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-081",
+      "class": "bundle-archive",
+      "title": "Bundle signed by a revoked root",
+      "attack": "Manifest signed by a pinned root that has been revoked.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02",
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "bundle signature does not match any non-revoked local trust root"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_revoked_root",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-082",
+      "class": "bundle-archive",
+      "title": "Drive-letter and UNC members",
+      "attack": "Members named 'C:evil' and '//server/share' target other volumes.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "drive-letter archive member path rejected: 'C:/escape.egr.md'"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_atlas_fixes.py::test_reject_drive_letter_and_unc_members",
+        "asserts": "each member raises InvalidInputError (drive/UNC/absolute/escape)",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-083",
+      "class": "bundle-archive",
+      "title": "Corrupt central-directory offset",
+      "attack": "Archive with a corrupted directory offset to provoke parser exceptions.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "bundle archive is corrupt or uses an unsupported zip feature"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_fuzz_regressions.py::test_corrupt_archive_raises_invalid_input_and_leaves_no_staging[badoff]",
+        "asserts": "raises InvalidInputError and leaves no staging directory",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-084",
+      "class": "bundle-archive",
+      "title": "Import case-fold collision with existing engram",
+      "attack": "Bundle engram name case-folds onto an existing registry file.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "casefold collision with existing registry path: 'CaseCollide.egr.md' vs 'casecollide.egr.md'"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_r2_import_safety.py::test_import_bundle_refuses_casefold_collision",
+        "asserts": "import raises InvalidInputError; planted file unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-085",
+      "class": "bundle-archive",
+      "title": "Import overwriting an existing engram",
+      "attack": "Bundle targets the path of an existing authored engram.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "import would overwrite existing registry path: 'skills/victim.egr.md'"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_r2_import_safety.py::test_import_bundle_refuses_overwrite_existing",
+        "asserts": "import raises; victim bytes unchanged; attacker row absent",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-086",
+      "class": "bundle-archive",
+      "title": "Planted unauthenticated import journal",
+      "attack": "Forged import-rollback journal lists an authored file for deletion.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-S04-02",
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "victim_unchanged": true,
+          "quarantined": true
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_r4_journal_auth.py::test_planted_unauthenticated_journal_does_not_delete_authored",
+        "asserts": "victim bytes unchanged; journal quarantined, not executed",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-087",
+      "class": "bundle-archive",
+      "title": "Path-escaping members in rollback quarantine",
+      "attack": "Rollback journal members escape the registry to reach an outside secret.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "secret_unchanged": true
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_r5_path_containment.py::test_quarantine_rejects_path_escape_members",
+        "asserts": "outside secret untouched; only contained members quarantined",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-088",
+      "class": "bundle-archive",
+      "title": "Leftover import staging ingested",
+      "attack": "Engram left in import staging is offered to sync/register as if published.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-S04-01"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "ingested": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_r3_staging_journal.py::test_leftover_import_staging_not_ingested_by_sync_or_register",
+        "asserts": "staging engram never appears in engram table after sync/register/rebuild",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-089",
+      "class": "oversized-fragmented-frames",
+      "title": "Frame header larger than MAX_FRAME",
+      "attack": "Length prefix claims MAX_FRAME+1 bytes to force a large allocation.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "custodian frame exceeds limit"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "frame_oversized_header",
+        "control": {
+          "frame": true
+        }
+      }
+    },
+    {
+      "id": "TAC-090",
+      "class": "oversized-fragmented-frames",
+      "title": "Zero-length frame",
+      "attack": "Length prefix of zero.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "custodian frame exceeds limit"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "frame_zero_length",
+        "control": {
+          "frame": true
+        }
+      }
+    },
+    {
+      "id": "TAC-091",
+      "class": "oversized-fragmented-frames",
+      "title": "Truncated frame body",
+      "attack": "Peer closes after sending fewer bytes than the length prefix.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian frame"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "frame_truncated_body",
+        "control": {
+          "frame": true
+        }
+      }
+    },
+    {
+      "id": "TAC-092",
+      "class": "oversized-fragmented-frames",
+      "title": "Message bad magic",
+      "attack": "Header magic replaced (protocol confusion / downgrade to an older framing).",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody message framing"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "message_bad_magic",
+        "control": {
+          "message": true
+        }
+      }
+    },
+    {
+      "id": "TAC-093",
+      "class": "oversized-fragmented-frames",
+      "title": "Logical length over MAX_LOGICAL",
+      "attack": "Header declares a logical size above the bound with a consistent fragment count.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody message framing"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "message_logical_oversize",
+        "control": {
+          "message": true
+        }
+      }
+    },
+    {
+      "id": "TAC-094",
+      "class": "oversized-fragmented-frames",
+      "title": "Fragment count inconsistent with length",
+      "attack": "Header fragment count disagrees with declared logical length.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody message framing"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "message_fragment_count_mismatch",
+        "control": {
+          "message": true
+        }
+      }
+    },
+    {
+      "id": "TAC-095",
+      "class": "oversized-fragmented-frames",
+      "title": "Fragments reordered",
+      "attack": "Two fragments of one transfer are delivered in swapped order.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody fragment"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "message_fragment_reorder",
+        "control": {
+          "message": true
+        }
+      }
+    },
+    {
+      "id": "TAC-096",
+      "class": "oversized-fragmented-frames",
+      "title": "Trailing extra fragment",
+      "attack": "Extra bytes after the final declared fragment.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "extra custody fragment"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "message_trailing_fragment",
+        "control": {
+          "message": true
+        }
+      }
+    },
+    {
+      "id": "TAC-097",
+      "class": "oversized-fragmented-frames",
+      "title": "Slow-trickle frame",
+      "attack": "Peer drips bytes to hold the connection beyond the total deadline.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian frame"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian_transport.py::test_total_frame_deadline_rejects_slow_trickle",
+        "asserts": "deadline expiry during the body read is normalized to 'invalid custodian frame' (CustodianError)",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-098",
+      "class": "deep-json-recursion",
+      "title": "Deeply nested frame JSON",
+      "attack": "100k-deep nested object in a length-valid frame.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04",
+        "AC-TH-11"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian frame"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "frame_deep_json",
+        "control": {
+          "frame": true
+        }
+      }
+    },
+    {
+      "id": "TAC-099",
+      "class": "deep-json-recursion",
+      "title": "Deeply nested message JSON",
+      "attack": "100k-deep nested object in a digest-valid MTC2 message.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04",
+        "AC-TH-11"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody message"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "message_deep_json",
+        "control": {
+          "message": true
+        }
+      }
+    },
+    {
+      "id": "TAC-100",
+      "class": "deep-json-recursion",
+      "title": "Deeply nested receipt result",
+      "attack": "Receipt result replaced by a 50k-deep structure (RecursionError during canonical encoding).",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03",
+        "AC-TH-11"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_deep_json",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-101",
+      "class": "deep-json-recursion",
+      "title": "Recursion in service dispatch parser",
+      "attack": "Request triggers parser recursion inside the custodian service.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-11"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian frame"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian_transport.py::test_parser_recursion_is_normalized_to_redacted_protocol_error",
+        "asserts": "recursion normalized to a redacted CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-102",
+      "class": "noncanonical-duplicate-key",
+      "title": "Duplicate key in bundle manifest",
+      "attack": "Signed manifest repeats the 'kind' key so first-wins and last-wins parsers disagree.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "duplicate JSON key 'kind' in bundle manifest"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_manifest_duplicate_key",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-103",
+      "class": "noncanonical-duplicate-key",
+      "title": "Validly signed non-canonical manifest",
+      "attack": "Pretty-printed manifest is genuinely signed by a trusted root but is not canonical bytes.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "bundle manifest is not in canonical encoding (UTF-8 JSON, sorted keys, compact separators)"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "bundle_manifest_noncanonical",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-104",
+      "class": "noncanonical-duplicate-key",
+      "title": "NaN in a signed receipt",
+      "attack": "Receipt payload contains NaN, which has no canonical JSON encoding.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian receipt"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "receipt_nan_noncanonical",
+        "control": {
+          "result": {
+            "head_mac": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "head_sequence": 7
+          }
+        }
+      }
+    },
+    {
+      "id": "TAC-105",
+      "class": "noncanonical-duplicate-key",
+      "title": "Non-object frame",
+      "attack": "Frame body is a JSON array instead of an object.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custodian frame"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "frame_non_object",
+        "control": {
+          "frame": true
+        }
+      }
+    },
+    {
+      "id": "TAC-106",
+      "class": "noncanonical-duplicate-key",
+      "title": "Non-object message",
+      "attack": "Message body is a JSON array instead of an object.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody message"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "message_non_object",
+        "control": {
+          "message": true
+        }
+      }
+    },
+    {
+      "id": "TAC-107",
+      "class": "noncanonical-duplicate-key",
+      "title": "Malformed policy root structure",
+      "attack": "Policy snapshot root list holds a non-object entry.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid record payload"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_fuzz_regressions.py::test_policy_non_dict_or_malformed_root_raises_custodian_error[root5]",
+        "asserts": "payload validation raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-108",
+      "class": "noncanonical-duplicate-key",
+      "title": "Boolean policy revision in decision payload",
+      "attack": "Decision payload uses policy_revision=true to pass integer checks.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid record payload"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_invalid_domain_payload_cannot_be_prepared[policy_revision-True]",
+        "asserts": "prepare raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-109",
+      "class": "noncanonical-duplicate-key",
+      "title": "Engram with unknown required extension",
+      "attack": "Artifact declares a required extension the reader does not implement.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "EngramParseError",
+        "message": "engram/1.0 admission failed: extensions.unknown.feature: unknown required extension rejected (fail closed)"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_artifact_transform.py::test_unknown_required_extensions_still_fail_closed",
+        "asserts": "parse raises EngramParseError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-110",
+      "class": "noncanonical-duplicate-key",
+      "title": "Mutated receipts under seeded fuzzing",
+      "attack": "Seeded structural JSON mutations of a genuine receipt.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "unexpected_exceptions": 0,
+          "accepted_nongenuine_mutants": 0
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/fuzz/test_bounded_fuzz.py::test_bounded_fuzz_invariant_holds[custodian.verify_receipt]",
+        "asserts": "every mutant verifies only if semantically genuine, else raises CustodianError",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-111",
+      "class": "stale-fence-lease-loss",
+      "title": "Paused holder prepares after a newer fence",
+      "attack": "Old lease holder resumes and prepares an admit after another holder registered.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-06"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "stale writer fence"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "store_paused_holder_prepares_after_new_fence",
+        "control": {
+          "pending_record_id": "late"
+        }
+      }
+    },
+    {
+      "id": "TAC-112",
+      "class": "stale-fence-lease-loss",
+      "title": "Journal append with superseded fence",
+      "attack": "Journal append uses a fence superseded by a newer registration.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-06"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "stale writer fence"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "journal_stale_fence_append",
+        "control": {
+          "latest": "admit"
+        }
+      }
+    },
+    {
+      "id": "TAC-113",
+      "class": "stale-fence-lease-loss",
+      "title": "Writer lease taken over by a newer token before append",
+      "attack": "A real writer lease row is taken over by a newer fencing token (another holder) before the journal append prepares.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-06",
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "BusyError",
+        "message": "writer lease ownership was lost before a durable mutation"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "journal_lease_lost_before_append",
+        "control": {
+          "latest": "admit"
+        }
+      }
+    },
+    {
+      "id": "TAC-114",
+      "class": "stale-fence-lease-loss",
+      "title": "Stale registration with unchanged head",
+      "attack": "Paused old holder registers with a predecessor still matching the head.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-06"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "stale fence predecessor"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_stale_registration_rejected_even_when_head_unchanged",
+        "asserts": "registration raises; current fence generation is the newer one",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-115",
+      "class": "stale-fence-lease-loss",
+      "title": "Superseded attempt retried",
+      "attack": "Same attempt id retried after a newer generation registered.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-06"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "superseded or conflicting fence attempt"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_same_attempt_retry_cannot_reactivate_superseded_generation",
+        "asserts": "retry raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-116",
+      "class": "stale-fence-lease-loss",
+      "title": "Lease lost after custody commit",
+      "attack": "Lease is lost between custody commit and local head replace.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-06",
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "custody_committed_once": true,
+          "local_head_replaced": false,
+          "reads_closed_until_reconcile": true
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_lease_post_commit.py::test_lease_lost_after_commit_blocks_local_head_replace",
+        "asserts": "BusyError; local head not replaced; reads close until fenced reconcile (the raised message is injected by the test's fault stub, so only the node's state assertions are cited)",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-117",
+      "class": "stale-fence-lease-loss",
+      "title": "Lease lost after local append before commit",
+      "attack": "Lease is lost after the local journal append but before commit.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-06"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "commit_record_called": false,
+          "custody_head_unchanged": true
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_lease_post_commit.py::test_lease_lost_after_local_append_before_commit_never_commits",
+        "asserts": "BusyError; commit_record never called; custody head unchanged (the raised message is injected by the test's fault stub, so only the node's state assertions are cited)",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-118",
+      "class": "stale-fence-lease-loss",
+      "title": "Nested try refreshes outer attempt",
+      "attack": "Nested acquisition attempts to refresh the outer custody attempt's predecessor.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-06"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "BusyError",
+        "message": "direct nested lease acquisition cannot refresh custody"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_custody_writer_guard.py::test_nested_direct_try_cannot_refresh_outer_custody_attempt",
+        "asserts": "nested try raises BusyError; outer attempt id and fence unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-119",
+      "class": "crash-ack-ordering",
+      "title": "Crash after custody commit before local head",
+      "attack": "Process killed after durable custody commit, before local head write.",
+      "capability": "crash-and-withhold",
+      "criteria": [
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "latest": "revoke"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_fault_ack_matrix.py::test_fault_matrix_every_persistence_boundary[local_head_write]",
+        "asserts": "never acknowledged; revoke recovered under fence; no silent divergence",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-120",
+      "class": "crash-ack-ordering",
+      "title": "Crash at prepare before custody",
+      "attack": "Fault injected at prepare before the custodian is contacted.",
+      "capability": "crash-and-withhold",
+      "criteria": [
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "committed": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_fault_ack_matrix.py::test_fault_matrix_every_persistence_boundary[prepare_before_custody]",
+        "asserts": "never acknowledged; no pending record and no committed advance",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-121",
+      "class": "crash-ack-ordering",
+      "title": "Lost commit reply then read",
+      "attack": "Commit reply is lost; reads must close until reconciliation keeps the revoke.",
+      "capability": "crash-and-withhold",
+      "criteria": [
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "latest": "revoke"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_lost_commit_reply_closes_then_recovers_without_losing_revoke",
+        "asserts": "reads raise CustodianError; reconcile recovers latest revoke",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-122",
+      "class": "policy-root-projection-mutation",
+      "title": "Attacker root pinned via projection files",
+      "attack": "policy.json and roots.json rewritten to pin the attacker's signing key at revision 2.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-07"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "InvalidInputError",
+        "message": "no local trust roots configured; refuse unsigned/unknown admission"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "domain_planted_root_projection",
+        "control": {
+          "ok": true,
+          "entries": [
+            "assets/a.txt",
+            "skill.egr.md"
+          ]
+        }
+      }
+    },
+    {
+      "id": "TAC-123",
+      "class": "policy-root-projection-mutation",
+      "title": "Projection rolled back to pre-root-revocation",
+      "attack": "policy/roots projections replaced with pre-revocation copies.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "root_revoked": true,
+          "routed": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_mutation_binding.py::test_root_policy_projection_mutation_cannot_restore_admission[rollback_both_to_prerevocation]",
+        "asserts": "load_policy returns the revoked policy; body/route/admission closed",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-124",
+      "class": "policy-root-projection-mutation",
+      "title": "Projection edited to un-revoke root",
+      "attack": "Revoked flag cleared in policy and roots projections.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "root_revoked": true,
+          "routed": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_mutation_binding.py::test_root_policy_projection_mutation_cannot_restore_admission[edit_policy_unrevoke]",
+        "asserts": "load_policy returns the revoked policy; body/route/admission closed",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-125",
+      "class": "policy-root-projection-mutation",
+      "title": "Policy projection reset to default",
+      "attack": "policy.json overwritten with the default policy, then deleted.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-07"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "policy": "authenticated"
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_authority_integration.py::test_policy_projection_cannot_reset_authenticated_policy",
+        "asserts": "load_policy returns the authenticated reviewed policy both times",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-126",
+      "class": "policy-root-projection-mutation",
+      "title": "Stale root pin undoes revocation",
+      "attack": "A root pin computed before an interleaved revocation is committed afterwards.",
+      "capability": "concurrent-stale-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-06"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "root_revoked": true
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_authority_integration.py::test_stale_root_pin_cannot_undo_interleaved_acknowledged_revocation",
+        "asserts": "root remains revoked after the stale pin",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-127",
+      "class": "policy-root-projection-mutation",
+      "title": "Cached policy used after authenticated restriction",
+      "attack": "Route/body served from a policy cached before a restriction committed.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-07",
+        "AC-S11-01"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "body_status": "stale_decision",
+          "routed": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_authority_integration.py::test_actual_route_and_body_deny_after_authenticated_policy_change[root_revocation]",
+        "asserts": "body not ok and empty; route has no candidates",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-128",
+      "class": "pending-record-abuse",
+      "title": "Prepared admit materialized locally as committed",
+      "attack": "Uncommitted prepared admit appended to local journal with forged head.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-05",
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "pending trust record requires reconciliation"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "journal_precommit_materialization",
+        "control": {
+          "latest": "revoke"
+        }
+      }
+    },
+    {
+      "id": "TAC-129",
+      "class": "pending-record-abuse",
+      "title": "Pending preparation treated as authority",
+      "attack": "A prepared policy record exists; reader proceeds without reconciliation.",
+      "capability": "crash-and-withhold",
+      "criteria": [
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "pending trust record requires reconciliation"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_pending_preparation_closes_read_until_exact_reconciliation",
+        "asserts": "snapshot() raises CustodianError while pending",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-130",
+      "class": "pending-record-abuse",
+      "title": "Preparation advances head",
+      "attack": "Attacker prepares a record expecting it to authorize reads.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-02",
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "head_advanced": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_preparation_does_not_advance_head_or_authorize_reads",
+        "asserts": "head sequence and MAC unchanged; pending id recorded",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-131",
+      "class": "pending-record-abuse",
+      "title": "External file claims authored and verified",
+      "attack": "Imported file front-matter forges origin authored and verification verified.",
+      "capability": "malicious-bundle-author",
+      "criteria": [
+        "AC-S04-01"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "decision": "pending",
+          "admitted": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_intake.py::test_forged_origin",
+        "asserts": "origin imported; status pending/quarantined; decision pending; not admitted",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-132",
+      "class": "pending-record-abuse",
+      "title": "Pending intake staged while custody unreachable",
+      "attack": "External intake is recorded while the custodian is unreachable, hoping staging falls back to a default policy.",
+      "capability": "crash-and-withhold",
+      "criteria": [
+        "AC-TH-07"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "custody unavailable; reconciliation required"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "intake_staged_while_custody_unavailable",
+        "control": {
+          "decision": "pending",
+          "head_advanced": true
+        }
+      }
+    },
+    {
+      "id": "TAC-133",
+      "class": "pending-record-abuse",
+      "title": "Fake local completion of legacy reconciliation",
+      "attack": "Local files claim reconciliation COMPLETE while custody gate is active.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "legacy reconciliation remains incomplete"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_reconciliation.py::test_active_gate_closes_normal_snapshot_despite_fake_local_completion",
+        "asserts": "normal snapshot raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-134",
+      "class": "pending-record-abuse",
+      "title": "Unlisted or out-of-order reconciliation admission",
+      "attack": "Reconciliation plan is extended with an unlisted admission or reordered rotation.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "only exact non-admitting migration records are permitted"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_reconciliation.py::test_plan_rejects_out_of_order_and_unlisted_admission_and_rotation",
+        "asserts": "each raises CustodianError; head stays at 2",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-135",
+      "class": "pending-record-abuse",
+      "title": "Rotation while journal record pending",
+      "attack": "Rotation attempted while an ordinary record is pending, to orphan it.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-10",
+        "AC-TH-05"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "rotation requires reconciled current head"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_rotation.py::test_pending_journal_record_blocks_rotation_without_new_keys",
+        "asserts": "rotation raises; authority state unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-136",
+      "class": "custody-unavailable",
+      "title": "Custodian withheld at read time",
+      "attack": "Custody calls fail (service down or blocked) while trust reads are attempted.",
+      "capability": "crash-and-withhold",
+      "criteria": [
+        "AC-TH-04",
+        "AC-TH-11"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "TrustLedgerCorruptError",
+        "message": "trust custody unavailable; reconciliation required"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "domain_custody_unavailable",
+        "control": {
+          "admitted": true,
+          "policy_id": "local-trust-v1"
+        }
+      }
+    },
+    {
+      "id": "TAC-137",
+      "class": "custody-unavailable",
+      "title": "Local authority directory deleted",
+      "attack": "trust/authority (journal+head) removed (TH-A01 c3).",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01",
+        "AC-TH-10"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "TrustLedgerCorruptError",
+        "message": "trust custody unavailable; reconciliation required"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "domain_authority_deleted",
+        "control": {
+          "policy_id": "local-trust-v1"
+        }
+      }
+    },
+    {
+      "id": "TAC-138",
+      "class": "custody-unavailable",
+      "title": "Local head deleted",
+      "attack": "head.json removed while journal remains.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "unsafe or unavailable journal directory"
+      },
+      "witness": {
+        "type": "runner",
+        "case": "journal_head_deleted",
+        "control": {
+          "latest": "revoke"
+        }
+      }
+    },
+    {
+      "id": "TAC-139",
+      "class": "custody-unavailable",
+      "title": "Same-UID production profile",
+      "attack": "Production profile names a custodian UID equal to the client's.",
+      "capability": "misconfigured-deployment",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "independent custody requires distinct OS identities"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian_transport.py::test_same_uid_production_profile_denied",
+        "asserts": "profile load raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-140",
+      "class": "custody-unavailable",
+      "title": "Service started as the client identity",
+      "attack": "Custodian service launched under the registry writer's UID.",
+      "capability": "misconfigured-deployment",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "custodian service identity mismatch"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian_transport.py::test_production_service_refuses_running_as_client_identity",
+        "asserts": "service raises; socket never created",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-141",
+      "class": "custody-unavailable",
+      "title": "Linux peer UID mismatch",
+      "attack": "Socket peer credentials (SO_PEERCRED) belong to an unexpected UID.",
+      "capability": "foreign-uid-peer",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "custodian peer identity mismatch"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_peer_platform_fixtures.py::test_linux_so_peercred_rejects_uid_mismatch_both_directions[4002-4001]",
+        "asserts": "check_peer raises 'peer identity mismatch'",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-142",
+      "class": "custody-unavailable",
+      "title": "macOS peer UID mismatch",
+      "attack": "getpeereid reports an unexpected UID.",
+      "capability": "foreign-uid-peer",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "custodian peer identity mismatch"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_peer_platform_fixtures.py::test_macos_getpeereid_rejects_uid_mismatch_both_directions[4001-4002]",
+        "asserts": "check_peer raises 'peer identity mismatch'",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-143",
+      "class": "custody-unavailable",
+      "title": "Unsupported platform peer check",
+      "attack": "No peer-credential source on the OS.",
+      "capability": "misconfigured-deployment",
+      "criteria": [
+        "AC-TH-04"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "custodian peer verification unsupported"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_peer_platform_fixtures.py::test_unsupported_platform_peer_check_fails_closed[win32]",
+        "asserts": "raises 'peer verification unsupported' without touching the socket",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-144",
+      "class": "custody-unavailable",
+      "title": "Valid profile but unavailable service",
+      "attack": "Reconcile runs with a valid profile while the service is down.",
+      "capability": "crash-and-withhold",
+      "criteria": [
+        "AC-TH-04",
+        "AC-TH-11"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "local_writes": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_custody_admin.py::test_valid_profile_unavailable_service_has_no_local_writes[reconcile]",
+        "asserts": "command fails; no .magicite created",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-145",
+      "class": "custody-unavailable",
+      "title": "Writer factory without protected enrollment",
+      "attack": "Writer lease acquired on a registry with no protected enrollment.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-04",
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "protected custody enrollment required"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_custody_writer_guard.py::test_real_factory_requires_protected_enrollment_before_any_acquisition",
+        "asserts": "raises before any lock file or lease row is created",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-146",
+      "class": "enrollment-reset",
+      "title": "Re-enrollment to reset history",
+      "attack": "Enroll called again for an enrolled registry.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08",
+        "AC-TH-03"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "registry already enrolled"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_explicit_enrollment_is_durable_and_cannot_reset",
+        "asserts": "raises; head unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-147",
+      "class": "enrollment-reset",
+      "title": "Implicit enrollment of unknown registry",
+      "attack": "Read of a never-enrolled registry expects auto-enrollment.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "registry is not enrolled"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_missing_registry_never_auto_enrolls",
+        "asserts": "read_current raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-148",
+      "class": "enrollment-reset",
+      "title": "Erased local tree re-genesis",
+      "attack": "Journal and head deleted after a revoke; genesis re-run.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08",
+        "AC-TH-01"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "existing history requires explicit recovery"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_journal.py::test_missing_local_tree_cannot_be_implicitly_reenrolled",
+        "asserts": "initialize_reviewed_genesis raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-149",
+      "class": "enrollment-reset",
+      "title": "Unreviewed genesis retry",
+      "attack": "Genesis retried with reviewed=False to replace enrollment.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08",
+        "AC-TH-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "explicit reviewed enrollment required"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_retry_matrix.py::test_genesis_differing_retry_is_rejected_without_change[unreviewed]",
+        "asserts": "raises; head and history unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-150",
+      "class": "enrollment-reset",
+      "title": "Genesis over stale local head",
+      "attack": "Genesis init resumed over a non-identical stale head.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08",
+        "AC-TH-02"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "local trust history already initialized"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_th_retry_matrix.py::test_genesis_init_refuses_nonidentical_partial_state[stale-head]",
+        "asserts": "raises 'already initialized'; local bytes unchanged",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-151",
+      "class": "enrollment-reset",
+      "title": "Enrollment of unreviewed bytes via CLI",
+      "attack": "custody enroll invoked on bytes not explicitly reviewed.",
+      "capability": "same-uid-local-writer",
+      "criteria": [
+        "AC-TH-08"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "registry is not enrolled"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_custody_admin.py::test_custody_enroll_rejects_unreviewed_bytes",
+        "asserts": "CLI enroll exits non-zero; library path raises CustodianError and nothing is enrolled",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-152",
+      "class": "secret-disclosure",
+      "title": "Private custody key world-readable",
+      "attack": "signing.key permissions loosened so another account could read it.",
+      "capability": "misconfigured-deployment",
+      "criteria": [
+        "AC-TH-04",
+        "AC-TH-11"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "custody unavailable; reconciliation required"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian.py::test_existing_private_custody_files_cannot_be_world_readable[signing.key]",
+        "asserts": "opening a store with a world-readable signing.key raises CustodianError",
+        "verification": "recorded-raise"
+      }
+    },
+    {
+      "id": "TAC-153",
+      "class": "secret-disclosure",
+      "title": "Control key archived in backup",
+      "attack": "Legacy fingerprint control key would be copied into a reviewed backup archive.",
+      "capability": "backup-restorer",
+      "criteria": [
+        "AC-TH-11"
+      ],
+      "expected": {
+        "kind": "state",
+        "state": {
+          "secret_in_archive": false
+        }
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_legacy.py::test_existing_control_key_requires_encrypted_custody_and_is_not_archived",
+        "asserts": "raises without encrypted custody; no archive contains the key bytes",
+        "verification": "state-delegated-to-node"
+      }
+    },
+    {
+      "id": "TAC-154",
+      "class": "secret-disclosure",
+      "title": "Missing operation leaks raw KeyError",
+      "attack": "Request omits operation to provoke an uncaught exception with internals.",
+      "capability": "wire-relay",
+      "criteria": [
+        "AC-TH-11"
+      ],
+      "expected": {
+        "kind": "raises",
+        "exception": "CustodianError",
+        "message": "invalid custody request binding"
+      },
+      "witness": {
+        "type": "node",
+        "node": "tests/unit/core/test_trust_custodian_transport.py::test_missing_operation_is_redacted_protocol_error_not_uncaught_keyerror",
+        "asserts": "returns a redacted CustodianError, not KeyError",
+        "verification": "recorded-raise"
+      }
+    }
+  ],
+  "verification_semantics": {
+    "runner": "Attack and positive control executed by the runner; exact exception type and full message, or exact state, asserted.",
+    "recorded-raise": "Witness node executed in a child pytest; the runner asserts the node passed and that a pytest.raises inside it caught exactly the declared exception type with exactly the declared message.",
+    "state-delegated-to-node": "Witness node executed and must pass; the declared state is asserted by the node's own assertions and is NOT re-observed by the runner.",
+    "node-skipped": "Counted as not executed; the report is then complete=false."
+  }
+}
