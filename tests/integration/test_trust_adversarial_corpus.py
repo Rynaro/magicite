@@ -46,7 +46,7 @@ from magicite.config import Config
 from magicite.core import bundles, trust, trust_custodian_transport, writer_guard
 from magicite.core.trust_custodian import CustodianError, CustodianStore
 from magicite.core.trust_journal import TrustJournal
-from magicite.errors import InvalidInputError
+from magicite.errors import BusyError, InvalidInputError
 from magicite.storage import db
 
 REPO = Path(__file__).resolve().parents[2]
@@ -57,11 +57,20 @@ ID_RE = re.compile(r"^TAC-\d{3}$")
 CRITERION_RE = re.compile(r"^(AC-TH-(0[1-9]|1[0-2])|AC-S\d{2}-\d{2})$")
 NODE_RE = re.compile(r"^tests/[\w/]+\.py::\w+(\[[^\]]+\])?$")
 EXCEPTIONS: dict[str, type[BaseException]] = {
+    "BusyError": BusyError,
     "CustodianError": CustodianError,
     "InvalidInputError": InvalidInputError,
     "TrustLedgerCorruptError": trust.TrustLedgerCorruptError,
 }
 REGISTRY = "registry-one"
+UNREACHABLE = "custody unavailable; reconciliation required"
+
+
+def _client_unreachable_message_is_product_text() -> None:
+    import inspect
+
+    source = inspect.getsource(trust_custodian_transport.CustodianClient.call)
+    assert f'raise CustodianError("{UNREACHABLE}") from exc' in source, "adapter must mirror the real client"
 
 
 def _load_manifest() -> tuple[dict[str, Any], str]:
@@ -119,7 +128,8 @@ class Env:
 
             def call(self, operation: str, **arguments: Any) -> Any:
                 if not self.available:
-                    raise CustodianError("custodian unavailable")
+                    # Exactly what CustodianClient.call raises when the socket is unreachable.
+                    raise CustodianError(UNREACHABLE)
                 return getattr(store, operation)("r", **arguments)
 
         adapter = Adapter()
@@ -736,25 +746,30 @@ def _(env: Env, attack: bool) -> Any:
 
 @case("journal_lease_lost_before_append")
 def _(env: Env, attack: bool) -> Any:
+    """A real writer lease is taken over by a newer fencing token before the append."""
+    from magicite.storage import lease
+
     ledger, store = env.journal()
     fence = _register_fence(store, "holder")
-
-    def assert_owned() -> None:
+    conn = db.connect(env.tmp / "lease.db")
+    env.closers.append(conn.close)
+    held = lease.CrossProcessLease(lock_path=env.tmp / "dream.lock", conn=conn, holder="corpus-writer")
+    with held.acquire():
         if attack:
-            raise CustodianError("writer lease lost")
-
-    try:
-        ledger.append(
-            record_id="admit",
-            kind="trust_decision",
-            payload=_decision("admit", "admit").to_dict(),
-            fence=fence,
-            assert_owned=assert_owned,
-        )
-    finally:
-        if attack:
-            assert store.read_current(REGISTRY)["head_sequence"] == 1
-            assert store.read_current(REGISTRY)["pending_record_id"] is None
+            conn.execute("UPDATE writer_lease SET fencing_token = fencing_token + 1, holder = 'newer-holder'")
+            conn.commit()
+        try:
+            ledger.append(
+                record_id="admit",
+                kind="trust_decision",
+                payload=_decision("admit", "admit").to_dict(),
+                fence=fence,
+                assert_owned=held.assert_owned,
+            )
+        finally:
+            if attack:
+                assert store.read_current(REGISTRY)["head_sequence"] == 1
+                assert store.read_current(REGISTRY)["pending_record_id"] is None
     return {"latest": ledger.snapshot().latest_by_engram["subject"]["decision"]}
 
 
@@ -953,6 +968,76 @@ def _(env: Env, attack: bool) -> Any:
     }
 
 
+@case("intake_staged_while_custody_unavailable")
+def _(env: Env, attack: bool) -> Any:
+    """External intake must not stage a pending record from a default/fallback policy."""
+    _client_unreachable_message_is_product_text()
+    cfg, conn, store, adapter = env.domain()
+    before = store.read_current("r")["head_sequence"]
+    adapter.available = not attack
+    try:
+        staged = trust.record_pending_intake(
+            cfg, conn, engram_id="subject", content_digest="a" * 64, source_channel="external_file", actor="t"
+        )
+    finally:
+        if attack:
+            assert store.read_current("r")["head_sequence"] == before  # nothing appended
+    return {"decision": staged.decision, "head_advanced": store.read_current("r")["head_sequence"] > before}
+
+
+# ---- protected custody path: extended ACL (platform branches faked) ------
+
+
+def _acl_target(env: Env) -> Path:
+    target = env.tmp / "custody-profile.json"
+    target.write_text("{}")
+    return target
+
+
+@case("acl_linux_posix_acl_xattr")
+def _(env: Env, attack: bool) -> Any:
+    """Linux branch on any host: POSIX ACL xattr on a protected custody path."""
+    target = _acl_target(env)
+    names = ["user.comment", "system.posix_acl_access"] if attack else ["user.comment", "security.selinux"]
+    env.monkeypatch.setattr(trust_custodian_transport.sys, "platform", "linux")
+    env.monkeypatch.setattr(trust_custodian_transport.os, "listxattr", lambda path: names, raising=False)
+    trust_custodian_transport._reject_acl(target)
+    return {"accepted": True}
+
+
+@case("acl_darwin_extended_entry")
+def _(env: Env, attack: bool) -> Any:
+    """Darwin branch on any host: an extended ACL entry (write grant) on a protected custody path."""
+    import ctypes
+
+    target = _acl_target(env)
+    text = b"!#acl 1\n" + (
+        b"user:FFFFEEEE-DDDD-CCCC-BBBB-AAAA00000001:attacker:501:allow:write\n" if attack else b""
+    )
+    freed: list[int] = []
+
+    class _Fn:
+        def __init__(self, result: Any):
+            self.result = result
+
+        def __call__(self, *args: Any) -> Any:
+            return self.result(*args) if callable(self.result) else self.result
+
+    class FakeLibc:
+        acl_get_fd_np = _Fn(0x1000)  # non-NULL: an extended ACL exists
+        acl_to_text = _Fn(0x2000)
+        acl_free = _Fn(lambda pointer: freed.append(pointer) or 0)
+
+    env.monkeypatch.setattr(trust_custodian_transport.sys, "platform", "darwin")
+    env.monkeypatch.setattr(ctypes, "CDLL", lambda *a, **k: FakeLibc())
+    env.monkeypatch.setattr(ctypes, "string_at", lambda pointer: text)
+    try:
+        trust_custodian_transport._reject_acl(target)
+    finally:
+        assert sorted(freed) == [0x1000, 0x2000]  # both native buffers released on every path
+    return {"accepted": True}
+
+
 # ================================================================ helpers
 
 
@@ -991,8 +1076,10 @@ def _attack(fn: Callable[[Env, bool], Any], expected: dict[str, Any], env: Env) 
             assert type(exc).__name__ == expected["exception"], (
                 f"expected exactly {expected['exception']}, got {type(exc).__name__}: {exc}"
             )
-            assert expected["message"] in str(exc), f"message {str(exc)!r} lacks {expected['message']!r}"
-            return {"result": "fail-closed", "exception": type(exc).__name__, "message": str(exc)[:200]}
+            assert str(exc) == expected["message"], (
+                f"message {str(exc)!r} != declared {expected['message']!r}"
+            )
+            return {"result": "fail-closed", "exception": type(exc).__name__, "message": str(exc)}
         raise AssertionError(f"attack was accepted: {observed!r}")
     observed = fn(env, True)
     _matches(expected["state"], observed)
@@ -1000,6 +1087,20 @@ def _attack(fn: Callable[[Env, bool], Any], expected: dict[str, Any], env: Env) 
 
 
 _OUTCOMES: dict[str, dict[str, Any]] = {}
+NODE_VERIFICATION = {"raises": "recorded-raise", "state": "state-delegated-to-node"}
+COMPLETENESS_ENV = "MAGICITE_TRUST_CORPUS_REQUIRE_COMPLETE"
+
+
+def _child_env(**extra: str) -> dict[str, str]:
+    """Child pytest environment: hermetic options, deterministic embedder."""
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTEST_ADDOPTS", "PYTEST_PLUGINS")}
+    env.update(MAGICITE_EMBEDDING_PROVIDER="hashing", **extra)
+    return env
+
+
+def _completeness_required() -> bool:
+    """Evidence runs (report path set, or explicit flag) must be complete; dev subsets may skip."""
+    return bool(os.environ.get("MAGICITE_TRUST_CORPUS_REPORT")) or os.environ.get(COMPLETENESS_ENV) == "1"
 
 
 # ================================================================= tests
@@ -1046,8 +1147,10 @@ def test_manifest_schema_and_identity() -> None:
             assert w["case"] in CASES, (e["id"], w["case"])
             assert isinstance(w["control"], dict) and w["control"], e["id"]
         else:
-            assert w["type"] == "node" and set(w) == {"type", "node", "asserts"}, e["id"]
+            assert w["type"] == "node" and set(w) == {"type", "node", "asserts", "verification"}, e["id"]
             assert NODE_RE.match(w["node"]), (e["id"], w["node"])
+            # Raises are re-observed by the recorder; state is never presented as runner-asserted.
+            assert w["verification"] == NODE_VERIFICATION[exp["kind"]], e["id"]
             assert len(w["asserts"]) >= 20, e["id"]
     # Every class is exercised, and every runner case is mapped by exactly one entry.
     assert {e["class"] for e in ENTRIES} == set(classes), "class without entries (or undeclared class)"
@@ -1093,7 +1196,7 @@ def collected_nodes() -> set[str]:
         capture_output=True,
         text=True,
         timeout=300,
-        env={**os.environ, "MAGICITE_EMBEDDING_PROVIDER": "hashing"},
+        env=_child_env(),
     )
     assert proc.returncode == 0, proc.stdout[-4000:] + proc.stderr[-4000:]
     return {line.strip() for line in proc.stdout.splitlines() if "::" in line}
@@ -1111,7 +1214,7 @@ def node_observations(collected_nodes: set[str], tmp_path_factory: pytest.TempPa
         capture_output=True,
         text=True,
         timeout=1800,
-        env={**os.environ, "MAGICITE_EMBEDDING_PROVIDER": "hashing", "MAGICITE_RAISES_LOG": str(log)},
+        env=_child_env(MAGICITE_RAISES_LOG=str(log)),
     )
     assert proc.returncode == 0, proc.stdout[-6000:] + proc.stderr[-4000:]
     return json.loads(log.read_text())
@@ -1127,31 +1230,44 @@ def test_node_witness_resolves(entry: dict[str, Any], collected_nodes: set[str])
 def test_node_witness_observes_declared_outcome(
     entry: dict[str, Any], node_observations: dict[str, Any]
 ) -> None:
-    """The witness node passes and, for raises entries, really catches the declared type and message."""
+    """The witness node passes; for raises entries it really catches the declared type AND full message.
+
+    State expectations are not re-observed here: they are reported as
+    ``node-passed-state-delegated`` (the node's own assertions), never as runner-checked.
+    """
     node, expected = entry["witness"]["node"], entry["expected"]
     outcome = node_observations["outcomes"].get(node)
     if outcome == "skipped":
         _OUTCOMES[entry["id"]] = {"result": "node-skipped", "node": node}
-        pytest.skip(f"{entry['id']}: witness skipped on this platform")
+        pytest.skip(f"{entry['id']}: witness skipped on this platform; not counted as executed")
     assert outcome == "passed", f"{entry['id']}: witness {node} outcome {outcome!r}"
+    if expected["kind"] == "state":
+        _OUTCOMES[entry["id"]] = {"result": "node-passed-state-delegated", "node": node}
+        return
     seen = node_observations["raises"].get(node, [])
-    result: dict[str, Any] = {"result": "witnessed-by-node", "node": node}
-    if expected["kind"] == "raises":
-        match = [
-            [kind, message]
-            for kind, message in seen
-            if kind == expected["exception"] and expected["message"] in message
-        ]
-        assert match, (
-            f"{entry['id']}: declared {expected['exception']}({expected['message']!r}) not observed in {seen}"
-        )
-        result.update(exception=match[0][0], message=match[0][1][:200])
-    _OUTCOMES[entry["id"]] = result
+    declared = [expected["exception"], expected["message"]]
+    assert declared in seen, f"{entry['id']}: declared {declared} not observed; recorded {seen}"
+    _OUTCOMES[entry["id"]] = {
+        "result": "node-raise-observed",
+        "node": node,
+        "exception": declared[0],
+        "message": declared[1],
+    }
 
 
 def test_emit_report(tmp_path: Path) -> None:
-    """Runs last in this module: emits entry id -> outcome for the r3 evidence package."""
-    missing = [e["id"] for e in ENTRIES if e["id"] not in _OUTCOMES]
+    """Runs last in this module: emits entry id -> outcome for the r3 evidence package.
+
+    Skipped witnesses count as not executed. Completeness is enforced only for
+    evidence runs (MAGICITE_TRUST_CORPUS_REPORT set, or
+    MAGICITE_TRUST_CORPUS_REQUIRE_COMPLETE=1); dev subsets (-k, --lf,
+    --deselect) still write the honest partial report and skip.
+    """
+    skipped = sorted(k for k, v in _OUTCOMES.items() if v["result"] == "node-skipped")
+    missing = sorted({e["id"] for e in ENTRIES if e["id"] not in _OUTCOMES} | set(skipped))
+    counts: dict[str, int] = {}
+    for value in _OUTCOMES.values():
+        counts[value["result"]] = counts.get(value["result"], 0) + 1
     report = {
         "schema": REPORT_SCHEMA_ID,
         "corpus_schema": MANIFEST["schema"],
@@ -1163,6 +1279,9 @@ def test_emit_report(tmp_path: Path) -> None:
         "node_entries": len(NODE_ENTRIES),
         "complete": not missing,
         "not_executed": missing,
+        "skipped": skipped,
+        "result_counts": dict(sorted(counts.items())),
+        "completeness_enforced": _completeness_required(),
         "outcomes": {k: _OUTCOMES[k] for k in sorted(_OUTCOMES)},
         "not_covered": [item["class"] for item in MANIFEST["not_covered"]],
         "qualification": "fixture custody only; separate-UID deployment UNEVALUATED",
@@ -1173,5 +1292,7 @@ def test_emit_report(tmp_path: Path) -> None:
     if dest:
         Path(dest).parent.mkdir(parents=True, exist_ok=True)
         Path(dest).write_text(text)
-    # A partial run (-k / single node) still writes an honest report but cannot pass.
-    assert not missing, f"entries not executed in this session: {missing}"
+    if missing:
+        if _completeness_required():
+            pytest.fail(f"evidence run incomplete; not executed: {missing}")
+        pytest.skip(f"partial corpus run ({len(missing)} not executed; report complete=false): {missing}")
