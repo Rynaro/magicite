@@ -751,3 +751,33 @@ def test_structural_report_forbids_efficacy_claim() -> None:
     assert report.evidence_class == "structural"
     assert report.to_dict()["structural_efficacy_claim_allowed"] is False
     assert report.n_pass == 1
+
+
+def test_matrix_default_custody_protected_fails_closed_without_enrolled_custody(tmp_path: Path) -> None:
+    script = ROOT / "scripts" / "run_benchmark_matrix.py"
+    out = tmp_path / "protected.json"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--profile",
+            "ci-smoke",
+            "--provider",
+            "hashing",
+            "--envelope-mode",
+            "completeness",
+            "--project-root-for-lock",
+            str(ROOT),
+            "--output",
+            str(out),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 2, completed.stdout + completed.stderr
+    result = json.loads(out.read_text(encoding="utf-8"))
+    assert result["status"] == "unavailable"
+    assert result["custody"]["mode"] == "protected"
+    assert "protected custody enrollment required" in result["error"]
