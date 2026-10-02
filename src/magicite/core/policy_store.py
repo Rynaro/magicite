@@ -156,15 +156,27 @@ def prior_policy_governance_evidence(cfg: Config) -> bool:
                     is_policy_op = cached[1]
                 else:
                     data = json.loads(path.read_text(encoding="utf-8"))
+                    if not isinstance(data, dict):
+                        raise InvalidInputError(f"approval mirror is not a JSON object: {path.name}")
                     is_policy_op = data.get("op") in _POLICY_APPROVAL_OPS
                     _APPROVAL_OP_CACHE[key] = (identity, is_policy_op)
-            except (OSError, json.JSONDecodeError):
+            except InvalidInputError:
+                _APPROVAL_OP_CACHE.pop(key, None)
+                raise
+            except UnicodeDecodeError as exc:
+                _APPROVAL_OP_CACHE.pop(key, None)
+                raise InvalidInputError(f"approval mirror is not valid UTF-8: {path.name}") from exc
+            except FileNotFoundError:
+                # Removed between glob and read: no longer evidence.
                 _APPROVAL_OP_CACHE.pop(key, None)
                 continue
+            except (OSError, json.JSONDecodeError) as exc:
+                _APPROVAL_OP_CACHE.pop(key, None)
+                raise InvalidInputError(f"approval mirror is unreadable or malformed: {path.name}") from exc
             if is_policy_op:
                 return True
-        for key in [k for k in _APPROVAL_OP_CACHE if k not in seen and Path(k).parent == approvals_dir]:
-            del _APPROVAL_OP_CACHE[key]
+        for key in [k for k in list(_APPROVAL_OP_CACHE) if k not in seen and Path(k).parent == approvals_dir]:
+            _APPROVAL_OP_CACHE.pop(key, None)
     return False
 
 
