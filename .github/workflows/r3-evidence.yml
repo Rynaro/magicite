@@ -1,0 +1,254 @@
+# magicite r3 LINUX evidence run (slice E2a).
+#
+# Produces the raw, immutable inputs for the r3 release evidence package from
+# one clean source commit on a GitHub-hosted Linux runner: head, clean
+# status before/after, environment, full pytest (INCLUDING benchmark — r2 ran
+# the full suite without `-m`) with junit + the trust adversarial corpus and
+# bounded-fuzz reports, mypy/ruff/docs/generated checks with exit codes, and a
+# syscall-level (strace) AC-TH-05 witness that the custodian sqlite commit
+# fsync completes before the client replaces head.json. Everything lands in
+# `$RUNNER_TEMP/evidence-raw` (outside the checkout, so the source worktree
+# stays clean) and is uploaded as `r3-linux-evidence-<sha>` with a
+# sha256sums.txt over every file.
+#
+# Trigger: push to `codex/v1-evidence-**` ONLY. workflow_dispatch would need
+# this file on main (out of bounds), so the orchestrator points an evidence
+# branch at the exact integration head and the run is bound to that commit
+# (head.txt must equal github.sha; the final gate checks it).
+#
+# Capture steps never abort: each command's exit code is written to
+# `<name>.exit` with a `set +e` pattern, and the final "Gate" step fails the
+# job if any captured exit code is nonzero or either status file is
+# non-empty — after the artifact has been uploaded.
+#
+# Deployment qualification: a separate-UID custodian run IS possible on this
+# runner (sudo useradd a custodian account, chown/0700 the custody dir, run
+# the custodian as that user) but is deliberately NOT performed here — that
+# is a separate decision. The strace probe uses same-process fixture custody
+# on one account; AC-TH-12 / AC-TH-04 separate-UID deployment qualification
+# stays UNEVALUATED for this run.
+#
+# Action pins match ci.yml (checkout v7, setup-uv v10.0.1 with uv 0.11.23,
+# upload-artifact v4.6.2).
+
+name: r3-evidence
+
+on:
+  push:
+    branches:
+      - "codex/v1-evidence-**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r3-evidence-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux-evidence:
+    name: r3 linux evidence (py3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MAGICITE_EMBEDDING_PROVIDER: hashing
+      PYTHON_VERSION: "3.12"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Full history: the AC-TH-10 witness runs the frozen 22ae4e0 reader via git archive.
+          fetch-depth: 0
+
+      - name: Evidence directory, head and clean status (before)
+        run: |
+          evidence="$RUNNER_TEMP/evidence-raw"
+          mkdir -p "$evidence"
+          echo "EVIDENCE=$evidence" >> "$GITHUB_ENV"
+          git rev-parse HEAD > "$evidence/head.txt"
+          git status --porcelain --untracked-files=all > "$evidence/status-before.txt"
+          echo "head: $(cat "$evidence/head.txt")  github.sha: $GITHUB_SHA"
+          test "$(cat "$evidence/head.txt")" = "$GITHUB_SHA"
+          if [ -s "$evidence/status-before.txt" ]; then
+            echo "::error::worktree not clean before the evidence run"
+            cat "$evidence/status-before.txt"
+            exit 1
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.23"
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies (frozen lock, all extras — leiden, dev)
+        run: uv sync --frozen --all-extras
+
+      - name: Install strace
+        run: |
+          if ! command -v strace >/dev/null 2>&1; then
+            sudo apt-get update -q
+            sudo apt-get install -y -q strace
+          fi
+          strace -V | head -1
+
+      - name: Environment
+        run: |
+          uv pip freeze > "$RUNNER_TEMP/uv-pip-freeze.txt"
+          uv --version > "$RUNNER_TEMP/uv-version.txt"
+          uv run --frozen python - <<'PY'
+          import json, os, platform, subprocess, sys
+          from pathlib import Path
+
+          tmp = Path(os.environ["RUNNER_TEMP"])
+          evidence = Path(os.environ["EVIDENCE"])
+
+          def run(*argv):
+              proc = subprocess.run(argv, capture_output=True, text=True, check=False)
+              return (proc.stdout or proc.stderr).strip()
+
+          os_release = {}
+          if Path("/etc/os-release").is_file():
+              for line in Path("/etc/os-release").read_text().splitlines():
+                  key, sep, value = line.partition("=")
+                  if sep:
+                      os_release[key] = value.strip('"')
+          freeze = [line for line in (tmp / "uv-pip-freeze.txt").read_text().splitlines() if line.strip()]
+          env = {
+              "python": platform.python_version(),
+              "python_implementation": platform.python_implementation(),
+              "python_executable": sys.executable,
+              "python_build": list(platform.python_build()),
+              "platform": platform.platform(),
+              "uname": run("uname", "-a"),
+              "kernel": platform.release(),
+              "machine": platform.machine(),
+              "os_release": os_release,
+              "uv_version": (tmp / "uv-version.txt").read_text().strip(),
+              "uv_pip_freeze": freeze,
+              "strace_version": run("strace", "-V").splitlines()[0] if run("strace", "-V") else None,
+              "sqlite_version": __import__("sqlite3").sqlite_version,
+              "runner": {
+                  key: os.environ.get(key)
+                  for key in (
+                      "ImageOS",
+                      "ImageVersion",
+                      "RUNNER_OS",
+                      "RUNNER_ARCH",
+                      "RUNNER_NAME",
+                      "RUNNER_ENVIRONMENT",
+                  )
+              },
+              "github": {
+                  key: os.environ.get(key)
+                  for key in (
+                      "GITHUB_SHA",
+                      "GITHUB_REF",
+                      "GITHUB_REPOSITORY",
+                      "GITHUB_RUN_ID",
+                      "GITHUB_RUN_ATTEMPT",
+                      "GITHUB_WORKFLOW_REF",
+                  )
+              },
+              "embedding_provider": os.environ.get("MAGICITE_EMBEDDING_PROVIDER"),
+              "dependency_note": "uv sync --frozen --all-extras from uv.lock on the declared 3.12 matrix entry",
+          }
+          (evidence / "environment.json").write_text(json.dumps(env, indent=2, sort_keys=True) + "\n")
+          PY
+
+      # Full suite, benchmark included (no -m), as r2 ran it. Reports from the
+      # trust adversarial corpus and bounded fuzz land next to junit.
+      - name: pytest (full suite incl. benchmark; captured)
+        env:
+          MAGICITE_TRUST_CORPUS_REPORT: ${{ runner.temp }}/evidence-raw/trust-corpus-report.json
+          MAGICITE_FUZZ_REPORT: ${{ runner.temp }}/evidence-raw/fuzz-report.json
+        run: |
+          set +e
+          uv run --frozen pytest -q -p no:cacheprovider --junitxml="$EVIDENCE/junit.xml" 2>&1 | tee "$EVIDENCE/pytest.txt"
+          echo "${PIPESTATUS[0]}" > "$EVIDENCE/pytest.exit"
+          echo "pytest exit: $(cat "$EVIDENCE/pytest.exit")"
+
+      - name: mypy / ruff / docs / generated (captured)
+        if: always()
+        run: |
+          set +e
+          capture() {
+            name="$1"; shift
+            "$@" > "$EVIDENCE/$name.txt" 2>&1
+            echo "$?" > "$EVIDENCE/$name.exit"
+            echo "$name exit: $(cat "$EVIDENCE/$name.exit")"
+          }
+          capture mypy uv run --frozen mypy src
+          capture ruff uv run --frozen ruff check .
+          capture docs uv run --frozen python scripts/check_docs.py
+          capture generated uv run --frozen python scripts/check_generated_docs.py
+
+      # AC-TH-05 "acknowledgement trace shows custodian fsync first", at the
+      # syscall level. The traced interpreter is the synced venv directly (not
+      # `uv run`) so the trace holds only the probe process.
+      - name: strace fsync-order probe (AC-TH-05; captured)
+        if: always()
+        run: |
+          set +e
+          strace -V | head -1 > "$EVIDENCE/strace-version.txt"
+          strace -f -y -tt \
+            -e trace=fsync,fdatasync,rename,renameat,renameat2,write,unlink,unlinkat \
+            -o "$EVIDENCE/fsync-strace.txt" \
+            .venv/bin/python scripts/probe_custodian_fsync_order.py \
+              --run --workdir "$RUNNER_TEMP/fsync-probe" \
+              --run-manifest "$EVIDENCE/fsync-run.json" \
+            > "$EVIDENCE/fsync-probe-run.txt" 2>&1
+          echo "$?" > "$EVIDENCE/fsync-probe-run.exit"
+          .venv/bin/python scripts/probe_custodian_fsync_order.py \
+            --analyze "$EVIDENCE/fsync-strace.txt" \
+            --run-manifest "$EVIDENCE/fsync-run.json" \
+            --output "$EVIDENCE/fsync-order.json" \
+            > "$EVIDENCE/fsync-probe.txt" 2>&1
+          echo "$?" > "$EVIDENCE/fsync-probe.exit"
+          cat "$EVIDENCE/fsync-probe-run.txt" "$EVIDENCE/fsync-probe.txt"
+          echo "probe run exit: $(cat "$EVIDENCE/fsync-probe-run.exit"); analyze exit: $(cat "$EVIDENCE/fsync-probe.exit")"
+
+      - name: Clean status (after)
+        if: always()
+        run: |
+          git status --porcelain --untracked-files=all > "$EVIDENCE/status-after.txt"
+          cat "$EVIDENCE/status-after.txt"
+
+      - name: sha256sums over evidence-raw
+        if: always()
+        run: |
+          cd "$EVIDENCE"
+          rm -f sha256sums.txt
+          find . -type f ! -name sha256sums.txt -printf '%P\n' | LC_ALL=C sort | xargs -r -d '\n' sha256sum -- > "$RUNNER_TEMP/sha256sums.txt"
+          mv "$RUNNER_TEMP/sha256sums.txt" sha256sums.txt
+          cat sha256sums.txt
+
+      - name: Upload evidence artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r3-linux-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/evidence-raw/
+          retention-days: 90
+          if-no-files-found: error
+          include-hidden-files: true
+
+      - name: Gate (captured exit codes, clean status, bound head)
+        if: always()
+        run: |
+          status=0
+          test "$(cat "$EVIDENCE/head.txt")" = "$GITHUB_SHA" || { echo "::error::head.txt != github.sha"; status=1; }
+          for f in status-before.txt status-after.txt; do
+            if [ ! -f "$EVIDENCE/$f" ] || [ -s "$EVIDENCE/$f" ]; then
+              echo "::error::$f missing or non-empty"; status=1
+            fi
+          done
+          for name in pytest mypy ruff docs generated fsync-probe-run fsync-probe; do
+            code="$(cat "$EVIDENCE/$name.exit" 2>/dev/null || echo missing)"
+            echo "$name: $code"
+            [ "$code" = "0" ] || { echo "::error::$name exit $code"; status=1; }
+          done
+          for report in junit.xml trust-corpus-report.json fuzz-report.json fsync-order.json environment.json; do
+            [ -s "$EVIDENCE/$report" ] || { echo "::error::missing $report"; status=1; }
+          done
+          exit "$status"
