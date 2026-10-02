@@ -5,7 +5,7 @@
 statuses come only from the recorded evidence packages. The current recorded status is
 SECURITY **UNEVALUATED** with `threat-model`, `bounded-fuzz-adversarial` and
 `critical-resolved` all UNEVALUATED (`docs/releases/v1/r2/gate-table.md:22`).
-**Findings:** see the [findings register](findings-register.md). **Open items:** see [r3-open-items.md](r3-open-items.md), which is grounded in the bodies of merged PRs #34 to #50.
+**Findings:** see the [findings register](findings-register.md). **Open items:** see [r3-open-items.md](r3-open-items.md), which is grounded in the bodies of merged PRs #34 to #50 (PRs #48 to #50 recorded no remaining items).
 
 ## 1. Scope and binding
 
@@ -87,7 +87,7 @@ disclosure), D (denial of service) and E (elevation of privilege).
 
 | ID | STRIDE | Threat | Control | Evidence | Status |
 |---|---|---|---|---|---|
-| M1 | E | Compromised host approves trust, activates policy or restores a backup | Trust, policy, evidence, backup and doctor operations are CLI-only. No MCP tool is advertised for them (`docs/operations.md:470-473`; 16-tool manifest checked against the generated reference, `docs/AUTHORITY.md:10-11`) | `scripts/check_docs.py` generated-reference parity | Mitigated |
+| M1 | E | Compromised host approves trust, activates policy or restores a backup | Trust, policy, evidence, backup and doctor operations are CLI-only. No MCP tool is advertised for them (`docs/operations.md:470-473`; 16-tool manifest checked against the generated reference, `docs/AUTHORITY.md:10-11`) | `scripts/check_generated_docs.py:24, 63, 90` (runtime-reference drift and the exactly-16-tools check); `tests/unit/test_docs_v1.py::test_current_generated_snapshot_matches` | Mitigated |
 | M2 | T | Host-initiated lifecycle mutation (sharpen, promote, archive) applied without review | The tool creates a proposal and returns `requires_approval` unless `cfg.autonomous` is set (`src/magicite/mcp/bind_lifecycle.py:146-152`). The default is `False` (`config.py:287`; env `MAGICITE_AUTONOMOUS`, `config.py:440`). Revival never auto-executes. Verification status is server-assigned and an injection scan runs on every register or sync (`src/magicite/core/registry.py:570-582`) | `tests/unit/mcp/test_bind_lifecycle.py::test_sharpen_review_mode_creates_a_proposal_and_does_not_touch_the_file`, `::test_promote_revival_never_auto_executes_even_under_autonomous_mode`, `::test_promote_quarantines_on_injection_scan_hit` | Mitigated by default. **Accepted residual** in autonomous mode (owner decision 2026-10-02): opt-in via `MAGICITE_AUTONOMOUS`, off by default, assumes a trusted MCP host. Expiry: at the v1 GA decision or 2027-01-31, whichever comes first (F-19) |
 | M3 | I | Body read of revoked, unadmitted, stale or policy-drifted content | `load_skill_body` requires the content and policy digests. It re-reads one authenticated snapshot and refuses on drift, `not_admitted`, `trust_unavailable` or a snapshot mismatch (`src/magicite/mcp/bind_retrieval.py:465-522`) | `tests/unit/mcp/test_v1_retrieval.py::test_stale_body_denied`, `::test_durable_trust_revocation_blocks_previously_routed_body`, `::test_cas_policy_activation_blocks_previously_routed_body`; TAC-038 | Mitigated |
 | M4 | I | Error envelope leaks paths, keys or raw query text | `_error_result` redacts and replaces messages and hints (`src/magicite/mcp/app.py:179-186`). Path and secret redaction is in `src/magicite/mcp/redact.py:15-60` | `tests/unit/mcp/test_redact.py`; `tests/unit/obs/test_th_custody_zero_write_canary.py::test_mcp_error_payload_and_logs_carry_no_secret`, `::test_mcp_error_scan_has_teeth` | Mitigated |
@@ -103,9 +103,9 @@ disclosure), D (denial of service) and E (elevation of privilege).
 | C2 | T | Receipt or message rewritten in flight | Ed25519 over the domain-tagged canonical payload, bound to nonce, registry, epoch, operation and request (`trust_custodian_transport.py:29, 358-386`) | TAC-001, TAC-002, TAC-016 to TAC-020, TAC-022, TAC-023; fuzz `custodian.verify_receipt` | Mitigated |
 | C3 | T/S | Replay, nonce or receipt substitution, frame splice | Fresh random nonce and request ID per call (`:399`); binding check (`:373-381`) | TAC-009 to TAC-015, TAC-049, TAC-054, TAC-110 | Mitigated |
 | C4 | D | Oversized, fragmented, slow-trickle or deeply nested frames | `MAX_FRAME` and `MAX_LOGICAL` (`:30-31`), a per-frame and per-message deadline (`:236-246, 313-333`), and `RecursionError` normalisation (`:138, 264, 280`) | TAC-089 to TAC-101; fuzz `custodian.receive_frame` and `receive_message` | Mitigated in-repo. Real-socket transport not fuzzed (`manifest.json:56-59`) |
-| C5 | E | Profile or keys reachable by the registry writer; same-UID production profile; service run as the client | `protected_path` rejects symlinks, foreign owners, group- or world-writable ancestors and extended ACLs (`:56-111`). Key file mode check (`src/magicite/core/trust_custodian.py:160`) | TAC-026 to TAC-030, TAC-139, TAC-140, TAC-143; `test_trust_custodian_transport.py::test_same_uid_production_profile_denied`, `::test_production_service_refuses_running_as_client_identity` | Partially mitigated: the Darwin `acl_get_fd_np` branch and Linux `listxattr` error paths are untested (OI-06, PR #38) |
+| C5 | E | Profile or keys reachable by the registry writer; same-UID production profile; service run as the client | `protected_path` rejects symlinks, foreign owners, group- or world-writable ancestors and extended ACLs (`:56-111`). Key file mode check (`src/magicite/core/trust_custodian.py:160`) | TAC-026 to TAC-030, TAC-139, TAC-140, TAC-143, TAC-152 (key world-readable, `trust_custodian.py:160`); `test_trust_custodian_transport.py::test_same_uid_production_profile_denied`, `::test_production_service_refuses_running_as_client_identity` | Partially mitigated: the Darwin `acl_get_fd_np` branch and Linux `listxattr` error paths are untested (OI-06, PR #38) |
 | C6 | T | Type-confused custodian record payloads | `_validate_payload` structure checks (`trust_custodian.py:388-402`). Fixed in F-04 | TAC-107, TAC-108; fuzz `custodian._validate_payload:*` | Mitigated |
-| C7 | I | Custody secrets or internals exposed through errors | Redacted protocol errors | TAC-152, TAC-154; `test_trust_custodian_transport.py::test_missing_operation_is_redacted_protocol_error_not_uncaught_keyerror` | Mitigated |
+| C7 | I | Custody secrets or internals exposed through errors | Redacted protocol errors | TAC-154; `test_trust_custodian_transport.py::test_missing_operation_is_redacted_protocol_error_not_uncaught_keyerror` | Mitigated |
 | C8 | T | Duplicate JSON keys on the custody wire (accepted last-wins) | Receipts are verified over the canonical re-encoding of the parsed payload | `manifest.json:71-75` (observation) | Accepted residual (F-15) |
 
 ### 4.3 B3: bundle intake and import
@@ -126,8 +126,8 @@ risk is out of scope (§6).
 
 | ID | STRIDE | Threat | Control | Evidence | Status |
 |---|---|---|---|---|---|
-| R1 | T/I | Erase or forge decision mirrors or projections to resurrect a revoked engram (original v1 critical) | Authority comes only from authenticated custody history. Mirrors and the database are inert (`docs/AUTHORITY.md:27-30`) | TAC-035 to TAC-040; r2 `trust-mirror-loss-custody.json` `NOT_REPRODUCED` (fixture custody); F-01 | Mitigated in-repo |
-| R2 | T | Tamper, truncate, roll back, splice or resequence the local journal or head | Custody-verified replay; append only to the exact verified inode and size (`src/magicite/core/trust_journal.py:241-268`) | TAC-004 to TAC-010, TAC-041 to TAC-044, TAC-050 to TAC-060; `test_trust_journal.py::test_concurrent_local_write_during_append_window_closes_and_drops_cache` | Mitigated. A same-size overwrite inside the append window is detected only on full re-verification (`trust_journal.py:259-262`; TAC-053) |
+| R1 | T/I | Erase or forge decision mirrors or projections to resurrect a revoked engram (original v1 critical) | Authority comes only from authenticated custody history. Mirror and projection inertness is witnessed by TAC-035 to TAC-040 | TAC-035 to TAC-040; r2 `trust-mirror-loss-custody.json` `NOT_REPRODUCED` (fixture custody); F-01 | Mitigated in-repo |
+| R2 | T | Tamper, truncate, roll back, splice or resequence the local journal or head | Custody-verified replay; append only to the exact verified inode and size (`src/magicite/core/trust_journal.py:241-268`) | TAC-004 to TAC-010, TAC-041 to TAC-044, TAC-050 to TAC-060; `test_trust_journal.py::test_concurrent_local_write_during_append_window_closes_and_drops_cache` | Partially mitigated: a same-size in-place overwrite *inside* the append window is caught only when the cache drops and a cold re-verify fails closed (`trust_journal.py:259-262`). This residual is **untested in-repo**: TAC-053 splices outside the window, and the append-window test uses a size-changing write. Accepted with F-09's expiry |
 | R3 | T | Mutate policy or root projections to pin an attacker root or un-revoke | Policy is read from the authenticated snapshot | TAC-122 to TAC-127 | Mitigated |
 | R4 | T | Truncate or corrupt approval mirrors to reopen fresh-install policy routing | `prior_policy_governance_evidence` raises on unreadable or malformed mirrors (`src/magicite/core/policy_store.py:131-180`). Route maps the error to `policy_store_corrupt` (`src/magicite/core/router.py:1279-1290`). Fixed in F-02 and F-03 | `test_policy_governance_evidence.py::test_truncated_json_mirror_fails_closed_with_typed_error`, `::test_unreadable_mirror_fails_closed_with_typed_error`; `test_router_policy.py::test_malformed_mirror_without_store_is_policy_store_corrupt` | Mitigated |
 | R5 | T | Pending, prepared or intake state treated as committed authority | Pending closes reads until exact reconciliation | TAC-128 to TAC-135 | Mitigated |
@@ -145,7 +145,7 @@ risk is out of scope (§6).
 | BK1 | T | Restored overlay or MAC record not in custody history; planted mirror in a snapshot | Overlay authority checked against custody | TAC-031 to TAC-034; `tests/integration/test_th_restore_overlay_authority.py` | Mitigated |
 | BK2 | T | Restore drops a post-backup revocation | Recovery gate requires the retained authenticated suffix | TAC-045 to TAC-048, TAC-064; `test_th10_old_reader_downgrade.py::test_supported_backup_restore_keeps_post_backup_revoke` | Mitigated |
 | BK3 | T | Supported downgrade or migration paths reactivate revoked content | Legacy restore only into explicit inactive staging (`src/magicite/core/migration.py:1211-1228`) | TAC-061 to TAC-068; `test_th10_old_reader_downgrade.py` | Mitigated (supported paths, TH-A01) |
-| BK4 | I | Backup exposes the fingerprint or control key | Secrets are excluded unless an encrypted-custody path is supplied (`src/magicite/core/backup.py:1024-1032, 1080`). Magicite does not encrypt destinations (`docs/operations.md:494-499`; `SECURITY.md:12-13`) | TAC-153; `test_th_custody_zero_write_canary.py::test_backup_archive_members_contain_no_custodian_secret` | Mitigated for archive contents. **Accepted residual**: destination confidentiality is the operator's responsibility |
+| BK4 | I | Backup exposes the fingerprint or control key | Secrets are excluded unless an encrypted-custody path is supplied (`src/magicite/core/backup.py:1063-1064` skips secret paths unless `include_secrets`; `:1079-1083` refuses `include_secrets` without `encrypted_custody_path`). Magicite does not encrypt destinations (`docs/operations.md:494-499`; `SECURITY.md:12-13`) | TAC-153; `test_th_custody_zero_write_canary.py::test_backup_archive_members_contain_no_custodian_secret` | Mitigated for archive contents. **Accepted residual**: destination confidentiality is the operator's responsibility |
 | BK5 | T/I | A pre-hardening binary run on hand-rolled-back bytes re-discloses revoked content | Operator procedure (`docs/operations.md:486-492`). The supported runtime still enforces the revocation | TAC-042 (supported half only); TH-A01 evidence (c2) | **Accepted residual** (TH-A01, F-10) |
 
 ### 4.6 B6: OCI image and supply chain
@@ -153,7 +153,7 @@ risk is out of scope (§6).
 | ID | STRIDE | Threat | Control | Evidence | Status |
 |---|---|---|---|---|---|
 | D1 | E | Container runs privileged against the host project | Non-root UID 10001 (`Dockerfile:105, 128`). `--cap-drop ALL` and `no-new-privileges` are documented for `docker run` and are not enforced by the image (`Dockerfile:56-63`). With `--user` the container is the same OS principal and no boundary is introduced (`Dockerfile:47-53`) | `tests/acceptance/test_docker_smoke.py` (CI, `.github/workflows/ci.yml:201-202`) | Partially mitigated (by design, no isolation boundary) |
-| D2 | T | Vulnerable or substituted base image or dependencies | Base images pinned by digest (`Dockerfile:67, 87`); lockfile export (`Dockerfile:82`); security upgrades (`Dockerfile:98-100`). Trivy HIGH/CRITICAL gate with `ignore-unfixed: true` (`ci.yml:250-257`) plus a full-severity SARIF upload (`ci.yml:236-249`) | No scanner output is recorded in the v1 or r2 release evidence | UNEVALUATED (F-17, scribe observation) |
+| D2 | T | Vulnerable or substituted base image or dependencies | Base images pinned by digest (`Dockerfile:67, 87`); lockfile export (`Dockerfile:82`); security upgrades (`Dockerfile:98-100`). Trivy HIGH/CRITICAL gate with `ignore-unfixed: true` (`ci.yml:251-258`, `ignore-unfixed: true` at `:258`; compare `SECURITY.md:5`, "scanner failures block integration") plus a full-severity SARIF upload (`ci.yml:236-249`) | No scanner output is recorded in the v1 or r2 release evidence | UNEVALUATED (F-17, scribe observation) |
 | D3 | T/S | Published-artifact provenance (signatures, SBOM) | DISTRIBUTION gate obligation (`release-gates.md:20`) | Out of this document | UNEVALUATED (DISTRIBUTION gate scope) |
 
 ### 4.7 B7: model acquisition
@@ -170,11 +170,11 @@ risk is out of scope (§6).
 | B1 MCP | 7 | 3 (M1, M3, M4) | 2 (M5, M6) | 1 (M2, autonomous mode) | 0 | 1 (M7) |
 | B2 Custody socket | 8 | 5 (C2, C3, C4, C6, C7) | 2 (C1, C5) | 1 (C8) | 0 | 0 |
 | B3 Bundles | 6 | 6 | 0 | 0 | 0 | 0 |
-| B4 Registry | 11 | 7 (R1 to R7) | 3 (R8, R9, R11) | 0 | 1 (R10) | 0 |
+| B4 Registry | 11 | 6 (R1, R3 to R7) | 4 (R2, R8, R9, R11) | 0 | 1 (R10) | 0 |
 | B5 Backups/migration | 5 | 3 (BK1 to BK3) | 0 | 2 (BK4, BK5) | 0 | 0 |
 | B6 OCI | 3 | 0 | 1 (D1) | 0 | 0 | 2 (D2, D3) |
 | B7 Model | 2 | 1 (MA1) | 0 | 0 | 0 | 1 (MA2) |
-| **Total** | **42** | **25** | **8** | **4** | **1** | **4** |
+| **Total** | **42** | **24** | **9** | **4** | **1** | **4** |
 
 M2 counts as an accepted residual for autonomous mode only (owner decision 2026-10-02,
 F-19). Its default is mitigated. C4 and BI4 are mitigated in-repo, with fuzz-coverage limits stated in
@@ -208,7 +208,7 @@ their rows. "Mitigated" always means *tested in-repo*. It never means deployment
   the B3 PR; **pending**) is recorded, **and** the r3 evidence package adjudicates the
   gate. No third-party certification is claimed. See the findings register.
 - High findings carry a named reviewer, an exploitability assessment and a mitigation
-  (`release-gates.md:37`). The accepted residuals F-10 and F-19 expire at the v1 GA
+  (`release-gates.md:37`). The accepted residuals F-10, F-19 and the F-09 residual expire at the v1 GA
   decision or 2027-01-31, whichever comes first, and must be re-reviewed before any GA
   sign-off.
 - [GAP] No release evidence records vulnerability scanner output (F-17).

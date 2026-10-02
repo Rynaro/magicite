@@ -1,7 +1,7 @@
 # Magicite v1 r3 open items
 
-This is the checked-in record of the remaining items from the r3 slices (PRs #34 to
-#50). It is scoped to `codex/v1-integration` at `bcdf680`.
+This is the checked-in record of the remaining items from the r3 slices. The evidence comes from merged PRs #34 to
+#50. PRs #48, #49 and #50 recorded no remaining items. It is scoped to `codex/v1-integration` at `bcdf680`.
 
 Each item restates a "remaining", "not witnessed", "not covered", "follow-up" or
 reviewer note from the cited merged PR body (`gh pr view <n> --json body`). The
