@@ -908,6 +908,7 @@ def _compute_similar_to_edges(conn: sqlite3.Connection, model_name: str, *, top_
         SELECT x.engram_id AS engram_id, x.vec AS vec
         FROM eph_embedding x JOIN engram e ON e.id = x.engram_id
         WHERE x.model = ?
+        ORDER BY x.engram_id
         """,
         (model_name,),
     ).fetchall()
@@ -916,13 +917,15 @@ def _compute_similar_to_edges(conn: sqlite3.Connection, model_name: str, *, top_
         return
 
     ids = [r["engram_id"] for r in rows]
-    matrix = np.stack([np.frombuffer(r["vec"], dtype=np.float32) for r in rows])
+    matrix = np.stack([np.frombuffer(r["vec"], dtype=np.float32) for r in rows]).astype(np.float64)
     names_by_id = {row["id"]: row["name"] for row in conn.execute("SELECT id, name FROM engram").fetchall()}
     sims = matrix @ matrix.T
 
     neighbors_by_id: dict[str, list[tuple[str, str, float]]] = {}
     for i, src_id in enumerate(ids):
-        order = np.argsort(-sims[i])
+        # rows are ordered by engram_id, so a stable sort breaks exact
+        # similarity ties by ascending id (deterministic, order-independent).
+        order = np.argsort(-sims[i], kind="stable")
         picked: list[tuple[str, str, float]] = []
         for j in order:
             dst_id = ids[int(j)]
