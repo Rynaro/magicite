@@ -45,7 +45,8 @@ deployment qualification remains UNEVALUATED until actually run.
 - `yields` is portable composition metadata in 0.3; it is not a graph edge
   until a future governed semantics defines its producer/consumer behavior.
 - `skill-graph.db` is local, rebuildable state and is ignored by default. The
-  `.egr.md` registry and durable approval mirrors are the portable authority.
+  `.egr.md` registry and durable approval mirrors are the portable authority for skills
+  and proposals; trust history is not (see the custodian-held journal above).
 - Lifecycle status, verification status, and operation execution status are
   independent dimensions. The word `pending` must always name its dimension.
 - Register, sync, sharpen, lifecycle operations, and Dream may write durable
