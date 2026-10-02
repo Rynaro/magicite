@@ -256,8 +256,10 @@ def _append_file(
             view = view[os.write(descriptor, view) :]
         os.fsync(descriptor)
         after = _safe_identity(os.fstat(descriptor))
-        # A same-size in-place overwrite in this window is only caught by full
-        # re-verification (mtime/ctime on the next read, or history comparison).
+        # A same-size external overwrite between the pre-write check and our write
+        # is not detected here (our write sets the recorded mtime/ctime); it is
+        # absorbed into the cached identity and surfaces when the cache drops.
+        # Cache-served reads stay custody-verified replays; cold re-verify fails closed.
         if after[:2] != expected[:2] or after[2] != expected[2] + len(content):
             raise CustodianError("local trust history changed since verification")
         return after
