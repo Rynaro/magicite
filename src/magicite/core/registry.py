@@ -1960,11 +1960,11 @@ def trust_view_for(
     if origin == "authored":
         channel = "local_register"
     elif origin == "imported":
-        try:
-            prior = trust_mod.latest_decision_for(cfg, engram_id)
-        except trust_mod.TrustLedgerCorruptError:
-            prior = None
-        channel = prior.source_channel if prior else "external_file"
+        # AC-TH-07: no separate journal read here. ``project_trust_view``
+        # resolves the recorded source channel from its single authenticated
+        # snapshot; this fallback applies only when that snapshot has no
+        # decision (or is unavailable, which also fails admission closed).
+        channel = "external_file"
     else:
         channel = "unknown"
     try:

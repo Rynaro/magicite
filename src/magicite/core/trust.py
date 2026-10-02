@@ -588,27 +588,33 @@ def record_pending_intake(
     reasons: tuple[str, ...] = (),
     event_id: str | None = None,
 ) -> TrustDecision:
-    """Mandatory pending/quarantine staging record for every external intake."""
-    policy = load_policy(cfg)
-    decision = TrustDecision(
-        decision_id=new_decision_id(),
-        engram_id=engram_id,
-        content_digest=content_digest,
-        decision="pending",
-        source_channel=source_channel,
-        policy_id=policy.policy_id,
-        policy_revision=policy.revision,
-        policy_digest=policy.digest(),
-        actor=actor,
-        timestamp=_now(),
-        reasons=reasons or ("awaiting local admission",),
-        signer_fingerprint=signer_fingerprint,
-        signature_valid=signature_valid,
-        scanner_revision=policy.scanner_revision,
-        resource_digest=resource_digest,
-        event_id=event_id,
-    )
-    return persist_decision(cfg, conn, decision)
+    """Mandatory pending/quarantine staging record for every external intake.
+
+    AC-TH-07: the bound policy is read from the authenticated snapshot under
+    the same (re-entrant) writer lease that ``persist_decision`` appends
+    under, so no policy commit can land between the read and the append.
+    """
+    with _trust_write_leases(cfg, conn, holder="trust-pending"):
+        policy = TrustPolicy.from_dict(authenticated_snapshot(cfg).policy)
+        decision = TrustDecision(
+            decision_id=new_decision_id(),
+            engram_id=engram_id,
+            content_digest=content_digest,
+            decision="pending",
+            source_channel=source_channel,
+            policy_id=policy.policy_id,
+            policy_revision=policy.revision,
+            policy_digest=policy.digest(),
+            actor=actor,
+            timestamp=_now(),
+            reasons=reasons or ("awaiting local admission",),
+            signer_fingerprint=signer_fingerprint,
+            signature_valid=signature_valid,
+            scanner_revision=policy.scanner_revision,
+            resource_digest=resource_digest,
+            event_id=event_id,
+        )
+        return persist_decision(cfg, conn, decision)
 
 
 def approve(
