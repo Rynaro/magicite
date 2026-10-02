@@ -2,6 +2,13 @@
 
 Test-only. Fixture custody comes from tests/support/custody_adapter.py (the
 in-process simulated custodian; no OS isolation is claimed).
+
+Remaining (not witnessed here):
+- the restricted (legacy-reconciliation) custody state is not exercised;
+- sensitive-path non-disclosure in diagnosis output is untested;
+- `magicite doctor` has no custody probe (product gap, finding F8); doctor is only
+  shown to be zero-write and canary-free;
+- doctor JSON is not secret-planted (no canary is injected into doctor inputs).
 """
 
 from __future__ import annotations
@@ -16,6 +23,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from structlog.testing import capture_logs
 
 from magicite.__main__ import cli
 from magicite.core import backup as backup_mod
@@ -180,13 +188,14 @@ def test_doctor_and_custody_status_write_nothing_under_custody_states(
     custody unavailable, corrupt journal, stale head.json, pending and anchor-ahead
     states, neither `magicite doctor` nor `magicite custody status` changes any
     byte, mode, mtime or file set under the project or custody directories, and
-    their output is redacted (no key material) and, on failure, actionable."""
+    neither output contains key material. Doctor is zero-write and emits no custody
+    signal; `custody status` is the only actionable custody diagnosis."""
     cfg, provider, custody_dir, canaries = custody
     STATES[state](cfg, provider, tmp_path, monkeypatch)
     roots = (cfg.project_root, custody_dir, tmp_path / "broken-custody")
     before = _fingerprint(*roots)
     assert any("trust/authority" in k for k in before)  # non-vacuous: trust state is in scope
-    assert any(k.endswith("signing.key") for k in before) or state == "custody-unavailable"
+    assert any(k.endswith("signing.key") for k in before)  # custody dir is in scope
     runner = CliRunner()
     caplog.set_level(logging.DEBUG)
 
@@ -195,14 +204,14 @@ def test_doctor_and_custody_status_write_nothing_under_custody_states(
 
     assert _fingerprint(*roots) == before, f"{state}: diagnosis mutated files"
     for result in (doctor, status):
-        blob = result.output.encode() + result.stderr_bytes if result.stderr_bytes else result.output.encode()
-        assert _leaks(blob, canaries) == []
+        assert _leaks(result.output.encode() + (result.stderr_bytes or b""), canaries) == []
     assert _leaks(caplog.text.encode(), canaries) == []
-    # doctor ran to a doctor/1 report (not a crash) -- it reports no custody-specific signal
     assert doctor.exception is None or isinstance(doctor.exception, SystemExit)
     report = json.loads(doctor.output[: doctor.output.rindex("}") + 1])
     assert report["kind"] == "doctor/1"
-    assert not any("custody" in c["id"] for c in report["checks"])
+    # Corrupt-journal and stale-head only prove no writes: `custody status` never reads the
+    # local journal/head.json, so they are not diagnosed. Only the unavailable state asserts
+    # an actionable message.
     if state == "custody-unavailable":
         assert status.exit_code != 0
         assert "reconciliation_required" in status.output
@@ -332,26 +341,20 @@ def test_mcp_error_payload_and_logs_carry_no_secret(custody, monkeypatch, caplog
     fails with a secret-bearing exception returns only the redacted internal-error
     envelope, and nothing reaches logs/stderr."""
     cfg, provider, _, canaries = custody
-    records: list[str] = []
-
-    class _Recorder:  # structlog's stream is bound at import, so record events directly
-        def __getattr__(self, level):
-            return lambda event, **kw: records.append(f"{level} {event} {kw!r}")
-
-    monkeypatch.setattr(app_mod, "logger", _Recorder())
     state = app_mod.build_state(cfg)
     try:
         leaky = _Leaky(provider.registry_id, canaries)
         monkeypatch.setattr(writer_guard, "resolve_custody", lambda c: (provider.registry_id, leaky))
         leaky.armed = True
         caplog.set_level(logging.DEBUG)
-        result = app_mod.dispatch_call(state, "register", {"path": ".magicite/engrams"})
+        with capture_logs() as records:  # full event dicts, incl. any exc_info/exception
+            result = app_mod.dispatch_call(state, "register", {"path": ".magicite/engrams"})
         assert result.is_error is True
         payload = json.dumps(result.structured_content) + json.dumps([c.model_dump() for c in result.content])
         assert result.structured_content["message"] == "internal error"  # custody failure reached
         assert leaky.armed and "code" in result.structured_content
         assert _leaks(payload.encode(), canaries) == []
-        logged = caplog.text + capfd.readouterr().err + "\n".join(records)
+        logged = caplog.text + capfd.readouterr().err + repr(records)
         assert "CustodianError" in logged  # the failing custody call was logged, only by type
         assert _leaks(logged.encode(), canaries) == []
     finally:
