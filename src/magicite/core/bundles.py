@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
+import struct
 import tempfile
 import unicodedata
 import zipfile
+import zlib
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
@@ -228,7 +231,36 @@ def _assert_safe_member_path(name: str) -> PurePosixPath:
     return posix
 
 
+_ARCHIVE_CORRUPTION = (
+    zipfile.BadZipFile,
+    zipfile.LargeZipFile,
+    zlib.error,
+    struct.error,
+    EOFError,
+    OverflowError,
+    NotImplementedError,
+    RuntimeError,  # zipfile: encrypted member / unsupported feature
+    ValueError,  # corrupted directory offsets (e.g. negative seek)
+)
+
+
 def extract_bundle_archive(
+    archive: Path | bytes,
+    *,
+    dest: Path,
+    limits: BundleLimits | None = None,
+) -> dict[str, Path]:
+    """Extract a zip bundle (any archive corruption surfaces as InvalidInputError)."""
+    try:
+        return _extract_bundle_archive(archive, dest=dest, limits=limits)
+    except InvalidInputError:
+        raise
+    except _ARCHIVE_CORRUPTION as exc:
+        # Fixed message: never echo raw exception text from the archive parser.
+        raise InvalidInputError("bundle archive is corrupt or uses an unsupported zip feature") from exc
+
+
+def _extract_bundle_archive(
     archive: Path | bytes,
     *,
     dest: Path,
@@ -247,7 +279,7 @@ def extract_bundle_archive(
     try:
         zf = zipfile.ZipFile(io.BytesIO(raw))
     except zipfile.BadZipFile as exc:
-        raise InvalidInputError(f"bundle is not a valid zip archive: {exc}") from exc
+        raise InvalidInputError("bundle is not a valid zip archive") from exc
 
     written: dict[str, Path] = {}
     total = 0
@@ -373,33 +405,42 @@ def verify_bundle(
         parent = Path(staging_parent)
     else:
         parent = Path(tempfile.mkdtemp(prefix="magicite-bundle-"))
+    owned_parent = staging_parent is None
     parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix="stage-", dir=str(parent)))
 
-    written = extract_bundle_archive(archive, dest=staging, limits=limits)
-    if MANIFEST_NAME not in written:
-        raise InvalidInputError("bundle missing manifest.json")
+    try:
+        written = extract_bundle_archive(archive, dest=staging, limits=limits)
+        if MANIFEST_NAME not in written:
+            raise InvalidInputError("bundle missing manifest.json")
 
-    manifest_bytes = written[MANIFEST_NAME].read_bytes()
-    # Re-canonicalize: accept only if bytes equal canonical encoding of parsed form.
-    manifest = BundleManifest.from_canonical_bytes(manifest_bytes)
-    canonical = manifest.canonical_bytes()
-    if canonical != manifest_bytes:
-        raise InvalidInputError(
-            "bundle manifest is not in canonical encoding "
-            "(UTF-8 JSON, sorted keys, compact separators)"
-        )
+        manifest_bytes = written[MANIFEST_NAME].read_bytes()
+        # Re-canonicalize: accept only if bytes equal canonical encoding of parsed form.
+        manifest = BundleManifest.from_canonical_bytes(manifest_bytes)
+        canonical = manifest.canonical_bytes()
+        if canonical != manifest_bytes:
+            raise InvalidInputError(
+                "bundle manifest is not in canonical encoding "
+                "(UTF-8 JSON, sorted keys, compact separators)"
+            )
 
-    signer_fp: str | None = None
-    if require_signature:
-        if SIGNATURE_NAME not in written:
-            raise InvalidInputError("bundle missing manifest.sig (detached Ed25519 signature)")
-        signature = written[SIGNATURE_NAME].read_bytes()
-        signer_fp = verify_manifest_signature(
-            manifest_bytes=manifest_bytes, signature=signature, roots=roots
-        )
+        signer_fp: str | None = None
+        if require_signature:
+            if SIGNATURE_NAME not in written:
+                raise InvalidInputError("bundle missing manifest.sig (detached Ed25519 signature)")
+            signature = written[SIGNATURE_NAME].read_bytes()
+            signer_fp = verify_manifest_signature(
+                manifest_bytes=manifest_bytes, signature=signature, roots=roots
+            )
 
-    validate_staged_against_manifest(staging, manifest, limits=limits)
+        validate_staged_against_manifest(staging, manifest, limits=limits)
+    except BaseException:
+        # Fail closed: never leave a partially extracted tree behind as usable output.
+        shutil.rmtree(staging, ignore_errors=True)
+        if owned_parent:
+            shutil.rmtree(parent, ignore_errors=True)  # created here; nothing else lives in it
+        raise
+
     return BundleVerifyResult(
         ok=True,
         manifest=manifest,
