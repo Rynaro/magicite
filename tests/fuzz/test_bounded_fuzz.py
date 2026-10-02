@@ -347,12 +347,16 @@ def test_report_shape_and_bounds(all_reports: list[Report], tmp_path: Path) -> N
     # per-target wall clock: at most SEED_BUDGET (+ one-input slack) of fuzzing across seeds
 
 
-def test_positive_control_valid_seeds_succeed(all_reports: list[Report]) -> None:
+def test_positive_control_valid_seeds_succeed(all_reports: list[Report], tmp_path: Path) -> None:
     """bounded-fuzz-adversarial positive control: every unmutated valid seed is accepted, and mutants are
     genuinely rejected (non-vacuous: typed rejections observed for every target)."""
+    counts = {t.name: len(t.seeds) for t in build_targets(tmp_path)}
     for r in all_reports:
+        n_seeds = counts[r.target]
         seeds_ok = r.outcomes.get("seed_ok", 0)
-        assert seeds_ok >= 1 and not [k for k in r.outcomes if k.startswith("seed_") and k != "seed_ok"], r
+        other_seed = [k for k in r.outcomes if k.startswith("seed_") and k != "seed_ok"]
+        assert seeds_ok == n_seeds and not other_seed, r
+        assert r.iterations >= harness.MIN_ITERATIONS, r
         assert any(k.startswith("expected:") for k in r.outcomes), r
 
 

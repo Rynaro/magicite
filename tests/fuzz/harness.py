@@ -24,6 +24,7 @@ WALL_CAP_PER_SEED = 0.5  # seconds -> <= 2s per target across 4 seeds
 INPUT_TIMEOUT = 2.0  # seconds, per single input (hang detector)
 MEMORY_CAP = 256 * 1024 * 1024  # tracemalloc peak bytes per target run
 MAX_INPUT = 256 * 1024
+MIN_ITERATIONS = 50  # wall cap never stops a run before this many inputs
 
 
 class FuzzTimeout(BaseException):
@@ -184,8 +185,11 @@ def _run_one(
 ) -> tuple[str, str | None, float, Any]:
     """Return (outcome, detail, duration, result). Outcome: ok|expected:<T>|timeout|unexpected:<T>."""
     use_alarm = hasattr(signal, "setitimer")
+    prev_handler: Any = None
+    prev_timer = (0.0, 0.0)
     if use_alarm:
-        signal.signal(signal.SIGALRM, _alarm)
+        prev_timer = signal.getitimer(signal.ITIMER_REAL)
+        prev_handler = signal.signal(signal.SIGALRM, _alarm)
         signal.setitimer(signal.ITIMER_REAL, timeout)
     start = time.perf_counter()
     result: Any = None
@@ -201,6 +205,9 @@ def _run_one(
     finally:
         if use_alarm:
             signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, prev_handler)
+            if prev_timer[0] > 0:  # restore another component's pending timer (remaining time)
+                signal.setitimer(signal.ITIMER_REAL, prev_timer[0], prev_timer[1])
     return outcome, detail, time.perf_counter() - start, result
 
 
@@ -243,7 +250,8 @@ def run_target(
     try:
         # Iteration 0..len(seeds)-1 are the unmutated valid seeds (positive control).
         for i in range(iterations):
-            if i > 0 and time.monotonic() - started - spent_minimizing > wall_cap:
+            floor = max(len(target.seeds), MIN_ITERATIONS)  # speed-independent minimum coverage
+            if i >= floor and time.monotonic() - started - spent_minimizing > wall_cap:
                 report.count("wall_cap_stop")
                 break
             if i < len(target.seeds):

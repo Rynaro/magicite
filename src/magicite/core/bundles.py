@@ -279,7 +279,7 @@ def _extract_bundle_archive(
     try:
         zf = zipfile.ZipFile(io.BytesIO(raw))
     except zipfile.BadZipFile as exc:
-        raise InvalidInputError(f"bundle is not a valid zip archive: {exc}") from exc
+        raise InvalidInputError("bundle is not a valid zip archive") from exc
 
     written: dict[str, Path] = {}
     total = 0
@@ -405,6 +405,7 @@ def verify_bundle(
         parent = Path(staging_parent)
     else:
         parent = Path(tempfile.mkdtemp(prefix="magicite-bundle-"))
+    owned_parent = staging_parent is None
     parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix="stage-", dir=str(parent)))
 
@@ -436,6 +437,8 @@ def verify_bundle(
     except BaseException:
         # Fail closed: never leave a partially extracted tree behind as usable output.
         shutil.rmtree(staging, ignore_errors=True)
+        if owned_parent:
+            shutil.rmtree(parent, ignore_errors=True)  # created here; nothing else lives in it
         raise
 
     return BundleVerifyResult(

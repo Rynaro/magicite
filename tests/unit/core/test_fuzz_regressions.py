@@ -84,8 +84,10 @@ def test_corrupt_archive_raises_invalid_input_and_leaves_no_staging(tmp_path, na
     with pytest.raises(InvalidInputError) as info:
         bundles.verify_bundle(bad, roots=[_root()], staging_parent=parent)
     assert not list(parent.iterdir())
-    if name != "truncated":
-        assert "BadZipFile" not in str(info.value) and "negative seek" not in str(info.value)
+    assert str(info.value) in {
+        "bundle is not a valid zip archive",
+        "bundle archive is corrupt or uses an unsupported zip feature",
+    }
 
 
 def test_manifest_json_error_does_not_leak_staging(tmp_path):
