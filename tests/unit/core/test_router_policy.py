@@ -6,6 +6,8 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+import pytest
+
 from magicite.core import router as router_mod
 from magicite.engram import ids as ids_mod
 from magicite.storage import ephemeral as ephemeral_mod
@@ -170,3 +172,32 @@ def test_fallback_identity(cfg, db_conn, embedder, monkeypatch) -> None:
     assert timed.decision.fallback_identity == "dense-v1"
     assert timed.decision.status == "selected"
     assert timed.candidates
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [b"[]", b'"policy_activate"', b'{"op": ', b'{"op": "\xff\xfe"}'],
+    ids=["list", "scalar", "truncated", "invalid-utf8"],
+)
+def test_malformed_mirror_without_store_is_policy_store_corrupt(cfg, db_conn, embedder, payload) -> None:
+    cfg.approvals_dir.mkdir(parents=True, exist_ok=True)
+    (cfg.approvals_dir / "m.json").write_bytes(payload)
+    out = router_mod.route(cfg, db_conn, embedder, query="anything", k=3)
+    assert out.decision is not None
+    assert out.decision.status == "error"
+    assert out.decision.operational_error == "policy_store_corrupt"
+    assert "config_fresh_install" not in out.decision.reason_codes
+
+
+def test_wellformed_policy_mirror_without_store_is_policy_store_missing(cfg, db_conn, embedder) -> None:
+    cfg.approvals_dir.mkdir(parents=True, exist_ok=True)
+    (cfg.approvals_dir / "m.json").write_text('{"op": "policy_activate"}', encoding="utf-8")
+    out = router_mod.route(cfg, db_conn, embedder, query="anything", k=3)
+    assert out.decision is not None
+    assert out.decision.operational_error == "policy_store_missing"
+
+
+def test_no_mirrors_without_store_is_fresh_install(cfg, db_conn, embedder) -> None:
+    out = router_mod.route(cfg, db_conn, embedder, query="anything", k=3)
+    assert out.decision is not None
+    assert out.decision.operational_error is None

@@ -166,9 +166,13 @@ def prior_policy_governance_evidence(cfg: Config) -> bool:
             except UnicodeDecodeError as exc:
                 _APPROVAL_OP_CACHE.pop(key, None)
                 raise InvalidInputError(f"approval mirror is not valid UTF-8: {path.name}") from exc
-            except (OSError, json.JSONDecodeError):
+            except FileNotFoundError:
+                # Removed between glob and read: no longer evidence.
                 _APPROVAL_OP_CACHE.pop(key, None)
                 continue
+            except (OSError, json.JSONDecodeError) as exc:
+                _APPROVAL_OP_CACHE.pop(key, None)
+                raise InvalidInputError(f"approval mirror is unreadable or malformed: {path.name}") from exc
             if is_policy_op:
                 return True
         for key in [k for k in list(_APPROVAL_OP_CACHE) if k not in seen and Path(k).parent == approvals_dir]:

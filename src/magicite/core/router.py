@@ -1277,7 +1277,18 @@ def _resolve_active_policy(
     cfg_policy = policy_mod.resolve_policy_id(cfg)
 
     if not store_path.is_file():
-        if policy_store_mod.prior_policy_governance_evidence(cfg):
+        try:
+            prior_evidence = policy_store_mod.prior_policy_governance_evidence(cfg)
+        except InvalidInputError:
+            return (
+                policy_mod.POLICY_DENSE_V1,
+                "",
+                "stable",
+                "policy_store_corrupt",
+                None,
+                ("policy_store_corrupt",),
+            )
+        if prior_evidence:
             return (
                 policy_mod.POLICY_DENSE_V1,
                 "",

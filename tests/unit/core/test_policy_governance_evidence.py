@@ -74,7 +74,34 @@ def test_invalid_utf8_mirror_fails_closed_with_typed_error(cfg) -> None:
         ps.prior_policy_governance_evidence(cfg)
 
 
-def test_truncated_json_mirror_is_still_skipped(cfg) -> None:
+def test_truncated_json_mirror_fails_closed_with_typed_error(cfg) -> None:
     cfg.approvals_dir.mkdir(parents=True, exist_ok=True)
-    (cfg.approvals_dir / "bad.json").write_text('{"op": ', encoding="utf-8")
+    mirror = cfg.approvals_dir / "bad.json"
+    mirror.write_text('{"op": ', encoding="utf-8")
+    with pytest.raises(InvalidInputError) as exc:
+        ps.prior_policy_governance_evidence(cfg)
+    assert "bad.json" in str(exc.value)
+    assert str(cfg.approvals_dir) not in str(exc.value)
+    assert str(mirror) not in ps._APPROVAL_OP_CACHE
+
+
+def test_unreadable_mirror_fails_closed_with_typed_error(cfg) -> None:
+    cfg.approvals_dir.mkdir(parents=True, exist_ok=True)
+    (cfg.approvals_dir / "dir.json").mkdir()  # glob matches; read raises IsADirectoryError
+    with pytest.raises(InvalidInputError):
+        ps.prior_policy_governance_evidence(cfg)
+
+
+def test_mirror_removed_between_glob_and_read_is_skipped(cfg, monkeypatch) -> None:
+    cfg.approvals_dir.mkdir(parents=True, exist_ok=True)
+    gone = cfg.approvals_dir / "gone.json"
+    _write(gone, "policy_activate")
+    real_glob = type(gone).glob
+
+    def glob_then_remove(self, pattern):
+        paths = list(real_glob(self, pattern))
+        gone.unlink()
+        return iter(paths)
+
+    monkeypatch.setattr(type(gone), "glob", glob_then_remove)
     assert ps.prior_policy_governance_evidence(cfg) is False
