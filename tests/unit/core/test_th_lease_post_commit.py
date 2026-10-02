@@ -94,8 +94,11 @@ def test_positive_control_retained_ownership_acks(env):
     assert (ledger.directory / "head.json").read_bytes()
 
 
-def test_lease_lost_after_commit_blocks_local_head_replace_and_ack(env, monkeypatch):
-    """AC-TH-06 VERIFY: existing lease assertions after external commit and before local replace/ACK."""
+def test_lease_lost_after_commit_blocks_local_head_replace(env, monkeypatch):
+    """AC-TH-06 VERIFY: existing lease assertions after external commit and before local replace.
+
+    Witnesses only the commit -> local head replace window (no ACK-side claim).
+    """
     ledger, store = env
     head_path = ledger.directory / "head.json"
     head_before = head_path.read_bytes()
@@ -172,3 +175,41 @@ def test_lease_lost_after_local_append_before_commit_never_commits(env, monkeypa
         ledger.snapshot()
     recovered = _reconcile(ledger, store)
     assert recovered.latest_by_engram["subject"]["decision"] == "admit"
+
+
+def test_lease_lost_after_local_head_replace_blocks_ack(env, monkeypatch):
+    """AC-TH-06 VERIFY: existing lease assertions before ACK (final assert after local replace).
+
+    Ownership is lost right after the real head replace; append must not return.
+    """
+    ledger, store = env
+    head_path = ledger.directory / "head.json"
+    head_before = head_path.read_bytes()
+    lease = Lease()
+    real_call = ledger.client.call
+    real_write_head = ledger._write_head
+    commits = []
+
+    def spy(operation, **arguments):
+        result = real_call(operation, **arguments)
+        if operation == "commit_record":
+            commits.append(result)
+        return result
+
+    def write_then_lose(head, assert_owned=lambda: None):
+        real_write_head(head, assert_owned)
+        lease.lost = True
+
+    monkeypatch.setattr(ledger.client, "call", spy)
+    monkeypatch.setattr(ledger, "_write_head", write_then_lose)
+    acked = []
+    with pytest.raises(BusyError):
+        acked.append(_append(ledger, store, lease))
+    assert acked == []  # no snapshot reached the caller
+    assert len(commits) == 1  # custody committed
+    assert head_path.read_bytes() != head_before  # local head WAS replaced
+    monkeypatch.undo()
+
+    recovered = _reconcile(ledger, store)
+    assert recovered.latest_by_engram["subject"]["decision"] == "admit"
+    assert ledger.snapshot().head == recovered.head == store.read_current("registry-one")
