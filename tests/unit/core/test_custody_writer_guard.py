@@ -199,3 +199,31 @@ def test_queued_contender_captures_predecessor_after_flock_not_before(tmp_path, 
     finally:
         store.close()
         connection.close()
+
+
+def test_capture_failure_after_flock_releases_flock_and_writes_no_lease_row(tmp_path):
+    class Failing(Coordinator):
+        def capture(self):
+            self.events.append("capture")
+            raise CustodianError("capture failed")
+
+    cfg = Config(project_root=tmp_path)
+    cfg.ensure_dirs()
+    connection = db.connect(cfg.db_path)
+    try:
+        failing = lease.CrossProcessLease(
+            lock_path=cfg.dream_lock_path, conn=connection, custody=Failing(cfg, connection)
+        )
+        with pytest.raises(CustodianError, match="capture failed"):
+            failing.try_acquire()
+        assert not failing._held
+        assert failing._flock_fd is None
+        assert lease.current_cross_process_lease() is None
+        assert connection.execute("SELECT COUNT(*) FROM writer_lease").fetchone()[0] == 0
+        other = lease.CrossProcessLease(lock_path=cfg.dream_lock_path, conn=connection)
+        try:
+            other.try_acquire()  # flock must be free again
+        finally:
+            other.release()
+    finally:
+        connection.close()

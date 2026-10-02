@@ -449,6 +449,7 @@ def test_concurrent_local_write_during_append_window_closes_and_drops_cache(jour
     monkeypatch.setattr(trust_journal, "_append_file", raced_append)
     with pytest.raises(CustodianError):
         commit(ledger, store, "revoke", "revoke", "2026-01-02T00:00:00Z")
+    assert ledger._cache_key() not in trust_journal._VERIFIED_SNAPSHOTS
     monkeypatch.setattr(trust_journal, "_append_file", real_append)
     with pytest.raises(CustodianError):
         ledger.snapshot()
