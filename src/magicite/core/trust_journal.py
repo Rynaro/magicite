@@ -375,14 +375,25 @@ class TrustJournal:
         if head["head_sequence"] != 1 or records[0]["kind"] != "genesis":
             raise CustodianError("existing history requires explicit recovery")
         assert_owned()
+        journal = _bytes(records[0]) + b"\n"
         with _directory_fd(self.directory, create=True) as directory:
+            # Journal is written before head. An init interrupted between the
+            # two resumes only over the byte-identical genesis journal it would
+            # itself write; any other existing state stays refused.
+            present: set[str] = set()
             for name in ("journal.jsonl", "head.json"):
                 try:
                     os.stat(name, dir_fd=directory, follow_symlinks=False)
                 except FileNotFoundError:
                     continue
+                present.add(name)
+            if present == {"journal.jsonl"}:
+                if _read_file(directory, "journal.jsonl") != journal:
+                    raise CustodianError("local trust history already initialized")
+            elif present:
                 raise CustodianError("local trust history already initialized")
-            _replace_file(directory, "journal.jsonl", _bytes(records[0]) + b"\n", assert_owned)
+            else:
+                _replace_file(directory, "journal.jsonl", journal, assert_owned)
         self._write_head(head, assert_owned)
         assert_owned()
 
