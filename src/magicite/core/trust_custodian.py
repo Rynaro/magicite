@@ -402,6 +402,8 @@ class CustodianStore:
                 if not isinstance(payload.get("roots"), list):
                     raise CustodianError("invalid policy roots")
                 for root in payload["roots"]:
+                    if not isinstance(root, dict) or not isinstance(root.get("public_key_hex"), str):
+                        raise CustodianError("invalid policy root")
                     if (
                         type(root.get("revoked")) is not bool
                         or len(bytes.fromhex(root["public_key_hex"])) != 32
