@@ -16,6 +16,12 @@ Commands below match `python -m magicite.eval --help` / `scripts/run_benchmark_m
 | `host-task-usefulness-corpus` | COMPOSITION | `python -m magicite.eval run-host-tasks --corpus /path/to/host-task-corpus.json --arms no_skill,selected_skill,composed_plan --n-resamples 10000 --seed 0 --output artifacts/host-task-usefulness.json` |
 | `exploratory-50k-envelope` | PERFORMANCE | `python scripts/run_benchmark_matrix.py --profile exploratory-50k --provider production --opt-in-exploratory --environment-label dedicated-linux-amd64-4c-16g --output artifacts/e6-exploratory-50k.json` |
 
+Custody note: the benchmark commands above omit `--custody`, so they use the default
+`--custody protected`, which requires an enrolled protected benchmark registry (not yet
+supported by the matrix) and otherwise exits 2. `--custody disposable-simulated` runs are
+never GA-eligible and record `custody.deployment_qualification=UNEVALUATED`; they cannot
+satisfy these items.
+
 ## Manifest / digest each operator must archive
 
 - SkillRet: `ExperimentManifest/1` + acquired `CorpusManifest/1` digests + `record_external_download` archive SHA-256 (pin arXiv:2605.05726v3).

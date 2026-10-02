@@ -1,6 +1,8 @@
 # Adopted additive trust-history hardening plan
 
-Status: **ADOPTED REQUIREMENTS; IMPLEMENTATION AND QUALIFICATION PENDING**.
+Status: **ADOPTED REQUIREMENTS; IMPLEMENTATION MERGED (PR #32); QUALIFICATION INCOMPLETE**. Separate-UID
+deployment qualification is UNEVALUATED. Per-criterion status is tracked only by the
+r2/r3 evidence packages under `docs/releases/v1/`, not here; scope amended by TH-A01.
 
 Authority: the user approved the recommended trust-hardening amendment, acceptance
 tests, implementation and independent review. The integration owner authorized the
