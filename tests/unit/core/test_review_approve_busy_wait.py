@@ -348,3 +348,16 @@ def test_replay_refuses_empty_db_audit_when_mirror_missing(approval_subject, cfg
     with pytest.raises(InvalidInputError, match="audit.*reconciliation"):
         registry_mod.review_approve(cfg, db_conn, **approval_subject)
     assert not path.exists()
+
+
+
+def test_approval_uses_current_owner_when_nested(approval_subject, cfg, db_conn):
+    """Existing-lease callers share the outer owner; nested lease objects do not own it."""
+    outer = registry_mod._cross_process_lease(cfg, db_conn, "outer-review")
+    with outer.acquire(), registry_mod.lease_mod.writer_lease():
+        first = registry_mod.review_approve(cfg, db_conn, **approval_subject)
+        outer.assert_owned()
+        replay = registry_mod.review_approve(cfg, db_conn, **approval_subject)
+        outer.assert_owned()
+        assert first.decision_id == replay.decision_id
+    assert len(db_conn.execute("SELECT id FROM approval WHERE op='trust_approve'").fetchall()) == 1

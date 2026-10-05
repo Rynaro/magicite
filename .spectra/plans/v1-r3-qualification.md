@@ -74,3 +74,17 @@ Mechanical ramza-score confidence: 94% → AUTO_PROCEED (pattern 92, clarity 96,
 ## Handoff
 Receiver: Vivi. Base: 9692735. Worktree: /Users/henrique/.codex/worktrees/v1-r3-qualification/magicite.
 Write owner is exclusive per chain step; do not revert other agents' work. Report exact candidate and modified files, criterion result mapping, commands, logs, unresolved criteria and next role.
+
+
+## Execution scope amendment — supported full-suite feedback
+Candidate 6543f9d revealed that nested acquisition delegates ownership to the current
+outer writer lease. The registry must assert that actual owner, preserving existing
+benchmark/operator callers. A real nested approval/replay regression was red on C1
+before repair. Existing tests/unit/core/test_trust_atlas_fixes.py now requires a stale
+post-rejection event replay to fail, and uses an explicit new event inside a genuine
+outer lease for the nesting contract; no stale admission may be resurrected.
+Existing tests/unit/core/test_th_single_snapshot_sites.py explicitly enumerates the
+new doctor custody snapshot as a standalone zero-write observation without a writer
+lease or fence registration. Root authorized these two narrow test-file amendments.
+The frozen atomic criteria are unchanged. C1's failed full run remains historical;
+C2 must receive fresh full-suite and independent review evidence before packaging.

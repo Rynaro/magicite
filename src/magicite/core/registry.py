@@ -1826,6 +1826,9 @@ def review_approve(
             cross_lease = _cross_process_lease(cfg, conn, "trust-approve")
             with cross_lease.acquire():
                 acquired = True
+                # Nested acquisition delegates to the existing context owner;
+                # the newly constructed lease object does not hold its token.
+                owner = lease_mod.current_cross_process_lease() or cross_lease
                 with lease_mod.writer_lease():
                     decision = None
                     # Re-check under the writer lease for concurrent callers.
@@ -1866,9 +1869,9 @@ def review_approve(
                             "admission is not valid after approve (stale_decision)",
                             details={"engram_id": engram_id, "reason": "stale_decision"},
                         )
-                    cross_lease.assert_owned()
+                    owner.assert_owned()
                     lifecycle_mod.apply_local_admission(conn, engram_id=engram_id, admit=True)
-                    cross_lease.assert_owned()
+                    owner.assert_owned()
                     approvals_mod.propose(
                         conn,
                         cfg,
@@ -1882,7 +1885,7 @@ def review_approve(
                         proposed_by=decision.actor,
                         idempotency_key=decision.decision_id,
                     )
-                    cross_lease.assert_owned()
+                    owner.assert_owned()
             return decision
         except BusyError:
             # Contention before acquisition is safe to wait out. An error
