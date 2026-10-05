@@ -289,3 +289,31 @@ def test_doctor_report_is_doctor_v1(cfg) -> None:
     assert report["kind"] == "doctor/1"
     assert "reconciliation_required" in report
     assert isinstance(report["checks"], list)
+
+
+def test_doctor_custody_healthy_observes_current_and_journal(cfg):
+    from magicite.core import writer_guard
+
+    provider = writer_guard.resolve_custody(cfg)[1]
+    report = doctor_mod.run_doctor(cfg)
+    check = next(c for c in report["checks"] if c["id"] == "trust.custody")
+    assert check["status"] == "ok"
+    assert check["evidence"] == {
+        "state": "healthy",
+        "protected_current": "authenticated",
+        "local_journal": "verified",
+        "head_sequence": provider.call("read_current")["head_sequence"],
+    }
+
+
+def test_doctor_custody_unconfigured_is_readonly(tmp_path):
+    from magicite.config import Config
+
+    cfg = Config.load(tmp_path)
+    before = sorted(tmp_path.rglob("*"))
+    report = doctor_mod.run_doctor(cfg)
+    check = next(c for c in report["checks"] if c["id"] == "trust.custody")
+    assert check["status"] == "not_applicable"
+    assert check["evidence"]["state"] == "unconfigured"
+    assert check["remediation"]
+    assert sorted(tmp_path.rglob("*")) == before

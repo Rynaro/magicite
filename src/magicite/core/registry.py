@@ -1821,51 +1821,74 @@ def review_approve(
     deadline = time.monotonic() + _REPLAY_BUSY_WAIT_S
     delay = _REPLAY_BUSY_SLEEP_MIN_S
     while True:
+        acquired = False
         try:
             cross_lease = _cross_process_lease(cfg, conn, "trust-approve")
-            with cross_lease.acquire(), lease_mod.writer_lease():
-                # Re-check under the writer lease for concurrent callers.
-                if event_id:
-                    for existing in trust_mod.list_decisions(cfg):
-                        if existing.event_id == event_id and existing.decision == "admit":
-                            cross_lease.assert_owned()
-                            return existing
-                decision = trust_mod.approve(
-                    cfg,
-                    conn,
-                    engram_id=engram_id,
-                    expected_digest=expected_digest,
-                    actor=actor,
-                    reason=reason,
-                    event_id=event_id,
-                )
-                live_resource = trust_mod.live_resource_digest(cfg, conn, engram_id)
-                if not trust_mod.admission_still_valid(
-                    cfg,
-                    engram_id=engram_id,
-                    content_digest=decision.content_digest,
-                    resource_digest=live_resource,
-                ):
-                    raise InvalidInputError(
-                        "admission is not valid after approve (stale_decision)",
-                        details={"engram_id": engram_id, "reason": "stale_decision"},
+            with cross_lease.acquire():
+                acquired = True
+                with lease_mod.writer_lease():
+                    decision = None
+                    # Re-check under the writer lease for concurrent callers.
+                    if event_id:
+                        for existing in trust_mod.list_decisions(cfg):
+                            if existing.event_id == event_id and existing.decision == "admit":
+                                decision = existing
+                                break
+                    if decision is None:
+                        decision = trust_mod.approve(
+                            cfg,
+                            conn,
+                            engram_id=engram_id,
+                            expected_digest=expected_digest,
+                            actor=actor,
+                            reason=reason,
+                            event_id=event_id,
+                        )
+                    # A committed decision alone does not acknowledge its local
+                    # effects. Replays must bind the same subject and live bytes,
+                    # then finish admission and the one decision-bound audit.
+                    if (
+                        decision.engram_id != engram_id
+                        or decision.content_digest != expected_digest
+                        or trust_mod.live_content_digest(conn, engram_id) != decision.content_digest
+                    ):
+                        raise InvalidInputError(
+                            "approval replay does not match the live subject (stale_decision)"
+                        )
+                    live_resource = trust_mod.live_resource_digest(cfg, conn, engram_id)
+                    if not trust_mod.admission_still_valid(
+                        cfg,
+                        engram_id=engram_id,
+                        content_digest=decision.content_digest,
+                        resource_digest=live_resource,
+                    ):
+                        raise InvalidInputError(
+                            "admission is not valid after approve (stale_decision)",
+                            details={"engram_id": engram_id, "reason": "stale_decision"},
+                        )
+                    cross_lease.assert_owned()
+                    lifecycle_mod.apply_local_admission(conn, engram_id=engram_id, admit=True)
+                    cross_lease.assert_owned()
+                    approvals_mod.propose(
+                        conn,
+                        cfg,
+                        op="trust_approve",
+                        target_name=engram_id,
+                        payload={
+                            "decision_id": decision.decision_id,
+                            "content_digest": expected_digest,
+                            "event_id": event_id,
+                        },
+                        proposed_by=decision.actor,
+                        idempotency_key=decision.decision_id,
                     )
-                lifecycle_mod.apply_local_admission(conn, engram_id=engram_id, admit=True)
-                approvals_mod.propose(
-                    conn,
-                    cfg,
-                    op="trust_approve",
-                    target_name=engram_id,
-                    payload={
-                        "decision_id": decision.decision_id,
-                        "content_digest": expected_digest,
-                        "event_id": event_id,
-                    },
-                    proposed_by=actor,
-                )
+                    cross_lease.assert_owned()
             return decision
         except BusyError:
-            if event_id is None or time.monotonic() >= deadline:
+            # Contention before acquisition is safe to wait out. An error
+            # after acquisition (possibly after a durable decision) must be
+            # visible to the caller; it cannot become a successful replay.
+            if acquired or event_id is None or time.monotonic() >= deadline:
                 raise
             # Wait for the winner, then inspect its committed event under
             # the next acquired lease; an in-flight snapshot is not authority.
