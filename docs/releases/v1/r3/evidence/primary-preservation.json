@@ -1,0 +1,18 @@
+{
+  "scope": "Primary checkout tracked diff bytes and tracked/untracked porcelain status",
+  "checks": {
+    "tracked_diff": {
+      "unchanged": true,
+      "before_sha256": "1a852949e265af49d80c40fb39b45ecc9db3232e2dc1f2a68bab56fe6a14fe75",
+      "after_sha256": "1a852949e265af49d80c40fb39b45ecc9db3232e2dc1f2a68bab56fe6a14fe75"
+    },
+    "porcelain_status": {
+      "unchanged": true,
+      "before_sha256": "8fb7b4f5b85bad3fb149a7035c1dee2aa24f72064469d25abd2993f29580b148",
+      "after_sha256": "8fb7b4f5b85bad3fb149a7035c1dee2aa24f72064469d25abd2993f29580b148"
+    }
+  },
+  "untracked_content_baseline": "not captured; no untracked byte-equivalence claim",
+  "local_git_metadata_change": "Only local info/exclude entries added for .eidolons/.ledger/.readiness/.trace; prior content backed up",
+  "primary_source_writes_by_milestone": "none"
+}

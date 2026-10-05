@@ -1,0 +1,18 @@
+{
+  "coverage": "Required test coverage of 70% reached. Total coverage: 86.98%",
+  "deselection": "One benchmark-marked wall-clock test excluded by the repository blocking CI command; not counted as performance qualification.",
+  "full_summary": "1741 passed, 9 skipped, 1 deselected in 290.82s (0:04:50)",
+  "runtime_limit": "Current macOS arm64 Python 3.12 run only; no fresh Linux/Python 3.11, OCI or published-distribution qualification.",
+  "skips": [
+    "SKIPPED [1] tests/acceptance/test_docker_smoke.py:242: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec \u00a77.2 VG-9)",
+    "SKIPPED [1] tests/acceptance/test_docker_smoke.py:258: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec \u00a77.2 VG-9)",
+    "SKIPPED [1] tests/acceptance/test_docker_smoke.py:282: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec \u00a77.2 VG-9)",
+    "SKIPPED [1] tests/acceptance/test_docker_smoke.py:317: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec \u00a77.2 VG-9)",
+    "SKIPPED [1] tests/acceptance/test_docker_smoke.py:347: 'magicite:verify' image not built -- run `docker build -t magicite:verify .` first (spec \u00a77.2 VG-9)",
+    "SKIPPED [1] tests/acceptance/test_install_channels.py:274: channel pip-pypi (pypi) reserved/unevaluated until S13-published-channels (after S11/S15); version/digest unset",
+    "SKIPPED [1] tests/acceptance/test_install_channels.py:274: channel pipx (pipx) reserved/unevaluated until S13-published-channels (after S11/S15); version/digest unset",
+    "SKIPPED [1] tests/acceptance/test_install_channels.py:274: channel uvx (uvx) reserved/unevaluated until S13-published-channels (after S11/S15); version/digest unset",
+    "SKIPPED [1] tests/acceptance/test_install_channels.py:274: channel oci-digest (oci) reserved/unevaluated until S13-published-channels (after S11/S15); version/digest unset"
+  ],
+  "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4"
+}

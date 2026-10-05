@@ -1,0 +1,49 @@
+{
+  "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+  "status": "APPROVED",
+  "reviewer": "VIGIL /root/verify_r3",
+  "gate_statuses": {
+    "POLICY": "UNEVALUATED",
+    "EVIDENCE": "UNEVALUATED",
+    "SCHEMA": "UNEVALUATED",
+    "TRUST": "UNEVALUATED",
+    "ROUTING": "UNEVALUATED",
+    "COMPOSITION": "UNEVALUATED",
+    "PRIVACY": "UNEVALUATED",
+    "LEARNING": "UNEVALUATED",
+    "PROTOCOL": "UNEVALUATED",
+    "RELIABILITY": "UNEVALUATED",
+    "PERFORMANCE": "UNEVALUATED",
+    "DISTRIBUTION": "UNEVALUATED",
+    "DOCS": "UNEVALUATED",
+    "RC-CONTRACT": "UNEVALUATED",
+    "EXTERNAL": "UNEVALUATED",
+    "SECURITY": "UNEVALUATED",
+    "GA-ALL": "UNEVALUATED"
+  },
+  "approved_criteria": [
+    "AC-R3-10",
+    "AC-R3-11",
+    "AC-R3-12",
+    "AC-R3-13",
+    "AC-R3-14"
+  ],
+  "reviewed_package_index_sha256": "ecf1cc62ea668e16c824df4b42570f80311c1d6d28fe6639cf27e9ac5501a8b8",
+  "report_sha256": "6a49c890dcca5caf3f5c986c494ad8e1526613538a0a9629b6f5563275e15efd",
+  "scope": "Native separate-agent bounded package adjudication; no external/Gauge/human release acceptance",
+  "primary_preservation_limit": "Tracked diff and porcelain baseline unchanged; no untracked-content hash baseline",
+  "evidence_logs": [
+    {
+      "name": "independent-package-verify.log",
+      "sha256": "5dff9b09e903a32700308bd96e6e0d45631f88c231adb8fa9a17bf5bfdba9139"
+    },
+    {
+      "name": "independent-release-validator.log",
+      "sha256": "881d79275d307c4bb598f817ba03faadb6fa7d3c4bd962f4faa2102a5e857a7d"
+    },
+    {
+      "name": "independent-package-references.log",
+      "sha256": "6832c03bdfc923fd35dd062731ea9d053d06255524373cd8fdbf82188d0e5c75"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "linux_base": {
+    "result": "1714 passed, 10 skipped; BASE ONLY; not a candidate witness",
+    "run": "https://github.com/Rynaro/magicite/actions/runs/37076396315",
+    "source_commit": "9692735e453c0b2f722ced1c251934839342bcb2"
+  },
+  "pr51": {
+    "artifacts": [
+      {
+        "path": "docs/releases/v1/r3/evidence/findings-register-68725d4.md",
+        "sha256": "b8d855e7a4c4e3b91d49d5e6b5447d3245a92ddf60c8d9bec61951da9922e5f7"
+      },
+      {
+        "path": "docs/releases/v1/r3/evidence/threat-model-68725d4.md",
+        "sha256": "eaff858d0aa5efd76e2f02cb4b344b384c3709b6499af0790241dc69aa142bcd"
+      },
+      {
+        "path": "docs/releases/v1/r3/evidence/r3-open-items-68725d4.md",
+        "sha256": "a9673ea123736e80db002dfcdfbf0c28ead759ce48f41c8c1c1eb5ae3871e81d"
+      }
+    ],
+    "source_commit": "68725d4120569b246503d790bfcaaf85b7a11f0f",
+    "state": "UNMERGED; human security approval pending"
+  },
+  "security_limits": [
+    "AC-TH-10 maps to test_th10_old_reader_downgrade.py and TH-A01/F-10 High residual; human review pending",
+    "Projection deletion guards are inert regressions, not active authority defenses",
+    "Unobserved trust-journal retry/reconcile assertions and isolated append/replace fences remain open",
+    "Real process death/lost-reply/socket/peer/ACL/OS branches and fuzz limitations remain open"
+  ]
+}

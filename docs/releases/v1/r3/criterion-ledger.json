@@ -1,0 +1,3608 @@
+{
+  "criteria": [
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an identical pinned query and registry\nWHEN usage, strength and community state vary\nTHEN stable routing SHALL return the same semantic result\nVERIFY: new tests/unit/core/test_policy_boundary.py::test_stable_ignores_adaptation",
+      "id": "AC-S00-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN stable default configuration\nWHEN Dream runs or checkpoints historical strength\nTHEN the active stable policy digest SHALL remain unchanged\nVERIFY: new test_policy_boundary.py::test_dream_cannot_change_stable_policy",
+      "id": "AC-S00-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an explicit experimental policy selection\nWHEN routing completes\nTHEN the decision SHALL identify the experimental policy\nVERIFY: new test_policy_boundary.py::test_experimental_is_explicit",
+      "id": "AC-S00-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a query containing a secret sentinel\nWHEN route is invoked\nTHEN persistent route events SHALL omit the raw query\nVERIFY: new test_policy_boundary.py::test_no_raw_query_logging",
+      "id": "AC-S00-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a frozen manifest and local corpus\nWHEN the runner repeats with identical pins\nTHEN per-query semantic predictions SHALL match\nVERIFY: new tests/unit/eval/test_manifests.py::test_reproducible_predictions",
+      "id": "AC-S01-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a corpus with train/test overlap or duplicate query IDs\nWHEN validation runs\nTHEN the corpus SHALL be rejected\nVERIFY: new test_manifests.py::test_leakage_rejected",
+      "id": "AC-S01-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a result referencing changed labels or missing prediction bytes\nWHEN claim validation runs\nTHEN the claim SHALL fail integrity validation\nVERIFY: new test_manifests.py::test_claim_digest_failure",
+      "id": "AC-S01-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an independent structural corpus\nWHEN benchmark gold is loaded\nTHEN expected plans SHALL originate only from corpus annotations\nVERIFY: extend tests/integration/test_bench.py with a production-planner sentinel that rejects calls during label loading",
+      "id": "AC-S01-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN archived 0.2 and SKILL.md fixtures with prose, fences and extensions\nWHEN persist, export, writer-canonical parse/write, or the pure 0.2-to-1.0 transform runs\nTHEN preserved source bytes SHALL remain identical on the C1 identity set: imported skill_md_source.body_raw plus extra_frontmatter through persist/export; writer-canonical engram/0.2 parse-write bytes; on-disk source archives after the pure transform\nVERIFY: extend tests/integration/test_skillmd_roundtrip.py with v1 fixture corpus covering body_raw/extra_frontmatter persist-export identity, writer-canonical 0.2 parse-write identity, and untouched on-disk archives under the pure transform",
+      "id": "AC-S02-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a legacy ID and references\nWHEN the pure transform runs twice\nTHEN the stable ID SHALL remain unchanged\nVERIFY: new tests/unit/engram/test_v1_schema.py::test_identity_preserved",
+      "id": "AC-S02-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an unknown mandatory extension or invalid version range\nWHEN the artifact is validated\nTHEN validation SHALL fail closed\nVERIFY: new test_v1_schema.py::test_required_unknown_rejected",
+      "id": "AC-S02-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an external asset with traversal or changed bytes\nWHEN the artifact is loaded\nTHEN asset validation SHALL reject it\nVERIFY: new test_v1_schema.py::test_asset_containment_and_digest",
+      "id": "AC-S02-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN the shared host/artifact and exact-revision relation fixtures\nWHEN schema validation and legacy transform run\nTHEN the resulting typed relations SHALL match C1 without inferred learned-edge semantics\nVERIFY: new tests/unit/engram/test_v1_schema.py::test_shared_relation_fixtures",
+      "id": "AC-S02-05",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a legacy snapshot and dry-run request\nWHEN migration preview runs\nTHEN all input bytes SHALL remain unchanged\nVERIFY: new tests/integration/test_migration_v1.py::test_preview_zero_write",
+      "id": "AC-S03-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN fault injection at each file/SQL commit boundary\nWHEN migration resumes\nTHEN the final state SHALL equal one uninterrupted migration\nVERIFY: new test_migration_v1.py::test_crash_matrix",
+      "id": "AC-S03-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a completed migration operation ID\nWHEN apply is retried\nTHEN the operation SHALL produce zero duplicate effects\nVERIFY: new test_migration_v1.py::test_idempotent_apply",
+      "id": "AC-S03-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a new-schema registry and matching old backup\nWHEN downgrade restoration runs\nTHEN the restored state SHALL match the supported backup manifest\nVERIFY: extend tests/integration/test_upgrade_v02.py with v1 restore and future-version rejection",
+      "id": "AC-S03-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an external file claiming authored and verified\nWHEN intake runs\nTHEN the artifact SHALL remain pending or quarantined until local admission\nVERIFY: new tests/unit/core/test_trust_intake.py::test_forged_origin",
+      "id": "AC-S04-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a signed bundle with altered resource or unsafe archive member\nWHEN verification runs\nTHEN the bundle SHALL be rejected before admission\nVERIFY: new test_trust_bundle.py::test_tamper_and_escape",
+      "id": "AC-S04-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an approved digest\nWHEN content or local policy changes\nTHEN the prior approval SHALL cease to authorize routing\nVERIFY: new test_trust_intake.py::test_digest_and_policy_binding",
+      "id": "AC-S04-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN concurrent repeated approval and a later DB rebuild\nWHEN review execution completes\nTHEN the restored trust ledger SHALL contain exactly one applied decision\nVERIFY: new tests/integration/test_trust_recovery.py::test_review_replay_rebuild",
+      "id": "AC-S04-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN fixtures whose only distinguishing text is raw prose or an exact error token\nWHEN candidate generation runs\nTHEN the matching artifact SHALL be retrieved\nVERIFY: new tests/unit/core/test_candidates.py::test_full_body_exact_terms",
+      "id": "AC-S05-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN equal component ranks and pinned inputs\nWHEN fusion repeats\nTHEN candidate ordering SHALL be stable by ID\nVERIFY: new test_candidates.py::test_rrf_ties",
+      "id": "AC-S05-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a frontmatter-only edit or same-name model artifact change\nWHEN index validation runs\nTHEN the stale generation SHALL be rejected\nVERIFY: new tests/integration/test_index_generation.py::test_fingerprint_invalidates",
+      "id": "AC-S05-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a partially built generation and a failed build\nWHEN routing pins an index\nTHEN only a complete published generation SHALL be visible\nVERIFY: new test_index_generation.py::test_atomic_swap_and_rollback",
+      "id": "AC-S05-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a declared framework range and unknown host version\nWHEN eligibility is evaluated\nTHEN the result SHALL be context_required\nVERIFY: new tests/unit/core/test_eligibility.py::test_unknown_required_context",
+      "id": "AC-S06-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN request grants exceeding server permission policy\nWHEN eligibility is evaluated\nTHEN the excess permission SHALL remain denied\nVERIFY: new test_eligibility.py::test_request_cannot_elevate",
+      "id": "AC-S06-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an archived or quarantined dependency behind an eligible winner\nWHEN dependency eligibility is evaluated\nTHEN the dependency SHALL be excluded\nVERIFY: new test_eligibility.py::test_transitive_denial",
+      "id": "AC-S06-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN malformed ranges and unsupported mandatory capability vocabulary\nWHEN constraint validation runs\nTHEN the artifact SHALL not become eligible\nVERIFY: new test_eligibility.py::test_unsupported_constraints",
+      "id": "AC-S06-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN consumer B requires artifact X and host artifact inventory is known-empty\nWHEN pre-ranking eligibility runs\nTHEN B SHALL remain eligible with X listed in unsatisfied_artifacts\nVERIFY: new tests/unit/core/test_eligibility.py::test_plannable_requirement_is_not_host_denial",
+      "id": "AC-S06-05",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a quarantined artifact with strongest raw score\nWHEN routing runs\nTHEN the artifact SHALL be absent from returned candidates and bodies\nVERIFY: extend tests/integration/test_route_end_to_end.py::test_eligibility_before_rerank",
+      "id": "AC-S07-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an unrelated query in the locked rejection set\nWHEN calibrated routing runs\nTHEN the result SHALL obey the frozen abstention decision rule\nVERIFY: new tests/unit/core/test_calibration.py::test_threshold_manifest",
+      "id": "AC-S07-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN pinned semantic inputs\nWHEN routing repeats across rebuild\nTHEN semantic decision fields SHALL match\nVERIFY: new tests/integration/test_route_reproducibility.py::test_rebuild_determinism",
+      "id": "AC-S07-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a reranker timeout or missing required model\nWHEN routing runs\nTHEN the result SHALL identify configured fallback or explicit operational error\nVERIFY: new tests/unit/core/test_router_policy.py::test_fallback_identity",
+      "id": "AC-S07-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN S10 is not installed and reviewed simple/hybrid policy artifacts exist\nWHEN activation and rollback use the expected-current API\nTHEN the active digest SHALL follow exactly the approved compare-and-swap transitions\nVERIFY: new tests/integration/test_stable_policy_activation.py::test_activation_without_learning including stale-current rejection",
+      "id": "AC-S07-05",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an eligible winner with a denied or missing required dependency\nWHEN composition runs\nTHEN the plan SHALL be invalid\nVERIFY: extend tests/unit/core/test_composition.py::test_denied_dependency_invalid",
+      "id": "AC-S08-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a cycle or exceeded node/depth/edge limit\nWHEN composition runs\nTHEN the plan SHALL contain no executable prefix\nVERIFY: new tests/integration/test_composition_v1.py::test_cycle_and_budget",
+      "id": "AC-S08-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN two satisfying producers with no explicit preference\nWHEN composition runs\nTHEN the result SHALL report ambiguous_provider\nVERIFY: new test_composition_v1.py::test_ambiguous_alternatives",
+      "id": "AC-S08-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an independently authored task with a deterministic host verifier\nWHEN the evaluation harness executes the plan\nTHEN the report SHALL distinguish structural validity from verified task outcome\nVERIFY: new test_composition_v1.py::test_host_verifier_report",
+      "id": "AC-S08-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN known-empty artifact inventory, B requiring artifact X and eligible A producing X\nWHEN composition selects B\nTHEN the valid plan SHALL order A before B\nVERIFY: new tests/integration/test_composition_v1.py::test_producer_satisfies_consumer with denied-host-tool paired case",
+      "id": "AC-S08-05",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN selected exact revisions with before or supersedes relationships\nWHEN the planner consumes the shared S02 fixtures\nTHEN relation behavior SHALL match C1 ordering and replacement-conflict semantics\nVERIFY: new tests/integration/test_composition_v1.py::test_shared_relation_semantics",
+      "id": "AC-S08-06",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a repeated event ID with identical or conflicting payload\nWHEN checkpoint retries\nTHEN the ledger SHALL enforce one immutable payload per event ID\nVERIFY: new tests/unit/core/test_evidence.py::test_event_id_idempotence",
+      "id": "AC-S09-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an acknowledged checkpoint followed by process death and index rebuild\nWHEN recovery runs\nTHEN acknowledged evidence SHALL remain available\nVERIFY: new tests/integration/test_evidence_recovery.py::test_ack_survives_rebuild",
+      "id": "AC-S09-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN raw-query history and secret sentinels in inputs\nWHEN upgrade and default checkpoint/export run\nTHEN managed current evidence stores SHALL contain no raw sentinel\nVERIFY: new test_evidence_recovery.py::test_privacy_history_and_export",
+      "id": "AC-S09-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN deterministic selection or delayed self-reported feedback\nWHEN the evidence is evaluated\nTHEN unsupported counterfactual efficacy SHALL remain unknown\nVERIFY: new tests/unit/core/test_evidence.py::test_provenance_and_support",
+      "id": "AC-S09-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN managed export artifacts under the ledger export directory plus an unregistered operator copy outside that directory\nWHEN privacy deletion runs\nTHEN deletion SHALL cover the C6 local-management set: purge managed export-directory artifacts plus any registered export-manifest paths; unregistered operator copies remain out of scope\nVERIFY: new tests/integration/test_evidence_recovery.py::test_deletion_covers_managed_exports_only",
+      "id": "AC-S09-05",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a default evidence export that uses fresh per-export pseudonyms\nWHEN the export artifact is written\nTHEN the export SHALL include a notice that privacy deletion cannot follow operator copies\nVERIFY: new tests/integration/test_evidence_recovery.py::test_export_carries_copy_deletion_notice",
+      "id": "AC-S09-06",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a shadow candidate and a pinned incumbent\nWHEN shadow scoring runs\nTHEN incumbent route results SHALL remain unchanged\nVERIFY: new tests/unit/core/test_policy_learning.py::test_shadow_isolation",
+      "id": "AC-S10-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN logs with zero action support for candidate decisions\nWHEN OPE runs\nTHEN the result SHALL be insufficient_support\nVERIFY: new test_policy_learning.py::test_zero_support",
+      "id": "AC-S10-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a promotion with stale approval digest\nWHEN activation is attempted\nTHEN activation SHALL be rejected\nVERIFY: new tests/integration/test_policy_promotion.py::test_stale_approval",
+      "id": "AC-S10-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a canary crossing its frozen rollback rule\nWHEN rollback executes\nTHEN the active policy SHALL equal the pinned prior incumbent\nVERIFY: new test_policy_promotion.py::test_exact_rollback",
+      "id": "AC-S10-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a decision whose body or trust policy changed\nWHEN load_skill_body runs\nTHEN the call SHALL return stale_decision without the body\nVERIFY: new tests/unit/mcp/test_v1_retrieval.py::test_stale_body_denied",
+      "id": "AC-S11-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a valid v1 tool response\nWHEN text and structured payloads are decoded\nTHEN both payloads SHALL represent identical data\nVERIFY: extend tests/unit/mcp/test_dispatch_call.py::test_v1_payload_parity",
+      "id": "AC-S11-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN cancellation around durable commit followed by retry\nWHEN the client reconnects\nTHEN the durable operation SHALL have at most one effect\nVERIFY: new tests/acceptance/test_stdio_cancellation.py::test_commit_boundary",
+      "id": "AC-S11-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN each advertised host/SDK/protocol row\nWHEN the installed conformance probe runs\nTHEN every required probe SHALL pass with an archived transcript\nVERIFY: new tests/acceptance/test_v1_conformance.py and host evidence manifest",
+      "id": "AC-S11-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN missing, old-schema, corrupt or read-only data directories\nWHEN doctor runs\nTHEN filesystem and database bytes SHALL remain unchanged\nVERIFY: extend tests/unit/obs/test_doctor.py::test_zero_write_matrix",
+      "id": "AC-S12-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a verified backup of all authoritative stores\nWHEN restore and rebuild run\nTHEN all acknowledged durable records through the backup recovery point SHALL be recovered\nVERIFY: new tests/integration/test_backup_restore_v1.py::test_complete_restore",
+      "id": "AC-S12-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a revoked artifact or privacy deletion after backup plus a valid current RecoveryOverlay and sequence anchor\nWHEN restore runs\nTHEN current revocation and deletion policy SHALL prevent reactivation\nVERIFY: new test_backup_restore_v1.py::test_policy_reapplication",
+      "id": "AC-S12-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a stale writer or killed lease holder\nWHEN another process recovers\nTHEN the stale process SHALL be unable to commit\nVERIFY: extend tests/integration/test_lease_multiprocess.py with evidence/trust/policy writers",
+      "id": "AC-S12-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a clean-machine backup with absent or stale current overlay/anchor\nWHEN restore is attempted\nTHEN routing and evidence access SHALL remain disabled with reconciliation_required\nVERIFY: new tests/integration/test_backup_restore_v1.py::test_missing_stale_overlay_closed",
+      "id": "AC-S12-05",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a built wheel in a clean temporary environment outside checkout\nWHEN installation and fixture probe run\nTHEN the packaged runtime SHALL route the offline fixture\nVERIFY: new tests/acceptance/test_install_channels.py::test_clean_wheel",
+      "id": "AC-S13-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a fresh install without model cache\nWHEN offline routing is attempted\nTHEN the error SHALL provide explicit model acquisition remediation\nVERIFY: new test_install_channels.py::test_missing_model",
+      "id": "AC-S13-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN each advertised distribution channel\nWHEN the published artifact is installed\nTHEN the same conformance fixture SHALL pass\nVERIFY: new test_install_channels.py::test_channel_matrix with recorded channel versions/digests",
+      "id": "AC-S13-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a release manifest and fetched image/wheel\nWHEN signature/provenance/resource checks run\nTHEN every advertised artifact SHALL match its declared digest\nVERIFY: extend scripts/check_supply_chain.py and published artifact verification job",
+      "id": "AC-S13-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a declared benchmark profile\nWHEN the matrix runs\nTHEN the result SHALL identify every cache state and hardware/model fingerprint\nVERIFY: extend tests/unit/eval/test_bench_baselines.py::test_profile_manifest",
+      "id": "AC-S14-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a claimed supported scale\nWHEN release evidence is checked\nTHEN the complete production-provider envelope SHALL satisfy its preregistered budget\nVERIFY: dedicated runner validates evaluation.md envelopes; shared CI validates completeness only",
+      "id": "AC-S14-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a locked local or external final split\nWHEN ranking quality is assessed\nTHEN the promotion verdict SHALL follow the preregistered paired interval rule\nVERIFY: new tests/unit/eval/test_release_verdicts.py with hand-computed boundary cases",
+      "id": "AC-S14-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an end-task usefulness claim\nWHEN claim validation runs\nTHEN the evidence SHALL include paired host-verifier outcomes\nVERIFY: new test_release_verdicts.py::test_no_structural_efficacy_substitution",
+      "id": "AC-S14-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN generated references and installed runtime\nWHEN drift checks run\nTHEN declared versions/schema/tool inventories SHALL match runtime\nVERIFY: extend scripts/check_generated_docs.py with snapshot fixtures",
+      "id": "AC-S15-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a quantitative README claim without an accepted evidence manifest\nWHEN documentation CI runs\nTHEN the claim SHALL fail validation\nVERIFY: extend scripts/check_docs.py with claim-ledger fixture",
+      "id": "AC-S15-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a fresh supported operator environment\nWHEN the complete tutorial is followed\nTHEN all advertised steps SHALL complete with captured output\nVERIFY: scripted tutorial smoke plus independent operator transcript",
+      "id": "AC-S15-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a deprecated contract or changed support row\nWHEN docs validation runs\nTHEN the published policy SHALL identify replacement and support deadline\nVERIFY: new documentation contract fixture for S15",
+      "id": "AC-S15-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a release gate with missing evidence\nWHEN the GA validator runs\nTHEN release eligibility SHALL be false\nVERIFY: new release-manifest validation fixture with missing gate",
+      "id": "AC-S16-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN two RC artifacts\nWHEN API/schema fingerprints are compared\nTHEN stable fingerprints SHALL match or require a fresh RC pair\nVERIFY: release gate RC-CONTRACT",
+      "id": "AC-S16-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN external validation evidence\nWHEN independence review runs\nTHEN the evidence SHALL satisfy one reproduction or two-pilot path\nVERIFY: release gate EXTERNAL with named independent reviewer and immutable report",
+      "id": "AC-S16-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1/acceptance.md",
+        "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a complete candidate release manifest\nWHEN GA eligibility is evaluated\nTHEN all nonwaivable release gates SHALL pass\nVERIFY: release gate GA-ALL",
+      "id": "AC-S16-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an enrolled registry with a committed revocation or policy/root restriction\nWHEN decision mirrors, policy/root projections, the journal, or local head are deleted, edited, truncated, reordered, duplicated, spliced, or rolled back\nTHEN prior admission SHALL NOT reappear; projections SHALL rebuild only from authenticated committed history, and missing or conflicting authoritative bytes SHALL close trust-dependent access\nVERIFY: decision and policy/root mutation matrix; revoke-mirror deletion; missing-policy/default-fallback and root-revocation rollback regressions",
+      "id": "AC-TH-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an authenticated record ID for any supported record kind\nWHEN an identical operation retries or the same ID is reused with changed payload, kind, or sequence\nTHEN exact committed retries SHALL have one effect; conflicting payloads and resequencing SHALL be rejected without advancing authority\nVERIFY: prepare/commit/lost-reply retry matrix across decision, policy, genesis and epoch records",
+      "id": "AC-TH-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a protected enrollment and a fresh independent custodian head\nWHEN all local history and head are rolled back, or a receipt has stale nonce, wrong signing key, registry, epoch, policy binding, or substituted enrollment identity\nTHEN the client SHALL reject stale or mismatched authority and remain closed; a cached receipt alone SHALL NOT prove freshness\nVERIFY: full-local-state rollback, replayed nonce, key/epoch/registry/policy mismatch and protected-profile substitution cases",
+      "id": "AC-TH-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN production trust configuration\nWHEN the custodian, key, pin, peer credentials, protected enrollment/configuration or protected custody state is missing, writable by the registry writer, same-UID, or unsupported on the current OS\nTHEN trust-dependent operations SHALL fail closed without an in-process or environment fallback; qualification SHALL NOT be inferred from a test adapter or same-account fixture\nVERIFY: Linux SO_PEERCRED/macOS getpeereid adapter fixtures, both-peer UID rejection, protected-parent/path checks, unavailable transport and explicit production qualification status",
+      "id": "AC-TH-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a prepared authenticated record under the active fence\nWHEN a fault occurs at prepare, client append/fsync, local-head handling, custodian durable commit/fsync, projection finalization, response delivery, or acknowledgement\nTHEN every acknowledged revocation SHALL remain enforced; acknowledgement SHALL occur only after durable custodian CAS and fenced local finalization; valid unacknowledged preparations SHALL remain recoverable and exact extensions SHALL reconcile under an active fence or keep access closed and SHALL NOT silently discard a prepared revoke\nVERIFY: process/fault matrix around every persistence boundary and lost replies; acknowledgement trace shows custodian fsync first",
+      "id": "AC-TH-05",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a nonce-authenticated full predecessor (registry, epoch, generation, head sequence and head digest) captured before one existing writer-lease acquisition attempt\nWHEN another holder registers a newer custodian fence, including without changing the journal head, and a paused old holder later registers, prepares, commits or acknowledges\nTHEN the stale predecessor/generation/attempt SHALL be rejected; registration SHALL use durable full-predecessor CAS with a unique attempt ID; an attempt SHALL NOT refresh its predecessor while retaining that acquisition; nested operations SHALL reuse its registered fence without introducing a second application writer lock\nVERIFY: pause-old-before-registration/new-registration/resume; pause-old-before-commit/new-fence/resume; head-unchanged races; nested guard; existing lease assertions before and after external commit and before local replace/ACK",
+      "id": "AC-TH-06",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN authenticated committed history whose timestamps disagree with sequence order\nWHEN route, body disclosure, rebuild, restore, import, review, revoke, or policy/root operations resolve trust\nTHEN every path SHALL use one validated snapshot whose latest-by-engram journal sequence and authenticated current policy are bound to the same verified head, without a subsequent mutable-policy reread; no legacy mirror/default-policy fallback SHALL authorize access; body disclosure SHALL revalidate freshness\nVERIFY: backdated revoke against future-dated admit, all trust call sites, post-route policy/root/history drift and direct restore/import writer regressions",
+      "id": "AC-TH-07",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a legacy registry or missing local trust state\nWHEN preview, migration, or initialization is requested\nTHEN preview SHALL write nothing; enrollment SHALL come only from protected custodian state and explicit operator action; reviewed legacy import SHALL require a complete backup, disclose unsigned/missing historical provenance, preserve originals and reject unresolved conflicts/admissions; an empty local directory SHALL NOT imply a virgin identity or authorize silent key creation\nVERIFY: zero-write preview, erased-enrolled-state versus explicit virgin enrollment, reconciliation/backup guards, unsigned-history disclosure and conflicting legacy inventory rejection",
+      "id": "AC-TH-08",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a backup preceding a committed revocation and the current independent anchor\nWHEN restore or rebuild runs\nTHEN current revocations SHALL remain effective; restoration SHALL require retained authenticated history through the current anchor and SHALL remain restricted when that suffix is absent; RecoveryOverlay mirrors or local fingerprint-key MACs SHALL NOT be resequenced or substituted for custodian authority\nVERIFY: pre-revoke backup/current-suffix restoration, anchor-ahead missing suffix, no synthetic history/rekey, and all direct mirror-writing restore paths",
+      "id": "AC-TH-09",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an initialized authenticated epoch and current revocation state\nWHEN keys/epochs rotate, an old reader opens the new authority format, a supported downgrade path runs (documented `migration restore` into inactive staging, complete-backup restore through the supported runtime, or the frozen 22ae4e0 reader on migrated bytes including after derived database deletion), or the supported runtime opens rolled-back local bytes\nTHEN rotation SHALL bind old/new keys, epochs and heads through custodian CAS; unsupported readers SHALL reject the new authority; supported downgrade paths SHALL NOT reactivate revoked content or silently reset enrollment; the supported runtime SHALL keep the latest authenticated revocation authoritative over any rolled-back local bytes or remain closed\nVERIFY: dual-bound epoch transition, stale/wrong-key rotation (tests/unit/core/test_trust_rotation.py, tests/unit/core/test_trust_rotation_transport.py), old-format rejection, and tests/integration/test_th10_old_reader_downgrade.py (new-format revoke vs 22ae4e0 reader; old admit \u2192 reviewed migration \u2192 revoke; migration restore staging; trust/authority deletion fails closed; hand-rollback residual: supported runtime still enforces revoke)",
+      "id": "AC-TH-10",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN unavailable, corrupt, stale or restricted custody/history\nWHEN doctor, errors, logs or backup archives are produced\nTHEN doctor SHALL remain zero-write; diagnostics SHALL be actionable without disclosing private keys, sensitive paths or raw exception content; custodian secrets SHALL remain outside registry archives and logs\nVERIFY: byte/mtime zero-write diagnosis matrix, error sentinels, archive inventory and private-key canaries",
+      "id": "AC-TH-11",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/magicite-v1-trust-hardening/acceptance.md",
+        "sha256": "39e7f43f89e502c4d46679d45e6184611155c1a27d21679835aff588441b4ed0"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "See checks.json and package reproduction commands",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN the original S16 mirror-loss diagnostic and clean valid trust workflows\nWHEN hardened approval, revocation, routing and recovery are exercised\nTHEN the original deletion exploit SHALL fail closed and valid positive workflows SHALL pass; separate-UID Linux/macOS deployment qualification SHALL be reported PASS only for an actual corresponding run and otherwise UNEVALUATED\nVERIFY: original admit\u2192revoke\u2192mirror-delete scenario, successful authenticated workflows, full regression/type/lint/docs checks and explicit deployment qualification ledger",
+      "id": "AC-TH-12",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Whole frozen criterion is not re-adjudicated by this bounded milestone; historical PASS labels are not imported.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "UNEVALUATED"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/focused.txt",
+          "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/checks.json",
+          "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/junit.xml",
+          "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-final.md",
+          "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-c2.md",
+          "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+          "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+        }
+      ],
+      "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN review_approve has committed the trust decision\nWHEN BusyError occurs before local admission or approval audit completes\nTHEN the operation SHALL not report successful approval while required effects are incomplete\nVERIFY: focused fault-injection regression for post-decision BusyError",
+      "id": "AC-R3-01",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Fresh bounded product tests and independent code review.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/focused.txt",
+          "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/checks.json",
+          "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/junit.xml",
+          "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-final.md",
+          "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-c2.md",
+          "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+          "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+        }
+      ],
+      "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN an event_id whose prior approval stopped after decision commit\nWHEN the same approval is retried\nTHEN successful return SHALL require completed local admission and its approval audit\nVERIFY: partial-completion replay regression inspecting decision, admission and audit state",
+      "id": "AC-R3-02",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Fresh bounded product tests and independent code review.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/focused.txt",
+          "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/checks.json",
+          "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/junit.xml",
+          "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-final.md",
+          "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-c2.md",
+          "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+          "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+        }
+      ],
+      "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a completed approval with event_id\nWHEN it is replayed repeatedly or concurrently\nTHEN the approval SHALL retain exactly one logical decision and approval audit effect\nVERIFY: repeated and concurrent replay regression counting logical effects",
+      "id": "AC-R3-03",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Fresh bounded product tests and independent code review.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/focused.txt",
+          "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/checks.json",
+          "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/junit.xml",
+          "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-final.md",
+          "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-c2.md",
+          "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+          "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+        }
+      ],
+      "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN writer ownership has been lost\nWHEN review_approve processes a post-acquisition BusyError\nTHEN the implementation SHALL perform no unowned local or audit writes\nVERIFY: injected ownership-loss boundary regression",
+      "id": "AC-R3-04",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Fresh bounded product tests and independent code review.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/focused.txt",
+          "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/checks.json",
+          "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/junit.xml",
+          "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-final.md",
+          "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-c2.md",
+          "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+          "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+        }
+      ],
+      "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN another valid writer owns the acquisition lease\nWHEN an event_id approval waits for the lease\nTHEN acquisition contention SHALL retain its bounded retry behavior\nVERIFY: existing concurrency/timeout tests plus affected focused regressions",
+      "id": "AC-R3-05",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Fresh bounded product tests and independent code review.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/focused.txt",
+          "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/checks.json",
+          "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/junit.xml",
+          "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-final.md",
+          "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-c2.md",
+          "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+          "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+        }
+      ],
+      "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN configured custody and a healthy local journal\nWHEN doctor runs\nTHEN doctor SHALL include a stable custody check grounded in both protected-current and local-journal observations\nVERIFY: doctor custody healthy fixture assertion",
+      "id": "AC-R3-06",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Fresh bounded product tests and independent code review.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/focused.txt",
+          "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/checks.json",
+          "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/junit.xml",
+          "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-final.md",
+          "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-c2.md",
+          "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+          "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+        }
+      ],
+      "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN missing, unavailable, restricted, corrupt or stale custody state\nWHEN doctor runs\nTHEN the custody check SHALL report the observed unhealthy or unknown state with actionable remediation\nVERIFY: parameterized doctor custody status matrix",
+      "id": "AC-R3-07",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Fresh bounded product tests and independent code review.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/focused.txt",
+          "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/checks.json",
+          "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/junit.xml",
+          "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-final.md",
+          "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-c2.md",
+          "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+          "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+        }
+      ],
+      "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "THEN doctor custody inspection SHALL leave authoritative and diagnostic filesystem bytes and entries unchanged\nVERIFY: expanded zero-write snapshot/canary tests across healthy and failure states",
+      "id": "AC-R3-08",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Fresh bounded product tests and independent code review.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/focused.txt",
+          "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/checks.json",
+          "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/junit.xml",
+          "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-final.md",
+          "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-c2.md",
+          "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+          "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+        }
+      ],
+      "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "THEN the new custody diagnostic SHALL omit planted key material and sensitive configured custody paths\nVERIFY: secret-planted successful and exceptional doctor JSON assertions",
+      "id": "AC-R3-09",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Fresh bounded product tests and independent code review.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.json",
+          "sha256": "69922b320387bcdf85b637741376c1c8104c2209275417ced6d95a8e80679278"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.md",
+          "sha256": "6a49c890dcca5caf3f5c986c494ad8e1526613538a0a9629b6f5563275e15efd"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/independent-package-references.log",
+          "sha256": "6832c03bdfc923fd35dd062731ea9d053d06255524373cd8fdbf82188d0e5c75"
+        }
+      ],
+      "command": "Independent commands recorded in evidence/package-review.md",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN a clean candidate C containing the completed fixes\nWHEN r3 witnesses are packaged\nTHEN every PASS witness SHALL carry reproducible evidence valid for C with verifiable source and artifact digests\nVERIFY: release-manifest validator at composed clean-C-plus-evidence root; no source/digest/witness errors; witness provenance review",
+      "id": "AC-R3-10",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Independent verification bound current C2 witnesses to source and artifact digests.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.json",
+          "sha256": "69922b320387bcdf85b637741376c1c8104c2209275417ced6d95a8e80679278"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.md",
+          "sha256": "6a49c890dcca5caf3f5c986c494ad8e1526613538a0a9629b6f5563275e15efd"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/independent-package-verify.log",
+          "sha256": "5dff9b09e903a32700308bd96e6e0d45631f88c231adb8fa9a17bf5bfdba9139"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/release-negative-controls.txt",
+          "sha256": "d409030ee28a73ae789da363e2b1380c6f51b713a4def48984467c215a2a208d"
+        }
+      ],
+      "command": "Independent commands recorded in evidence/package-review.md",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN evidence from another source or a modified bound artifact\nWHEN r3 qualification validates it\nTHEN the validator SHALL reject its use as current candidate PASS evidence\nVERIFY: existing validator negative controls or targeted regression when generator behavior changes",
+      "id": "AC-R3-11",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Positive composed overlay passed; mismatched source and modified artifact were rejected.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.json",
+          "sha256": "69922b320387bcdf85b637741376c1c8104c2209275417ced6d95a8e80679278"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.md",
+          "sha256": "6a49c890dcca5caf3f5c986c494ad8e1526613538a0a9629b6f5563275e15efd"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/inherited-provenance.json",
+          "sha256": "e565498875ad92f02e0b7f72e89c49d245fa52ecb51b0579f12c468d5d9ce4ca"
+        },
+        {
+          "path": "docs/releases/v1/r3/privacy-data-map.md",
+          "sha256": "b1f22d47062329973918a0b187528c35a7526a9824a7ce82bc76e010b93a7630"
+        }
+      ],
+      "command": "Independent commands recorded in evidence/package-review.md",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN r3 packaging is complete\nWHEN its files are reviewed\nTHEN the package SHALL contain a current privacy map and explicit per-gate status with independent adjudicator identity\nVERIFY: package structure and evidence-to-status review by non-maker",
+      "id": "AC-R3-12",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Independent adjudicator reviewed current privacy map and all 17 UNEVALUATED gate dispositions.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.json",
+          "sha256": "69922b320387bcdf85b637741376c1c8104c2209275417ced6d95a8e80679278"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.md",
+          "sha256": "6a49c890dcca5caf3f5c986c494ad8e1526613538a0a9629b6f5563275e15efd"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/independent-release-validator.log",
+          "sha256": "881d79275d307c4bb598f817ba03faadb6fa7d3c4bd962f4faa2102a5e857a7d"
+        }
+      ],
+      "command": "Independent commands recorded in evidence/package-review.md",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "GIVEN required security sign-off, empirical or external release evidence remains absent\nWHEN the release decision is produced\nTHEN GA eligibility SHALL remain false with each missing requirement identified\nVERIFY: release decision validator exit 1 with eligible:false and only enumerated unmet-release-requirement errors; independent gate-table review",
+      "id": "AC-R3-13",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Native validator returned exit 1, eligible:false, NO-GA with exactly 20 unmet release requirements.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    },
+    {
+      "acceptance": {
+        "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+        "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+      },
+      "artifacts": [
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.json",
+          "sha256": "69922b320387bcdf85b637741376c1c8104c2209275417ced6d95a8e80679278"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/package-review.md",
+          "sha256": "6a49c890dcca5caf3f5c986c494ad8e1526613538a0a9629b6f5563275e15efd"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/primary-preservation.json",
+          "sha256": "e160c7e8b4e091fd24bc261d38e6408128048de17819a0d329e27ac293aa783e"
+        },
+        {
+          "path": "docs/releases/v1/r3/evidence/source-bindings.json",
+          "sha256": "6c9c5e5bd69d327caa060bf70fe00e176790fbf9487da6867774dfff361333f7"
+        }
+      ],
+      "command": "Independent commands recorded in evidence/package-review.md",
+      "environment": {
+        "custody": "disposable-simulated",
+        "dependency_install": "uv sync --frozen --all-extras",
+        "embedding_provider": "hashing",
+        "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+        "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+        "machine": "arm64",
+        "platform": "macOS-27.0-arm64-arm-64bit",
+        "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+        "real_separate_uid_deployment": false,
+        "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+        "source_dirty": false
+      },
+      "frozen_text": "THEN historical v1/r2 evidence and the user's primary harness changes SHALL remain unchanged\nVERIFY: base-to-head scoped diff and primary checkout preservation check",
+      "id": "AC-R3-14",
+      "producer": "Vivi /root/implement_r3",
+      "reason": "Historical v1/r2 source tree and primary tracked-diff/porcelain baseline remained unchanged; no untracked-content hash baseline was captured or byte-equivalence claimed.",
+      "reviewer": "VIGIL /root/verify_r3",
+      "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+      "status": "PASS"
+    }
+  ],
+  "schema": "magicite/r3-criterion-ledger/1",
+  "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4"
+}
