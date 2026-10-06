@@ -386,3 +386,52 @@ def test_fixture_subprocess_imports_exact_candidate_source(tmp_path):
         text=True,
     ).strip()
     assert Path(actual).resolve() == ROOT / "src/magicite/__init__.py"
+
+
+@pytest.mark.parametrize(
+    "message,reason,status",
+    [
+        (
+            'API Error: 401 {"type":"authentication_error",'
+            '"message":"OAuth token expired credential-canary"}',
+            "oauth-expired",
+            401,
+        ),
+        ("HTTP 403 unauthorized credential-canary", "unauthorized", 403),
+        ("apiKeyHelper failed credential-canary", "api-key-helper", None),
+    ],
+)
+def test_actionable_error_diagnostic_never_archives_free_form_message(message, reason, status):
+    observed = qualification.safe_error(message)
+    assert reason in observed["reason_signals"]
+    assert observed["http_status"] == status
+    assert "credential-canary" not in json.dumps(observed)
+
+
+def test_host_auth_preflight_retains_only_boolean_method_and_difference(tmp_path, monkeypatch):
+    import subprocess
+
+    responses = iter([True, False])
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps(
+                {
+                    "loggedIn": next(responses),
+                    "authMethod": "oauth",
+                    "email": "credential-canary",
+                    "token": "credential-canary",
+                }
+            ),
+        )
+
+    monkeypatch.setattr(qualification.subprocess, "run", fake_run)
+    observed = qualification.auth_preflight(Path("/claude"), tmp_path, str(tmp_path))
+    assert observed["comparison"] == "restricted-auth-differs"
+    assert "credential-canary" not in json.dumps(observed)
+    assert all(argv[-3:] == ["auth", "status", "--json"] for argv in calls)
+    assert "--restricted" not in calls[0] and "--restricted" in calls[1]

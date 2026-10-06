@@ -12,7 +12,7 @@ From the actual host terminal, run this isolated candidate command:
 ```sh
 /private/tmp/magicite-r3-qualification/venv/bin/python \
   /Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/scripts/qualify_claude_host.py \
-  --output /private/tmp/magicite-v1-host/host-terminal-evidence
+  --output /private/tmp/magicite-v1-host/host-terminal-diagnostic-2
 ```
 
 The runner requires a clean reviewed checkout.
@@ -40,7 +40,7 @@ Verification, after the host command finishes:
 ```sh
 /private/tmp/magicite-r3-qualification/venv/bin/python \
   /Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/scripts/qualify_claude_host.py \
-  --output /private/tmp/magicite-v1-host/host-terminal-evidence --verify
+  --output /private/tmp/magicite-v1-host/host-terminal-diagnostic-2 --verify
 ```
 
 The report binds the Git candidate, source hashes, Claude version/binary digest,
@@ -64,3 +64,26 @@ acceptance, custody/security, published-channel, model-quality and complete
 protocol retry/cancellation qualification. Existing host-support classifications,
 generic SDK transcripts and archived release evidence remain unchanged. No whole
 PROTOCOL, DOCS, SECURITY or GA gate is promoted by this readiness document.
+
+
+The first user-run host attempt at `694195c` used Claude Code 2.1.292, had no
+sandbox network marker, preserved configuration metadata, and discovered all
+sixteen tools through modern version adoption. It failed before any host tool
+calls. The initial capture retained only a general authentication category, which
+cannot distinguish account status from expired request credentials, settings
+isolation or a different executable/auth source.
+
+The diagnostic runner compares `claude auth status --json` in the disposable
+project with normal versus restricted/explicit settings. It saves only exit code,
+logged-in boolean and a bounded method label, never account identities or auth
+values. These two read-only checks have ten-second timeouts and send no model
+requests. The runner invokes the resolved executable directly; shell aliases or
+functions are not applied. Restricted mode ignores user/project/local settings,
+so settings-based auth helpers/providers may differ; this is a possibility until
+observed. Safe mode documents normal auth but also disables custom MCP servers;
+no isolation mode is changed without evidence.
+
+Failed requests now retain fixed error reason signals, recognized API error types
+and HTTP status when exposed. Stderr is classified in memory and discarded; raw
+messages, credentials and debug output are never saved. Unknown causes remain
+unknown, and no diagnostic alone qualifies the actual tool workflow.

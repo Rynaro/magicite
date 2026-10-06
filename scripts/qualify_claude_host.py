@@ -82,6 +82,91 @@ def configuration_state() -> dict[str, Any]:
     return state
 
 
+def safe_error(value: Any) -> dict:
+    # Interpret only fixed codes/reasons; never retain free-form error text.
+    text = json.dumps(value).lower()
+    reasons = []
+    for reason, words in (
+        ("oauth-expired", ("oauth", "expired")),
+        ("oauth-revoked", ("oauth", "revoked")),
+        ("oauth-refresh-failed", ("refresh", "fail")),
+        ("unauthorized", ("unauthorized",)),
+        ("not-authenticated", ("not logged in",)),
+        ("api-key-rejected", ("api key", "invalid")),
+        ("api-key-helper", ("apikeyhelper",)),
+        ("provider-configuration", ("provider", "config")),
+        ("rate-limited", ("rate limit",)),
+        ("network-error", ("connection", "error")),
+    ):
+        if all(word in text for word in words):
+            reasons.append(reason)
+    match = re.search(r"(?:api error|http|status(?:_code| code)?)\s*[\":= ]+\s*(401|403|429|5\d\d)\b", text)
+    types = [
+        name
+        for name in (
+            "authentication_error",
+            "permission_error",
+            "rate_limit_error",
+            "api_error",
+            "overloaded_error",
+            "invalid_request_error",
+        )
+        if name in text
+    ]
+    auth = any(word in text for word in ("auth", "logged", "login", "api key"))
+    return {
+        "type": "failure",
+        "category": "authentication-request-failed" if auth else "host-run-error",
+        "reason_signals": reasons,
+        "http_status": int(match.group(1)) if match else None,
+        "api_error_types": types,
+        "error_payload_present": bool(value),
+    }
+
+
+def auth_preflight(binary: Path, work: Path, project: str) -> dict:
+    # Invoked only by the user-run host command; no model requests or credential exports.
+    modes = {
+        "normal": [],
+        "restricted-explicit-settings": [
+            "--restricted",
+            "--strict-mcp-config",
+            "--mcp-config",
+            str(work / "mcp.json"),
+            "--settings",
+            str(work / "settings.json"),
+        ],
+    }
+    rows = {}
+    for role, flags in modes.items():
+        try:
+            result = subprocess.run(
+                [str(binary), *flags, "auth", "status", "--json"],
+                cwd=project,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=10,
+            )
+            value = json.loads(result.stdout)
+            rows[role] = {
+                "exit": result.returncode,
+                "logged_in": value.get("loggedIn") if type(value.get("loggedIn")) is bool else None,
+                "method": value.get("authMethod")
+                if value.get("authMethod") in {"claude.ai", "oauth", "api_key", "apiKey", "none"}
+                else "unexposed-or-other",
+            }
+        except (subprocess.TimeoutExpired, ValueError, OSError, AttributeError):
+            rows[role] = {"status": "unavailable"}
+    rows["comparison"] = (
+        "restricted-auth-differs"
+        if rows["normal"].get("logged_in") is True
+        and rows["restricted-explicit-settings"].get("logged_in") is False
+        else "no-established-isolation-auth-loss"
+    )
+    return rows
+
+
 def safe_host_event(value: dict, observer: Observer) -> list[dict]:
     rows = []
     for block in value.get("message", {}).get("content", []):
@@ -124,14 +209,8 @@ def safe_host_event(value: dict, observer: Observer) -> list[dict]:
             }
         )
         if value.get("is_error"):
-            text = str(value.get("result", "")).lower()
             rows.append(
-                {
-                    "type": "failure",
-                    "category": "authentication-in-this-execution-context"
-                    if any(word in text for word in ("auth", "logged", "login"))
-                    else "host-run-error",
-                }
+                safe_error({key: value[key] for key in ("result", "errors", "error") if key in value})
             )
     return rows
 
@@ -489,16 +568,42 @@ def run(output: Path, allow_dirty: bool = False) -> int:
         name: file_digest(work / name) for name in ("mcp.json", "settings.json")
     }
     before = configuration_state()
+    report["auth_preflight"] = auth_preflight(binary, work, expected["project"])
+    report["invocation_auth_context"] = {
+        "resolved_executable_not_shell_alias": True,
+        "restricted_ignores_user_project_local_settings": True,
+        "explicit_settings_empty": True,
+        "environment_override_presence": {
+            key: key in os.environ
+            for key in (
+                "ANTHROPIC_API_KEY",
+                "CLAUDE_CODE_OAUTH_TOKEN",
+                "ANTHROPIC_BASE_URL",
+                "CLAUDE_CONFIG_DIR",
+            )
+        },
+    }
     start = time.monotonic()
     report["started_at"] = datetime.datetime.now(datetime.UTC).isoformat()
     process = subprocess.Popen(
         argv,
         cwd=expected["project"],
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         text=True,
         start_new_session=True,
     )
+    stderr_observations = []
+
+    def read_diagnostics():
+        for line in process.stderr:
+            observation = safe_error(line)
+            if observation["reason_signals"] or observation["http_status"] or observation["api_error_types"]:
+                if observation not in stderr_observations:
+                    stderr_observations.append(observation)
+
+    diagnostic_thread = threading.Thread(target=read_diagnostics, daemon=True)
+    diagnostic_thread.start()
     expired = []
 
     def timeout():
@@ -524,6 +629,8 @@ def run(output: Path, allow_dirty: bool = False) -> int:
         if process.poll() is None:
             timeout()
             process.wait(timeout=10)
+    diagnostic_thread.join(timeout=2)
+    report["stderr_diagnostics"] = stderr_observations
     wire = (
         [json.loads(line) for line in Path(state["wire"]).read_text().splitlines()]
         if Path(state["wire"]).exists()
