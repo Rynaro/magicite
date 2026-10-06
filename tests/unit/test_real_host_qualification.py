@@ -524,7 +524,7 @@ def test_denial_profile_covers_alias_and_resolved_target_without_directory_widen
 
 def test_guard_rejects_alternate_auth_namespace_without_reading_it(tmp_path, monkeypatch):
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "untouched"))
-    with pytest.raises(ValueError, match="default configuration namespace"):
+    with pytest.raises(ValueError, match="alternate-configuration-namespace"):
         qualification.prepare_guard(tmp_path)
     assert not (tmp_path / "untouched").exists()
 
@@ -581,3 +581,69 @@ def test_write_guard_integrity_must_match_actual_profile_and_binary(field):
     report["write_guard"][field] = "0" * 64
     with pytest.raises(ValueError, match="actual monitored profile/binary"):
         qualification.validate(report, wire, host, SHA)
+
+
+def test_parent_alias_and_leaf_symlink_have_all_exact_denial_forms(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    parent_alias = tmp_path / "parent-alias"
+    parent_alias.symlink_to(real, target_is_directory=True)
+    target = real / "target.json"
+    target.write_text("canary")
+    leaf = real / "leaf.json"
+    leaf.symlink_to(target)
+    protected = parent_alias / "leaf.json"
+    profile = qualification.denial_profile([protected])
+    assert all(json.dumps(str(path)) in profile for path in (protected, target, leaf))
+    assert "subpath" not in profile
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="native default macOS TMPDIR canary")
+def test_native_guard_handles_actual_default_temporary_directory(tmp_path):
+    import shutil
+    import tempfile
+
+    owned = Path(tempfile.mkdtemp(prefix="guard-default-regression-"))
+    try:
+        observed = qualification.guard_canary(owned)
+        assert all(
+            observed[key] for key in (*qualification.CANARY_CHECKS, "bytes_unchanged", "owned_cleanup")
+        )
+    finally:
+        shutil.rmtree(owned)
+
+
+def test_failed_canary_records_measured_false_check_without_raw_stderr(tmp_path, monkeypatch):
+    import subprocess
+
+    checks = {key: True for key in qualification.CANARY_CHECKS}
+    checks["symlink_replace_denied"] = False
+    monkeypatch.setattr(
+        qualification.subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(argv, 0, json.dumps(checks)),
+    )
+    with pytest.raises(qualification.GuardFailure) as captured:
+        qualification.guard_canary(tmp_path)
+    assert captured.value.reason == "canary-check-failed"
+    assert captured.value.details["checks"] == checks
+    assert captured.value.details["owned_cleanup"] is True
+    assert not list(tmp_path.iterdir())
+
+
+def test_canary_launch_failure_has_fixed_reason_and_no_raw_error(tmp_path, monkeypatch):
+    import subprocess
+
+    monkeypatch.setattr(
+        qualification.subprocess,
+        "run",
+        lambda argv, **kwargs: subprocess.CompletedProcess(
+            argv, 71, "", "sandbox_apply: Operation not permitted credential-canary"
+        ),
+    )
+    with pytest.raises(qualification.GuardFailure) as captured:
+        qualification.guard_canary(tmp_path)
+    assert captured.value.reason == "canary-process-nonzero"
+    assert captured.value.details["exit_code"] == 71
+    assert "credential-canary" not in json.dumps(captured.value.details)
+    assert captured.value.details["owned_cleanup"] is True

@@ -12,7 +12,7 @@ From the actual host terminal, run this isolated candidate command:
 ```sh
 /private/tmp/magicite-r3-qualification/venv/bin/python \
   /Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/scripts/qualify_claude_host.py \
-  --output /private/tmp/magicite-v1-host/host-terminal-guarded-4
+  --output /private/tmp/magicite-v1-host/host-terminal-guarded-5
 ```
 
 The runner requires a clean reviewed checkout.
@@ -40,7 +40,7 @@ Verification, after the host command finishes:
 ```sh
 /private/tmp/magicite-r3-qualification/venv/bin/python \
   /Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/scripts/qualify_claude_host.py \
-  --output /private/tmp/magicite-v1-host/host-terminal-guarded-4 --verify
+  --output /private/tmp/magicite-v1-host/host-terminal-guarded-5 --verify
 ```
 
 The report binds the Git candidate, source hashes, Claude version/binary digest,
@@ -128,3 +128,14 @@ alternate `CLAUDE_CONFIG_DIR`, changed monitored metadata or a host failure;
 the strict configuration check remains unchanged. All original evidence remains
 immutable. The previous unguarded workflow cannot become a full PASS through
 this prospective correction.
+
+
+The fourth attempt stopped at the disposable guard preflight before any Claude
+invocation. Local reproduction using macOS's actual default temporary directory
+identified a canonical-path gap: `/var` resolves to `/private/var`, while atomic
+replacement of a symlink evaluates the canonical parent with the unresolved leaf.
+The guard now denies that exact path form too. Both the original failed check and
+the repaired native default-directory canary are retained, and failure reports
+retain fixed guard reasons, measured boolean checks and safe capabilities. This
+corrects the reproduced mechanism failure; guarded host compatibility remains
+UNEVALUATED until the fifth attempt is independently reviewed.

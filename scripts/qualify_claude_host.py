@@ -98,12 +98,23 @@ CANARY_CHECKS = (
 
 def denial_profile(paths: list[Path]) -> str:
     # Cover both the user-visible link and its canonical target; never widen to a parent directory.
-    targets = sorted({str(path.absolute()) for path in paths} | {str(path.resolve()) for path in paths})
+    targets = sorted(
+        {str(path.absolute()) for path in paths}
+        | {str(path.resolve()) for path in paths}
+        | {str(path.parent.resolve() / path.name) for path in paths}
+    )
     return (
         "(version 1)\n(allow default)\n"
         + "\n".join("(deny file-write* (literal " + json.dumps(target) + "))" for target in targets)
         + "\n"
     )
+
+
+class GuardFailure(ValueError):
+    def __init__(self, reason: str, details: dict | None = None):
+        super().__init__(reason)
+        self.reason = reason
+        self.details = details or {}
 
 
 def guard_canary(work: Path) -> dict:
@@ -135,6 +146,7 @@ try: replacement.replace(alias); rows['symlink_replace_denied']=False
 except PermissionError: rows['symlink_replace_denied']=True
 print(json.dumps(rows))
 """
+    failure_details = {}
     try:
         result = subprocess.run(
             ["/usr/bin/sandbox-exec", "-f", str(profile), sys.executable, "-c", code, str(target)],
@@ -143,13 +155,34 @@ print(json.dumps(rows))
             timeout=10,
         )
         if result.returncode:
-            raise ValueError("native write guard canary unavailable")
-        rows = json.loads(result.stdout)
-        if any(rows.get(key) is not True for key in CANARY_CHECKS) or target.read_bytes() != original:
-            raise ValueError("native write guard canary failed")
+            raise GuardFailure(
+                "canary-process-nonzero",
+                {"exit_code": result.returncode, "stderr_diagnostic": safe_error(result.stderr)},
+            )
+        try:
+            parsed = json.loads(result.stdout)
+            rows = {key: parsed.get(key) if type(parsed.get(key)) is bool else None for key in CANARY_CHECKS}
+        except (ValueError, AttributeError):
+            raise GuardFailure("canary-result-invalid") from None
+        unchanged = target.read_bytes() == original
+        if any(rows[key] is not True for key in CANARY_CHECKS) or not unchanged:
+            raise GuardFailure(
+                "canary-check-failed",
+                {"exit_code": result.returncode, "checks": rows, "bytes_unchanged": unchanged},
+            )
         rows["bytes_unchanged"] = True
+    except GuardFailure as exc:
+        failure_details = exc.details
+        raise
+    except subprocess.TimeoutExpired:
+        failure_details = {"timeout_seconds": 10}
+        raise GuardFailure("canary-timeout", failure_details) from None
+    except OSError as exc:
+        failure_details = {"error_class": type(exc).__name__}
+        raise GuardFailure("canary-launch-error", failure_details) from None
     finally:
         shutil.rmtree(owned)
+        failure_details["owned_cleanup"] = not owned.exists()
     rows["owned_cleanup"] = not owned.exists()
     return rows
 
@@ -159,12 +192,12 @@ def guard_binary_digest() -> str:
 
 
 def prepare_guard(work: Path) -> tuple[list[str], dict]:
-    if (
-        sys.platform != "darwin"
-        or not Path("/usr/bin/sandbox-exec").is_file()
-        or "CLAUDE_CONFIG_DIR" in os.environ
-    ):
-        raise ValueError("guard requires default configuration namespace and native macOS sandbox-exec")
+    if sys.platform != "darwin":
+        raise GuardFailure("unsupported-platform")
+    if not Path("/usr/bin/sandbox-exec").is_file():
+        raise GuardFailure("native-guard-missing")
+    if "CLAUDE_CONFIG_DIR" in os.environ:
+        raise GuardFailure("alternate-configuration-namespace")
     proof = guard_canary(work)
     profile = work / "config-write-denial.sb"
     profile.write_text(denial_profile(list(configuration_paths().values())))
@@ -206,6 +239,8 @@ def save_evidence(output: Path, work: Path, report: dict, wire: list, host: list
 
 def safe_error(value: Any) -> dict:
     # Interpret only fixed codes/reasons; never retain free-form error text.
+    if isinstance(value, bytes):
+        value = value.decode(errors="replace")
     text = json.dumps(value).lower()
     reasons = []
     for reason, words in (
@@ -666,6 +701,11 @@ def run(output: Path, allow_dirty: bool = False) -> int:
         "sdk": importlib.metadata.version("mcp"),
         "python": sys.version,
         "platform": platform.platform(),
+        "guard_capabilities": {
+            "platform_supported": sys.platform == "darwin",
+            "native_guard_exists": Path("/usr/bin/sandbox-exec").is_file(),
+            "alternate_namespace_present": "CLAUDE_CONFIG_DIR" in os.environ,
+        },
         "execution_context": {
             "codex_network_sandbox_marker_present": os.environ.get("CODEX_SANDBOX_NETWORK_DISABLED") == "1"
         },
@@ -728,6 +768,10 @@ def run(output: Path, allow_dirty: bool = False) -> int:
         report["host"]["version"] = version_output.split()[0]
     except (ValueError, OSError, subprocess.SubprocessError, IndexError) as exc:
         report["failed_stage"] = phase
+        report["guard_failure_reason"] = (
+            exc.reason if isinstance(exc, GuardFailure) else "unclassified-guard-or-version-failure"
+        )
+        report["guard_failure_details"] = exc.details if isinstance(exc, GuardFailure) else {}
         report["preflight_error"] = {"class": type(exc).__name__, **safe_error(getattr(exc, "stderr", None))}
         report.update(
             host_exit=None,
