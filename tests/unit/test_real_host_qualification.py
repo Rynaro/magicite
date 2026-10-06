@@ -523,6 +523,16 @@ def test_denial_profile_covers_alias_and_resolved_target_without_directory_widen
 
 
 def test_guard_rejects_alternate_auth_namespace_without_reading_it(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    # Isolate the namespace gate from earlier native-platform prerequisites.
+    original_is_file = Path.is_file
+    monkeypatch.setattr(qualification, "sys", SimpleNamespace(platform="darwin"))
+    monkeypatch.setattr(
+        Path,
+        "is_file",
+        lambda path: True if path == Path("/usr/bin/sandbox-exec") else original_is_file(path),
+    )
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "untouched"))
     with pytest.raises(ValueError, match="alternate-configuration-namespace"):
         qualification.prepare_guard(tmp_path)
@@ -647,3 +657,34 @@ def test_canary_launch_failure_has_fixed_reason_and_no_raw_error(tmp_path, monke
     assert captured.value.details["exit_code"] == 71
     assert "credential-canary" not in json.dumps(captured.value.details)
     assert captured.value.details["owned_cleanup"] is True
+
+
+@pytest.mark.parametrize(
+    "platform,native_exists,reason",
+    [
+        ("linux", True, "unsupported-platform"),
+        ("darwin", False, "native-guard-missing"),
+    ],
+)
+def test_guard_native_prerequisites_fail_before_canary(
+    tmp_path, monkeypatch, platform, native_exists, reason
+):
+    from types import SimpleNamespace
+
+    original_is_file = Path.is_file
+    monkeypatch.setattr(qualification, "sys", SimpleNamespace(platform=platform))
+    monkeypatch.setattr(
+        Path,
+        "is_file",
+        lambda path: native_exists if path == Path("/usr/bin/sandbox-exec") else original_is_file(path),
+    )
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    monkeypatch.setattr(
+        qualification,
+        "guard_canary",
+        lambda _work: pytest.fail("canary must not run without native prerequisites"),
+    )
+    with pytest.raises(qualification.GuardFailure) as captured:
+        qualification.prepare_guard(tmp_path)
+    assert captured.value.reason == reason
+    assert not list(tmp_path.iterdir())
