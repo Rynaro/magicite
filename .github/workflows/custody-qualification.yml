@@ -1,0 +1,62 @@
+name: custody qualification
+
+on:
+  pull_request:
+    branches: [main, codex/v1-integration]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: custody-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-custody:
+    name: Linux custody and recovery (separate UIDs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Install isolated locked runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Linux
+          test ! -e /opt/magicite-cq-runtime
+          sudo install -d -m 0755 /opt/magicite-cq-runtime
+          sudo cp -a "$GITHUB_WORKSPACE" /opt/magicite-cq-runtime/source
+          sudo chown -R root:root /opt/magicite-cq-runtime/source
+          sudo env UV_PYTHON_INSTALL_DIR=/opt/magicite-cq-runtime/python \
+            UV_CACHE_DIR=/opt/magicite-cq-runtime/cache \
+            "$(command -v uv)" sync --project /opt/magicite-cq-runtime/source \
+            --frozen --all-extras --python 3.12
+      - name: Run actual kernel boundary and selected recovery drills
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/custody-qualification"
+          mkdir -p "$out"
+          candidate="$(git rev-parse HEAD)"
+          sudo env PYTHONDONTWRITEBYTECODE=1 \
+            /opt/magicite-cq-runtime/source/.venv/bin/python \
+            /opt/magicite-cq-runtime/source/scripts/qualify_custody_linux.py \
+            --candidate "$candidate" --output "$out" 2>&1 | tee "$out/qualification.log"
+          sudo /opt/magicite-cq-runtime/source/.venv/bin/python \
+            /opt/magicite-cq-runtime/source/scripts/qualify_custody_linux.py \
+            --candidate "$candidate" --verify-report "$out/report.json"
+          cd "$out"
+          sha256sum report.json artifacts.json qualification.log > SHA256SUMS
+      - name: Upload candidate-bound custody evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-custody-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/custody-qualification
+          if-no-files-found: error
+          retention-days: 30
