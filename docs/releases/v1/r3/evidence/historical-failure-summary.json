@@ -1,0 +1,70 @@
+{
+  "current_acceptance_evidence": false,
+  "runs": [
+    {
+      "failed_nodes": [
+        "tests/unit/core/test_review_approve_busy_wait.py::test_postcommit_busy_is_failure_then_replay_completes_once[admission]",
+        "tests/unit/core/test_review_approve_busy_wait.py::test_postcommit_busy_is_failure_then_replay_completes_once[audit]",
+        "tests/unit/core/test_review_approve_busy_wait.py::test_postcommit_busy_is_failure_then_replay_completes_once[audit-db]",
+        "tests/unit/core/test_review_approve_busy_wait.py::test_lost_ownership_does_not_retry_or_write_local_effects",
+        "tests/unit/core/test_review_approve_busy_wait.py::test_replay_cannot_apply_a_different_subject_or_digest",
+        "tests/unit/obs/test_doctor.py::test_doctor_custody_healthy_observes_current_and_journal",
+        "tests/unit/obs/test_doctor.py::test_doctor_custody_unconfigured_is_readonly",
+        "tests/unit/obs/test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write[healthy-ok-healthy]",
+        "tests/unit/obs/test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write[custody-unavailable-unknown-unavailable]",
+        "tests/unit/obs/test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write[corrupt-journal-fail-invalid_local_journal]",
+        "tests/unit/obs/test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write[stale-head-fail-stale_local_head]",
+        "tests/unit/obs/test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write[pending-fail-pending]",
+        "tests/unit/obs/test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write[anchor-ahead-fail-stale_local_head]",
+        "tests/unit/obs/test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write[missing-fail-missing_local_journal]",
+        "tests/unit/obs/test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write[restricted-fail-restricted]",
+        "tests/unit/obs/test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write[secret-exception-unknown-unavailable]"
+      ],
+      "label": "base red gate",
+      "original_log_sha256": "297fc37cba1c037a15c896b300903c14227cbdd433eff40ea3604f47a1c97bfd",
+      "raw_storage": "immutable external qualification workspace; not copied into versioned package",
+      "source": "9692735 product source plus new acceptance test anchors",
+      "summary": "16 failed, 33 passed in 2.73s"
+    },
+    {
+      "failed_nodes": [
+        "tests/unit/core/test_review_approve_busy_wait.py::test_replay_refuses_incomplete_or_invalid_audit[missing]",
+        "tests/unit/core/test_review_approve_busy_wait.py::test_replay_refuses_incomplete_or_invalid_audit[empty]",
+        "tests/unit/core/test_review_approve_busy_wait.py::test_replay_refuses_incomplete_or_invalid_audit[wrong-operation]",
+        "tests/unit/core/test_review_approve_busy_wait.py::test_replay_refuses_incomplete_or_invalid_audit[wrong-actor]",
+        "tests/unit/core/test_review_approve_busy_wait.py::test_replay_refuses_incomplete_or_invalid_audit[wrong-state]",
+        "tests/unit/core/test_review_approve_busy_wait.py::test_replay_refuses_empty_db_audit_when_mirror_missing"
+      ],
+      "label": "independent audit finding red gate",
+      "original_log_sha256": "4d736017cf29971fe636e539ec2a4903db849d6b66fef55d4047cbe2cee5a373",
+      "raw_storage": "immutable external qualification workspace; not copied into versioned package",
+      "source": "pre-C1 uncommitted product repair",
+      "summary": "6 failed, 12 deselected in 3.01s"
+    },
+    {
+      "failed_nodes": [
+        "tests/unit/core/test_review_approve_busy_wait.py::test_approval_uses_current_owner_when_nested"
+      ],
+      "label": "nested ownership red gate",
+      "original_log_sha256": "1662e70d3f05d5bb22bbc7255e6f5b09feb04f3cf31871989d589019e927c677",
+      "raw_storage": "immutable external qualification workspace; not copied into versioned package",
+      "source": "6543f9d product source plus nested test anchor",
+      "summary": "1 failed in 0.44s"
+    },
+    {
+      "failed_nodes": [
+        "tests/unit/core/test_th_single_snapshot_sites.py::test_all_trust_call_sites_are_enumerated_and_justified",
+        "tests/unit/core/test_trust_atlas_fixes.py::test_approve_under_and_without_outer_lease",
+        "tests/unit/eval/test_s14_audit.py::test_authentic_manifest_ingests_full_bodies_and_rejects_tampering",
+        "tests/unit/eval/test_scale_unevaluated.py::test_matrix_synthetic_vs_manifest_corpus"
+      ],
+      "label": "failed C1 qualification",
+      "original_log_sha256": "5d1320c8914a634ded3e8e119477f02ac0c3e4987f998168b5581adec93b68dc",
+      "raw_storage": "immutable external qualification workspace; not copied into versioned package",
+      "source": "6543f9dfbc7c49c77543462727ede62432895a5d",
+      "summary": "4 failed, 1736 passed, 9 skipped, 1 deselected in 291.54s (0:04:51)"
+    }
+  ],
+  "sanitization": "Original logs are unchanged. Full traces omitted because pytest prints temporary paths and ephemeral fixture private-key canaries in failure argument repr.",
+  "schema": "magicite/red-gate-summary/1"
+}

@@ -182,16 +182,21 @@ def test_approve_under_and_without_outer_lease(cfg, db_conn, embedder) -> None:
         "cross-process lease must be held during reject mutation"
     )
 
-    # Nested via review_* (already holds CrossProcessLease + writer_lease).
-    again = registry_mod.review_approve(
-        cfg,
-        db_conn,
-        engram_id=entry.id,
-        expected_digest=live,
-        actor="nested",
-        event_id="evt-direct",
-    )
-    assert again.decision_id == decision.decision_id
+    # A later rejection invalidates the original event: its replay must not
+    # silently acknowledge local admission. Explicit re-review uses a new event.
+    with pytest.raises(InvalidInputError, match="stale_decision"):
+        registry_mod.review_approve(
+            cfg, db_conn, engram_id=entry.id, expected_digest=live,
+            actor="nested", event_id="evt-direct",
+        )
+    with registry_mod._cross_process_lease(cfg, db_conn, "outer-review").acquire(), lease_mod.writer_lease():
+        again = registry_mod.review_approve(
+            cfg, db_conn, engram_id=entry.id, expected_digest=live,
+            actor="nested", event_id="evt-nested",
+        )
+        assert again.decision == "admit"
+        assert again.decision_id != decision.decision_id
+        assert lease_mod.cross_process_lease_held()
 
 
 # ── MINOR 6: drive-letter / UNC archive paths ─────────────────────────────

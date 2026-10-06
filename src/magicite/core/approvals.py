@@ -49,6 +49,7 @@ outcome transitions without exposing another public MCP tool.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -274,6 +275,87 @@ def _persist(cfg: Config, conn: sqlite3.Connection, record: ApprovalRecord) -> A
     return record
 
 
+def _mirror_record(path: Path) -> ApprovalRecord:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return ApprovalRecord(
+        id=data["id"],
+        op=data["op"],
+        target_name=data["target_name"],
+        payload=data.get("payload") or {},
+        state=data["state"],
+        proposed_by=data["proposed_by"],
+        proposed_at=data["proposed_at"],
+        decided_by=data.get("decided_by"),
+        decided_at=data.get("decided_at"),
+        reason=data.get("reason"),
+        executed_run_id=data.get("executed_run_id"),
+        audit_log=tuple(ApprovalAuditEvent.from_dict(e) for e in data.get("audit_log", [])),
+    )
+
+
+def _require_proposal_audit(record: ApprovalRecord) -> None:
+    """A matching identity/payload alone cannot witness a completed audit."""
+    valid_id = (
+        isinstance(record.id, str)
+        and record.id.startswith("appr_")
+        and record.id[5:]
+        and all(c.isascii() and (c.isalnum() or c == "_") for c in record.id[5:])
+    )
+    if not valid_id or record.state not in _VALID_STATES or not record.audit_log:
+        raise InvalidInputError("approval audit requires reconciliation")
+    proposal = record.audit_log[0]
+    if (
+        proposal.sequence != 1 or proposal.operation != "propose"
+        or proposal.from_state is not None or proposal.to_state != "proposed"
+        or proposal.actor != record.proposed_by or proposal.at != record.proposed_at
+        or not proposal.actor or not proposal.at
+    ):
+        raise InvalidInputError("approval audit requires reconciliation")
+    previous = proposal.to_state
+    for sequence, event in enumerate(record.audit_log[1:], 2):
+        if (
+            event.sequence != sequence or event.from_state != previous
+            or event.to_state not in _LEGAL_NEXT.get(previous, frozenset())
+            or not event.actor or not event.at
+        ):
+            raise InvalidInputError("approval audit requires reconciliation")
+        previous = event.to_state
+    if previous != record.state:
+        raise InvalidInputError("approval audit requires reconciliation")
+
+
+def _existing_trust_approval(
+    cfg: Config, conn: sqlite3.Connection, target_name: str, payload: dict[str, Any], decision_id: str
+) -> ApprovalRecord | None:
+    # Mirrors precede DB writes: recover a crash after mirror replace without
+    # minting another logical audit. Also retain pre-idempotency audit IDs.
+    for path in sorted(cfg.approvals_dir.glob("*.json")):
+        try:
+            record = _mirror_record(path)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise InvalidInputError("approval audit requires reconciliation") from exc
+        if record.op != "trust_approve" or record.payload.get("decision_id") != decision_id:
+            continue
+        if record.target_name != target_name or record.payload != payload:
+            raise InvalidInputError("approval audit conflicts with the committed decision")
+        _require_proposal_audit(record)
+        if path.stem != record.id:
+            raise InvalidInputError("approval audit requires reconciliation")
+        assert_cross_process_fence()
+        _upsert_row(conn, record)
+        return record
+    for row in conn.execute(
+        "SELECT * FROM approval WHERE op='trust_approve' AND target_name=?", (target_name,)
+    ):
+        record = _row_to_record(row)
+        if record.payload.get("decision_id") == decision_id:
+            if record.payload != payload:
+                raise InvalidInputError("approval audit conflicts with the committed decision")
+            _require_proposal_audit(record)
+            return _persist(cfg, conn, record)
+    return None
+
+
 def propose(
     conn: sqlite3.Connection,
     cfg: Config,
@@ -282,6 +364,7 @@ def propose(
     target_name: str,
     payload: dict[str, Any],
     proposed_by: str,
+    idempotency_key: str | None = None,
 ) -> ApprovalRecord:
     """Create a new ``proposed`` approval (spec §5.2). ``payload`` carries
     whatever the executor needs to replay the operation later (e.g. the
@@ -289,9 +372,17 @@ def propose(
     snapshot a ``promote()`` guard evaluated)."""
     if op not in _VALID_OPS:
         raise ValueError(f"unknown approval op {op!r}, expected one of {sorted(_VALID_OPS)}")
+    approval_id = new_id()
+    if idempotency_key is not None:
+        if op != "trust_approve" or payload.get("decision_id") != idempotency_key:
+            raise InvalidInputError("approval idempotency key must bind a trust approval decision")
+        existing = _existing_trust_approval(cfg, conn, target_name, payload, idempotency_key)
+        if existing is not None:
+            return existing
+        approval_id = "appr_" + hashlib.sha256(idempotency_key.encode()).hexdigest()
     proposed_at = _now()
     record = ApprovalRecord(
-        id=new_id(),
+        id=approval_id,
         op=op,
         target_name=target_name,
         payload=payload,

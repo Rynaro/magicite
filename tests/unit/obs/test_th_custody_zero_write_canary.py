@@ -3,12 +3,9 @@
 Test-only. Fixture custody comes from tests/support/custody_adapter.py (the
 in-process simulated custodian; no OS isolation is claimed).
 
-Remaining (not witnessed here):
-- the restricted (legacy-reconciliation) custody state is not exercised;
-- sensitive-path non-disclosure in diagnosis output is untested;
-- `magicite doctor` has no custody probe (product gap, finding F8); doctor is only
-  shown to be zero-write and canary-free;
-- doctor JSON is not secret-planted (no canary is injected into doctor inputs).
+R3 adds the stable doctor custody signal, restricted and missing-state diagnosis,
+secret-planted exception/path redaction, and the full zero-write signal matrix.
+Separate OS-user custody deployment remains outside this simulated fixture.
 """
 
 from __future__ import annotations
@@ -188,8 +185,8 @@ def test_doctor_and_custody_status_write_nothing_under_custody_states(
     custody unavailable, corrupt journal, stale head.json, pending and anchor-ahead
     states, neither `magicite doctor` nor `magicite custody status` changes any
     byte, mode, mtime or file set under the project or custody directories, and
-    neither output contains key material. Doctor is zero-write and emits no custody
-    signal; `custody status` is the only actionable custody diagnosis."""
+    neither output contains key material. Doctor also verifies local journal health;
+    the signal-specific matrix below asserts each diagnosis."""
     cfg, provider, custody_dir, canaries = custody
     STATES[state](cfg, provider, tmp_path, monkeypatch)
     roots = (cfg.project_root, custody_dir, tmp_path / "broken-custody")
@@ -368,3 +365,60 @@ def test_mcp_error_scan_has_teeth(custody):
     _, _, _, canaries = custody
     raw = json.dumps({"message": _secret_laden(canaries)})
     assert _leaks(raw.encode(), canaries)
+
+
+@pytest.mark.parametrize(
+    "state, expected_status, expected_state",
+    [
+        ("healthy", "ok", "healthy"),
+        ("custody-unavailable", "unknown", "unavailable"),
+        ("corrupt-journal", "fail", "invalid_local_journal"),
+        ("stale-head", "fail", "stale_local_head"),
+        ("pending", "fail", "pending"),
+        ("anchor-ahead", "fail", "stale_local_head"),
+        ("missing", "fail", "missing_local_journal"),
+        ("restricted", "fail", "restricted"),
+        ("secret-exception", "unknown", "unavailable"),
+    ],
+)
+def test_doctor_custody_signal_is_sanitized_and_zero_write(
+    state, expected_status, expected_state, custody, tmp_path, monkeypatch, caplog
+):
+    """AC-R3-06..09: real state faults, no mutations, planted key/path redaction."""
+    cfg, provider, custody_dir, canaries = custody
+    sensitive_socket = tmp_path / "sensitive-custodian-socket"
+    if state in STATES:
+        STATES[state](cfg, provider, tmp_path, monkeypatch)
+    elif state == "missing":
+        (cfg.data_dir / "trust/authority/journal.jsonl").unlink()
+    elif state in {"restricted", "secret-exception"}:
+
+        class DiagnosticCustody:
+            def call(self, operation, **arguments):
+                if state == "secret-exception":
+                    raise CustodianError(_secret_laden(canaries) + str(custody_dir) + str(sensitive_socket))
+                result = provider.call(operation, **arguments)
+                if operation == "read_current":
+                    result = result | {"legacy_reconciliation": {"migration_id": "restricted"}}
+                return result
+
+        monkeypatch.setattr(
+            writer_guard, "resolve_custody", lambda c: (provider.registry_id, DiagnosticCustody())
+        )
+    roots = (cfg.project_root, custody_dir, tmp_path / "broken-custody")
+    before = _fingerprint(*roots)
+    caplog.set_level(logging.DEBUG)
+    result = CliRunner().invoke(cli, ["doctor", "--project-root", str(cfg.project_root)])
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    report = json.loads(result.output[: result.output.rindex("}") + 1])
+    check = next(c for c in report["checks"] if c["id"] == "trust.custody")
+    assert check["status"] == expected_status
+    assert check["evidence"]["state"] == expected_state
+    if expected_status != "ok":
+        assert check["remediation"]
+        assert report["healthy"] is False
+    output = result.output.encode() + (result.stderr_bytes or b"") + caplog.text.encode()
+    assert _leaks(output, canaries) == []
+    assert str(custody_dir).encode() not in output
+    assert str(sensitive_socket).encode() not in output
+    assert _fingerprint(*roots) == before

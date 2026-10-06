@@ -36,6 +36,9 @@ from typing import Any, Literal
 from magicite import config as config_mod
 from magicite.config import Config
 from magicite.core import registry as registry_mod
+from magicite.core import writer_guard
+from magicite.core.trust_custodian import CustodianError
+from magicite.core.trust_journal import TrustJournal
 from magicite.obs import kpi as kpi_mod
 from magicite.storage import db as db_mod
 
@@ -501,6 +504,86 @@ def reconciliation_check(cfg: Config) -> dict[str, Any]:
     }
 
 
+def custody_check(cfg: Config) -> dict[str, Any]:
+    """Read authenticated protected current AND verify local journal; never recover.
+
+    doctor/1 keeps exception text, identity, sockets, paths and keys out of
+    this check. Missing enrollment is not_applicable; unavailable observation
+    is unknown; known reconciliation states fail. Only a verified snapshot
+    is ok. This observes custody, it does not prove OS account separation.
+    """
+    evidence: dict[str, Any] = {
+        "state": "unavailable",
+        "protected_current": "unavailable",
+        "local_journal": "unverified",
+    }
+    status: CheckStatus = "unknown"
+    resolved = False
+    remediation = "Verify protected custody enrollment and service availability; retry doctor."
+    try:
+        registry_id, client = writer_guard.resolve_custody(cfg)
+        resolved = True
+        current = client.call("read_current")
+        if current.get("registry_id") != registry_id:
+            raise CustodianError("custody enrollment mismatch")
+        evidence["protected_current"] = "authenticated"
+        status = "fail"
+        remediation = "Review custody state and run explicit operator reconciliation before enabling writes."
+        if current.get("legacy_reconciliation") is not None:
+            evidence["state"] = "restricted"
+        elif current.get("pending_record_id") is not None:
+            evidence["state"] = "pending"
+        else:
+            journal = TrustJournal(cfg.data_dir / "trust/authority", registry_id, client)
+            if not journal.journal_path.is_file() or not journal.head_path.is_file():
+                evidence["state"] = "missing_local_journal"
+                remediation = (
+                    "Review protected enrollment; explicitly initialize or reconcile the local journal."
+                )
+            else:
+                try:
+                    snapshot = journal.snapshot()
+                except CustodianError as exc:
+                    # Only fixed library diagnoses are classified; arbitrary
+                    # exception strings never reach output or logs.
+                    known = {
+                        "local trust head does not match custody": "stale_local_head",
+                        "local trust history does not match custody": "invalid_local_journal",
+                        "trust history requires reconciliation": "invalid_local_journal",
+                        "pending trust record requires reconciliation": "pending",
+                        "legacy reconciliation remains incomplete": "restricted",
+                    }
+                    evidence["state"] = known.get(str(exc), "unavailable")
+                    if evidence["state"] == "unavailable":
+                        status = "unknown"
+                else:
+                    evidence = {
+                        "state": "healthy",
+                        "protected_current": "authenticated",
+                        "local_journal": "verified",
+                        "head_sequence": snapshot.head["head_sequence"],
+                    }
+                    status = "ok"
+    except (OSError, ValueError, KeyError, TypeError, RecursionError) as exc:
+        # Enrollment errors preserve their missing-file cause. Inspect the
+        # type chain, never potentially secret-bearing exception messages.
+        cause: BaseException | None = exc
+        missing = False
+        while cause is not None:
+            missing |= isinstance(cause, FileNotFoundError)
+            cause = cause.__cause__
+        if missing and not resolved:
+            evidence["state"] = "unconfigured"
+            status = "not_applicable"
+            remediation = "Provision and review protected custody enrollment before enabling a writer."
+    return _check(
+        check_id="trust.custody",
+        status=status,
+        evidence=evidence,
+        remediation=remediation if status != "ok" else None,
+    )
+
+
 def run_doctor(cfg: Config) -> dict[str, Any]:
     """The full ``magicite doctor`` report (``doctor/1``).
 
@@ -517,8 +600,10 @@ def run_doctor(cfg: Config) -> dict[str, Any]:
     governance = governance_check(cfg)
     layout = layout_check(cfg)
     reconciliation = reconciliation_check(cfg)
+    custody = custody_check(cfg)
 
     checks = [
+        custody,
         _check(
             check_id="filesystem.lock_semantics",
             status=filesystem["status"],
@@ -602,6 +687,8 @@ def run_doctor(cfg: Config) -> dict[str, Any]:
     ]
 
     warnings: list[str] = []
+    if custody["status"] != "ok":
+        warnings.append(f"[trust custody] {custody['evidence']['state']}: {custody['remediation']}")
     if filesystem["network_filesystem"] is True:
         warnings.append(f"[R7 lock semantics] {filesystem['note']}")
     elif filesystem["network_filesystem"] is None:

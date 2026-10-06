@@ -1,0 +1,29 @@
+import collections, hashlib, json, re, subprocess
+from pathlib import Path
+root=Path('/Users/henrique/.codex/worktrees/v1-r3-qualification/magicite')
+pkg=root/'docs/releases/v1/r3'
+sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+refs=0
+for file in pkg.rglob('*.json'):
+    def visit(obj):
+        global refs
+        if isinstance(obj,dict):
+            if set(obj)>={'path','sha256'}:
+                assert sha(root/obj['path']) == obj['sha256'], (file,obj)
+                refs+=1
+            for v in obj.values():visit(v)
+        elif isinstance(obj,list):
+            for v in obj:visit(v)
+    visit(json.loads(file.read_text()))
+ledger=json.loads((pkg/'criterion-ledger.json').read_text())
+for row in ledger['criteria']:
+    text=(root/row['acceptance']['path']).read_text()
+    matches=dict(re.findall(r'^### (AC-[A-Z0-9-]+)[^\n]*\n(.*?)(?=^### |\Z)', text,re.M|re.S))
+    assert row['frozen_text']==matches[row['id']].strip(),row['id']
+    assert row['source_commit']=='64831a6dc2b46d1baa487d9bf247d09871c878e4'
+checks=json.loads((pkg/'evidence/checks.json').read_text())
+for row in checks:
+    assert row['exit_code']==0 and sha(pkg/'evidence'/row['log'])==row['sha256']
+for filename in ['review-final.md','review-c2.md','review-candidate-binding-c2.md','independent-c2-focused.log','independent-c2-adversarial.log']:
+    assert (pkg/'evidence'/filename).read_bytes()==(Path('/private/tmp/magicite-r3-qualification')/filename).read_bytes()
+print(json.dumps({'references_verified':refs,'criteria_frozen_texts_verified':len(ledger['criteria']),'criterion_statuses':dict(collections.Counter(r['status'] for r in ledger['criteria'])),'raw_checks':len(checks),'independent_review_copies':'byte-identical'},indent=2))

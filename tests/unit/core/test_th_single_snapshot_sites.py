@@ -195,6 +195,12 @@ ALLOWLIST: dict[tuple[str, str, str], tuple[int, str]] = {
         1,
         "one snapshot per subject decision; runs under Dream's writer lease",
     ),
+    # Read-only diagnostic: fresh protected head and verified local history;
+    # no writer lease, fence registration or reconciliation is requested.
+    ("obs/doctor.py", "custody_check", "snapshot"): (
+        1,
+        "standalone zero-write diagnosis; one authenticated local journal snapshot",
+    ),
     # --- other writers (fence only) ---
     ("core/evidence.py", "_evidence_write_guard", "bound_journal"): (
         1,
