@@ -31,6 +31,13 @@ FIXTURE = {
 }
 
 
+@pytest.fixture(autouse=True)
+def portable_synthetic_guard_identity(monkeypatch):
+    # Synthetic validator records are not native guard evidence; Linux has no binary.
+    if not Path("/usr/bin/sandbox-exec").exists():
+        monkeypatch.setattr(qualification, "guard_binary_digest", lambda: "f" * 64)
+
+
 def records():
     report = {
         "source_commit": SHA,
@@ -42,7 +49,23 @@ def records():
         "fixture": copy.deepcopy(FIXTURE),
         "host": {"name": "claude-code", "version": "2.1.288", "binary_sha256": "d" * 64},
         "sdk": qualification.importlib.metadata.version("mcp"),
+        "write_guard": {
+            "status": "enforced-launch",
+            "profile_sha256": qualification.hashlib.sha256(
+                qualification.denial_profile(list(qualification.configuration_paths().values())).encode()
+            ).hexdigest(),
+            "binary_sha256": qualification.guard_binary_digest(),
+            "protected_roles": sorted(qualification.configuration_paths()),
+            "canary": {
+                key: True for key in (*qualification.CANARY_CHECKS, "bytes_unchanged", "owned_cleanup")
+            },
+        },
+        "configuration_before": {key: None for key in qualification.configuration_paths()},
+        "configuration_after": {key: None for key in qualification.configuration_paths()},
         "argv": [
+            "<WRITE_GUARD>",
+            "-f",
+            "<DISPOSABLE>/config-write-denial.sb",
             "--restricted",
             "--strict-mcp-config",
             "--settings",
@@ -100,7 +123,7 @@ def records():
                 "expected_content_digest": DIGEST,
                 "expected_policy_digest": POLICY,
             },
-            {"status": "ok", **FIXTURE["body"]},
+            {"status": "ok", "name": FIXTURE["name"], "level": "L2", **FIXTURE["body"]},
         ),
         (
             "load_skill_body",
@@ -110,7 +133,13 @@ def records():
                 "expected_content_digest": "0" * 64,
                 "expected_policy_digest": POLICY,
             },
-            {"status": "stale_decision", "procedure": "", "pitfalls": ""},
+            {
+                "status": "stale_decision",
+                "name": FIXTURE["name"],
+                "level": "L2",
+                "procedure": "",
+                "pitfalls": "",
+            },
         ),
     ]
     for number, (name, arguments, result) in enumerate(calls, 1):
@@ -435,3 +464,120 @@ def test_host_auth_preflight_retains_only_boolean_method_and_difference(tmp_path
     assert "credential-canary" not in json.dumps(observed)
     assert all(argv[-3:] == ["auth", "status", "--json"] for argv in calls)
     assert "--restricted" not in calls[0] and "--restricted" in calls[1]
+
+
+@pytest.mark.parametrize(
+    "mutation", ["known-alias", "foreign-alias", "returned-identity", "alias-wrong-digest"]
+)
+def test_body_alias_remains_bound_to_routed_fixture(mutation):
+    report, wire, host = records()
+    qualification.validate(report, wire, host, SHA)
+    for index in (4, 6):
+        wire[index]["params"]["arguments"]["name"] = FIXTURE["name"]
+    for index in (2, 4):
+        host[index]["arguments"]["name"] = FIXTURE["name"]
+    if mutation == "foreign-alias":
+        wire[4]["params"]["arguments"]["name"] = "other-fixture"
+        host[2]["arguments"]["name"] = "other-fixture"
+    elif mutation == "returned-identity":
+        wire[5]["result"]["value"]["name"] = "other-fixture"
+    elif mutation == "alias-wrong-digest":
+        wire[4]["params"]["arguments"]["expected_content_digest"] = "e" * 64
+        host[2]["arguments"]["expected_content_digest"] = "e" * 64
+    if mutation == "known-alias":
+        assert qualification.validate(report, wire, host, SHA)["actual_calls"] == 3
+    else:
+        with pytest.raises(ValueError):
+            qualification.validate(report, wire, host, SHA)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["no-guard", "canary-failed", "missing-role", "metadata-changed", "unwrapped-command"]
+)
+def test_guard_and_config_preservation_cannot_be_waived(mutation):
+    report, wire, host = records()
+    qualification.validate(report, wire, host, SHA)
+    if mutation == "no-guard":
+        report.pop("write_guard")
+    elif mutation == "canary-failed":
+        report["write_guard"]["canary"]["atomic_replace_denied"] = False
+    elif mutation == "missing-role":
+        report["write_guard"]["protected_roles"].pop()
+    elif mutation == "metadata-changed":
+        report["configuration_after"]["user-config"] = [1, 2, 3]
+    else:
+        report["argv"] = report["argv"][3:]
+    with pytest.raises(ValueError):
+        qualification.validate(report, wire, host, SHA)
+
+
+def test_denial_profile_covers_alias_and_resolved_target_without_directory_widening(tmp_path):
+    target = tmp_path / "target.json"
+    target.write_text("canary")
+    alias = tmp_path / "alias.json"
+    alias.symlink_to(target)
+    profile = qualification.denial_profile([alias])
+    assert json.dumps(str(alias)) in profile and json.dumps(str(target)) in profile
+    assert "subpath" not in profile
+    assert "(allow default)" in profile
+
+
+def test_guard_rejects_alternate_auth_namespace_without_reading_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "untouched"))
+    with pytest.raises(ValueError, match="default configuration namespace"):
+        qualification.prepare_guard(tmp_path)
+    assert not (tmp_path / "untouched").exists()
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin", reason="native macOS write guard canary; not Linux qualification"
+)
+def test_native_write_guard_disposable_canary(tmp_path):
+    observed = qualification.guard_canary(tmp_path)
+    assert all(observed[key] for key in (*qualification.CANARY_CHECKS, "bytes_unchanged", "owned_cleanup"))
+    assert not list(tmp_path.iterdir())
+
+
+def test_auth_preflight_uses_same_write_guard_for_both_launches(tmp_path, monkeypatch):
+    import subprocess
+
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, '{"loggedIn":true,"authMethod":"claude.ai"}')
+
+    monkeypatch.setattr(qualification.subprocess, "run", fake_run)
+    prefix = ["/usr/bin/sandbox-exec", "-f", str(tmp_path / "deny.sb")]
+    qualification.auth_preflight(Path("/claude"), tmp_path, str(tmp_path), prefix)
+    assert len(calls) == 2 and all(argv[:3] == prefix for argv in calls)
+
+
+def test_guard_unavailable_records_failure_without_host_launch_and_cleans_owned_fixture(
+    tmp_path, monkeypatch
+):
+    def git_only(argv, **kwargs):
+        if argv[0] == "git":
+            return "a" * 40 + "\n" if "rev-parse" in argv else ""
+        raise AssertionError("host launch must not occur before working guard")
+
+    monkeypatch.setattr(qualification.platform, "platform", lambda: "synthetic-platform")
+    monkeypatch.setattr(qualification.subprocess, "check_output", git_only)
+    monkeypatch.setattr(qualification.shutil, "which", lambda _name: sys.executable)
+    monkeypatch.setattr(
+        qualification, "prepare_guard", lambda _work: (_ for _ in ()).throw(ValueError("unavailable"))
+    )
+    assert qualification.run(tmp_path / "output") == 1
+    report = json.loads((tmp_path / "output/report.json").read_text())
+    assert report["status"] == "UNEVALUATED" and report["host_exit"] is None
+    assert report["failed_stage"] == "write-guard-setup"
+    assert json.loads((tmp_path / "output/wire.json").read_text()) == []
+
+
+@pytest.mark.parametrize("field", ["profile_sha256", "binary_sha256"])
+def test_write_guard_integrity_must_match_actual_profile_and_binary(field):
+    report, wire, host = records()
+    qualification.validate(report, wire, host, SHA)
+    report["write_guard"][field] = "0" * 64
+    with pytest.raises(ValueError, match="actual monitored profile/binary"):
+        qualification.validate(report, wire, host, SHA)

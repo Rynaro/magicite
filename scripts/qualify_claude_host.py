@@ -64,22 +64,144 @@ def expected_tools() -> list[dict[str, str]]:
     ]
 
 
-def configuration_state() -> dict[str, Any]:
-    # Stat only: never open credential/configuration contents or keychain items.
-    paths = {
+def configuration_paths() -> dict[str, Path]:
+    return {
         "user-config": Path.home() / ".claude.json",
         "user-settings": Path.home() / ".claude/settings.json",
         "user-local-settings": Path.home() / ".claude/settings.local.json",
         "project-mcp": ROOT / ".mcp.json",
     }
+
+
+def configuration_state() -> dict[str, Any]:
+    # Stat only: never open credential/configuration contents or keychain items.
     state = {}
-    for role, path in paths.items():
+    for role, path in configuration_paths().items():
         try:
             info = path.stat()
             state[role] = [info.st_ino, info.st_size, info.st_mtime_ns]
         except FileNotFoundError:
             state[role] = None
     return state
+
+
+CANARY_CHECKS = (
+    "read_allowed",
+    "ordinary_write_denied",
+    "atomic_replace_denied",
+    "child_write_denied",
+    "unrelated_write_allowed",
+    "symlink_write_denied",
+    "symlink_replace_denied",
+)
+
+
+def denial_profile(paths: list[Path]) -> str:
+    # Cover both the user-visible link and its canonical target; never widen to a parent directory.
+    targets = sorted({str(path.absolute()) for path in paths} | {str(path.resolve()) for path in paths})
+    return (
+        "(version 1)\n(allow default)\n"
+        + "\n".join("(deny file-write* (literal " + json.dumps(target) + "))" for target in targets)
+        + "\n"
+    )
+
+
+def guard_canary(work: Path) -> dict:
+    owned = Path(tempfile.mkdtemp(prefix="write-guard-canary-", dir=work))
+    target = owned / "protected.json"
+    target.write_text('{"fixture":true}\n')
+    original = target.read_bytes()
+    profile = owned / "deny.sb"
+    alias = owned / "alias.json"
+    alias.symlink_to(target)
+    profile.write_text(denial_profile([target, alias]))
+    code = r"""from pathlib import Path
+import json,sys,subprocess
+p=Path(sys.argv[1]); rows={}; rows['read_allowed']=p.read_text()=='{"fixture":true}\n'
+try: p.write_text('changed'); rows['ordinary_write_denied']=False
+except PermissionError: rows['ordinary_write_denied']=True
+replacement=p.parent/'replacement.tmp'; replacement.write_text('replacement')
+try: replacement.replace(p); rows['atomic_replace_denied']=False
+except PermissionError: rows['atomic_replace_denied']=True
+other=p.parent/'unrelated.tmp'; other.write_text('allowed')
+rows['unrelated_write_allowed']=other.read_text()=='allowed'
+child_code='from pathlib import Path; import sys; Path(sys.argv[1]).write_text("child")'
+child=subprocess.run([sys.executable,'-c',child_code,str(p)],capture_output=True,text=True,timeout=5)
+rows['child_write_denied']=child.returncode!=0 and 'PermissionError' in child.stderr
+alias=p.parent/'alias.json'
+try: alias.write_text('changed'); rows['symlink_write_denied']=False
+except PermissionError: rows['symlink_write_denied']=True
+try: replacement.replace(alias); rows['symlink_replace_denied']=False
+except PermissionError: rows['symlink_replace_denied']=True
+print(json.dumps(rows))
+"""
+    try:
+        result = subprocess.run(
+            ["/usr/bin/sandbox-exec", "-f", str(profile), sys.executable, "-c", code, str(target)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode:
+            raise ValueError("native write guard canary unavailable")
+        rows = json.loads(result.stdout)
+        if any(rows.get(key) is not True for key in CANARY_CHECKS) or target.read_bytes() != original:
+            raise ValueError("native write guard canary failed")
+        rows["bytes_unchanged"] = True
+    finally:
+        shutil.rmtree(owned)
+    rows["owned_cleanup"] = not owned.exists()
+    return rows
+
+
+def guard_binary_digest() -> str:
+    return file_digest(Path("/usr/bin/sandbox-exec"))
+
+
+def prepare_guard(work: Path) -> tuple[list[str], dict]:
+    if (
+        sys.platform != "darwin"
+        or not Path("/usr/bin/sandbox-exec").is_file()
+        or "CLAUDE_CONFIG_DIR" in os.environ
+    ):
+        raise ValueError("guard requires default configuration namespace and native macOS sandbox-exec")
+    proof = guard_canary(work)
+    profile = work / "config-write-denial.sb"
+    profile.write_text(denial_profile(list(configuration_paths().values())))
+    return ["/usr/bin/sandbox-exec", "-f", str(profile)], {
+        "status": "enforced-launch",
+        "profile_sha256": file_digest(profile),
+        "binary_sha256": guard_binary_digest(),
+        "protected_roles": sorted(configuration_paths()),
+        "canary": proof,
+        "scope": (
+            "deny writes to exact monitored configuration paths; "
+            "reads, network and IPC not restricted by this profile"
+        ),
+    }
+
+
+def save_evidence(output: Path, work: Path, report: dict, wire: list, host: list) -> int:
+    for name, value in (("wire.json", wire), ("host-events.json", host), ("report.json", report)):
+        (output / name).write_text(json.dumps(value, indent=2) + "\n")
+    (output / "artifacts.json").write_text(
+        json.dumps(
+            {name: file_digest(output / name) for name in ("wire.json", "host-events.json", "report.json")},
+            indent=2,
+        )
+        + "\n"
+    )
+    shutil.rmtree(work)
+    print(
+        json.dumps(
+            {
+                "status": report["status"],
+                "source_commit": report["source_commit"],
+                "host_exit": report.get("host_exit"),
+            }
+        )
+    )
+    return int(report["status"] != "PASS")
 
 
 def safe_error(value: Any) -> dict:
@@ -97,6 +219,8 @@ def safe_error(value: Any) -> dict:
         ("provider-configuration", ("provider", "config")),
         ("rate-limited", ("rate limit",)),
         ("network-error", ("connection", "error")),
+        ("configuration-write-denied", ("operation not permitted",)),
+        ("permission-denied", ("permission denied",)),
     ):
         if all(word in text for word in words):
             reasons.append(reason)
@@ -124,7 +248,7 @@ def safe_error(value: Any) -> dict:
     }
 
 
-def auth_preflight(binary: Path, work: Path, project: str) -> dict:
+def auth_preflight(binary: Path, work: Path, project: str, guard: list[str] | None = None) -> dict:
     # Invoked only by the user-run host command; no model requests or credential exports.
     modes = {
         "normal": [],
@@ -141,7 +265,7 @@ def auth_preflight(binary: Path, work: Path, project: str) -> dict:
     for role, flags in modes.items():
         try:
             result = subprocess.run(
-                [str(binary), *flags, "auth", "status", "--json"],
+                [*(guard or []), str(binary), *flags, "auth", "status", "--json"],
                 cwd=project,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
@@ -228,7 +352,31 @@ def validate(report: dict, wire: list[dict], host: list[dict], candidate: str) -
         "binary_sha256"
     ):
         raise ValueError("server SDK or actual host binary identity missing")
+    guard = report.get("write_guard", {})
+    proof = guard.get("canary", {})
+    if (
+        guard.get("status") != "enforced-launch"
+        or guard.get("protected_roles") != sorted(configuration_paths())
+        or any(proof.get(key) is not True for key in (*CANARY_CHECKS, "bytes_unchanged", "owned_cleanup"))
+    ):
+        raise ValueError("validated monitored-path write guard required")
+    if any(
+        not re.fullmatch(r"[0-9a-f]{64}", str(guard.get(key, "")))
+        for key in ("profile_sha256", "binary_sha256")
+    ):
+        raise ValueError("write guard profile/binary binding missing")
+    if report.get("configuration_before") != report.get("configuration_after") or set(
+        report.get("configuration_before", {})
+    ) != set(configuration_paths()):
+        raise ValueError("strict monitored configuration metadata preservation required")
+    expected_profile = hashlib.sha256(
+        denial_profile(list(configuration_paths().values())).encode()
+    ).hexdigest()
+    if guard["profile_sha256"] != expected_profile or guard["binary_sha256"] != guard_binary_digest():
+        raise ValueError("write guard does not match actual monitored profile/binary")
     argv = report.get("argv", [])
+    if argv[:3] != ["<WRITE_GUARD>", "-f", "<DISPOSABLE>/config-write-denial.sb"]:
+        raise ValueError("guarded CLI invocation required")
     for flag in (
         "--restricted",
         "--strict-mcp-config",
@@ -395,18 +543,28 @@ def validate(report: dict, wire: list[dict], host: list[dict], candidate: str) -
     for request, _response in (good, stale):
         args = request["params"]["arguments"]
         if (
-            args.get("name") != selected
+            args.get("name") not in {selected, report["fixture"]["name"]}
             or args.get("level", "L2") != "L2"
             or args.get("expected_policy_digest") != value["policy_digest"]
         ):
             raise ValueError("body request did not use routed identity/policy")
     body = good[1]["result"]["value"]
-    if body.get("status") != "ok" or not report["fixture"]["body"]["procedure"]:
+    if (
+        body.get("status") != "ok"
+        or body.get("name") != report["fixture"]["name"]
+        or body.get("level") != "L2"
+        or not report["fixture"]["body"]["procedure"]
+    ):
         raise ValueError("successful fixture body missing")
     if any(body.get(key) != report["fixture"]["body"].get(key) for key in BODY_FIELDS):
         raise ValueError("returned fixture body differs")
     refused = stale[1]["result"]["value"]
-    if refused.get("status") != "stale_decision" or any(refused.get(key) for key in BODY_FIELDS):
+    if (
+        refused.get("status") != "stale_decision"
+        or refused.get("name") != report["fixture"]["name"]
+        or refused.get("level") != "L2"
+        or any(refused.get(key) for key in BODY_FIELDS)
+    ):
         raise ValueError("stale digest did not refuse all body fields")
     return {
         "protocol": protocol,
@@ -491,9 +649,8 @@ def run(output: Path, allow_dirty: bool = False) -> int:
     if dirty and not allow_dirty:
         raise ValueError("clean candidate required; commit reviewed source first")
     binary = Path(shutil.which("claude") or "").resolve()
-    version_output = subprocess.check_output([str(binary), "--version"], text=True).strip()
-    version = version_output.split()[0]
     work = Path(tempfile.mkdtemp(prefix="magicite-host-"))
+    before = configuration_state()
     report = {
         "schema": "magicite/real-host-qualification/1",
         "status": "UNEVALUATED",
@@ -502,7 +659,7 @@ def run(output: Path, allow_dirty: bool = False) -> int:
         "source_hashes": source_hashes(),
         "host": {
             "name": "claude-code",
-            "version": version,
+            "version": None,
             "binary_sha256": file_digest(binary),
             "sdk": "unavailable-not-exposed",
         },
@@ -561,14 +718,34 @@ def run(output: Path, allow_dirty: bool = False) -> int:
         "--print",
         prompt,
     ]
+    phase = "write-guard-setup"
+    try:
+        guard, report["write_guard"] = prepare_guard(work)
+        phase = "guarded-host-version"
+        version_output = subprocess.check_output(
+            [*guard, str(binary), "--version"], stderr=subprocess.PIPE, text=True
+        ).strip()
+        report["host"]["version"] = version_output.split()[0]
+    except (ValueError, OSError, subprocess.SubprocessError, IndexError) as exc:
+        report["failed_stage"] = phase
+        report["preflight_error"] = {"class": type(exc).__name__, **safe_error(getattr(exc, "stderr", None))}
+        report.update(
+            host_exit=None,
+            qualification_failure="native configuration write guard or guarded host version unavailable",
+            write_guard={"status": "unavailable"},
+        )
+        return save_evidence(output, work, report, [], [])
+    argv = guard + argv
     report["argv"] = [
-        arg.replace(str(work), "<DISPOSABLE>").replace(str(binary), "<CLAUDE_BINARY>") for arg in argv
+        arg.replace(str(work), "<DISPOSABLE>")
+        .replace(str(binary), "<CLAUDE_BINARY>")
+        .replace("/usr/bin/sandbox-exec", "<WRITE_GUARD>")
+        for arg in argv
     ]
     report["explicit_config_hashes"] = {
         name: file_digest(work / name) for name in ("mcp.json", "settings.json")
     }
-    before = configuration_state()
-    report["auth_preflight"] = auth_preflight(binary, work, expected["project"])
+    report["auth_preflight"] = auth_preflight(binary, work, expected["project"], guard)
     report["invocation_auth_context"] = {
         "resolved_executable_not_shell_alias": True,
         "restricted_ignores_user_project_local_settings": True,
@@ -653,19 +830,7 @@ def run(output: Path, allow_dirty: bool = False) -> int:
         report["status"] = "PASS"
     except (ValueError, KeyError) as exc:
         report["qualification_failure"] = str(exc)
-    (output / "wire.json").write_text(json.dumps(wire, indent=2) + "\n")
-    (output / "host-events.json").write_text(json.dumps(host, indent=2) + "\n")
-    (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
-    (output / "artifacts.json").write_text(
-        json.dumps(
-            {name: file_digest(output / name) for name in ("wire.json", "host-events.json", "report.json")},
-            indent=2,
-        )
-        + "\n"
-    )
-    shutil.rmtree(work)
-    print(json.dumps({"status": report["status"], "source_commit": head, "host_exit": process.returncode}))
-    return int(report["status"] != "PASS")
+    return save_evidence(output, work, report, wire, host)
 
 
 def verify_artifacts(output: Path) -> None:

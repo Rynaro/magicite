@@ -12,7 +12,7 @@ From the actual host terminal, run this isolated candidate command:
 ```sh
 /private/tmp/magicite-r3-qualification/venv/bin/python \
   /Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/scripts/qualify_claude_host.py \
-  --output /private/tmp/magicite-v1-host/host-terminal-diagnostic-2
+  --output /private/tmp/magicite-v1-host/host-terminal-guarded-4
 ```
 
 The runner requires a clean reviewed checkout.
@@ -40,7 +40,7 @@ Verification, after the host command finishes:
 ```sh
 /private/tmp/magicite-r3-qualification/venv/bin/python \
   /Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/scripts/qualify_claude_host.py \
-  --output /private/tmp/magicite-v1-host/host-terminal-diagnostic-2 --verify
+  --output /private/tmp/magicite-v1-host/host-terminal-guarded-4 --verify
 ```
 
 The report binds the Git candidate, source hashes, Claude version/binary digest,
@@ -87,3 +87,44 @@ Failed requests now retain fixed error reason signals, recognized API error type
 and HTTP status when exposed. Stderr is classified in memory and discarded; raw
 messages, credentials and debug output are never saved. Unknown causes remain
 unknown, and no diagnostic alone qualifies the actual tool workflow.
+
+A third user-run attempt at `f499dd2` authenticated normally in both preflights
+and completed four real host calls: introspection, route, a matching L2 body and
+stale-digest refusal without body. It exited successfully, but full qualification
+remains UNEVALUATED: the global `~/.claude.json` file's inode, size and modification
+time changed. The settings/MCP metadata roles remained unchanged. No private
+configuration contents were read, so this evidence cannot distinguish runtime
+bookkeeping from changed preferences or configuration.
+
+The validator now accepts the fixture's known business-name alias as well as its
+routed ID, matching the production lookup, while requiring the routed digest,
+policy, returned identity and exact body. This corrects an independent validator
+refusal; it does not waive configuration preservation or retroactively produce a
+passing report. The original third-attempt evidence remains source-bound to
+`f499dd2` and requires separate scoped review.
+
+[Claude settings documentation](https://code.claude.com/docs/en/settings) describes
+`~/.claude.json` as self-written state containing sign-in, MCP/trust information
+and global preferences. A fresh `CLAUDE_CONFIG_DIR` also has its own sign-in,
+according to the [authentication documentation](https://code.claude.com/docs/en/authentication).
+Using that alternative would require operator authentication in the isolated
+namespace, without copying credentials. No additional run or broader acceptance
+of configuration writes is implied by this bounded workflow observation.
+
+
+The prospective guarded command first validates a native macOS process-scoped
+write-denial mechanism against disposable canaries: reads and unrelated writes
+must work; ordinary writes, atomic replacements and inherited child writes to the
+canary must fail, and its bytes must remain unchanged. It then wraps every Claude
+invocation, including version and auth readiness, with the same guard denying
+writes only to the monitored configuration paths and their resolved targets.
+It records the guard command, profile/binary hashes and canary proof. The profile
+adds no network or Keychain IPC restriction. Actual Claude behavior under this
+guard remains untested until the operator executes the reviewed command.
+
+The guard never reads, copies, changes permissions on or restores private
+configuration/credentials. It fails closed on unsupported guard execution,
+alternate `CLAUDE_CONFIG_DIR`, changed monitored metadata or a host failure;
+the strict configuration check remains unchanged. All original evidence remains
+immutable. The previous unguarded workflow cannot become a full PASS through
+this prospective correction.
