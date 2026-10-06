@@ -180,3 +180,115 @@ def test_genesis_lost_lease_cannot_create_local_journal(tmp_path):
         assert not (tmp_path / "local").exists()
     finally:
         store.close()
+
+
+@pytest.mark.parametrize("lost_at", ["enroll", "read_current", "emit"])
+def test_enrollment_lost_reply_guidance_preserves_one_effect(tmp_path, monkeypatch, lost_at):
+    from magicite.core import custody_admin
+    from magicite.core.trust_custodian import CustodianError, CustodianStore
+
+    monkeypatch.setattr(custody_admin, "protected_path", lambda *args, **kwargs: None)
+    directory = tmp_path / "custody"
+    store = CustodianStore.create(directory)
+    store.close()
+    raw = json.dumps(default_policy().to_dict()).encode()
+    policy = tmp_path / "policy.json"
+    policy.write_bytes(raw)
+    arguments = [
+        "custody",
+        "enroll",
+        "--directory",
+        str(directory),
+        "--registry-id",
+        "r",
+        "--policy",
+        str(policy),
+        "--actor",
+        "operator",
+        "--reviewed-sha256",
+        hashlib.sha256(raw).hexdigest(),
+    ]
+    original_enroll = CustodianStore.enroll
+    original_read = CustodianStore.read_current
+    secret = "private-enrollment-diagnostic-canary"
+
+    def lost_enroll(self, *args, **kwargs):
+        original_enroll(self, *args, **kwargs)
+        raise CustodianError(secret)
+
+    def unavailable_read(self, *args, **kwargs):
+        raise CustodianError(secret)
+
+    def lost_emit(value):
+        raise OSError(secret)
+
+    with monkeypatch.context() as fault:
+        if lost_at == "enroll":
+            fault.setattr(CustodianStore, "enroll", lost_enroll)
+        elif lost_at == "read_current":
+            fault.setattr(CustodianStore, "read_current", unavailable_read)
+        else:
+            fault.setattr(custody_admin, "_emit", lost_emit)
+        result = CliRunner().invoke(cli, arguments)
+    assert result.exit_code != 0
+    assert "reconciliation_required" in result.output
+    assert "custody status" in result.output
+    assert "read-only" in result.output
+    assert "may already be committed" in result.output
+    assert secret not in result.output and str(directory) not in result.output
+    store = CustodianStore.open(directory)
+    try:
+        head = original_read(store, "r")
+        history = store.committed_records("r")
+        assert head["head_sequence"] == 1 and len(history) == 1
+        retry = CliRunner().invoke(cli, arguments)
+        assert retry.exit_code != 0 and "custody status" in retry.output
+        assert original_read(store, "r") == head
+        assert store.committed_records("r") == history
+    finally:
+        store.close()
+
+
+def test_enrollment_retry_guidance_does_not_infer_genesis_from_current_policy(tmp_path, monkeypatch):
+    from magicite.core import custody_admin
+    from magicite.core.trust_custodian import CustodianStore
+
+    monkeypatch.setattr(custody_admin, "protected_path", lambda *args, **kwargs: None)
+    directory = tmp_path / "custody"
+    store = CustodianStore.create(directory)
+    policy_value = default_policy().to_dict()
+    store.enroll("r", policy_value, actor="original-operator", reviewed=True)
+    head = store.read_current("r")
+    store.register_fence("r", predecessor=head, attempt_id="advanced", holder="holder", local_token=1)
+    before = store.read_current("r")
+    history = store.committed_records("r")
+    store.close()
+    policy = tmp_path / "policy.json"
+    raw = json.dumps(policy_value).encode()
+    policy.write_bytes(raw)
+    result = CliRunner().invoke(
+        cli,
+        [
+            "custody",
+            "enroll",
+            "--directory",
+            str(directory),
+            "--registry-id",
+            "r",
+            "--policy",
+            str(policy),
+            "--actor",
+            "different-operator",
+            "--reviewed-sha256",
+            hashlib.sha256(raw).hexdigest(),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "does not prove the original enrollment" in result.output
+    assert "custody status" in result.output
+    store = CustodianStore.open(directory)
+    try:
+        assert store.read_current("r") == before
+        assert store.committed_records("r") == history
+    finally:
+        store.close()

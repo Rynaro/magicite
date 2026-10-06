@@ -98,3 +98,35 @@ def test_short_deprecation_window_rejected(tmp_path: Path) -> None:
     policy["deprecation_window"]["minimum_days"] = 89
     (tmp_path / "docs/support-policy.json").write_text(json.dumps(policy))
     assert contracts.check_support(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "order",
+    [
+        ["bind_inspect", "bind_registry"],
+        ["bind_registry", "bind_inspect"],
+    ],
+)
+def test_generated_reference_ignores_fresh_binding_import_order(order):
+    import subprocess
+
+    code = (
+        "import importlib,sys; "
+        + "; ".join(f"importlib.import_module('magicite.mcp.{name}')" for name in order)
+        + "; sys.path.insert(0,'scripts'); import check_generated_docs as g; "
+        "from magicite.mcp.registry import registered_names; "
+        "before=registered_names(); errors=g.check(); "
+        "assert registered_names()==before; assert len(before)==len(set(before))==16; "
+        "assert errors==[],errors"
+    )
+    result = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("field", ["risk_class", "input_schema_sha256", "output_schema_sha256", "name"])
+def test_tool_reference_content_drift_remains_rejected(tmp_path, field):
+    snapshot = generated.runtime_reference()
+    snapshot["mcp_tools"][0][field] = "changed-canary"
+    path = tmp_path / "changed-reference.json"
+    path.write_text(json.dumps(snapshot))
+    assert "runtime reference drift: mcp_tools" in generated.check(path)

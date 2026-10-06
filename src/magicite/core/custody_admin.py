@@ -71,9 +71,20 @@ def enroll(directory: Path, registry_id: str, policy: Path, actor: str, reviewed
     if hashlib.sha256(raw).hexdigest() != reviewed_sha256:
         raise CustodianError("reviewed policy changed")
     value = json.loads(raw)
-    with _store(directory) as store:
-        store.enroll(registry_id, value, actor=actor, reviewed=True)
-        _emit(store.read_current(registry_id))
+    try:
+        with _store(directory) as store:
+            store.enroll(registry_id, value, actor=actor, reviewed=True)
+            _emit(store.read_current(registry_id))
+    except (CustodianError, OSError, ValueError, KeyError, sqlite3.Error) as exc:
+        # A commit can precede a failed read or output. Preserve duplicate
+        # rejection; current policy alone cannot identify original genesis.
+        raise click.ClickException(
+            "reconciliation_required: enrollment may already be committed; "
+            "do not reset or repeat enrollment to recover a missing reply. "
+            "Use read-only custody status with the installed protected profile "
+            "and inspect protected authority history against the reviewed inputs. "
+            "Current policy does not prove the original enrollment."
+        ) from exc
 
 
 @custody_cli.command(name="profile")
