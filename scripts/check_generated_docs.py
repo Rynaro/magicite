@@ -77,13 +77,22 @@ def runtime_reference() -> dict[str, Any]:
     )
 
 
+def _canonical_reference(value: dict[str, Any]) -> dict[str, Any]:
+    """Ignore decorator arrival order without changing public runtime ordering."""
+    tools = value.get("mcp_tools")
+    if isinstance(tools, list):
+        return {**value, "mcp_tools": sorted(tools, key=lambda row: json.dumps(row, sort_keys=True))}
+    return value
+
+
 def check(reference: Path = REFERENCE, *, root: Path = ROOT) -> list[str]:
     errors: list[str] = []
     try:
         saved = json.loads(reference.read_text())
     except (OSError, ValueError) as exc:
         return [f"runtime reference missing/unreadable: {exc}"]
-    actual = runtime_reference()
+    saved = _canonical_reference(saved)
+    actual = _canonical_reference(runtime_reference())
     if saved != actual:
         for key in sorted(set(actual) | set(saved)):
             if saved.get(key) != actual.get(key):
@@ -108,7 +117,9 @@ def main() -> int:
     args = parser.parse_args()
     if args.write:
         REFERENCE.parent.mkdir(parents=True, exist_ok=True)
-        REFERENCE.write_text(json.dumps(runtime_reference(), indent=2, sort_keys=True) + "\n")
+        REFERENCE.write_text(
+            json.dumps(_canonical_reference(runtime_reference()), indent=2, sort_keys=True) + "\n"
+        )
     errors = check()
     for error in errors:
         print(f"ERROR: {error}", file=sys.stderr)
