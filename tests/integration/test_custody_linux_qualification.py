@@ -181,3 +181,30 @@ def test_report_rejects_missing_actual_death_or_recovery_evidence(monkeypatch, c
     row["evidence"].pop(field)
     with pytest.raises((ValueError, AssertionError)):
         probe.validate_report(report, SHA)
+
+
+def test_diagnostics_preserve_known_cause_without_private_values():
+    secret = "private-key-and-configured-path-canary"
+    try:
+        try:
+            raise PermissionError(13, secret)
+        except PermissionError as cause:
+            raise RuntimeError(secret) from cause
+    except RuntimeError as error:
+        chain = probe.safe_error_chain(error)
+    assert chain == [{"type": "RuntimeError"}, {"type": "PermissionError", "errno": 13}]
+    assert secret not in repr(chain)
+    assert probe.safe_error_chain(ValueError("writable custody path"))[0]["reason"] == "writable custody path"
+
+
+def test_cli_failure_keeps_operation_returncode_and_safe_layout():
+    import json
+    import subprocess
+
+    stderr = "CUSTODY_CLI_FAILURE " + json.dumps([{"type": "PermissionError", "errno": 13}])
+    result = subprocess.CompletedProcess([], 1, stdout="private-stdout-canary", stderr=stderr)
+    error = probe.ChildCommandFailure("init", result, [{"role": "runtime-source", "mode": "0o700"}])
+    assert error.detail["operation"] == "init" and error.detail["exit_code"] == 1
+    assert error.detail["error_chain"][0]["errno"] == 13
+    assert error.detail["layout"][0]["mode"] == "0o700"
+    assert "private-stdout-canary" not in repr(error.detail)

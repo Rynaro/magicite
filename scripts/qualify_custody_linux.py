@@ -44,6 +44,93 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+KNOWN_CUSTODY_REASONS = {
+    "unprotected custody path",
+    "writable custody path",
+    "extended custody ACL is unsupported",
+    "custody directory required",
+    "custody path must be absolute",
+    "custody state must remain private",
+    "custody ACL inspection unavailable",
+    "independent custody requires distinct OS identities",
+}
+
+
+def safe_error_chain(error: BaseException) -> list[dict[str, Any]]:
+    chain = []
+    current: BaseException | None = error
+    for _ in range(4):
+        if current is None:
+            break
+        row: dict[str, Any] = {"type": type(current).__name__}
+        if isinstance(current, OSError):
+            row["errno"] = current.errno
+        if (
+            isinstance(current, ModuleNotFoundError)
+            and current.name
+            and re.fullmatch(r"[A-Za-z0-9_.]+", current.name)
+        ):
+            row["module"] = current.name
+        if str(current) in KNOWN_CUSTODY_REASONS:
+            row["reason"] = str(current)
+        chain.append(row)
+        current = current.__cause__
+    return chain
+
+
+def custody_cli(arguments: list[str]) -> int:
+    # Same production Click entrypoint/output, with machine-safe failure causes.
+    try:
+        from magicite.__main__ import cli
+
+        cli.main(args=["custody", *arguments], standalone_mode=False)
+    except Exception as exc:
+        print("CUSTODY_CLI_FAILURE " + json.dumps(safe_error_chain(exc)), file=sys.stderr)
+        return 1
+    return 0
+
+
+def path_metadata(path: Path, role: str) -> dict[str, Any]:
+    value: dict[str, Any] = {"role": role}
+    try:
+        info = path.lstat()
+        value.update(
+            owner_uid=info.st_uid,
+            owner_gid=info.st_gid,
+            mode=oct(stat.S_IMODE(info.st_mode)),
+            symlink=stat.S_ISLNK(info.st_mode),
+        )
+        if path.is_symlink():
+            resolved = path.resolve().stat()
+            value.update(
+                resolved_owner_uid=resolved.st_uid, resolved_mode=oct(stat.S_IMODE(resolved.st_mode))
+            )
+    except OSError as exc:
+        value.update(error_type=type(exc).__name__, errno=exc.errno)
+    return value
+
+
+class ChildCommandFailure(RuntimeError):
+    def __init__(self, operation: str, result: subprocess.CompletedProcess, layout: list[dict[str, Any]]):
+        self.detail: dict[str, Any] = {
+            "operation": operation,
+            "exit_code": result.returncode,
+            "layout": layout,
+        }
+        for line in reversed(result.stderr.splitlines()):
+            if line.startswith("CUSTODY_CLI_FAILURE "):
+                self.detail["error_chain"] = json.loads(line.removeprefix("CUSTODY_CLI_FAILURE "))
+                break
+        if "error_chain" not in self.detail:
+            # No arbitrary stderr or exception values enter the public artifact.
+            last = result.stderr.splitlines()[-1] if result.stderr.splitlines() else ""
+            category = last.split(":", 1)[0]
+            self.detail["stderr_category"] = (
+                category if re.fullmatch(r"[A-Za-z]+Error", category) else "unclassified"
+            )
+        super().__init__("credential-dropped production custody command failed")
+
+
 def preflight() -> None:
     if platform.system() != "Linux" or os.getuid() != 0:
         raise RuntimeError("Linux root fixture setup is required; qualification cannot skip")
@@ -611,13 +698,7 @@ class Fixture:
     def cli(self, arguments):
         uid = self.uids["custodian"]
         result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "magicite",
-                "custody",
-                *arguments,
-            ],
+            [sys.executable, str(Path(__file__).resolve()), "--custody-cli", json.dumps(arguments)],
             cwd=ROOT,
             env=self.environment(),
             user=uid,
@@ -628,7 +709,15 @@ class Fixture:
             timeout=15,
         )
         if result.returncode:
-            raise RuntimeError(f"production custody {arguments[0]} command failed")
+            layout = [
+                path_metadata(Path(sys.executable), "runtime-interpreter"),
+                path_metadata(ROOT, "runtime-source"),
+                path_metadata(ROOT / "src", "runtime-modules"),
+                path_metadata(Path("/opt"), "opt-ancestor"),
+                path_metadata(Path("/var/lib"), "var-lib-ancestor"),
+                path_metadata(Path(self.data["private"]).parent, "custody-parent"),
+            ]
+            raise ChildCommandFailure(arguments[0], result, layout)
         return result.stdout
 
     def run(self, operation, *, role="writer"):
@@ -878,6 +967,8 @@ def run(output: Path, candidate: str, source_dirty: bool) -> int:
         validate_report(report, candidate, allow_dirty=source_dirty)
     except Exception as exc:
         report["failure_type"] = type(exc).__name__
+        if isinstance(exc, ChildCommandFailure):
+            report["failure_context"] = exc.detail
         report["failure_line"] = traceback.extract_tb(exc.__traceback__)[-1].lineno
         report["completed_cases"] = len(report["cases"])
         report["status"] = "FAIL"
@@ -910,10 +1001,13 @@ def main() -> int:
     parser.add_argument("--candidate")
     parser.add_argument("--source-dirty", action="store_true")
     parser.add_argument("--worker")
+    parser.add_argument("--custody-cli")
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--barrier-fd", type=int)
     parser.add_argument("--verify-report", type=Path)
     args = parser.parse_args()
+    if args.custody_cli:
+        return custody_cli(json.loads(args.custody_cli))
     if args.worker:
         worker(args.worker, args.fixture, args.barrier_fd)
         return 0
