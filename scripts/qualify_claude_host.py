@@ -1,0 +1,596 @@
+#!/usr/bin/env python3
+"""Actual Claude host read-workflow witness; run in the authenticated host terminal."""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import hashlib
+import importlib.metadata
+import json
+import os
+import platform
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+from capture_mcp_stdio import BODY_FIELDS, QUERY, READ_TOOLS, Observer, fingerprint, identity, public_id
+
+ROOT = Path(__file__).resolve().parents[1]
+PREFIX = "mcp__magicite_fixture__"
+ALLOWED = {PREFIX + name for name in READ_TOOLS}
+
+
+def file_digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def source_hashes() -> dict[str, str]:
+    paths = list((ROOT / "src").rglob("*.py"))
+    paths += [
+        ROOT / name
+        for name in (
+            "scripts/qualify_claude_host.py",
+            "scripts/capture_mcp_stdio.py",
+            "tests/unit/test_real_host_qualification.py",
+            "tests/support/serve_with_fixture_custody.py",
+            "tests/support/custody_adapter.py",
+            "tests/fixtures/toy-registry/engrams/steam-runtime-repair.egr.md",
+            ".spectra/plans/v1-real-host-qualification.acceptance.md",
+        )
+    ]
+    return {str(path.relative_to(ROOT)): file_digest(path) for path in sorted(paths) if path.exists()}
+
+
+def expected_tools() -> list[dict[str, str]]:
+    sys.path.insert(0, str(ROOT / "src"))
+    from magicite.mcp.app import build_mcp_tools
+
+    tools = [tool.model_dump(mode="json", by_alias=True) for tool in build_mcp_tools()]
+    return [
+        {
+            "name": row["name"],
+            "input_schema_sha256": fingerprint(row.get("inputSchema")),
+            "output_schema_sha256": fingerprint(row.get("outputSchema")),
+        }
+        for row in tools
+    ]
+
+
+def configuration_state() -> dict[str, Any]:
+    # Stat only: never open credential/configuration contents or keychain items.
+    paths = {
+        "user-config": Path.home() / ".claude.json",
+        "user-settings": Path.home() / ".claude/settings.json",
+        "user-local-settings": Path.home() / ".claude/settings.local.json",
+        "project-mcp": ROOT / ".mcp.json",
+    }
+    state = {}
+    for role, path in paths.items():
+        try:
+            info = path.stat()
+            state[role] = [info.st_ino, info.st_size, info.st_mtime_ns]
+        except FileNotFoundError:
+            state[role] = None
+    return state
+
+
+def safe_host_event(value: dict, observer: Observer) -> list[dict]:
+    rows = []
+    for block in value.get("message", {}).get("content", []):
+        if block.get("type") == "tool_use":
+            name = block.get("name", "")
+            rows.append(
+                {
+                    "type": "tool_use",
+                    "id": public_id(block.get("id")),
+                    "name": name if name in ALLOWED else "[UNSCOPED_TOOL]",
+                    "arguments": observer.arguments(name.removeprefix(PREFIX), block.get("input", {}))
+                    if name in ALLOWED
+                    else {"scope_violation": True},
+                }
+            )
+        elif block.get("type") == "tool_result":
+            rows.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": public_id(block.get("tool_use_id")),
+                    "is_error": block.get("is_error", False) is not False,
+                }
+            )
+    if value.get("type") == "result":
+        rows.append(
+            {
+                "type": "result",
+                "subtype": value.get("subtype")
+                if value.get("subtype")
+                in {
+                    "success",
+                    "error_during_execution",
+                    "error_max_turns",
+                    "error_max_budget_usd",
+                    "error_max_structured_output_retries",
+                }
+                else "[OTHER_RESULT]",
+                "is_error": value.get("is_error") is not False,
+                "num_turns": value.get("num_turns") if type(value.get("num_turns")) is int else None,
+            }
+        )
+        if value.get("is_error"):
+            text = str(value.get("result", "")).lower()
+            rows.append(
+                {
+                    "type": "failure",
+                    "category": "authentication-in-this-execution-context"
+                    if any(word in text for word in ("auth", "logged", "login"))
+                    else "host-run-error",
+                }
+            )
+    return rows
+
+
+def validate(report: dict, wire: list[dict], host: list[dict], candidate: str) -> dict:
+    if report.get("source_commit") != candidate or report.get("source_dirty"):
+        raise ValueError("exact clean source binding required")
+    if report.get("source_hashes") != source_hashes():
+        raise ValueError("source artifact digest mismatch")
+    if report.get("host_exit") != 0 or report.get("timed_out") or not report.get("config_preserved"):
+        raise ValueError("host run, timeout or config preservation failed")
+    if report.get("host", {}).get("name") != "claude-code" or not report["host"].get("version"):
+        raise ValueError("actual host identity missing")
+    if report.get("sdk") != importlib.metadata.version("mcp") or not report.get("host", {}).get(
+        "binary_sha256"
+    ):
+        raise ValueError("server SDK or actual host binary identity missing")
+    argv = report.get("argv", [])
+    for flag in (
+        "--restricted",
+        "--strict-mcp-config",
+        "--settings",
+        "--mcp-config",
+        "--no-session-persistence",
+        "--permission-prompts",
+        "--tools",
+    ):
+        if flag not in argv:
+            raise ValueError("isolated host invocation missing")
+    for flag, expected in (
+        ("--permission-prompts", "none"),
+        ("--tools", ""),
+        ("--output-format", "stream-json"),
+        ("--allowedTools", ",".join(sorted(ALLOWED))),
+    ):
+        if flag not in argv or argv.index(flag) + 1 >= len(argv) or argv[argv.index(flag) + 1] != expected:
+            raise ValueError("host permission/tool/output isolation differs")
+    for flag, expected in (
+        ("--mcp-config", "<DISPOSABLE>/mcp.json"),
+        ("--settings", "<DISPOSABLE>/settings.json"),
+    ):
+        if (
+            argv.count(flag) != 1
+            or argv.index(flag) + 1 >= len(argv)
+            or argv[argv.index(flag) + 1] != expected
+        ):
+            raise ValueError("explicit isolated configuration binding missing")
+    hashes = report.get("explicit_config_hashes", {})
+    if set(hashes) != {"mcp.json", "settings.json"} or any(
+        not re.fullmatch(r"[0-9a-f]{64}", str(v)) for v in hashes.values()
+    ):
+        raise ValueError("explicit configuration hashes missing")
+    if "--bare" in argv or "--dangerously-skip-permissions" in argv:
+        raise ValueError("incompatible host invocation")
+    if any(row.get("type") == "result" and row.get("is_error") for row in host):
+        raise ValueError("host final result reported error")
+    requests = {}
+    pairs = []
+    for row in wire:
+        key = identity(row.get("id"))
+        if (
+            row.get("capture_error")
+            or row.get("scope_violation")
+            or row.get("params", {}).get("arguments", {}).get("scope_violation")
+        ):
+            raise ValueError("unscoped host call")
+        if row["direction"] == "request" and row.get("id") is not None:
+            if key in requests:
+                raise ValueError("duplicate RPC request ID")
+            requests[key] = row
+        elif row["direction"] == "response":
+            request = requests.get(key)
+            if not request or request["method"] != row["method"] or row.get("rpc_error"):
+                raise ValueError("RPC request/result identity mismatch")
+            if any(identity(previous[1]["id"]) == key for previous in pairs):
+                raise ValueError("duplicate RPC result ID")
+            pairs.append((request, row))
+    if len(pairs) != len(requests):
+        raise ValueError("unpaired RPC request")
+    inventory = next(
+        ((request, response) for request, response in pairs if request["method"] == "tools/list"), None
+    )
+    if report.get("expected_tools") != expected_tools():
+        raise ValueError("inventory does not match candidate server schemas")
+    if inventory is None or inventory[1].get("result", {}).get("tools") != report.get("expected_tools"):
+        raise ValueError("exact sixteen-tool inventory/schema evidence missing")
+    if len(report["expected_tools"]) != 16 or len({row["name"] for row in report["expected_tools"]}) != 16:
+        raise ValueError("sixteen unique tools required")
+    init = next(
+        ((request, response) for request, response in pairs if request["method"] == "initialize"), None
+    )
+    if init:
+        info = init[0]["params"]["clientInfo"]
+        version = init[1]["result"]["protocolVersion"]
+        from mcp_types.version import SUPPORTED_PROTOCOL_VERSIONS
+
+        if (
+            version not in SUPPORTED_PROTOCOL_VERSIONS
+            or version == "2026-07-28"
+            or init[1]["result"].get("serverInfo", {}).get("name") != "magicite"
+        ):
+            raise ValueError("supported legacy negotiation/server identity missing")
+        protocol = {"mode": "legacy-negotiated", "version": version}
+    else:
+        info = inventory[0].get("adoption", {}).get("clientInfo", {})
+        version = inventory[0].get("adoption", {}).get("protocolVersion")
+        if version != "2026-07-28" or inventory[1].get("serverInfo", {}).get("name") != "magicite":
+            raise ValueError("modern version adoption evidence missing")
+        protocol = {"mode": "modern-adopted", "version": version}
+    if info.get("name") != "claude-code" or info.get("version") != report["host"]["version"]:
+        raise ValueError("wire host identity mismatch")
+    calls = [(request, response) for request, response in pairs if request["method"] == "tools/call"]
+    uses = [row for row in host if row.get("type") == "tool_use"]
+    results = {row.get("tool_use_id"): row for row in host if row.get("type") == "tool_result"}
+    if len({row.get("id") for row in uses}) != len(uses) or len(results) != len(
+        [row for row in host if row.get("type") == "tool_result"]
+    ):
+        raise ValueError("duplicate host tool-use/result IDs")
+    if len(uses) != len(calls) or len(results) != len(calls):
+        raise ValueError("unmatched host or wire tool event")
+    if any(not row.get("id") for row in uses):
+        raise ValueError("host tool identity missing")
+    if any(row.get("name") not in ALLOWED for row in uses):
+        raise ValueError("host stream used an unscoped tool")
+    joined = {}
+    for request, response in calls:
+        args = request["params"]["arguments"]
+        name = request["params"]["name"]
+        matches = [row for row in uses if row["name"] == PREFIX + name and row["arguments"] == args]
+        if len(matches) != 1 or matches[0].get("id") not in results:
+            raise ValueError("host tool-use/result and wire causality missing")
+        joined[identity(request["id"])] = matches[0]
+        if results[matches[0]["id"]].get("is_error") or response.get("result", {}).get("isError"):
+            raise ValueError("tool call reported error")
+    route = next(
+        ((request, response) for request, response in calls if request["params"]["name"] == "route"), None
+    )
+    if route is None or route[0]["params"]["arguments"].get("query") != QUERY:
+        raise ValueError("actual fixture route missing")
+    value = route[1]["result"]["value"]
+    if value.get("status") != "selected" or value.get("selected_ids") != [report["fixture"]["id"]]:
+        raise ValueError("fixture was not selected")
+    selected = value["selected_ids"][0]
+    digest = value["selected_content_digests"][selected]
+    if digest != report["fixture"]["content_digest"]:
+        raise ValueError("route digest mismatch")
+    bodies = [
+        (request, response) for request, response in calls if request["params"]["name"] == "load_skill_body"
+    ]
+    good = next(
+        (
+            (request, response)
+            for request, response in bodies
+            if request["params"]["arguments"].get("expected_content_digest") == digest
+        ),
+        None,
+    )
+    stale = next(
+        (
+            (request, response)
+            for request, response in bodies
+            if request["params"]["arguments"].get("expected_content_digest") == "0" * 64
+        ),
+        None,
+    )
+    if good is None or stale is None:
+        raise ValueError("actual positive and stale body calls required")
+    if not (wire.index(route[1]) < wire.index(good[0]) < wire.index(good[1]) < wire.index(stale[0])):
+        raise ValueError("route/body/stale causal ordering missing")
+    route_use = joined[identity(route[0]["id"])]
+    good_use = joined[identity(good[0]["id"])]
+    stale_use = joined[identity(stale[0]["id"])]
+    if not (
+        host.index(route_use)
+        < host.index(results[route_use["id"]])
+        < host.index(good_use)
+        < host.index(results[good_use["id"]])
+        < host.index(stale_use)
+        < host.index(results[stale_use["id"]])
+    ):
+        raise ValueError("host route/body/stale event ordering missing")
+    for request, _response in (good, stale):
+        args = request["params"]["arguments"]
+        if (
+            args.get("name") != selected
+            or args.get("level", "L2") != "L2"
+            or args.get("expected_policy_digest") != value["policy_digest"]
+        ):
+            raise ValueError("body request did not use routed identity/policy")
+    body = good[1]["result"]["value"]
+    if body.get("status") != "ok" or not report["fixture"]["body"]["procedure"]:
+        raise ValueError("successful fixture body missing")
+    if any(body.get(key) != report["fixture"]["body"].get(key) for key in BODY_FIELDS):
+        raise ValueError("returned fixture body differs")
+    refused = stale[1]["result"]["value"]
+    if refused.get("status") != "stale_decision" or any(refused.get(key) for key in BODY_FIELDS):
+        raise ValueError("stale digest did not refuse all body fields")
+    return {
+        "protocol": protocol,
+        "actual_calls": len(calls),
+        "join": "unique tool name+arguments; exact IDs within each stream",
+    }
+
+
+def prepare(work: Path) -> tuple[dict, dict]:
+    sys.path.insert(0, str(ROOT / "src"))
+    sys.path.insert(0, str(ROOT))
+    from tests.support.custody_adapter import SERVE_LAUNCHER, FixtureCustody, attach_fixture
+
+    from magicite.config import Config
+    from magicite.core import registry, writer_guard
+    from magicite.core.trust_journal import TrustJournal
+    from magicite.embeddings.hashing_provider import get_embedder
+    from magicite.storage import db
+
+    project = work / "project"
+    project.mkdir()
+    target = project / ".magicite/engrams"
+    target.mkdir(parents=True)
+    source = ROOT / "tests/fixtures/toy-registry/engrams/steam-runtime-repair.egr.md"
+    shutil.copyfile(source, target / source.name)
+    custody = work / "custody"
+    registry_id = "host-fixture"
+    FixtureCustody(custody, registry_id).close()
+    with attach_fixture(project, custody, registry_id):
+        cfg = Config.load(project, env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
+        cfg.ensure_dirs()
+        provider = writer_guard.resolve_custody(cfg)[1]
+        TrustJournal(cfg.data_dir / "trust/authority", registry_id, provider).initialize_reviewed_genesis()
+        conn = db.connect(cfg.db_path)
+        try:
+            entry = registry.register(cfg, conn, get_embedder(256), path=".magicite/engrams").registered[0]
+            digest = conn.execute("SELECT content_sha256 FROM engram WHERE id=?", (entry.id,)).fetchone()[0]
+            registry.review_approve(
+                cfg, conn, engram_id=entry.id, expected_digest=digest, actor="host-fixture-review"
+            )
+        finally:
+            conn.close()
+    text = source.read_text()
+    procedure = text.split("## Procedure\n", 1)[1].split("## Pitfalls", 1)[0].strip()
+    pitfalls = text.split("## Pitfalls\n", 1)[1].split("## Examples", 1)[0].strip()
+    # Count annotations are registry metadata; L2 exposes only each pitfall text.
+    pitfalls = re.sub(r"(?m)^- \(×\d+\) ", "- ", pitfalls)
+    fixture = {
+        "id": entry.id,
+        "name": entry.name,
+        "content_digest": digest,
+        "body": {"procedure": procedure, "pitfalls": pitfalls, "examples": None, "provenance": None},
+    }
+    expected = expected_tools()
+    fixture["tool_names"] = [row["name"] for row in expected]
+    state = {
+        "fixture": fixture,
+        "wire": str(work / "wire.jsonl"),
+        "server_env": {
+            "MAGICITE_EMBEDDING_PROVIDER": "hashing",
+            "MAGICITE_EMBEDDING_OFFLINE": "1",
+            "PYTHONPATH": str(ROOT / "src") + os.pathsep + str(ROOT),
+        },
+        "server_argv": [
+            sys.executable,
+            str(SERVE_LAUNCHER),
+            str(project),
+            str(custody),
+            registry_id,
+            "serve",
+            "--project-root",
+            str(project),
+        ],
+    }
+    return state, {"fixture": fixture, "expected_tools": expected, "project": str(project)}
+
+
+def run(output: Path, allow_dirty: bool = False) -> int:
+    output.mkdir(parents=True, exist_ok=True)
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    dirty = bool(subprocess.check_output(["git", "status", "--porcelain=v1"], cwd=ROOT, text=True))
+    if dirty and not allow_dirty:
+        raise ValueError("clean candidate required; commit reviewed source first")
+    binary = Path(shutil.which("claude") or "").resolve()
+    version_output = subprocess.check_output([str(binary), "--version"], text=True).strip()
+    version = version_output.split()[0]
+    work = Path(tempfile.mkdtemp(prefix="magicite-host-"))
+    report = {
+        "schema": "magicite/real-host-qualification/1",
+        "status": "UNEVALUATED",
+        "source_commit": head,
+        "source_dirty": dirty,
+        "source_hashes": source_hashes(),
+        "host": {
+            "name": "claude-code",
+            "version": version,
+            "binary_sha256": file_digest(binary),
+            "sdk": "unavailable-not-exposed",
+        },
+        "sdk": importlib.metadata.version("mcp"),
+        "python": sys.version,
+        "platform": platform.platform(),
+        "execution_context": {
+            "codex_network_sandbox_marker_present": os.environ.get("CODEX_SANDBOX_NETWORK_DISABLED") == "1"
+        },
+        "scope": (
+            "agent-driven synthetic fixture; simulated custody; "
+            "not operator/security/distribution/full protocol qualification"
+        ),
+    }
+    state, expected = prepare(work)
+    report.update({k: v for k, v in expected.items() if k != "project"})
+    (work / "state.json").write_text(json.dumps(state))
+    config = {
+        "mcpServers": {
+            "magicite_fixture": {
+                "command": sys.executable,
+                "args": [str(ROOT / "scripts/capture_mcp_stdio.py"), str(work / "state.json")],
+                "env": state["server_env"],
+            }
+        }
+    }
+    (work / "mcp.json").write_text(json.dumps(config))
+    (work / "settings.json").write_text("{}")
+    prompt = (
+        'Use only magicite_fixture MCP tools. First call introspect with {}. Then route with query "'
+        + QUERY
+        + '" and k=1. Read selected_ids[0], its selected_content_digests and policy_digest '
+        "from that response. Call load_skill_body L2 with that name and the exact "
+        "expected_content_digest and expected_policy_digest. Then call it again "
+        "with the same name/policy digest but expected_content_digest of 64 zeros. No other tools."
+    )
+    argv = [
+        str(binary),
+        "--restricted",
+        "--strict-mcp-config",
+        "--mcp-config",
+        str(work / "mcp.json"),
+        "--settings",
+        str(work / "settings.json"),
+        "--no-session-persistence",
+        "--permission-prompts",
+        "none",
+        "--tools",
+        "",
+        "--disable-slash-commands",
+        "--allowedTools",
+        ",".join(sorted(ALLOWED)),
+        "--verbose",
+        "--output-format",
+        "stream-json",
+        "--print",
+        prompt,
+    ]
+    report["argv"] = [
+        arg.replace(str(work), "<DISPOSABLE>").replace(str(binary), "<CLAUDE_BINARY>") for arg in argv
+    ]
+    report["explicit_config_hashes"] = {
+        name: file_digest(work / name) for name in ("mcp.json", "settings.json")
+    }
+    before = configuration_state()
+    start = time.monotonic()
+    report["started_at"] = datetime.datetime.now(datetime.UTC).isoformat()
+    process = subprocess.Popen(
+        argv,
+        cwd=expected["project"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        start_new_session=True,
+    )
+    expired = []
+
+    def timeout():
+        expired.append(True)
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+    timer = threading.Timer(120, timeout)
+    timer.start()
+    host = []
+    observer = Observer(state["fixture"])
+    try:
+        for line in process.stdout:
+            try:
+                host.extend(safe_host_event(json.loads(line), observer))
+            except ValueError:
+                continue
+        process.wait(timeout=10)
+    finally:
+        timer.cancel()
+        if process.poll() is None:
+            timeout()
+            process.wait(timeout=10)
+    wire = (
+        [json.loads(line) for line in Path(state["wire"]).read_text().splitlines()]
+        if Path(state["wire"]).exists()
+        else []
+    )
+    after = configuration_state()
+    report.update(
+        host_exit=process.returncode,
+        timed_out=bool(expired),
+        config_preserved=before == after,
+        configuration_before=before,
+        configuration_after=after,
+        seconds=round(time.monotonic() - start, 3),
+    )
+    report["config_preservation_scope"] = (
+        "file inode/size/mtime only; credential contents and keychain never read"
+    )
+    try:
+        report["observations"] = validate(report, wire, host, head)
+        report["status"] = "PASS"
+    except (ValueError, KeyError) as exc:
+        report["qualification_failure"] = str(exc)
+    (output / "wire.json").write_text(json.dumps(wire, indent=2) + "\n")
+    (output / "host-events.json").write_text(json.dumps(host, indent=2) + "\n")
+    (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (output / "artifacts.json").write_text(
+        json.dumps(
+            {name: file_digest(output / name) for name in ("wire.json", "host-events.json", "report.json")},
+            indent=2,
+        )
+        + "\n"
+    )
+    shutil.rmtree(work)
+    print(json.dumps({"status": report["status"], "source_commit": head, "host_exit": process.returncode}))
+    return int(report["status"] != "PASS")
+
+
+def verify_artifacts(output: Path) -> None:
+    index = json.loads((output / "artifacts.json").read_text())
+    if set(index) != {"wire.json", "host-events.json", "report.json"}:
+        raise ValueError("exact transcript/report artifact coverage required")
+    if any(file_digest(output / name) != sha for name, sha in index.items()):
+        raise ValueError("observed artifact digest mismatch")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--allow-dirty-rehearsal", action="store_true")
+    args = parser.parse_args()
+    if args.verify:
+        verify_artifacts(args.output)
+        report = json.loads((args.output / "report.json").read_text())
+        if report.get("status") != "PASS":
+            raise ValueError("completed passing actual-host report required")
+        candidate = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        observations = validate(
+            report,
+            json.loads((args.output / "wire.json").read_text()),
+            json.loads((args.output / "host-events.json").read_text()),
+            candidate,
+        )
+        print(json.dumps(observations))
+        return 0
+    return run(args.output, args.allow_dirty_rehearsal)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
