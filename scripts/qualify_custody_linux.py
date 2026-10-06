@@ -138,6 +138,15 @@ def preflight() -> None:
         raise RuntimeError("Linux kernel peer credentials are required")
 
 
+def fixture_parent() -> Path:
+    from magicite.core.trust_custodian_transport import protected_path
+
+    parent = Path("/var/lib")
+    # Hosted /opt can carry writable modes/extended ACLs; do not alter it.
+    protected_path(parent, 0, directory=True)
+    return parent
+
+
 def source_hashes() -> dict[str, str]:
     paths = list((ROOT / "src").rglob("*.py")) + [Path(__file__)]
     paths += [
@@ -796,6 +805,7 @@ def run(output: Path, candidate: str, source_dirty: bool) -> int:
     output.mkdir(parents=True, exist_ok=True)
     try:
         preflight()
+        parent = fixture_parent()
         identity = source_identity(candidate, source_dirty)
     except (RuntimeError, ValueError, subprocess.CalledProcessError, OSError) as exc:
         target = output / "report.json"
@@ -807,6 +817,8 @@ def run(output: Path, candidate: str, source_dirty: bool) -> int:
                     "cases": [],
                     "failure_stage": "preflight",
                     "failure_type": type(exc).__name__,
+                    "error_chain": safe_error_chain(exc),
+                    "layout": [path_metadata(Path("/var/lib"), "fixture-parent")],
                 }
             )
             + "\n"
@@ -814,7 +826,7 @@ def run(output: Path, candidate: str, source_dirty: bool) -> int:
         (output / "artifacts.json").write_text(json.dumps({"report.json": digest(target)}) + "\n")
         return 1
     begin = time.monotonic()
-    base = Path(tempfile.mkdtemp(prefix="magicite-cq-", dir="/opt"))
+    base = Path(tempfile.mkdtemp(prefix="magicite-cq-", dir=parent))
     os.chmod(base, 0o755)
     uids = {"custodian": 41001, "writer": 41002, "foreign": 41003}
     report: dict[str, Any] = {
@@ -834,6 +846,7 @@ def run(output: Path, candidate: str, source_dirty: bool) -> int:
         "kernel_peers": [],
         "source_hashes": source_hashes(),
         "source_identity": identity,
+        "fixture_parent": path_metadata(parent, "verified-fixture-parent"),
         "started_at": datetime.datetime.now(datetime.UTC).isoformat(),
         "limits": [
             "Linux selected cases only; macOS separate UID UNEVALUATED",

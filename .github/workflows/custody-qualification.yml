@@ -28,13 +28,13 @@ jobs:
         run: |
           set -euo pipefail
           test "$(uname -s)" = Linux
-          test ! -e /opt/magicite-cq-runtime
-          sudo install -d -m 0755 /opt/magicite-cq-runtime
-          sudo cp -a "$GITHUB_WORKSPACE" /opt/magicite-cq-runtime/source
-          sudo chown -R root:root /opt/magicite-cq-runtime/source
-          sudo env UV_PYTHON_INSTALL_DIR=/opt/magicite-cq-runtime/python \
-            UV_CACHE_DIR=/opt/magicite-cq-runtime/cache \
-            "$(command -v uv)" sync --project /opt/magicite-cq-runtime/source \
+          test ! -e /var/lib/magicite-cq-runtime
+          sudo install -d -m 0755 /var/lib/magicite-cq-runtime
+          sudo cp -a "$GITHUB_WORKSPACE" /var/lib/magicite-cq-runtime/source
+          sudo chown -R root:root /var/lib/magicite-cq-runtime/source
+          sudo env UV_PYTHON_INSTALL_DIR=/var/lib/magicite-cq-runtime/python \
+            UV_CACHE_DIR=/var/lib/magicite-cq-runtime/cache \
+            "$(command -v uv)" sync --project /var/lib/magicite-cq-runtime/source \
             --frozen --all-extras --python 3.12
       - name: Run actual kernel boundary and selected recovery drills
         shell: bash
@@ -44,11 +44,11 @@ jobs:
           mkdir -p "$out"
           candidate="$(git rev-parse HEAD)"
           sudo env PYTHONDONTWRITEBYTECODE=1 \
-            /opt/magicite-cq-runtime/source/.venv/bin/python \
-            /opt/magicite-cq-runtime/source/scripts/qualify_custody_linux.py \
+            /var/lib/magicite-cq-runtime/source/.venv/bin/python \
+            /var/lib/magicite-cq-runtime/source/scripts/qualify_custody_linux.py \
             --candidate "$candidate" --output "$out" 2>&1 | tee "$out/qualification.log"
-          sudo /opt/magicite-cq-runtime/source/.venv/bin/python \
-            /opt/magicite-cq-runtime/source/scripts/qualify_custody_linux.py \
+          sudo /var/lib/magicite-cq-runtime/source/.venv/bin/python \
+            /var/lib/magicite-cq-runtime/source/scripts/qualify_custody_linux.py \
             --candidate "$candidate" --verify-report "$out/report.json"
           cd "$out"
           sha256sum report.json artifacts.json qualification.log > SHA256SUMS

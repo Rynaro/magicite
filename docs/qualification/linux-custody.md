@@ -7,7 +7,7 @@ candidate-bound CI artifacts. It grants no whole TRUST, SECURITY, RELIABILITY or
 GA approval. macOS separate-UID deployment remains UNEVALUATED.
 
 The dedicated job checks out the exact PR head, copies source/Git metadata into
-an isolated root-owned `/opt` runtime and installs the frozen lock with Python
+an isolated root-owned `/var/lib` runtime and installs the frozen lock with Python
 3.12. Missing Linux, privilege, protected setup, source identity or core cases
 fails the job; it cannot qualify through skipped tests. Its artifact contains
 `report.json`, a report digest index, the command log and `SHA256SUMS`.
@@ -22,9 +22,11 @@ sudo /path/to/locked/python scripts/qualify_custody_linux.py \
 ```
 
 The source checkout must be clean and executable/readable after child privilege
-drop. Root creates only a unique fixture tree under `/opt` and its exact
+drop. Root creates only a unique fixture tree under `/var/lib` and its exact
 production-CLI-generated enrollment descriptor under `/etc/magicite/registries`.
-It does not create persistent accounts or change host-wide permissions. Run this
+It does not create persistent accounts or change host-wide permissions. The selected `/var/lib` ancestry passes the unchanged production ownership,
+mode and ACL checks before fixture creation. Shared runner `/opt` permissions
+and ACLs are not modified. Run this
 procedure only in the isolated runner/container, not on an operator workstation.
 
 | Case | Observable assertion |

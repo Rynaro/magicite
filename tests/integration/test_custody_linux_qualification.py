@@ -208,3 +208,29 @@ def test_cli_failure_keeps_operation_returncode_and_safe_layout():
     assert error.detail["error_chain"][0]["errno"] == 13
     assert error.detail["layout"][0]["mode"] == "0o700"
     assert "private-stdout-canary" not in repr(error.detail)
+
+
+def test_invalid_fixture_parent_fails_before_setup_with_sanitized_cause(tmp_path, monkeypatch):
+    import json
+
+    from magicite.core.trust_custodian import CustodianError
+
+    monkeypatch.setattr(probe, "preflight", lambda: None)
+
+    def invalid_parent():
+        raise CustodianError("extended custody ACL is unsupported")
+
+    monkeypatch.setattr(probe, "fixture_parent", invalid_parent)
+    assert probe.run(tmp_path, SHA, False) == 1
+    report = json.loads((tmp_path / "report.json").read_text())
+    assert report["cases"] == [] and report["status"] == "FAIL"
+    assert report["error_chain"][0]["reason"] == "extended custody ACL is unsupported"
+
+
+def test_fixture_parent_uses_unchanged_production_guard(monkeypatch):
+    from magicite.core import trust_custodian_transport as transport
+
+    calls = []
+    monkeypatch.setattr(transport, "protected_path", lambda *args, **kwargs: calls.append((args, kwargs)))
+    assert probe.fixture_parent() == Path("/var/lib")
+    assert calls == [((Path("/var/lib"), 0), {"directory": True})]
