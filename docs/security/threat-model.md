@@ -3,17 +3,14 @@
 **Gate obligation:** SECURITY `threat-model` (`.spectra/plans/magicite-v1/release-gates.md:24`).
 **Status:** draft for the r3 evidence package. Nothing here is a PASS claim; gate
 statuses come only from the recorded evidence packages. The current recorded status is
-SECURITY **UNEVALUATED** with `threat-model`, `bounded-fuzz-adversarial` and
-`critical-resolved` all UNEVALUATED (`docs/releases/v1/r2/gate-table.md:22`).
-**Findings:** see the [findings register](findings-register.md). **Open items:** see [r3-open-items.md](r3-open-items.md), which is grounded in the bodies of merged PRs #34 to #50 (PRs #48 to #50 recorded no remaining items).
+SECURITY **UNEVALUATED** in the r3 gate table, where the threat-model,
+bounded-fuzz-adversarial and critical-resolved obligations remain open
+(`docs/releases/v1/r3/gate-table.md:25`).
+**Findings:** see the [findings register](findings-register.md). **Open items:** see [r3-open-items.md](r3-open-items.md), which is grounded in the bodies of merged PRs #34 to #53 (PR #53 resolves OI-11 and OI-14 and updates OI-09).
 
 ## 1. Scope and binding
 
-- **Source:** branch `codex/v1-integration` at `bcdf680` (all r3 slices merged; the
-  head of the `codex/v1-r3-b3-threat-model` worktree). Every `path:line` citation
-  below refers to that tree. The r3 evidence package **must re-bind** this document to
-  its own clean source commit and re-check the citations. This document is not evidence
-  for `9bf9ca0` (r2) or `c0782fd` (v1).
+- **Source:** branch `codex/v1-integration` at merge `c7e0789c07705f48131b0a0e0d0c19f2f68d28fe`. Product fixes in PR #53 were tested at `64831a6`; the r3 evidence package commit is `086403e`. Every `path:line` citation below refers to the integration source tree at the merge. The hosted integration checks passed in [CI run 37473715205](https://github.com/Rynaro/magicite/actions/runs/37473715205). This security assessment is a documentation update against that integration source; it does not claim source equivalence with the archived r3 package or external deployment acceptance. It is not evidence for `9bf9ca0` (r2) or `c0782fd` (v1).
 - **Product surface in scope:** the stdio MCP server (16 tools, `docs/AUTHORITY.md:10-11`),
   the CLI, the trust custodian and its Unix-socket client, bundle intake and import, the
   writable registry (`.magicite/`, `.egr.md`), backup/restore/migration, the OCI image
@@ -134,9 +131,9 @@ risk is out of scope (§6).
 | R6 | T/E | Re-enrollment, implicit enrollment or re-genesis resets history | Explicit reviewed genesis. Resume only over a byte-identical journal (`trust_journal.py:374-400`) | TAC-146 to TAC-151; `test_th_retry_matrix.py::test_genesis_init_refuses_nonidentical_partial_state` | Mitigated |
 | R7 | T | A stale or paused lease holder commits after a newer fence | Custody predecessor captured under the flock (`src/magicite/storage/lease.py:353-371`); custodian compare-and-swap; writer guard (`src/magicite/core/writer_guard.py:71-127`) | TAC-021, TAC-111 to TAC-118, TAC-126; `test_custody_writer_guard.py` | Mitigated in-repo |
 | R8 | T/D | Crash or lost reply at a persistence boundary breaks acknowledgement order | Journal before head; exact-retry semantics (F-06) | TAC-011, TAC-119 to TAC-121; `test_th_fault_ack_matrix.py`, `test_th_retry_matrix.py` | Partially mitigated: real process-kill, wire-level lost reply and a literal fsync trace are deferred (OI-10, OI-15, PR #43) |
-| R9 | T | Two trust snapshots in one operation observe different heads | One validated snapshot per operation (`registry.py:1948-1975`; `src/magicite/core/trust.py:577-600`). Fixed in F-07 | `test_th_single_snapshot_sites.py` (AST enumeration and drift tests) | Partially mitigated: enumerator gaps (OI-18, PR #46) |
-| R10 | R/T | Approval replay skips local admission or the approval audit | `review_approve` replays by `event_id` (`registry.py:1808-1874`) | None for the post-commit path | **Open** (F-11) |
-| R11 | R | Operator cannot diagnose custody state; diagnosis writes state | Doctor is zero-write | `test_th_custody_zero_write_canary.py::test_doctor_and_custody_status_write_nothing_under_custody_states` | Partially mitigated: no custody probe in doctor (F-12; OI-09, OI-14, PR #40) |
+| R9 | T | Two trust snapshots in one operation observe different heads | One validated snapshot per operation (`registry.py:1974-2011`; `src/magicite/core/trust.py:577-600`). Fixed in F-07 | `test_th_single_snapshot_sites.py` (AST enumeration and drift tests) | Partially mitigated: enumerator gaps (OI-18, PR #46) |
+| R10 | R/T | Approval replay skips local admission or the approval audit | `review_approve` restricts `BusyError` retry to acquisition; replay revalidates live subject/resource/revocation binding and completes missing idempotent effects once under current-owner fences, including nested leases (`registry.py:1808-1895`) | PR #53, product commit `64831a6`; hosted CI [run 37473715205](https://github.com/Rynaro/magicite/actions/runs/37473715205); `test_review_approve_busy_wait.py::test_postcommit_busy_is_failure_then_replay_completes_once`, `::test_lost_ownership_does_not_retry_or_write_local_effects`, `::test_ownership_loss_after_admission_stops_before_audit`, `::test_approval_uses_current_owner_when_nested` | Mitigated in-repo; independent security review remains pending (F-11) |
+| R11 | R | Operator cannot diagnose custody state; diagnosis writes state | Doctor custody check observes protected current and local journal with sanitized output and no writes (`obs/doctor.py:507-584`) | PR #53, product commit `64831a6`; `test_doctor.py::test_doctor_custody_healthy_observes_current_and_journal`; `test_th_custody_zero_write_canary.py::test_doctor_custody_signal_is_sanitized_and_zero_write`; hosted CI [run 37473715205](https://github.com/Rynaro/magicite/actions/runs/37473715205) | Mitigated in-repo for doctor; `custody status` still observes custodian state only, and separate-UID deployment remains UNEVALUATED (F-12; OI-09 partial) |
 
 ### 4.5 B5: backups, restore and migration
 
@@ -170,11 +167,11 @@ risk is out of scope (§6).
 | B1 MCP | 7 | 3 (M1, M3, M4) | 2 (M5, M6) | 1 (M2, autonomous mode) | 0 | 1 (M7) |
 | B2 Custody socket | 8 | 5 (C2, C3, C4, C6, C7) | 2 (C1, C5) | 1 (C8) | 0 | 0 |
 | B3 Bundles | 6 | 6 | 0 | 0 | 0 | 0 |
-| B4 Registry | 11 | 6 (R1, R3 to R7) | 4 (R2, R8, R9, R11) | 0 | 1 (R10) | 0 |
+| B4 Registry | 11 | 8 (R1, R3 to R7, R10, R11) | 3 (R2, R8, R9) | 0 | 0 | 0 |
 | B5 Backups/migration | 5 | 3 (BK1 to BK3) | 0 | 2 (BK4, BK5) | 0 | 0 |
 | B6 OCI | 3 | 0 | 1 (D1) | 0 | 0 | 2 (D2, D3) |
 | B7 Model | 2 | 1 (MA1) | 0 | 0 | 0 | 1 (MA2) |
-| **Total** | **42** | **24** | **9** | **4** | **1** | **4** |
+| **Total** | **42** | **26** | **8** | **4** | **0** | **4** |
 
 M2 counts as an accepted residual for autonomous mode only (owner decision 2026-10-02,
 F-19). Its default is mitigated. C4 and BI4 are mitigated in-repo, with fuzz-coverage limits stated in
@@ -216,4 +213,4 @@ their rows. "Mitigated" always means *tested in-repo*. It never means deployment
   `CustodianService.handle`, the `artifact_transform` kind, structured zip member-table
   mutations or `parse_file` (OI-19, PR #47).
 
-<!-- provenance: author=IDG scribe (r3 slice B3); sources=release-gates.md, trust-hardening plan (threat-model, TH-A01, implementation-notes), docs/AUTHORITY.md, docs/operations.md, SECURITY.md, r2 gate-table and evidence, tests/fixtures/adversarial/trust/manifest.json, tests/fuzz, code at bcdf680, r3-open-items.md (PR bodies #34-#50); date=2026-10-02; review=PENDING independent security review -->
+<!-- provenance: author=IDG scribe (r3 slice B3); sources=release-gates.md, trust-hardening plan (threat-model, TH-A01, implementation-notes), docs/AUTHORITY.md, docs/operations.md, SECURITY.md, r2 gate-table and evidence, tests/fixtures/adversarial/trust/manifest.json, tests/fuzz, code at integration merge c7e0789c07705f48131b0a0e0d0c19f2f68d28fe, PR #53 product commit 64831a6, hosted CI 37473715205, r3-open-items.md (PR bodies #34-#53); date=2026-10-06; review=PENDING independent security review -->
