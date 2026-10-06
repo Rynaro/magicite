@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "required_checks": [
+    {
+      "oracle_id": "v1-r3-product@1",
+      "id": "product-validation"
+    },
+    {
+      "oracle_id": "v1-r3-code-review@1",
+      "id": "independent-code-review"
+    },
+    {
+      "oracle_id": "v1-r3-package@1",
+      "id": "release-package-integrity"
+    }
+  ],
+  "required_untracked": [],
+  "required_environment": [],
+  "required_configuration": []
+}

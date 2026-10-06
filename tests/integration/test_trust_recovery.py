@@ -93,6 +93,16 @@ def test_review_replay_rebuild(project_root: Path, custody_for, monkeypatch) -> 
     ]
     assert len(admits) == 1
 
+    conn = db_mod.connect(cfg.db_path)
+    try:
+        rows = conn.execute("SELECT id FROM approval WHERE op='trust_approve'").fetchall()
+        assert len(rows) == 1
+        row = conn.execute("SELECT verification_status FROM engram WHERE id=?", (engram_id,)).fetchone()
+        assert row["verification_status"] == "verified"
+        assert len(list(cfg.approvals_dir.glob("*.json"))) == 1
+    finally:
+        conn.close()
+
     # Delete the rebuildable DB and sync — trust projection must reload from authenticated journal.
     db_path = cfg.db_path
     for suffix in ("", "-wal", "-shm"):

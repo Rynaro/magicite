@@ -1,0 +1,26 @@
+{
+  "eligible": false,
+  "recommendation": "NO-GA",
+  "errors": [
+    "POLICY: UNEVALUATED does not satisfy a mandatory gate",
+    "EVIDENCE: UNEVALUATED does not satisfy a mandatory gate",
+    "SCHEMA: UNEVALUATED does not satisfy a mandatory gate",
+    "TRUST: UNEVALUATED does not satisfy a mandatory gate",
+    "ROUTING: UNEVALUATED does not satisfy a mandatory gate",
+    "COMPOSITION: UNEVALUATED does not satisfy a mandatory gate",
+    "PRIVACY: UNEVALUATED does not satisfy a mandatory gate",
+    "LEARNING: UNEVALUATED does not satisfy a mandatory gate",
+    "PROTOCOL: UNEVALUATED does not satisfy a mandatory gate",
+    "RELIABILITY: UNEVALUATED does not satisfy a mandatory gate",
+    "PERFORMANCE: UNEVALUATED does not satisfy a mandatory gate",
+    "DISTRIBUTION: UNEVALUATED does not satisfy a mandatory gate",
+    "DOCS: UNEVALUATED does not satisfy a mandatory gate",
+    "RC-CONTRACT: UNEVALUATED does not satisfy a mandatory gate",
+    "EXTERNAL: UNEVALUATED does not satisfy a mandatory gate",
+    "SECURITY: UNEVALUATED does not satisfy a mandatory gate",
+    "GA-ALL: UNEVALUATED does not satisfy a mandatory gate",
+    "RC-CONTRACT: two RCs required",
+    "EXTERNAL: external reproduction or two-pilot path required",
+    "GA-ALL: explicit maintainer sign-off at candidate source required"
+  ]
+}

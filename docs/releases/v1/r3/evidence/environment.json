@@ -1,0 +1,13 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+  "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+  "platform": "macOS-27.0-arm64-arm-64bit",
+  "machine": "arm64",
+  "embedding_provider": "hashing",
+  "custody": "disposable-simulated",
+  "dependency_install": "uv sync --frozen --all-extras",
+  "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+  "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+  "source_dirty": false,
+  "real_separate_uid_deployment": false
+}
