@@ -122,6 +122,11 @@ def test_actual_router_projection_rejects_annotations_and_preserves_dispatch(mon
     assert adapter.predict(query) == first
     assert first["candidate_ids"] == ["unlabeled-distractor"]
     assert all(set(call) == {"query", "context", "k"} for call in seen)
+    assert all(call["k"] == 5 for call in seen)
+    production.ActualRouter(
+        SimpleNamespace(routing_policy="dense-v1"), None, provider, rank_depth=10
+    ).predict(query)
+    assert seen[-1]["k"] == 10
     with pytest.raises(ValueError, match="only query"):
         adapter.predict({**query, **annotations})
 

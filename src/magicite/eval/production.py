@@ -135,12 +135,22 @@ class ProductionEmbedder(FastEmbedProvider):
 class ActualRouter:
     """Invoke actual production route; annotation fields are never accepted."""
 
-    def __init__(self, cfg: Config, conn: sqlite3.Connection, embedder: FastEmbedProvider) -> None:
+    def __init__(
+        self,
+        cfg: Config,
+        conn: sqlite3.Connection,
+        embedder: FastEmbedProvider,
+        *,
+        rank_depth: int = 5,
+    ) -> None:
         if not isinstance(embedder, FastEmbedProvider):
             raise ValueError("production diagnostic requires actual FastEmbedProvider")
         if cfg.routing_policy not in KNOWN_POLICY_IDS:
             raise ValueError("unsupported actual routing policy")
+        if isinstance(rank_depth, bool) or not isinstance(rank_depth, int) or rank_depth < 1:
+            raise ValueError("positive rank depth required")
         self.cfg, self.conn, self.embedder = cfg, conn, embedder
+        self.rank_depth = rank_depth
 
     def predict(self, query: dict[str, Any]) -> dict[str, Any]:
         runtime_queries([query])
@@ -153,7 +163,7 @@ class ActualRouter:
             self.embedder,
             query=query["query_text"],
             context=query["compatibility_context"],
-            k=5,
+            k=self.rank_depth,
         )
         after = router._cached_route_index.cache_info()
         if outcome.policy_id != self.cfg.routing_policy or outcome.decision is None:
