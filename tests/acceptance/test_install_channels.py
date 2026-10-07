@@ -9,7 +9,6 @@ installs (PyPI/pipx/uvx/OCI digest pull) remain UNEVALUATED until milestone
 from __future__ import annotations
 
 import importlib.util
-import json
 import os
 import subprocess
 import sys
@@ -313,45 +312,9 @@ def test_channel_matrix(
         )
     sdists = sorted(sdist_dir.glob("magicite-*.tar.gz"))
     assert sdists, "sdist build produced no artifacts"
-    # Install sdist into a clean env and reuse the wheel probe script's route
-    # assertions via an ad-hoc install (sdist path instead of wheel).
-    venv_dir = tmp_path / "sdist-venv"
-    venv.create(venv_dir, with_pip=True, clear=True)
-    python = venv_dir / "bin" / "python"
-    subprocess.run(
-        [str(python), "-m", "pip", "install", "--upgrade", "pip"],
-        check=True,
-        cwd=tmp_path,
-        env=child_env,
-    )
-    subprocess.run(
-        [str(python), "-m", "pip", "install", str(sdists[-1])],
-        check=True,
-        cwd=tmp_path,
-        env=child_env,
-    )
-    project_root = tmp_path / "sdist-project"
-    project_root.mkdir()
-    completed = subprocess.run(
-        [
-            str(python),
-            "-c",
-            _load_wheel_probe().PROBE,
-            str(TOY_ENGRAMS),
-            str(project_root),
-            str(venv_dir.resolve()),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=tmp_path,
-        env=child_env,
-    )
-    lines = [line for line in completed.stdout.splitlines() if line.strip()]
-    payload = json.loads(lines[-1])
-    assert payload["ok"] is True
-    assert payload["top"] == "proton-ge-proton-downgrade"
-    assert str(venv_dir.resolve()) in payload["pkg_file"]
+    result = _load_wheel_probe().run_probe(wheel=sdists[-1], keep_env=tmp_path / "channel-sdist")
+    assert result["ok"] is True
+    assert result["protocol"]["route_body"] and result["protocol"]["stale_refusal"]
 
 
 def test_published_channel_records_are_reserved() -> None:
