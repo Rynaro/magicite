@@ -184,3 +184,44 @@ def test_generated_header_escapes_yaml_forbidden_source_controls(tmp_path, contr
     assert artifact.frontmatter.intent.does == skill["description"]
     assert artifact.frontmatter.triggers.positive == [skill["name"]]
     assert path.read_bytes().endswith(skill["skill_md"].encode())
+
+
+def test_long_mixed_unicode_header_preserves_decoded_metadata(tmp_path):
+    # Minimal synthetic shape of actual row128; no upstream body/description copied into Git.
+    description = "word " * 30 + "\x89§😀" + " word " * 4
+    skill = {
+        "id": UUID,
+        "name": "name",
+        "description": description,
+        "skill_md": "---\nname: name\ndescription: source\n---\nbody é\n",
+    }
+    path = tmp_path / "artifact.egr.md"
+    path.write_bytes(skillret.native_wrapper(skill, skillret.identity_map({UUID})[UUID], "source.SKILL.md"))
+    from magicite.engram import parser
+
+    artifact, _ = parser.load_artifact_file(path, registry_root=tmp_path)
+    assert artifact.frontmatter.intent.does == description
+    assert artifact.frontmatter.intent.use_when == description
+    assert artifact.frontmatter.triggers.positive == [skill["name"]]
+    assert path.read_bytes().endswith(skill["skill_md"].encode())
+
+
+@pytest.mark.parametrize("field", ["description", "name"])
+def test_valid_wrapper_metadata_drift_blocks_ready(tmp_path, monkeypatch, field):
+    lock, _skill = fixture_raw(tmp_path / "raw")
+    original = skillret.native_wrapper
+
+    def corrupt(skill, mapped, sidecar):
+        changed = dict(skill)
+        changed[field] += " changed"
+        return original(changed, mapped, sidecar)
+
+    monkeypatch.setattr(skillret, "native_wrapper", corrupt)
+    with pytest.raises(ValueError, match="metadata fidelity"):
+        skillret.convert(
+            tmp_path / "raw",
+            tmp_path / "output",
+            lock,
+            expected_counts={"master": 1, "train": (1, 1, 1), "test": (1, 1, 1)},
+        )
+    assert not (tmp_path / "output/seal.json").exists()

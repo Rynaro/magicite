@@ -15,6 +15,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 from magicite.engram import parser, skillmd
+from magicite.engram.model import EngramFrontmatter
 from magicite.eval.digests import sha256_json
 from magicite.eval.manifests import ArtifactRef, CorpusManifest, QueryRecord
 
@@ -193,6 +194,7 @@ def native_wrapper(skill: dict[str, Any], mapped: dict[str, str], sidecar: str) 
     yaml = YAML(typ="safe")
     yaml.allow_unicode = True
     yaml.default_flow_style = False
+    yaml.width = 1_000_000_000  # Wider than any locked source object; avoid folding metadata.
     yaml.default_style = '"'  # type: ignore[assignment]  # ruamel infers its None default too narrowly.
     stream = StringIO()
     yaml.dump(front, stream)
@@ -257,6 +259,15 @@ def convert(
         artifact, _ = parser.load_artifact_file(output / wrapper, registry_root=output)
         if artifact.id != mapped["id"] or artifact.name != mapped["name"]:
             raise ValueError("native codec identity mismatch")
+        frontmatter = artifact.frontmatter
+        if not isinstance(frontmatter, EngramFrontmatter):
+            raise ValueError("native codec spec mismatch")
+        if (
+            frontmatter.intent.does != skill["description"]
+            or frontmatter.intent.use_when != skill["description"]
+            or frontmatter.triggers.positive != [skill["name"]]
+        ):
+            raise ValueError("native codec metadata fidelity mismatch: " + identity)
         item = {
             "id": artifact.id,
             "name": artifact.name,
