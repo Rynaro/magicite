@@ -8,8 +8,11 @@ import re
 import uuid
 from collections import Counter
 from collections.abc import Iterator
+from io import StringIO
 from pathlib import Path
 from typing import Any
+
+from ruamel.yaml import YAML
 
 from magicite.engram import parser, skillmd
 from magicite.eval.digests import sha256_json
@@ -186,7 +189,14 @@ def native_wrapper(skill: dict[str, Any], mapped: dict[str, str], sidecar: str) 
             "runtime_admission": "UNEVALUATED",
         },
     }
-    return b"---\n" + canonical(front) + b"---\n## Procedure\n" + body
+    # Reuse the native YAML codec: escape forbidden controls without JSON surrogate pairs.
+    yaml = YAML(typ="safe")
+    yaml.allow_unicode = True
+    yaml.default_flow_style = False
+    yaml.default_style = '"'  # type: ignore[assignment]  # ruamel infers its None default too narrowly.
+    stream = StringIO()
+    yaml.dump(front, stream)
+    return b"---\n" + stream.getvalue().encode("utf-8") + b"---\n## Procedure\n" + body
 
 
 def _write(root: Path, relative: str, value: Any) -> dict[str, Any]:

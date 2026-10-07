@@ -165,3 +165,22 @@ def test_conflicting_source_never_emits_ready_seal(tmp_path, fault):
             expected_counts={"master": 1, "train": (1, 1, 1), "test": (1, 1, 1)},
         )
     assert not (tmp_path / "output/seal.json").exists()
+
+
+@pytest.mark.parametrize("control", ["\x80", "\x9f", "\x85", "\u2028", "\u2029"])
+def test_generated_header_escapes_yaml_forbidden_source_controls(tmp_path, control):
+    skill = {
+        "id": UUID,
+        "name": "source" + control + "😀name",
+        "description": "source" + control + "😀description",
+        "skill_md": "---\nname: source\ndescription: source\n---\nbody\x80\n",
+    }
+    mapped = skillret.identity_map({UUID})[UUID]
+    path = tmp_path / "artifact.egr.md"
+    path.write_bytes(skillret.native_wrapper(skill, mapped, "source.SKILL.md"))
+    from magicite.engram import parser
+
+    artifact, _ = parser.load_artifact_file(path, registry_root=tmp_path)
+    assert artifact.frontmatter.intent.does == skill["description"]
+    assert artifact.frontmatter.triggers.positive == [skill["name"]]
+    assert path.read_bytes().endswith(skill["skill_md"].encode())
