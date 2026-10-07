@@ -1,0 +1,82 @@
+[
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-01",
+    "query_text": "I am writing a new native skill document by hand. Which required intent and trigger fields will let it satisfy strict admission lint?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-02",
+    "query_text": "The chosen skill is correct, but its prerequisite steps appear after their dependents in the returned plan. Where should I check ordering and cycle detection?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-03",
+    "query_text": "A hardened Docker invocation cannot create the mounted project state directory and dies before announcing its tools. How should its user identity match the mount owner?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-04",
+    "query_text": "An untouched learned strength is smaller when I inspect it the following day, although no new outcomes or checkpoint occurred. How is elapsed time applied during reads?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-05",
+    "query_text": "I am implementing a new vector backend. What output dtype, normalization and declared dimensions must each embedding satisfy so cosine values remain comparable?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-06",
+    "query_text": "Repeated saves of identical engram state create textual diffs. Which rendering rules preserve byte stability and comments, and how do I verify the persisted result?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-07",
+    "query_text": "A signal handler receives a SQLite authorizer denial when updating a durable table. Which connection and table boundary governs this, and where should session-only state live?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-08",
+    "query_text": "I need to reject an invalid tool argument with a useful remediation hint. Which domain error mapping and retry flag should the client receive?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-09",
+    "query_text": "Before sealing a deployment without network access, how can I provision the existing ONNX embedding model and require later runs to refuse downloads?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-10",
+    "query_text": "In the sparse activation iteration, how should probability at dangling nodes be redistributed, and how is the seed personalization vector formed?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-11",
+    "query_text": "A declared graph edge influences routing even with zero learned storage strength. How do the authored prior and learned channel combine into its effective weight?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-12",
+    "query_text": "Our Claude host supports tool hooks. How can externally verified use and outcome events reach Tier-2 without revealing the verification secret to the model?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-13",
+    "query_text": "How long should I roast a whole cauliflower, and which spices work with a tahini dressing?"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-14",
+    "query_text": "Plan a three-day visit to Kyoto using public transport and suggest quiet gardens near each stop."
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-15",
+    "query_text": "A rectangle measures seven metres by eleven metres. Calculate its area and perimeter."
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "diagnostic-16",
+    "query_text": "My tomato plants have yellow lower leaves after several rainy days. How should I adjust watering and drainage?"
+  }
+]

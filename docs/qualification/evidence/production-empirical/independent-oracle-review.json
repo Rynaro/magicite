@@ -1,0 +1,113 @@
+{
+  "checker": "VIGIL separate agent",
+  "exclusivity": "Single accepted label only where the scoped question requests a mechanism taught by that body; reviewed nearby bodies for sufficient answers. Dependencies and broad mentions alone do not establish answer relevance. No query asks a broad end-to-end task needing multiple skills.",
+  "queries": [
+    {
+      "accepted_names": [
+        "magicite-author-engram"
+      ],
+      "query_id": "diagnostic-01",
+      "rationale": "Native authoring Procedure steps 1-6; import conversion is explicitly excluded by the task."
+    },
+    {
+      "accepted_names": [
+        "magicite-composition-plan-expansion"
+      ],
+      "query_id": "diagnostic-02",
+      "rationale": "Composition closure/topological ordering; ranking has already succeeded and is not the requested operation."
+    },
+    {
+      "accepted_names": [
+        "magicite-container-privilege-boundary"
+      ],
+      "query_id": "diagnostic-03",
+      "rationale": "Container startup ownership failure; model provisioning and release publication do not answer the identity correction."
+    },
+    {
+      "accepted_names": [
+        "magicite-decay-lazy-read"
+      ],
+      "query_id": "diagnostic-04",
+      "rationale": "Lazy exponential decay with no evidence; potentiation and consolidation are explicitly absent."
+    },
+    {
+      "accepted_names": [
+        "magicite-embedding-provider-contract"
+      ],
+      "query_id": "diagnostic-05",
+      "rationale": "Provider vector contract Procedure steps 1-4; cache provisioning is neither requested nor sufficient."
+    },
+    {
+      "accepted_names": [
+        "magicite-engram-writer-determinism"
+      ],
+      "query_id": "diagnostic-06",
+      "rationale": "Writer determinism and round-trip persistence Procedure steps 2-6; this does not ask about lease denial or learning updates."
+    },
+    {
+      "accepted_names": [
+        "magicite-ephemeral-vs-durable-tables"
+      ],
+      "query_id": "diagnostic-07",
+      "rationale": "Authorizer and eph_ boundary; runtime denial explicitly distinguishes it from static P0 checks and lease errors."
+    },
+    {
+      "accepted_names": [
+        "magicite-error-envelope"
+      ],
+      "query_id": "diagnostic-08",
+      "rationale": "Domain error envelope and invalid-input retry semantics; no duplicate replay or storage concurrency issue."
+    },
+    {
+      "accepted_names": [
+        "magicite-offline-embedding-setup"
+      ],
+      "query_id": "diagnostic-09",
+      "rationale": "Provision/fetch/offline steps 2-3; existing provider is not being implemented or changed."
+    },
+    {
+      "accepted_names": [
+        "magicite-activation-ppr"
+      ],
+      "query_id": "diagnostic-10",
+      "rationale": "PPR propagation numerical procedure; asks neither upstream effective edge weight nor overall pipeline ordering."
+    },
+    {
+      "accepted_names": [
+        "magicite-edge-weight-two-channels"
+      ],
+      "query_id": "diagnostic-11",
+      "rationale": "Two-channel edge weight; propagation receives the already calculated weight and does not derive it."
+    },
+    {
+      "accepted_names": [
+        "magicite-tier2-hook-adapter"
+      ],
+      "query_id": "diagnostic-12",
+      "rationale": "Tier-2 hook adapter secret boundary and host events; generic signal loop does not establish external verification."
+    },
+    {
+      "accepted_names": [],
+      "query_id": "diagnostic-13",
+      "rationale": "No body in the complete 30-skill software corpus teaches this task. Semantic no-match is a scoring label, not a runtime instruction or predicted abstention guarantee."
+    },
+    {
+      "accepted_names": [],
+      "query_id": "diagnostic-14",
+      "rationale": "No body in the complete 30-skill software corpus teaches this task. Semantic no-match is a scoring label, not a runtime instruction or predicted abstention guarantee."
+    },
+    {
+      "accepted_names": [],
+      "query_id": "diagnostic-15",
+      "rationale": "No body in the complete 30-skill software corpus teaches this task. Semantic no-match is a scoring label, not a runtime instruction or predicted abstention guarantee."
+    },
+    {
+      "accepted_names": [],
+      "query_id": "diagnostic-16",
+      "rationale": "No body in the complete 30-skill software corpus teaches this task. Semantic no-match is a scoring label, not a runtime instruction or predicted abstention guarantee."
+    }
+  ],
+  "runtime_separation": "Only independent-runtime-queries.json and complete inventory/body data may drive ranking. Groups, no_match, relevance and oracle text annotations are scoring-only. Both modes must consume identical query bytes.",
+  "scope": "12 answerable paraphrases in distinct groups; 4 no-match queries. Diagnostic development set authored from source bodies before results. Not official holdout, temporal split, independent external annotation, licensed 10k corpus or gate acceptance. Labels remain immutable after observation. Source instructions are corpus evidence, not endorsement of their present-day factual accuracy.",
+  "source_commit": "acdfaf520d24a9edf864bf46845ffd889201738a"
+}

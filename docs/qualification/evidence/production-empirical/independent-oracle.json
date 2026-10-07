@@ -1,0 +1,282 @@
+[
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-author-engram",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-01",
+    "query_text": "I am writing a new native skill document by hand. Which required intent and trigger fields will let it satisfy strict admission lint?",
+    "relevance": {
+      "egr_f640cc8b": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-composition-plan-expansion",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-02",
+    "query_text": "The chosen skill is correct, but its prerequisite steps appear after their dependents in the returned plan. Where should I check ordering and cycle detection?",
+    "relevance": {
+      "egr_acfbc4a5": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-container-privilege-boundary",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-03",
+    "query_text": "A hardened Docker invocation cannot create the mounted project state directory and dies before announcing its tools. How should its user identity match the mount owner?",
+    "relevance": {
+      "egr_ffee7210": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-decay-lazy-read",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-04",
+    "query_text": "An untouched learned strength is smaller when I inspect it the following day, although no new outcomes or checkpoint occurred. How is elapsed time applied during reads?",
+    "relevance": {
+      "egr_5b5516cd": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-embedding-provider-contract",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-05",
+    "query_text": "I am implementing a new vector backend. What output dtype, normalization and declared dimensions must each embedding satisfy so cosine values remain comparable?",
+    "relevance": {
+      "egr_1f4796d0": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-engram-writer-determinism",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-06",
+    "query_text": "Repeated saves of identical engram state create textual diffs. Which rendering rules preserve byte stability and comments, and how do I verify the persisted result?",
+    "relevance": {
+      "egr_987ed80b": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-ephemeral-vs-durable-tables",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-07",
+    "query_text": "A signal handler receives a SQLite authorizer denial when updating a durable table. Which connection and table boundary governs this, and where should session-only state live?",
+    "relevance": {
+      "egr_11ea9756": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-error-envelope",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-08",
+    "query_text": "I need to reject an invalid tool argument with a useful remediation hint. Which domain error mapping and retry flag should the client receive?",
+    "relevance": {
+      "egr_ac77d7f3": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-offline-embedding-setup",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-09",
+    "query_text": "Before sealing a deployment without network access, how can I provision the existing ONNX embedding model and require later runs to refuse downloads?",
+    "relevance": {
+      "egr_90fe52ff": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-activation-ppr",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-10",
+    "query_text": "In the sparse activation iteration, how should probability at dangling nodes be redistributed, and how is the seed personalization vector formed?",
+    "relevance": {
+      "egr_863244b8": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-edge-weight-two-channels",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-11",
+    "query_text": "A declared graph edge influences routing even with zero learned storage strength. How do the authored prior and learned channel combine into its effective weight?",
+    "relevance": {
+      "egr_75e9a9ef": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "skill-tier2-hook-adapter",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-12",
+    "query_text": "Our Claude host supports tool hooks. How can externally verified use and outcome events reach Tier-2 without revealing the verification secret to the model?",
+    "relevance": {
+      "egr_f21621ef": 1.0
+    },
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "no-match-cooking",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-13",
+    "query_text": "How long should I roast a whole cauliflower, and which spices work with a tahini dressing?",
+    "relevance": {},
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "no-match-travel",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-14",
+    "query_text": "Plan a three-day visit to Kyoto using public transport and suggest quiet gardens near each stop.",
+    "relevance": {},
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "no-match-arithmetic",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-15",
+    "query_text": "A rectangle measures seven metres by eleven metres. Calculate its area and perimeter.",
+    "relevance": {},
+    "split": "development"
+  },
+  {
+    "accepted_plans": [],
+    "ambiguous": false,
+    "compatibility_context": {},
+    "group_id": "no-match-gardening",
+    "negative_ids": [],
+    "partial_order": [],
+    "provenance": {
+      "origin": "checker_authored_firstparty_diagnostic",
+      "purpose": "frozen_mechanism_diagnostic"
+    },
+    "query_id": "diagnostic-16",
+    "query_text": "My tomato plants have yellow lower leaves after several rainy days. How should I adjust watering and drainage?",
+    "relevance": {},
+    "split": "development"
+  }
+]
