@@ -25,7 +25,14 @@ Selected approach88.5, scored mechanically in state. Wheel-only repetition79 mis
 2. As a reviewer, I need broken packaging and contaminated environments to fail visibly. Timebox1d, riskP1, standard Vivi. Extend the smallest meaningful negative controls for valid artifact corruption/missing resource and source-path contamination; retain existing probe CLI behavior where practical.
 3. As an operator, I need accurate reproduction instructions and evidence. Timebox1d, riskP1, Vivi results plus independent checker. Document exact artifact installation/first-use commands and prerequisites; mark simulated custody and generic client explicitly. Archive source/artifact/environment/command/result hashes and map each check. Qualification requires both wheel and sdist on at least the actually exercised supported Python3.12 platform; other Python/OS rows stay UNEVALUATED unless explicitly run. Do not turn fixture success into independent-user acceptance.
 
+## Prospective scope amendment A01 — installed CLI version inspection
+The frozen plan explicitly includes installed CLI version/help in first use, and the new reproduction guide invokes magicite --version. Actual candidate C1 fd5ee46 installed successfully but that command exited2 because the existing CLI had no version option; this is a missing capability for the accepted slice flow, not a claim that an older supported option regressed.
+Root authorizes src/magicite/__main__.py to add the standard eager Click version_option(package_name="magicite"), using installed distribution metadata without a hardcoded version or package version bump. Add tests/unit/test_cli_version.py with a real CLI invocation comparing output to importlib.metadata.version("magicite"); model the actual executable name in CliRunner so the assertion reflects the console entrypoint. Preserve help/doctor/serve semantics and avoid runtime initialization merely to inspect the version. Existing owned probe code may persist command stdout/stderr/exit before assertions so subsequent failures remain reviewable.
+All ten acceptance criteria are unchanged. Keep C1 artifacts/logs and its failed version result immutable. After the narrow fix and required tests/review, freeze fresh C2, rebuild both wheel and sdist and run the full pair against C2. No relabeling C1 as passing and no source-equivalence carryforward for this production change. No publication or approval claim follows from the fix.
+
 ## Owned paths
+- src/magicite/__main__.py (A01: metadata-backed eager version option only)
+- tests/unit/test_cli_version.py (A01: real CLI metadata regression)
 - scripts/verify_wheel_install.py (extend/reuse without breaking existing callers)
 - scripts/qualify_distributions.py (new thin build/run/report layer only if needed)
 - tests/unit/test_verify_wheel_install.py

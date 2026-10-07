@@ -511,6 +511,19 @@ def run_probe(*, wheel: Path, keep_env: Path | None = None, dependency_cache: Pa
         (["doctor", "--project-root", str(work / "project")], {0, 1}),
     ]:
         done = subprocess.run([str(cli), *args], cwd=work, env=env, capture_output=True, text=True)
+        label = "version" if args == ["--version"] else "help" if args == ["--help"] else "doctor"
+        (work / f"cli-{label}.json").write_text(
+            json.dumps(
+                {
+                    "argv": [str(cli), *args],
+                    "exit": done.returncode,
+                    "stdout": done.stdout,
+                    "stderr": done.stderr,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
         assert done.returncode in allowed, "installed-cli-command-failed"
         validate_cli_output(args, done.returncode, done.stdout, expected)
         commands.append({"argv": [str(cli), *args], "exit": done.returncode, "stdout": done.stdout})
