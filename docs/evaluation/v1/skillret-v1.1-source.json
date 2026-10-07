@@ -1,0 +1,101 @@
+{
+  "schema": "magicite/skillret-source-lock/1",
+  "dataset": "ThakiCloud/SKILLRET",
+  "dataset_version": "v1.1",
+  "revision": "6583d7d2ed07644d0fb8938ed8178f3a7dc42a12",
+  "upstream_tree_sha256": "6fa16da9338eb0e50493608c8c761ac01b8c5d5d478198e5b6f259b847c5a6e8",
+  "artifacts": [
+    {
+      "path": ".gitattributes",
+      "size_bytes": 2797,
+      "expected_identity": {
+        "algorithm": "git-blob-sha1",
+        "value": "5232c2f1ddb25a1982e1be6e8f9949b804aa9eaa"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/.gitattributes"
+    },
+    {
+      "path": "README.md",
+      "size_bytes": 10763,
+      "expected_identity": {
+        "algorithm": "git-blob-sha1",
+        "value": "99cd11428ea6aaf1b14ce3e9f49f242b40a0e7b0"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/README.md"
+    },
+    {
+      "path": "data/qrels/test.jsonl",
+      "size_bytes": 661204,
+      "expected_identity": {
+        "algorithm": "git-blob-sha1",
+        "value": "32128b17f571508d2148c5b5349f7aa1a1778a27"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/data/qrels/test.jsonl"
+    },
+    {
+      "path": "data/qrels/train.jsonl",
+      "size_bytes": 12591810,
+      "expected_identity": {
+        "algorithm": "sha256",
+        "value": "7480dbf936eeee9905c752a681b029bae8e13f67dcacdf4b716684ca21da83e1"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/data/qrels/train.jsonl"
+    },
+    {
+      "path": "data/queries/test.jsonl",
+      "size_bytes": 6053507,
+      "expected_identity": {
+        "algorithm": "git-blob-sha1",
+        "value": "98ba259ea3308ebf845159cc6cf388d75b3e8f89"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/data/queries/test.jsonl"
+    },
+    {
+      "path": "data/queries/train.jsonl",
+      "size_bytes": 54348716,
+      "expected_identity": {
+        "algorithm": "sha256",
+        "value": "e1189e402c74d11ba57af3bbc60308cc4a9b51f29f2de265e541d0599067624c"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/data/queries/train.jsonl"
+    },
+    {
+      "path": "data/skills.jsonl",
+      "size_bytes": 335238783,
+      "expected_identity": {
+        "algorithm": "sha256",
+        "value": "eaff7ef8fe106ddd2f3c969e99d40655b9095dc50758b66c0ae5cafdc32c7d32"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/data/skills.jsonl"
+    },
+    {
+      "path": "data/skills/test.jsonl",
+      "size_bytes": 117606037,
+      "expected_identity": {
+        "algorithm": "sha256",
+        "value": "1960453e422e4ba01977197580934ca3c02b2ac302dfa9c0d074707d961b7c81"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/data/skills/test.jsonl"
+    },
+    {
+      "path": "data/skills/train.jsonl",
+      "size_bytes": 187920814,
+      "expected_identity": {
+        "algorithm": "sha256",
+        "value": "b4978863f6c36c1d42af4a779f86b8e5809b4709c353aa698ec494e3ed663a2b"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/data/skills/train.jsonl"
+    },
+    {
+      "path": "data/taxonomy.json",
+      "size_bytes": 5372,
+      "expected_identity": {
+        "algorithm": "git-blob-sha1",
+        "value": "3f116cc794638979e711708a4381ea3843d8595c"
+      },
+      "url": "https://huggingface.co/datasets/ThakiCloud/SKILLRET/resolve/6583d7d2ed07644d0fb8938ed8178f3a7dc42a12/data/taxonomy.json"
+    }
+  ],
+  "raw_primary_total_bytes": 714420871,
+  "scope": "Prospective publisher-object expectations; actual raw SHA256 recorded after acquisition. No evaluation."
+}
