@@ -84,8 +84,19 @@ def origins():
     for name, module in list(sys.modules.items()):
         if name == 'magicite' or name.startswith('magicite.'):
             file = getattr(module, '__file__', None)
-            assert file and Path(file).resolve().is_relative_to(prefix), 'exercised-module-origin:' + name
-            result[name] = str(Path(file).resolve().relative_to(prefix))
+            if file:
+                location = Path(file).resolve()
+            else:
+                paths = list(getattr(module, '__path__', ()))
+                spec = getattr(module, '__spec__', None)
+                locations = getattr(spec, 'submodule_search_locations', None)
+                assert (spec and spec.origin is None and locations is not None
+                        and list(locations) == paths and len(paths) == 1), 'namespace-module-origin:' + name
+                location = Path(paths[0]).resolve()
+                assert location.is_dir(), 'namespace-module-directory:' + name
+                name += ' [namespace]'
+            assert location.is_relative_to(prefix), 'exercised-module-origin:' + name
+            result[name] = str(location.relative_to(prefix))
     return result
 
 project = project.resolve()

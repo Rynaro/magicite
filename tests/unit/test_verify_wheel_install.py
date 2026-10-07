@@ -93,3 +93,38 @@ def test_probe_rejects_checkout_working_directory_before_install(tmp_path, monke
     monkeypatch.setattr(probe, "TOY_ENGRAMS", fixture)
     with pytest.raises(ValueError, match="outside checkout"):
         probe.run_probe(wheel=tmp_path / "candidate.whl", keep_env=tmp_path / "inside")
+
+
+def test_installed_origins_validate_namespace_search_path(tmp_path):
+    import ast
+    from types import SimpleNamespace
+
+    probe = _load_wheel_probe()
+    tree = ast.parse(probe.PROBE)
+    function = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "origins"
+    )
+    directory = tmp_path / "magicite/storage/migrations"
+    directory.mkdir(parents=True)
+    paths = [str(directory)]
+    namespace = SimpleNamespace(
+        __file__=None, __path__=paths, __spec__=SimpleNamespace(origin=None, submodule_search_locations=paths)
+    )
+    scope = {
+        "sys": SimpleNamespace(modules={"magicite.storage.migrations": namespace}),
+        "Path": Path,
+        "prefix": tmp_path.resolve(),
+    }
+    exec(compile(ast.Module(body=[function], type_ignores=[]), "installed-origins", "exec"), scope)
+    assert scope["origins"]() == {"magicite.storage.migrations [namespace]": "magicite/storage/migrations"}
+    outside = tmp_path.parent / (tmp_path.name + "-outside")
+    outside.mkdir()
+    for invalid in ([str(outside)], [str(directory), str(outside)], []):
+        namespace.__path__ = invalid
+        namespace.__spec__.submodule_search_locations = invalid
+        with pytest.raises(AssertionError):
+            scope["origins"]()
+    namespace.__path__ = paths
+    namespace.__spec__.submodule_search_locations = None
+    with pytest.raises(AssertionError, match="namespace-module-origin"):
+        scope["origins"]()
