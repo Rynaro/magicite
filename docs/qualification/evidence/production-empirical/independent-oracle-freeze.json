@@ -1,0 +1,35 @@
+{
+  "artifacts": [
+    {
+      "bytes": 10770,
+      "path": "/private/tmp/magicite-v1-empirical/independent-corpus-inventory.json",
+      "sha256": "ef54f76be8c51943f4827be9c28438e48b2647207a5aff96d7eab41b88bb5fa0"
+    },
+    {
+      "bytes": 9366,
+      "path": "/private/tmp/magicite-v1-empirical/independent-oracle.json",
+      "sha256": "c51d1207af0378288a59f516c081be7af5345988434fd0b324437622d97a0f91"
+    },
+    {
+      "bytes": 3800,
+      "path": "/private/tmp/magicite-v1-empirical/independent-runtime-queries.json",
+      "sha256": "e7299a1e93566be298c25dbe681cc9dcfdf3d6adc3c3f9a3ad20b6d4b7e3387c"
+    },
+    {
+      "bytes": 2829,
+      "path": "/private/tmp/magicite-v1-empirical/independent-scoring-labels.json",
+      "sha256": "5a03fa45219632ce6521951d9b1cb4899fe18cb81f6a868c2da6ca552bbfad26"
+    },
+    {
+      "bytes": 5135,
+      "path": "/private/tmp/magicite-v1-empirical/independent-oracle-review.json",
+      "sha256": "b33cc6b419959921bedbaa8b1ab01c9aa569c86c4f60b4e8d9b1b61cb665728a"
+    }
+  ],
+  "corpus_count": 30,
+  "no_match_count": 4,
+  "positive_count": 12,
+  "production_queries_observed": false,
+  "query_count": 16,
+  "source_commit": "acdfaf520d24a9edf864bf46845ffd889201738a"
+}

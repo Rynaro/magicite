@@ -229,6 +229,8 @@ def cmd_run_retrieval(
     output: Path,
     policy_id: str = "dense-v1",
 ) -> dict[str, Any]:
+    if provider == "production":
+        raise ValueError("legacy retrieval has no production adapter; use qualify_production_empirical.py")
     experiment = _load_experiment(experiment_path)
     corpus = _load_corpus(corpus_path)
     seal_errors = validate_experiment_corpus_seal(experiment, corpus)
@@ -337,6 +339,7 @@ def cmd_run_paired_policies(
     n_resamples: int,
     seed: int,
     output: Path,
+    provider: str = "hashing",
 ) -> dict[str, Any]:
     """Paired Hit@1 verdicts over one sealed corpus.
 
@@ -344,6 +347,10 @@ def cmd_run_paired_policies(
     seed (``candidate_arm_kind="harness_seed_perturbation"``), not a real
     policy rank function, so every gate ``pass`` is demoted to ``unevaluated``.
     """
+    if provider != "hashing":
+        raise ValueError(
+            "legacy paired-policy command is a synthetic fixture; use qualify_production_empirical.py"
+        )
     experiment = _load_experiment(experiment_path)
     corpus = _load_corpus(corpus_path)
     seal_errors = validate_experiment_corpus_seal(experiment, corpus)

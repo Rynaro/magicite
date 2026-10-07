@@ -262,6 +262,12 @@ def main(argv: list[str] | None = None) -> int:
     paired.add_argument("--n-resamples", type=int, default=10_000)
     paired.add_argument("--seed", type=int, default=0)
     paired.add_argument("--output", type=Path, required=True)
+    paired.add_argument(
+        "--provider",
+        choices=("hashing", "production"),
+        default="hashing",
+        help="Legacy fixture only; production must use the actual empirical adapter.",
+    )
 
     abstain = subparsers.add_parser(
         "run-abstention-gate",
@@ -351,6 +357,7 @@ def main(argv: list[str] | None = None) -> int:
                 n_resamples=args.n_resamples,
                 seed=args.seed,
                 output=args.output,
+                provider=args.provider,
             )
         elif args.command == "run-abstention-gate":
             result = ops.cmd_run_abstention_gate(
