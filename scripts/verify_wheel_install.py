@@ -227,6 +227,15 @@ def package_expectations() -> dict:
     }
 
 
+def validate_tool_inventory(observed: list[dict], expected: list[dict]) -> None:
+    assert len(observed) == len(expected) == 16, "installed-tool-count-mismatch"
+    assert len({row["name"] for row in observed}) == 16, "installed-tool-duplicates"
+    assert len({row["name"] for row in expected}) == 16, "expected-tool-duplicates"
+    assert sorted(observed, key=lambda row: row["name"]) == sorted(expected, key=lambda row: row["name"]), (
+        "installed-tool-schema-mismatch"
+    )
+
+
 def validate_wire(transcript: list[dict], expected: dict) -> dict:
     requests = {}
     pairs = []
@@ -268,7 +277,7 @@ def validate_wire(transcript: list[dict], expected: dict) -> dict:
         }
         for row in tools[1]["result"]["tools"]
     ]
-    assert observed == expected["tools"] and len(observed) == 16, "installed schemas mismatch"
+    validate_tool_inventory(observed, expected["tools"])
 
     def payload(pair, name):
         request, response, *_ = pair
@@ -386,7 +395,7 @@ def protocol_probe(
             }
             for row in tools
         ]
-        assert observed == expected["tools"] and len(observed) == 16, "installed-tool-inventory-mismatch"
+        validate_tool_inventory(observed, expected["tools"])
         route = tool(3, "route", {"query": "rollback proton for a steam game", "k": 5})
         assert route["status"] == "selected", "installed-route-not-selected"
         selected = route["selected_ids"][0]

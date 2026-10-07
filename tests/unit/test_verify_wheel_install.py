@@ -128,3 +128,17 @@ def test_installed_origins_validate_namespace_search_path(tmp_path):
     namespace.__spec__.submodule_search_locations = None
     with pytest.raises(AssertionError, match="namespace-module-origin"):
         scope["origins"]()
+
+
+def test_tool_inventory_accepts_order_only_change_but_rejects_contract_drift():
+    probe = _load_wheel_probe()
+    expected = probe.package_expectations()["tools"]
+    probe.validate_tool_inventory(list(reversed(expected)), expected)
+    changed = [dict(row) for row in expected]
+    changed[0]["input_schema_sha256"] = "0" * 64
+    with pytest.raises(AssertionError, match="schema-mismatch"):
+        probe.validate_tool_inventory(changed, expected)
+    with pytest.raises(AssertionError, match="duplicates"):
+        probe.validate_tool_inventory([expected[0]] * 16, expected)
+    with pytest.raises(AssertionError, match="count-mismatch"):
+        probe.validate_tool_inventory(expected[:-1], expected)
