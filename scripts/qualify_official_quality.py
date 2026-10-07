@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import uuid
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,9 @@ import run_benchmark_matrix as benchmark
 from qualify_production_empirical import copy_snapshot, snapshot_files
 
 from magicite.config import Config
-from magicite.core import registry, router, routing_policy, writer_guard
+from magicite.core import registry, router, routing_policy, trust, writer_guard
+from magicite.engram import lint
+from magicite.engram import parser as engram_parser
 from magicite.eval import quality
 from magicite.eval.digests import sha256_json
 from magicite.eval.production import (
@@ -282,6 +285,42 @@ def admitted(conn, embedder) -> list[dict]:
     return rows
 
 
+def review_with_evidence(cfg: Config, conn, work: Path) -> dict:
+    before = []
+    for row in conn.execute("SELECT id,path,content_sha256,verification_status FROM engram ORDER BY id"):
+        source = cfg.project_root / row["path"]
+        artifact, _ = engram_parser.parse_artifact_file(source, registry_root=cfg.project_root)
+        artifact = registry._artifact_to_engram(artifact, intake_channel="local_register")
+        profile: lint.LintProfile = "import" if registry._lint_profile_for(artifact) == "import" else "strict"
+        before.append(
+            {
+                **dict(row),
+                "lint_profile": profile,
+                "lint_issues": [asdict(issue) for issue in lint.lint(artifact, profile=profile).issues],
+                "injection_scan": asdict(lint.injection_scan(artifact)),
+            }
+        )
+    pre_path = work / "pre-review.json"
+    write(pre_path, before)  # Durable source-bound disclosure before any approval.
+    try:
+        benchmark._review_all(
+            cfg,
+            conn,
+            reason=(
+                "root-authorized isolated official corpus evaluation; "
+                "not deployment trust or execution approval"
+            ),
+        )
+    finally:
+        decisions = {decision.engram_id: decision.to_dict() for decision in trust.list_decisions(cfg)}
+        after = [
+            {**dict(row), "decision": decisions.get(row["id"])}
+            for row in conn.execute("SELECT id,content_sha256,verification_status FROM engram ORDER BY id")
+        ]
+        write(work / "review-outcomes.json", after)
+    return {"before": bound(pre_path), "outcomes": bound(work / "review-outcomes.json")}
+
+
 def build_pool(experiment: Path, split: str) -> dict:
     contract = verify_inputs(experiment)
     inventory = read_bound(contract["splits"][split]["inventory"])
@@ -304,14 +343,7 @@ def build_pool(experiment: Path, split: str) -> dict:
         result = registry.register(cfg, conn, embedder, path="corpus-input")
         if result.validation_errors or result.ingested != len(inventory):
             raise ValueError("full pool register failed: " + str(result.validation_errors[:3]))
-        benchmark._review_all(
-            cfg,
-            conn,
-            reason=(
-                "root-authorized isolated official corpus evaluation; "
-                "not deployment trust or execution approval"
-            ),
-        )
+        review_evidence = review_with_evidence(cfg, conn, work)
         rows = admitted(conn, embedder)
         if {row["id"] for row in rows} != {row["id"] for row in inventory}:
             raise ValueError("wrong/missing admitted split IDs")
@@ -329,6 +361,7 @@ def build_pool(experiment: Path, split: str) -> dict:
         "experiment_sha256": sha256(experiment / "run-freeze.json"),
         "input_inventory": contract["splits"][split]["inventory"],
         "registry_id": registry_id,
+        "review_evidence": review_evidence,
         "admitted": rows,
         "files": snapshot_files(work),
         "build_seconds": time.monotonic() - started,

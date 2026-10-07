@@ -32,3 +32,9 @@ Each query has a120-second hard deadline; each arm has a cumulative two-hour que
 Primary decision Hit@1 counts a correct actual first selected ID divided by every requested query; abstention, missing outcome, errors and timeouts are misses. Rank-only Hit@1, macro Recall5/10, truncated MRR10 and linear-gain NDCG10 describe the actually retained candidate slate. No unobserved pre-abstention ranking is inferred. Selection coverage uses the full denominator; selective accuracy is null when nothing is selected. Excluded returned candidates are reported as safety violations even when not selected. Reports are recomputed from raw outcomes, without running final queries again.
 
 Paired differences use10,000 seed0 query-row bootstrap resamples with descriptive95% percentile intervals. These are not independent-group E3 intervals. No-match false-selection rates, calibrated confidence/ECE, valid negative calibration, three-partition/power/critical-group/Holm inference and hybrid baselines remain unavailable. Operational timings do not qualify E6 reference hardware/performance. Complete engineering evidence may coexist with poor observed relevance. No E3/E6, original repository/license authenticity, host usefulness, external/operator, human security or GA promotion is implied. Large datasets, models, snapshots and complete raw observation packets remain task-owned outside Git; prior packets are immutable.
+
+Imported procedure lists can restart visible numbering. Storage uses occurrence
+keys only for duplicate labels, preserving all parsed text, counters and faults;
+unique labels retain their existing keys. Source labels, parser/lint behavior and
+exported bodies remain unchanged. Explicit isolated evaluation review does not
+assert original-skill safety or deployment approval.

@@ -191,3 +191,22 @@ def test_fresh_snapshot_clone_rejects_vector_state_drift(tmp_path):
     (source / "vectors.bin").write_bytes(b"changed-vector")
     with pytest.raises(ValueError, match="snapshot changed"):
         runner.copy_snapshot(source, tmp_path / "second", manifest)
+
+
+def test_supported_review_retains_pre_review_status_and_actual_decisions(cfg, db_conn, embedder, tmp_path):
+    staging = cfg.project_root / "review-staging"
+    staging.mkdir()
+    source = next(cfg.registry_dir.glob("*.egr.md"))
+    (staging / source.name).write_bytes(source.read_bytes())
+    runner.registry.register(cfg, db_conn, embedder, path="review-staging")
+    evidence = runner.review_with_evidence(cfg, db_conn, tmp_path / "review-evidence")
+    before = runner.read_bound(evidence["before"])
+    after = runner.read_bound(evidence["outcomes"])
+    assert before and {row["id"] for row in before} == {row["id"] for row in after}
+    assert all(row["verification_status"] != "verified" for row in before)
+    assert all("lint_issues" in row and "injection_scan" in row for row in before)
+    assert all(row["verification_status"] == "verified" for row in after)
+    assert all(
+        row["decision"]["decision"] == "admit" and row["decision"]["content_digest"] == row["content_sha256"]
+        for row in after
+    )
