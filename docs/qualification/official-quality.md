@@ -38,3 +38,11 @@ keys only for duplicate labels, preserving all parsed text, counters and faults;
 unique labels retain their existing keys. Source labels, parser/lint behavior and
 exported bodies remain unchanged. Explicit isolated evaluation review does not
 assert original-skill safety or deployment approval.
+
+Artifact file readers decode exact UTF-8 bytes, preserving authenticated raw
+content and legacy body hashes across LF, CRLF and mixed body line endings.
+The v1 routing-body digest retains its existing LF normalization; it cannot
+authorize newline-only changes to authenticated file bytes. LF and CRLF
+frontmatter fences are supported. Lone-CR fences expose the existing text-parser
+rejection instead of receiving incidental file-reader normalization. Invalid
+UTF-8 remains rejected, and loaders do not rewrite source files.

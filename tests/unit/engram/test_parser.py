@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from magicite.engram import parser
@@ -64,3 +66,45 @@ def test_procedure_fault_class_is_parsed_from_canonical_marker() -> None:
     body = parser.parse_body("## Procedure\n1. [fault: OOMKilled] Reduce the batch.\n")
     assert body.procedure[0].fault_class == "OOMKilled"
     assert body.procedure[0].text == "Reduce the batch."
+
+
+@pytest.mark.parametrize("ending", ["lf", "crlf", "mixed"])
+@pytest.mark.parametrize("api", ["parse_file", "parse_artifact_file", "load_artifact_file"])
+def test_file_readers_hash_exact_utf8_bytes(toy_registry_dir, tmp_path, ending, api):
+    raw = (toy_registry_dir / "engrams" / "proton-ge-proton-downgrade.egr.md").read_bytes()
+    if ending == "crlf":
+        raw = raw.replace(b"\n", b"\r\n")
+    elif ending == "mixed":
+        yaml, body = parser.split_frontmatter(raw.decode())
+        lines = body.split("\n")
+        body = lines[0] + "\r\n" + lines[1] + "\r" + "\n".join(lines[2:])
+        raw = ("---\n" + yaml + "\n---\n" + body).encode()
+    path = tmp_path / "exact.egr.md"
+    path.write_bytes(raw)
+    result = getattr(parser, api)(path, registry_root=tmp_path)
+    artifact = result.engram if api == "parse_file" else result[0]
+    body = parser.split_frontmatter(raw.decode())[1]
+    assert artifact.content_sha256 == hashlib.sha256(raw).hexdigest()
+    assert artifact.body_sha256 == hashlib.sha256(body.encode()).hexdigest()
+    assert path.read_bytes() == raw
+
+
+@pytest.mark.parametrize("api", ["parse_file", "parse_artifact_file", "load_artifact_file"])
+def test_file_readers_reject_invalid_utf8_without_rewrite(tmp_path, api):
+    path = tmp_path / "invalid.egr.md"
+    raw = b"---\ninvalid: \xff\n---\nbody\n"
+    path.write_bytes(raw)
+    with pytest.raises(UnicodeDecodeError):
+        getattr(parser, api)(path, registry_root=tmp_path)
+    assert path.read_bytes() == raw
+
+
+@pytest.mark.parametrize("api", ["parse_file", "parse_artifact_file", "load_artifact_file"])
+def test_file_readers_do_not_expand_lone_cr_frontmatter(toy_registry_dir, tmp_path, api):
+    raw = (toy_registry_dir / "engrams" / "proton-ge-proton-downgrade.egr.md").read_bytes()
+    raw = raw.replace(b"\n", b"\r")
+    path = tmp_path / "lone-cr.egr.md"
+    path.write_bytes(raw)
+    with pytest.raises(parser.EngramParseError, match="frontmatter fence"):
+        getattr(parser, api)(path, registry_root=tmp_path)
+    assert path.read_bytes() == raw
