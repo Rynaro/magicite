@@ -59,6 +59,7 @@ class SafeGroup(click.Group):
 
 
 @click.group(cls=SafeGroup)
+@click.version_option(package_name="magicite")
 def cli() -> None:
     """Magicite -- a local-first, plasticity-inspired skill router speaking MCP over stdio."""
 
