@@ -1,0 +1,129 @@
+{
+  "schema": "ramza/plan-state.v1",
+  "plan": "v1-calibration-data",
+  "created_at": "2026-10-08T03:35:40Z",
+  "tier": "lite",
+  "phase": "DONE",
+  "phases_done": [
+    "RS",
+    "S",
+    "P",
+    "E",
+    "C",
+    "T",
+    "A",
+    "DONE"
+  ],
+  "rightsize": {
+    "score": 4,
+    "computed_tier": "lite",
+    "inputs": {
+      "files_est": 12,
+      "new_dep": false,
+      "public_api": false,
+      "migration": false,
+      "security": true,
+      "novel": false,
+      "stakes": "med"
+    }
+  },
+  "refine_cycles": 0,
+  "skips": [],
+  "gates": [
+    {
+      "rubric": "complexity",
+      "total": 7,
+      "dims": {
+        "scope": 2,
+        "ambiguity": 1,
+        "dependencies": 2,
+        "risk": 2
+      },
+      "verdict": "extended",
+      "at": "2026-10-08T03:35:40Z"
+    },
+    {
+      "rubric": "explore",
+      "total": 77.5,
+      "dims": {
+        "alignment": 7,
+        "correctness": 7,
+        "maintainability": 9,
+        "performance": 9,
+        "simplicity": 10,
+        "risk": 8,
+        "innovation": 2
+      },
+      "verdict": "solid",
+      "at": "2026-10-08T03:35:40Z",
+      "label": "documentation-only"
+    },
+    {
+      "rubric": "explore",
+      "total": 88.5,
+      "dims": {
+        "alignment": 10,
+        "correctness": 9,
+        "maintainability": 9,
+        "performance": 8,
+        "simplicity": 9,
+        "risk": 9,
+        "innovation": 4
+      },
+      "verdict": "elite",
+      "at": "2026-10-08T03:35:40Z",
+      "label": "bound-data-packet"
+    },
+    {
+      "rubric": "explore",
+      "total": 65,
+      "dims": {
+        "alignment": 8,
+        "correctness": 8,
+        "maintainability": 5,
+        "performance": 6,
+        "simplicity": 3,
+        "risk": 5,
+        "innovation": 9
+      },
+      "verdict": "weak",
+      "at": "2026-10-08T03:35:40Z",
+      "label": "external-custody-service"
+    },
+    {
+      "rubric": "confidence",
+      "total": 93,
+      "dims": {
+        "pattern_match": 92,
+        "requirement_clarity": 94,
+        "decomposition_stability": 92,
+        "constraint_compliance": 94
+      },
+      "verdict": "AUTO_PROCEED",
+      "at": "2026-10-08T03:38:49Z"
+    }
+  ],
+  "amendments": [],
+  "declared_scope": [
+    "src/magicite/eval/data_readiness.py",
+    "src/magicite/eval/validate.py",
+    "src/magicite/eval/operator_cli.py",
+    "src/magicite/eval/__main__.py",
+    "scripts/qualify_calibration_data.py",
+    "tests/unit/eval/test_data_readiness.py",
+    "tests/unit/eval/test_manifests.py",
+    "tests/unit/eval/test_production_empirical.py",
+    "tests/unit/test_qualify_calibration_data.py",
+    "tests/fixtures/calibration-data/*",
+    "docs/qualification/calibration-data.md",
+    "docs/qualification/evidence/calibration-data/*",
+    ".spectra/plans/v1-calibration-data*"
+  ],
+  "criteria_sha256": "a5f8cbbd36a7104ba2839e92b889ba1eaf095f1266528a933466213c136a0ff7",
+  "critic": {
+    "author": null,
+    "checker": null
+  },
+  "scope_declared_at": "2026-10-08T03:38:49Z",
+  "criteria_frozen_at": "2026-10-08T03:38:49Z"
+}

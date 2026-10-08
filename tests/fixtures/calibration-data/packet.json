@@ -1,0 +1,86 @@
+{
+  "dataset": {
+    "id": "synthetic-controls-only",
+    "pool_count": 2,
+    "revision": "fixture-r1"
+  },
+  "evidence": {
+    "judgment1": {
+      "path": "judgment1.json",
+      "sha256": "709ebb2b44dd369209f7139259c93763e2ac2bc4e5d17d3f2b0dca613ca7f14e"
+    },
+    "judgment2": {
+      "path": "judgment2.json",
+      "sha256": "c5b90dc095cf941c12aac392dde28e92e0370ea4c7a7450b66e7224d1a84fb2c"
+    },
+    "review0": {
+      "path": "review0.json",
+      "sha256": "1e3d259a4c7003b2fe78057425a15822d593eb90c2cee58abbb21da1dcc78e6c"
+    },
+    "review1": {
+      "path": "review1.json",
+      "sha256": "5501dfd6784e932f07e7c4909d03f49e8a0a23ae2e756ff7960dee59c853e721"
+    },
+    "review2": {
+      "path": "review2.json",
+      "sha256": "a742392c800b827703d16a5aa1ab4caad506aa58ad7fb8f5851e8856e2fcabce"
+    },
+    "source0": {
+      "path": "source0.json",
+      "sha256": "742ac5c9664b9a0e72fa852817b05003ff05afee25585b84f51e0263fd357f12"
+    },
+    "source1": {
+      "path": "source1.json",
+      "sha256": "b78b619f342cbaa47af14de5892b9eeee7b1c7d3bfb2f256c114d78f459bfb07"
+    },
+    "source2": {
+      "path": "source2.json",
+      "sha256": "d1ee0caa3774932356a094239e433eea652733037b3a792bfde2bc15eeaf70c4"
+    },
+    "time0": {
+      "path": "time0.json",
+      "sha256": "ccf05d76e68f14b05219343d67dc8e96fae19a5c3c9d212c4c449578442b09c1"
+    },
+    "time1": {
+      "path": "time1.json",
+      "sha256": "515400cc889f4122ca649d8a5b0d4114db2c6e1277c67f0035e37695484d6526"
+    },
+    "time2": {
+      "path": "time2.json",
+      "sha256": "a138a8debd49f3d73dbb994908c25f2cee04905c2d67e334afba8d6739ce047d"
+    }
+  },
+  "files": {
+    "labels": {
+      "count": 3,
+      "path": "labels.json",
+      "sha256": "cde51f5390321972a121f7270dcf7285c2a8b0884838be43fc32b6b83d85aac8"
+    },
+    "partitions": {
+      "count": 3,
+      "path": "partitions.json",
+      "sha256": "8316cbc80ecc08280ccf44f51a75d57108ebb822698020969f8fa3bd2110601d"
+    },
+    "pool": {
+      "count": 2,
+      "path": "pool.json",
+      "sha256": "76919ebae1a7df43d2f55089778bcc907cc300f29ffbcabeef534d77c047aace"
+    },
+    "preregistration": {
+      "path": "preregistration.json",
+      "sha256": "5b426f480f75795655c4828c8546f1037ef9b89ece0c6daef20c9c2b39cc478d"
+    },
+    "provenance": {
+      "count": 3,
+      "path": "provenance.json",
+      "sha256": "b37008a7688ea42390b5feea0c5de01232f8e8160b1a5e2b5a3cbfc951b8f202"
+    },
+    "runtime": {
+      "count": 3,
+      "path": "runtime.json",
+      "sha256": "f6e870853fb8a6a10702f9ba4342627fa3b14b7a51d6e04f316881fc55c6dea9"
+    }
+  },
+  "schema": "magicite/calibration-data-packet/1",
+  "temporal_cutoff": "2026-01-01T00:00:00+00:00"
+}

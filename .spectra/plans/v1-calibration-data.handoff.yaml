@@ -1,0 +1,31 @@
+{
+  "receiver": "vivi",
+  "base": "a8f2100f2c20a7230b56d4fcdab69e5f2d5c6429",
+  "worktree": "/Users/henrique/.codex/worktrees/v1-r3-qualification/magicite",
+  "plan": "v1-calibration-data.md",
+  "criteria": "v1-calibration-data.acceptance.md",
+  "criteria_sha256": "a5f8cbbd36a7104ba2839e92b889ba1eaf095f1266528a933466213c136a0ff7",
+  "scope": [
+    "src/magicite/eval/data_readiness.py",
+    "src/magicite/eval/validate.py",
+    "src/magicite/eval/operator_cli.py",
+    "src/magicite/eval/__main__.py",
+    "scripts/qualify_calibration_data.py",
+    "tests/unit/eval/test_data_readiness.py",
+    "tests/unit/eval/test_manifests.py",
+    "tests/unit/eval/test_production_empirical.py",
+    "tests/unit/test_qualify_calibration_data.py",
+    "tests/fixtures/calibration-data/*",
+    "docs/qualification/calibration-data.md",
+    "docs/qualification/evidence/calibration-data/*",
+    ".spectra/plans/v1-calibration-data*"
+  ],
+  "completion": "Ten control criteria verified on a clean candidate, independent review, source-bound compact evidence and current CI. Authentic E2/E3/no-match/group/temporal/fresh-final readiness remains UNEVALUATED where unsupported.",
+  "guardrails": [
+    "Verify incoming ECL and receiver trace before implementation.",
+    "Single writer; preserve other agents files and previous archives.",
+    "No model/ranking calls, calibration fit/save/activation, threshold/policy changes or authentic-data invention.",
+    "No unclassified final consumer fallback to fixture mode; supported empirical claims require qualifying evidence.",
+    "Local receipt is not proof against out-of-band reads or rollback."
+  ]
+}

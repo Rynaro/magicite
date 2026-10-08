@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "required_checks": [
+    {"id": "focused", "oracle_id": "calibration-data-focused@1"},
+    {"id": "independent", "oracle_id": "calibration-data-independent@1"},
+    {"id": "offline-control-execution", "oracle_id": "calibration-data-offline-control-execution@1"},
+    {"id": "hosted-ci", "oracle_id": "calibration-data-hosted-ci@1"}
+  ],
+  "configuration": [
+    ".spectra/plans/v1-calibration-data.acceptance.md",
+    ".spectra/plans/v1-calibration-data.scope-clarification-01.md",
+    "tests/fixtures/calibration-data/preregistration.json"
+  ],
+  "environment": [],
+  "required_untracked": []
+}

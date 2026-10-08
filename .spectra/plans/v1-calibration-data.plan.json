@@ -1,0 +1,33 @@
+{
+  "thread_id": "59f3b808-f1e0-43c3-baed-a40b525be9e8",
+  "tier": "standard",
+  "enforce": "fail-fast",
+  "executor": "native",
+  "steps": [
+    {
+      "step_id": "calibration-data-controls",
+      "from": {
+        "eidolon": "ramza",
+        "version": "1.1.0"
+      },
+      "to": {
+        "eidolon": "vivi",
+        "version": "n/a"
+      },
+      "performative": "DELEGATE",
+      "edge_origin": "roster",
+      "objective": "Implement bounded calibration-data provenance, partition, freeze and local final-access controls while leaving unsupported authentic empirical readiness UNEVALUATED.",
+      "artifact": {
+        "kind": "spec",
+        "schema_version": "1.0",
+        "path": "v1-calibration-data.md",
+        "sha256": "0ef93afaacb058c1a48f6861f9bf2987d4c97b783b2896c95d76a7526fcf5d55",
+        "size_bytes": 13457
+      },
+      "model_tier_hint": "reasoning-class",
+      "constraints": {
+        "trust_level": "standard"
+      }
+    }
+  ]
+}

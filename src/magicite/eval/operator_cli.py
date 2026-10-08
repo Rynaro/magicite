@@ -229,11 +229,13 @@ def cmd_run_retrieval(
     output: Path,
     policy_id: str = "dense-v1",
 ) -> dict[str, Any]:
-    if provider == "production":
+    if provider != "hashing":
         raise ValueError("legacy retrieval has no production adapter; use qualify_production_empirical.py")
     experiment = _load_experiment(experiment_path)
     corpus = _load_corpus(corpus_path)
-    seal_errors = validate_experiment_corpus_seal(experiment, corpus)
+    seal_errors = validate_experiment_corpus_seal(
+        experiment, corpus, fixture_classification="synthetic_hashing_diagnostic"
+    )
     if seal_errors:
         raise ValueError("unsealed final/holdout: " + "; ".join(seal_errors))
     # Digest mismatch is also enforced inside run_predictions (hard fail).
@@ -278,6 +280,8 @@ def cmd_run_retrieval(
     aggregates: dict[str, Any] = {
         **ranking.to_dict(),
         "provider": provider,
+        "data_classification": "synthetic_hashing_diagnostic",
+        "qualifying": False,
         "split": split,
         "policy_id": policy_id,
         "evidence_status": "UNEVALUATED",
@@ -353,7 +357,9 @@ def cmd_run_paired_policies(
         )
     experiment = _load_experiment(experiment_path)
     corpus = _load_corpus(corpus_path)
-    seal_errors = validate_experiment_corpus_seal(experiment, corpus)
+    seal_errors = validate_experiment_corpus_seal(
+        experiment, corpus, fixture_classification="synthetic_hashing_diagnostic"
+    )
     if seal_errors:
         raise ValueError("unsealed final/holdout: " + "; ".join(seal_errors))
     if corpus.content_identity_sha256 != experiment.corpus_sha256:
@@ -409,6 +415,8 @@ def cmd_run_paired_policies(
         "incumbent": incumbent,
         "candidate": candidate,
         "candidate_arm_kind": "harness_seed_perturbation",
+        "data_classification": "synthetic_hashing_diagnostic",
+        "qualifying": False,
         "interval": interval.to_dict(),
         "noninferiority": _demote_pass(ni.to_dict()),
         "critical_slices": _demote_pass(slices.to_dict()),
@@ -439,7 +447,9 @@ def cmd_run_abstention_gate(
 ) -> dict[str, Any]:
     experiment = _load_experiment(experiment_path)
     corpus = _load_corpus(corpus_path)
-    seal_errors = validate_experiment_corpus_seal(experiment, corpus)
+    seal_errors = validate_experiment_corpus_seal(
+        experiment, corpus, fixture_classification="synthetic_hashing_diagnostic"
+    )
     if seal_errors:
         raise ValueError("unsealed final/holdout: " + "; ".join(seal_errors))
     if corpus.content_identity_sha256 != experiment.corpus_sha256:
@@ -482,6 +492,8 @@ def cmd_run_abstention_gate(
         "status": "UNEVALUATED",
         "evidence_status": "UNEVALUATED",
         "calibration_split": calibration_split,
+        "data_classification": "synthetic_hashing_diagnostic",
+        "qualifying": False,
         "final_split": final_split,
         "calibration_query_count": cal_n,
         "abstention_report": report.to_dict(),

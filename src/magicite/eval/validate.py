@@ -58,7 +58,7 @@ EFFICACY_METRICS = frozenset(
     }
 )
 
-_SEALED_SPLITS = frozenset({"final", "holdout"})
+_SEALED_SPLITS = frozenset({"test", "final", "holdout"})
 
 
 def _require_hex64(value: Any, locus: str, errors: list[str]) -> None:
@@ -146,6 +146,9 @@ def claim_eligible_for_new_run_gate(claim: Claim | dict[str, Any]) -> list[str]:
 def validate_experiment_corpus_seal(
     experiment: ExperimentManifest | dict[str, Any],
     corpus: CorpusManifest | dict[str, Any],
+    *,
+    data_context: Any = None,
+    fixture_classification: str | None = None,
 ) -> list[str]:
     """Reject unsealed final/holdout use (evaluation.md E2 partitions)."""
     errors: list[str] = []
@@ -168,12 +171,25 @@ def validate_experiment_corpus_seal(
     else:
         return ["corpus must be an object"]
 
-    opened = provenance.get("final_labels_opened")
-    if splits & _SEALED_SPLITS and opened is not True:
-        errors.append(
-            "final/holdout queries require label_provenance.final_labels_opened=true "
-            "(preregistration seal); development/calibration must not open them"
-        )
+    if splits & _SEALED_SPLITS:
+        if fixture_classification == "synthetic_hashing_diagnostic":
+            if provenance.get("final_labels_opened") is not True:
+                errors.append("fixture final_labels_opened=true required; never qualifying evidence")
+        elif data_context is None:
+            errors.append(
+                "final/test/holdout requires verified data packet/access bindings; "
+                "bare final_labels_opened=true is not qualifying"
+            )
+        else:
+            from magicite.eval.data_readiness import FinalAccessContext
+
+            if type(data_context) is not FinalAccessContext:
+                errors.append("verified data context type required")
+            else:
+                try:
+                    errors.extend(data_context.qualification_errors())
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    errors.append("verified data access failed: " + str(exc))
     return errors
 
 
@@ -264,26 +280,22 @@ def validate_corpus_manifest_data(data: Any) -> list[str]:
             if provenance.get("production_expansion_used") is True:
                 errors.append(f"{locus}.provenance must not use production expansion as gold")
 
-    # Train/development vs test/final/holdout leakage by query id, group, or text.
-    development_like = {"train", "development", "calibration"}
-    evaluation_like = {"test", "final", "holdout"}
-    dev_ids = set().union(*(split_to_ids.get(s, set()) for s in development_like))
-    eval_ids = set().union(*(split_to_ids.get(s, set()) for s in evaluation_like))
-    leaked_ids = sorted(dev_ids & eval_ids)
-    if leaked_ids:
-        errors.append(f"train/test query_id leakage: {leaked_ids}")
+    from magicite.eval.data_readiness import partition_errors
 
-    dev_groups = set().union(*(split_to_groups.get(s, set()) for s in development_like))
-    eval_groups = set().union(*(split_to_groups.get(s, set()) for s in evaluation_like))
-    leaked_groups = sorted(dev_groups & eval_groups)
-    if leaked_groups:
-        errors.append(f"train/test group_id leakage: {leaked_groups}")
-
-    dev_texts = set().union(*(split_to_texts.get(s, set()) for s in development_like))
-    eval_texts = set().union(*(split_to_texts.get(s, set()) for s in evaluation_like))
-    leaked_texts = sorted(dev_texts & eval_texts)
-    if leaked_texts:
-        errors.append(f"train/test normalized-text leakage ({len(leaked_texts)} queries)")
+    errors.extend(
+        partition_errors(
+            [
+                {
+                    "query_id": q.get("query_id"),
+                    "query_text": q.get("query_text", ""),
+                    "split": q.get("split"),
+                    "group_id": q.get("group_id"),
+                }
+                for q in queries
+                if isinstance(q, dict)
+            ]
+        )
+    )
 
     return errors
 
