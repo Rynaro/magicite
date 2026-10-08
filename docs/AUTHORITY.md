@@ -1,7 +1,9 @@
 # Magicite v1 integration authority
 
-The installed package remains 0.3.1. This integration is not a published v1
-release or a declaration that every release gate has passed.
+The proposed installed package identity is 1.0.0rc1. This is an unpublished
+developer-preview candidate, not v1 GA or a declaration that release gates passed.
+The [draft preview contract](releases/1.0.0-rc.1.md) defines its limited advertised
+scope; it does not amend or pass the original GA acceptance criteria.
 
 ## Authority order
 
@@ -26,8 +28,10 @@ recovery also requires canonical bodies/assets, approvals, policy/trust state,
 evidence checkpoints and separately protected fingerprint-key custody; a copied DB
 is not a complete backup. Authenticated trust history is held by a separately
 provisioned custodian under the adopted trust-hardening amendment; the project-local
-journal is a verified projection, not an authority. Separate-UID Linux/macOS
-deployment qualification remains UNEVALUATED until actually run.
+journal is a verified projection, not an authority. A historical [separate-UID Linux custody witness](qualification/linux-custody.md)
+exists at source c7b3bfbeae89031bb33658a4bc041aea4a2091ec. It does not qualify
+macOS custody or the combination of native installation and real-host deployment.
+Those combined deployment obligations remain UNEVALUATED.
 
 ## Historical 0.3 semantic decisions (superseded where v1 differs)
 

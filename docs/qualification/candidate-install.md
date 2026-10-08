@@ -3,15 +3,18 @@
 This rehearsal builds local candidate artifacts from a clean committed checkout,
 then installs each explicit artifact into a different fresh environment outside
 the checkout. It does not install Magicite by name from a package index. The
-current package metadata is 0.3.1: these freshly built candidate bytes are neither
-the existing published 0.3.1 artifacts nor a published 1.0.0 release.
+proposed package metadata is 1.0.0rc1: these freshly built candidate bytes are
+unpublished developer-preview artifacts, not a published 1.0.0 GA release.
+The historical 0.3.1 installation witness at source
+274020cbf78bff4884913d7ba5c3b39b7441dd5a remains unchanged; its execution is not
+reattributed to the preview candidate. See the [draft preview contract](../releases/1.0.0-rc.1.md).
 
 Use supported Python3.12 with the `build` package, then run:
 
 ```sh
 /private/tmp/magicite-v1-install/build-venv/bin/python \
   /Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/scripts/qualify_distributions.py \
-  --output /private/tmp/magicite-v1-install/candidate-evidence
+  --output /private/tmp/magicite-v1-release-recovery/candidate-C
 ```
 
 The output directory must be fresh and outside the checkout. Dependencies may be
@@ -35,7 +38,9 @@ python3.12 -m venv /tmp/magicite-candidate
 Use the explicit `.tar.gz` path instead of the wheel for the sdist case. Doctor
 reports its typed `doctor/1` diagnosis; a fresh unconfigured installation exits1
 and requires protected custody provisioning before writes. See the existing
-[Linux custody qualification](linux-custody.md) for deployment prerequisites.
+[operator tutorial](../operator-tutorial.md) and [Linux custody qualification](linux-custody.md)
+for deployment prerequisites. Do not substitute the positive test's simulated
+custodian for separately protected production custody.
 Offline production embedding with an empty cache must retain `magicite fetch-model`
 remediation. The rehearsal checks that error without downloading a model.
 
@@ -57,7 +62,7 @@ index. Verify completed evidence without another installation:
 ```sh
 /private/tmp/magicite-v1-install/build-venv/bin/python \
   /Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/scripts/qualify_distributions.py \
-  --output /private/tmp/magicite-v1-install/candidate-evidence --verify
+  --output /private/tmp/magicite-v1-release-recovery/candidate-C --verify
 ```
 
 Passing evidence is limited to the recorded candidate/Python/OS pair. PyPI,
