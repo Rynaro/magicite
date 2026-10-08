@@ -104,7 +104,7 @@ def prepare(root: Path, command: Path) -> dict[Path, tuple[Snapshot | None, byte
                 "Conflicting magicite server in .mcp.json; review and remove that entry, then rerun init."
             )
         servers["magicite"] = entry
-        mcp_data = (json.dumps(config, indent=2, ensure_ascii=False) + "\n").encode()
+        mcp_data = (json.dumps(config, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode()
         # Semantically correct existing configurations do not need reformatting/backups.
         if (
             old_mcp

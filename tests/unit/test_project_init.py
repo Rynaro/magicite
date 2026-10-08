@@ -325,7 +325,7 @@ def test_temp_fsync_concurrent_edit_never_overwritten(tmp_path, monkeypatch, rol
     assert path.read_text() == "concurrent external edit"
 
 
-@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity", "1e999"])
 def test_nonfinite_json_rejected(tmp_path, constant):
     path = tmp_path / ".mcp.json"
     original = '{"extra":' + constant + "}"
