@@ -144,6 +144,10 @@ ALLOWLIST: dict[tuple[str, str, str], tuple[int, str]] = {
         "sole read; channel resolved inside the same snapshot (F3 fix)",
     ),
     # --- route / body disclosure ---
+    ("core/calibration_admission.py", "runtime_subject", "authenticated_snapshot"): (
+        1,
+        "one snapshot binds current protected history head and policy for calibration identity",
+    ),
     ("core/router.py", "_trust_decisions_by_engram", "authenticated_snapshot"): (
         1,
         "one snapshot per route binds decisions+policy, threaded to every subject",
