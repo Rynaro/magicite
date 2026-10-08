@@ -275,6 +275,14 @@
       "raw_sha256": "f6ad487d712d06625e9c1d24a0918db38ef3381a70f7f01221df8c0092d47e73",
       "scope": "Historical pre-source-C candidate/reproduction; not measured C outcomes"
     },
+    "historical-failures/checker-ci-diagnosis.json": {
+      "archive_path": "historical-failures/checker-ci-diagnosis.json.gz",
+      "archive_sha256": "e3890c4bf6fff509254ec77df67f4d98e7501c2db70fbf1747478142d6fdc625",
+      "compression": "gzip",
+      "raw_bytes": 797,
+      "raw_sha256": "c3ac8415d507d50bd1e71619b2dbf2c7554ae828f65c0ad5d2f1c3d13a337f20",
+      "scope": "Actual archiveA d314f89 hosted failure/status/diagnosis; distinct from sourceC fixture execution and future A2 CI"
+    },
     "historical-failures/checker-probes-results.json": {
       "archive_path": "historical-failures/checker-probes-results.json.gz",
       "archive_sha256": "23e013f8e6e4cac1008d93a64dcd3e976d543b79578aab01f5428259392d9e27",
@@ -298,6 +306,46 @@
       "raw_bytes": 5113,
       "raw_sha256": "4d136cca93e54cafc8a242d502b7acba76ea18fddea268a7e62025d97b4dd288",
       "scope": "Historical pre-source-C execution/finding; not measured C outcomes"
+    },
+    "historical-failures/ci-archive-a-failure-receipt.json": {
+      "archive_path": "historical-failures/ci-archive-a-failure-receipt.json.gz",
+      "archive_sha256": "a035979a3ec29881aae0ac8ff90da76fd095c08c36fbf4187b831f74d69ff94b",
+      "compression": "gzip",
+      "raw_bytes": 2077,
+      "raw_sha256": "25ed55e23d18e3e0332676df8961e23845b28ba25cf75dad991e7839c7c6cb54",
+      "scope": "Actual archiveA d314f89 hosted failure/status/diagnosis; distinct from sourceC fixture execution and future A2 CI"
+    },
+    "historical-failures/ci-d314f89-failed.json": {
+      "archive_path": "historical-failures/ci-d314f89-failed.json.gz",
+      "archive_sha256": "bc84d1e8e22762d9c2a00b9ea40c499e40910cf86ddc2880fac35b8638f84b67",
+      "compression": "gzip",
+      "raw_bytes": 1837,
+      "raw_sha256": "b3e41bdc79aacf18863bd71948165709f051c3cfed6ebf3b38a91204aa390421",
+      "scope": "Actual GitHub head d314f89 rollup: six completed checks, two FAILURE/four SUCCESS; no successor CI inference"
+    },
+    "historical-failures/ci-job-113292363509-failed.log": {
+      "archive_path": "historical-failures/ci-job-113292363509-failed.log.gz",
+      "archive_sha256": "ea6d0326122c5ccc3b4959cdcc3b9b06d0fc37bc25d86590668053e0cb0af5c6",
+      "compression": "gzip",
+      "raw_bytes": 27170,
+      "raw_sha256": "ed7fedab1bbb868dac03c91b390ea79782801a3c06535984e9ddf7c960a3e80e",
+      "scope": "Actual archiveA d314f89 hosted failure/status/diagnosis; distinct from sourceC fixture execution and future A2 CI"
+    },
+    "historical-failures/ci-job-113292363524-failed.log": {
+      "archive_path": "historical-failures/ci-job-113292363524-failed.log.gz",
+      "archive_sha256": "4ed67e549be48a4445fcd59187a3d89124899d317c67d55e175bfd072dc45bfa",
+      "compression": "gzip",
+      "raw_bytes": 27170,
+      "raw_sha256": "e126ecb977965f449855423714d9500770b845aa3d0f70c15ebc4a2d677b22b4",
+      "scope": "Actual archiveA d314f89 hosted failure/status/diagnosis; distinct from sourceC fixture execution and future A2 CI"
+    },
+    "historical-failures/ci-watch.log": {
+      "archive_path": "historical-failures/ci-watch.log.gz",
+      "archive_sha256": "7af7914dbfb31aafd2ab4c34d82e6f154f8ab17a43c471cb644dccab01e2b698",
+      "compression": "gzip",
+      "raw_bytes": 3560,
+      "raw_sha256": "12d832ea5fa6107988ae7cccf62809bb77b338790b795c58aef5221fd8cf8881",
+      "scope": "Actual archiveA d314f89 hosted failure/status/diagnosis; distinct from sourceC fixture execution and future A2 CI"
     },
     "historical-failures/first-focused.log": {
       "archive_path": "historical-failures/first-focused.log.gz",
@@ -338,6 +386,14 @@
       "raw_bytes": 2116,
       "raw_sha256": "6c6a5a8d6f5e46eee6766f211cbbb2ba77c211ab48cc5aab9b7a761728974731",
       "scope": "Historical pre-source-C execution/finding; not measured C outcomes"
+    },
+    "historical-failures/ledger-archive-a-failed-status.json": {
+      "archive_path": "historical-failures/ledger-archive-a-failed-status.json.gz",
+      "archive_sha256": "71e36a94a3fcbb08bd85a57f8f6fd122b1d07b2ba878c4c56a0d5b4fe0574996",
+      "compression": "gzip",
+      "raw_bytes": 1881,
+      "raw_sha256": "8bb655251763603642bb02cd0cbf0506674518d966afa6c4ad8407ee22381fc7",
+      "scope": "Actual archiveA d314f89 hosted failure/status/diagnosis; distinct from sourceC fixture execution and future A2 CI"
     },
     "historical-failures/mypy-repair.log": {
       "archive_path": "historical-failures/mypy-repair.log.gz",
@@ -560,9 +616,9 @@
       "raw_sha256": "b547c007cb013e9e77c2c5001d33e242a005dd63825f3fe956243c3734bb1447"
     },
     "run-offline-proof.py": {
-      "archive_path": "run-offline-proof.py",
-      "archive_sha256": "d8c0d15dd957677baf6e7581a956f690695dc7d265a4c0776cf0c032941c1144",
-      "compression": "none",
+      "archive_path": "run-offline-proof.py.gz",
+      "archive_sha256": "88419084fa01a321da10a1ceacfeeb31109ed57c7ca3e12db03ee863c2e3e875",
+      "compression": "gzip",
       "raw_bytes": 5769,
       "raw_sha256": "d8c0d15dd957677baf6e7581a956f690695dc7d265a4c0776cf0c032941c1144"
     },

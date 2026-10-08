@@ -1,4 +1,16 @@
 {
+  "archive_format_repair": {
+    "failed_archive_head": "d314f89311d90806bd9c5c7de4f6a3a48c46db1b",
+    "failed_ci_receipt_raw_sha256": "b3e41bdc79aacf18863bd71948165709f051c3cfed6ebf3b38a91204aa390421",
+    "final_successor_ci": "PENDING own-head six SUCCESS receipt",
+    "representation_only": true,
+    "runtime_packet_criteria_unchanged": true,
+    "source_c_execution_rerun": false,
+    "wrapper_archive_path": "run-offline-proof.py.gz",
+    "wrapper_archive_sha256": "88419084fa01a321da10a1ceacfeeb31109ed57c7ca3e12db03ee863c2e3e875",
+    "wrapper_raw_bytes": 5769,
+    "wrapper_raw_sha256": "d8c0d15dd957677baf6e7581a956f690695dc7d265a4c0776cf0c032941c1144"
+  },
   "expected_later_head": "Docs/evidence successor remains distinct from measured C",
   "fixture_inputs": {
     "candidate-one.txt": "4e431b320ba619f9f5916804fe4e108e0fdbffc909fa95303a73c8d508cbcc1c",
