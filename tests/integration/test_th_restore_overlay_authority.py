@@ -183,6 +183,10 @@ _MIRROR_NAMES = {"trust_decisions_dir", "_decision_mirror_path", "trust_dir"}
 # covered by the dynamic planted-mirror test below.
 _ALLOWED_MIRROR_REFERENCES = {
     ("__main__.py", "trust_list_cmd"): ("defn/read", "JSON key 'decisions' of a list response"),
+    ("eval/calibration_consumer.py", "runtime_identity"): (
+        "defn/read",
+        "Authenticated custody snapshot JSON projection; no decision mirror paths or writes",
+    ),
     ("core/backup.py", "<module>"): ("defn/read", "module docstring text"),
     ("core/backup.py", "_stamp_restore_generation"): ("generic", "marker file under trust/"),
     ("core/backup.py", "_iter_domain_files"): ("generic", "archive source enumeration (read)"),

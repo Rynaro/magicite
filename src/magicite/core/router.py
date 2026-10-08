@@ -189,6 +189,7 @@ class RouteDecision:
     policy_source: Literal["store", "config_fresh_install"] | None = None
     #: Plan/1 identity digest when composition succeeded (None on abstain/error).
     plan_digest: str | None = None
+    raw_candidates: tuple[Candidate, ...] = ()
     schema_version: str = ROUTE_DECISION_SCHEMA
 
 
@@ -1810,6 +1811,7 @@ def _finalize_route(
         status=final_status,
         selected_ids=selected_ids,
         candidates=final_candidates,
+        raw_candidates=tuple(candidates),
         exclusions=exclusions,
         score_components=score_components or {},
         confidence=confidence,

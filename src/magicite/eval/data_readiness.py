@@ -441,7 +441,14 @@ def freeze_packet(
     if not re.fullmatch(r"[0-9a-f]{40}", source_commit) or not HEX.fullmatch(runner_sha256):
         raise ValueError("source commit and runner SHA256 required")
     prepared = prepare_packet(packet_path)
+    root = packet_path.parent.resolve()
+    partitions = _read(root, prepared.packet["files"]["partitions"], {})
+    calibration_ids = {r["query_id"] for r in partitions if FAMILIES[r["split"]] == "calibration"}
+    labels = _read(root, prepared.packet["files"]["labels"], {})
+    projection = [r for r in labels if r["query_id"] in calibration_ids]
     body = {
+        "calibration_projection": projection,
+        "calibration_projection_sha256": sha256_json(projection),
         "schema": FREEZE_SCHEMA,
         "source_commit": source_commit,
         "source_inputs": source_inputs or {},
