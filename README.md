@@ -47,103 +47,29 @@ sandboxing, and execution.
 | **Governed** | Every tool has a risk and side-effect class. Durable lifecycle changes are approval-gated by default and leave an audit trail. |
 | **Host-agnostic** | Any MCP client can use the core server. Hooks improve signal quality, but they are an adapter—not a dependency. |
 
-This is a **draft 1.0.0rc1 developer preview**, unpublished and awaiting a concrete
-release decision. The [preview contract](docs/releases/1.0.0-rc.1.md) bounds the
+The **1.0.0rc1 developer preview is [published](https://github.com/Rynaro/magicite/releases/tag/preview/v1.0.0-rc.1)**. The [preview contract](docs/releases/1.0.0-rc.1.md) bounds the
 Python 3.12 native-package and scoped route/read observations; it does not
 qualify a combined production deployment or the original v1 GA contract. See the [current authority](docs/AUTHORITY.md), [operator tutorial](docs/operator-tutorial.md),
 and [UNEVALUATED evidence catalog](docs/evaluation/v1/unevaluated.md).
 
 ## Quick start
 
-### 1. Install the explicit candidate and provision custody
+Add Magicite alongside your project as a stdio MCP server. Follow these three
+references in order:
 
-The proposed native preview uses Python 3.12. Candidate wheel/sdist artifacts
-are local review artifacts until publication is approved. Follow the
-[candidate installation procedure](docs/qualification/candidate-install.md)
-to build from the reviewed clean commit and install the explicit artifact in a
-fresh environment. No PyPI or container v1 installation is qualified.
+| Reference | What you do |
+|---|---|
+| [Install](docs/install.md) | Verify the published wheel and install it in a permanent Python 3.12 environment. |
+| [Setup](docs/setup.md) | Have a Linux administrator provision independent protected custody for the project. |
+| [Quick Setup](docs/quick-setup.md) | Fetch the model, connect MCP, import and approve a skill, then route and load its body. |
 
-```bash
-python3.12 -m venv /tmp/magicite-preview
-/tmp/magicite-preview/bin/python -m pip install /absolute/path/to/magicite-1.0.0rc1-py3-none-any.whl
-/tmp/magicite-preview/bin/magicite --version
-/tmp/magicite-preview/bin/magicite doctor --project-root /absolute/path/to/your-project
-```
-
-A fresh registry is unconfigured: `doctor` reports the missing prerequisite.
-Before `sync`, `register`, `serve` or other trust-dependent use, provision
-protected custody: a root-installed descriptor under `/etc/magicite/registries/`,
-a separate custodian account running `magicite custody serve`, explicit
-`magicite custody enroll`, and `magicite custody initialize-journal`. Magicite
-does not create accounts or write `/etc`. Follow the
-[operator tutorial's custody prerequisites](docs/operator-tutorial.md) and
-[Linux custody procedure](docs/qualification/linux-custody.md) in an isolated
-Linux deployment. The tutorial's in-process custodian is a disposable simulation,
-not workstation provisioning. macOS production custody remains UNEVALUATED.
-
-For production embeddings, run `magicite fetch-model` explicitly before `sync`,
-imports that embed content, or production lookup; then run
-`magicite doctor --project-root PROJECT`. Model acquisition is the intentional
-network-bearing setup step; embedding and lookup can run offline afterward.
-Serving alone initializes the embedder lazily and need not acquire a model.
-
-After protected setup, import local skills through `register` or `sync`, inspect
-`magicite trust review --project-root PROJECT --engram-id ID`, and explicitly
-approve the reviewed digest with `magicite trust approve --project-root PROJECT
---engram-id ID --expected-digest DIGEST --actor OPERATOR`. Imported content cannot
-approve itself. Keep autonomous policy disabled (the default).
+Once Install and Setup are complete, **[Quick Setup](docs/quick-setup.md)** is the
+short project-user path. Custody is mandatory; this preview does not yet have a
+one-command bootstrap. macOS production custody remains unqualified. Keep
+autonomous approval disabled and review each imported skill's exact digest.
 
 The repository's 30 first-party engrams are examples requiring the same review;
 their count is not evidence of a break-even point or routing quality.
-
-### 2. Connect your MCP client
-
-Point the client at the installed executable and the project whose
-`.magicite/` directory should own the registry:
-
-```json
-{
-  "mcpServers": {
-    "magicite": {
-      "command": "/tmp/magicite-preview/bin/magicite",
-      "args": [
-        "serve",
-        "--project-root",
-        "/absolute/path/to/your-project"
-      ],
-      "env": {
-        "MAGICITE_EMBEDDING_OFFLINE": "1"
-      }
-    }
-  }
-}
-```
-
-For Claude Code, continue with the
-[host adapter guide](docs/adapters/claude-code.md). Tier-2 hooks are optional;
-ordinary MCP clients retain Tier-1 self-report and Tier-0 passive signals.
-
-### 3. Route, load, and report
-
-A normal agent loop uses only a small part of the 16-tool surface:
-
-```text
-route({ query, session_id })
-  -> ranked candidates + bounded composition plan
-
-load_skill_body({ name, level: "L2", expected_content_digest, expected_policy_digest })
-  -> procedure + pitfalls
-
-signal_use({ skill_ids, session_id })
-signal_outcome({ valence, salience, skill_ids, session_id })
-  -> evidence for later consolidation
-```
-
-The `route` response supplies the `expected_content_digest and expected_policy_digest` required for body
-disclosure. Loading rechecks eligibility and rejects stale policy, trust or file state.
-Abstention discloses neither plan nodes nor plan digests. Skill
-bodies are loaded only after selection, keeping context use progressive rather
-than injecting the whole registry into every prompt.
 
 ### Container deployment
 
@@ -378,6 +304,9 @@ documented in the [operations configuration reference](docs/operations.md#10-qui
 
 | Read this | For |
 |---|---|
+| [Install](docs/install.md) | Published wheel, checksum verification, and permanent Python environment. |
+| [Setup](docs/setup.md) | Linux administrator custody prerequisites and manual provisioning. |
+| [Quick Setup](docs/quick-setup.md) | First approved project skill through MCP. |
 | [Authority manifest](docs/AUTHORITY.md) | What defines current preview behavior when historical records disagree. |
 | [Documentation index](docs/README.md) | The complete reading order and terminology. |
 | [Vision and hypotheses](docs/01-vision-and-hypotheses.md) | Problem statement, falsification record, and research agenda. |
@@ -412,7 +341,7 @@ remain synchronized with the runtime.
 
 ## Project status
 
-Magicite 1.0.0rc1 is a proposed, unpublished developer preview.
+Magicite 1.0.0rc1 is a published developer preview.
 The portable format, MCP surface, integrity model, lifecycle governance, and
 Dream recovery are implemented. The research question—whether graph and
 plasticity layers improve routing over simpler retrieval—remains open by
@@ -420,7 +349,7 @@ design, measured rather than assumed.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and
 [GitHub Releases](https://github.com/Rynaro/magicite/releases) for historical
-artifacts and immutable container digests; preview publication remains pending.
+artifacts; this preview publishes native wheel and source packages.
 
 ## License
 
