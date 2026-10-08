@@ -81,15 +81,18 @@ does not create accounts or write `/etc`. Follow the
 Linux deployment. The tutorial's in-process custodian is a disposable simulation,
 not workstation provisioning. macOS production custody remains UNEVALUATED.
 
+For production embeddings, run `magicite fetch-model` explicitly before `sync`,
+imports that embed content, or production lookup; then run
+`magicite doctor --project-root PROJECT`. Model acquisition is the intentional
+network-bearing setup step; embedding and lookup can run offline afterward.
+Serving alone initializes the embedder lazily and need not acquire a model.
+
 After protected setup, import local skills through `register` or `sync`, inspect
 `magicite trust review --project-root PROJECT --engram-id ID`, and explicitly
 approve the reviewed digest with `magicite trust approve --project-root PROJECT
 --engram-id ID --expected-digest DIGEST --actor OPERATOR`. Imported content cannot
 approve itself. Keep autonomous policy disabled (the default).
 
-For production embeddings, run `magicite fetch-model` explicitly before offline
-use, then `magicite doctor --project-root PROJECT`. Model acquisition is the
-intentional network-bearing setup step; lookup can run offline afterward.
 The repository's 30 first-party engrams are examples requiring the same review;
 their count is not evidence of a break-even point or routing quality.
 
