@@ -1359,7 +1359,9 @@ def _resolve_active_policy(
         )
 
     digest = (
-        policy_mod.bind_server_ceiling_digest(manifest.policy_digest, cfg)
+        manifest.policy_digest
+        if manifest.calibration_digest is not None
+        else policy_mod.bind_server_ceiling_digest(manifest.policy_digest, cfg)
         if manifest.policy_digest
         else policy_mod.compute_policy_digest(manifest.policy_id, cfg)
     )
@@ -1506,28 +1508,13 @@ def route(
             decision=decision,
         )
 
-    # Local policy id only — never mutate the caller's Config.
-    cal = calibration_mod.load_calibration(
-        cfg,
-        expected_config_digest=config_digest,
-    )
-    cal_digest = cal.digest if cal is not None else None
-    if cal is not None and cal.policy_id != policy_id:
-        calibration_mod.clear_calibration(cfg)
-        cal = None
-        cal_digest = None
-    # A governed manifest is the policy authority; calibration validation must
-    # not replace its effective identity with the fresh-install config identity.
-    if policy_source != "store":
-        digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=cal_digest)
-    if cal is not None and cal.policy_digest != digest:
-        calibration_mod.clear_calibration(cfg)
-        cal = None
-        cal_digest = None
-        if policy_source != "store":
-            digest = policy_mod.compute_policy_digest(policy_id, cfg, calibration_digest=None)
+    # Only protected policy custody authorizes runtime calibration. Local
+    # active.json remains an analysis helper, never a routing authority.
+    try:
+        cal = policy_store_mod.active_calibration(cfg, conn, embedder) if policy_source == "store" else None
+    except (InvalidInputError, OSError, ValueError) as exc:
+        raise InvalidInputError("calibration authority unavailable or incompatible", hint=str(exc)) from exc
     family = policy_mod.policy_family(policy_id)
-
     gen_id, snap_id, schema_d, tok_d, pin_reasons = _pin_index_identity(conn)
 
     qvec = embedder.embed(query)
@@ -1738,7 +1725,7 @@ def _finalize_route(
                 top_score=top_score,
                 margin=margin,
                 artifact=calibration,
-                expected_policy_digest=policy_digest,
+                expected_policy_digest=policy_mod.compute_policy_digest(policy_id, cfg),
                 expected_config_digest=cfg_digest,
                 fallback_score_threshold=cfg.abstention_score_threshold,
                 fallback_margin_threshold=cfg.abstention_margin_threshold,

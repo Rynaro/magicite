@@ -24,7 +24,9 @@ from typing import Any, Literal
 
 from magicite.config import Config
 from magicite.core import approvals as approvals_mod
+from magicite.core import calibration_admission as admission_mod
 from magicite.core import fingerprint_key as fingerprint_key_mod
+from magicite.core import routing_policy as routing_mod
 from magicite.core import writer_guard
 from magicite.errors import InvalidInputError, NotFoundError
 from magicite.storage import lease as lease_mod
@@ -80,9 +82,7 @@ class PolicyManifest:
             policy_digest=str(data["policy_digest"]),
             policy_family=data["policy_family"],
             config_digest=str(data["config_digest"]),
-            calibration_digest=(
-                str(data["calibration_digest"]) if data.get("calibration_digest") else None
-            ),
+            calibration_digest=(str(data["calibration_digest"]) if data.get("calibration_digest") else None),
             index_generation_id=(
                 str(data["index_generation_id"]) if data.get("index_generation_id") else None
             ),
@@ -99,7 +99,8 @@ def _activation_allowed(manifest: PolicyManifest) -> bool:
     if manifest.evaluation_status == "pass":
         return True
     return (
-        manifest.policy_id in FROZEN_SIMPLE_INCUMBENT_IDS
+        manifest.calibration_digest is None
+        and manifest.policy_id in FROZEN_SIMPLE_INCUMBENT_IDS
         and manifest.policy_family == "stable"
     )
 
@@ -230,7 +231,9 @@ def _policy_write_leases(cfg: Config, *, holder: str) -> Iterator[None]:
     cfg.ensure_dirs()
     conn = db_mod.connect(cfg.db_path)
     try:
-        cross = writer_guard.registry_writer_lease(cfg, conn,
+        cross = writer_guard.registry_writer_lease(
+            cfg,
+            conn,
             holder=f"{holder}:{os.getpid()}:{uuid.uuid4().hex[:6]}",
         )
         with cross.acquire(), lease_mod.writer_lease(holder=holder):
@@ -276,9 +279,7 @@ def _load_raw(cfg: Config) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise InvalidInputError("policy store corrupt: root must be object")
     if raw.get("schema_version") != POLICY_STORE_SCHEMA:
-        raise InvalidInputError(
-            f"unsupported policy store schema {raw.get('schema_version')!r}"
-        )
+        raise InvalidInputError(f"unsupported policy store schema {raw.get('schema_version')!r}")
     mac = str(raw.get("integrity_mac") or "")
     expected = _compute_mac(cfg, raw)
     if not mac or not hmac.compare_digest(mac, expected):
@@ -313,16 +314,29 @@ def reconcile(cfg: Config) -> PolicyStoreStatus:
 
 
 def _commit_control(
-    cfg: Config, state: dict[str, Any], *, op: str, manifest: PolicyManifest,
-    digest: str, actor: str, payload: dict[str, Any],
+    cfg: Config,
+    state: dict[str, Any],
+    *,
+    op: str,
+    manifest: PolicyManifest,
+    digest: str,
+    actor: str,
+    payload: dict[str, Any],
 ) -> None:
     prepared = approvals_mod.record_policy_control_event(
-        cfg, op=op, policy_id=manifest.policy_id, policy_digest=digest,
-        actor=actor, payload=payload, prepared=True,
+        cfg,
+        op=op,
+        policy_id=manifest.policy_id,
+        policy_digest=digest,
+        actor=actor,
+        payload=payload,
+        prepared=True,
     )
     # This MAC-bound record is the sole recovery authority. A prepared mirror
     # by itself proves only an attempt, never an activation.
     state["pending_control"] = prepared.to_dict()
+    if manifest.calibration_digest is not None:
+        state["calibration_control"] = prepared.to_dict()
     _save_raw(cfg, state)
     _reconcile_pending_control(cfg)
 
@@ -344,6 +358,117 @@ def _append_audit(state: dict[str, Any], event: str, **fields: Any) -> None:
     state["audit"] = audit[-256:]
 
 
+def _calibrated_bundle(cfg: Config, state: dict[str, Any], manifest: PolicyManifest) -> dict[str, Any] | None:
+    if manifest.calibration_digest is None:
+        return None
+    entry = (state.get("calibration_admissions") or {}).get(manifest.policy_digest)
+    if not isinstance(entry, dict) or set(entry) != {"bundle", "bundle_digest", "actor"}:
+        raise InvalidInputError("calibrated policy requires protected operator admission")
+    bundle = entry["bundle"]
+    if (
+        not isinstance(bundle, dict)
+        or set(bundle) != {"artifact", "evidence"}
+        or entry["bundle_digest"] != admission_mod.canonical_digest(bundle)
+        or not isinstance(entry["actor"], str)
+        or not entry["actor"]
+    ):
+        raise InvalidInputError("invalid protected calibration admission")
+    checked = admission_mod.validate(bundle["artifact"], bundle["evidence"])
+    artifact = checked["artifact"]
+    subject = checked["evidence"]["subject"]
+    if (
+        manifest.evaluation_status != "pass"
+        or manifest.calibration_digest != artifact["digest"]
+        or manifest.policy_id != artifact["policy_id"]
+        or manifest.config_digest != artifact["config_digest"]
+        or manifest.index_generation_id != subject["generation"]
+        or manifest.snapshot_id != subject["snapshot"]
+        or manifest.policy_digest
+        != routing_mod.compute_policy_digest(manifest.policy_id, cfg, calibration_digest=artifact["digest"])
+    ):
+        raise InvalidInputError("calibrated manifest binding mismatch")
+    from magicite.embeddings import get_embedder
+    from magicite.storage import db
+
+    conn = db.connect(cfg.db_path)
+    try:
+        admission_mod.check_live(cfg, conn, get_embedder(cfg), checked)
+    finally:
+        conn.close()
+    return checked
+
+
+def admit_calibration(
+    cfg: Config, artifact: Mapping[str, Any], evidence: Mapping[str, Any], *, reviewed_sha256: str, actor: str
+) -> PolicyRecord:
+    """Protect exact operator-attested candidate bytes; never activate or approve."""
+    bundle = admission_mod.validate(artifact, evidence)
+    digest = admission_mod.canonical_digest(bundle)
+    if reviewed_sha256 != digest or not isinstance(actor, str) or not actor.strip():
+        raise InvalidInputError("exact calibration bundle review and operator identity required")
+    cal = bundle["artifact"]
+    subject = bundle["evidence"]["subject"]
+    effective = routing_mod.compute_policy_digest(cal["policy_id"], cfg, calibration_digest=cal["digest"])
+    manifest = PolicyManifest(
+        policy_id=cal["policy_id"],
+        policy_digest=effective,
+        policy_family=routing_mod.policy_family(cal["policy_id"]),
+        config_digest=cal["config_digest"],
+        calibration_digest=cal["digest"],
+        index_generation_id=subject["generation"],
+        snapshot_id=subject["snapshot"],
+        selection=subject["score_semantics"],
+        evaluation_status="pass",
+        evaluation_evidence=digest,
+    )
+    with _policy_write_leases(cfg, holder="policy-calibration-admit"):
+        state = _load_raw(cfg)
+        records = dict(state.get("records") or {})
+        if effective in records:
+            raise InvalidInputError("calibration candidate already registered; refusing replacement")
+        admissions = dict(state.get("calibration_admissions") or {})
+        admissions[effective] = {"bundle": bundle, "bundle_digest": digest, "actor": actor}
+        state["calibration_admissions"] = admissions
+        _calibrated_bundle(cfg, state, manifest)
+        records[effective] = {"state": "evaluated", "manifest": manifest.to_dict(), "approval_id": None}
+        state["records"] = records
+        _append_audit(state, "admit_calibration", digest=effective, bundle_digest=digest, actor=actor)
+        _save_raw(cfg, state)
+    return PolicyRecord(digest=effective, state="evaluated", manifest=manifest, approval_id=None)
+
+
+def active_calibration(cfg: Config, conn: Any, embedder: Any) -> Any:
+    """Reauthenticate current protected state and live identity before each route."""
+    state = _load_raw(cfg)
+    if state.get("pending_control") is not None:
+        raise InvalidInputError("calibration policy control pending")
+    digest = state.get("active_digest")
+    row = (state.get("records") or {}).get(digest)
+    if not row:
+        return None
+    manifest = PolicyManifest.from_dict(row["manifest"])
+    if manifest.calibration_digest is None:
+        return None
+    if row["state"] != "active" or not manifest.reviewed:
+        raise InvalidInputError("calibrated active record retired or unreviewed")
+    aid = row.get("approval_id")
+    approval = (state.get("approvals") or {}).get(aid)
+    if not isinstance(approval, dict) or approval.get("policy_digest") != digest:
+        raise InvalidInputError("calibrated policy approval unavailable")
+    control = state.get("calibration_control")
+    if not isinstance(control, dict) or control.get("payload", {}).get("policy_digest") != digest:
+        raise InvalidInputError("calibrated activation authority unavailable")
+    path = cfg.approvals_dir / (str(control["id"]) + ".json")
+    mirror = admission_mod.read_json(path)
+    if mirror.get("state") != "succeeded" or any(
+        mirror.get(k) != v for k, v in control.items() if k not in {"state", "audit_log"}
+    ):
+        raise InvalidInputError("calibrated control corroboration missing or tampered")
+    bundle = _calibrated_bundle(cfg, state, manifest)
+    assert bundle is not None
+    return admission_mod.check_live(cfg, conn, embedder, bundle)
+
+
 def register_evaluated(
     cfg: Config,
     manifest: PolicyManifest,
@@ -352,6 +477,8 @@ def register_evaluated(
     evidence: str = "",
 ) -> PolicyRecord:
     """Register (or update) a candidate as evaluated. Does not activate."""
+    if manifest.calibration_digest is not None:
+        raise InvalidInputError("use protected admit-calibration for calibrated policies")
     if evaluation_status not in {"pass", "fail", "inconclusive", "unevaluated"}:
         raise InvalidInputError(f"invalid evaluation_status {evaluation_status!r}")
     updated = PolicyManifest(
@@ -399,10 +526,9 @@ def approve(cfg: Config, policy_digest: str, *, actor: str) -> str:
         if row is None:
             raise NotFoundError(f"no policy record for digest {policy_digest!r}")
         if row["state"] not in {"evaluated", "approved"}:
-            raise InvalidInputError(
-                f"policy {policy_digest!r} in state {row['state']!r} cannot be approved"
-            )
+            raise InvalidInputError(f"policy {policy_digest!r} in state {row['state']!r} cannot be approved")
         manifest = PolicyManifest.from_dict(row["manifest"])
+        _calibrated_bundle(cfg, state, manifest)
         if manifest.evaluation_status == "unevaluated":
             raise InvalidInputError("cannot approve an unevaluated policy artifact")
         approval_id = row.get("approval_id") or f"polappr_{uuid.uuid4().hex[:12]}"
@@ -466,16 +592,15 @@ def activate(
         if row is None:
             raise NotFoundError(f"no policy record for digest {candidate_digest!r}")
         if row["state"] not in {"approved", "active"}:
-            raise InvalidInputError(
-                f"policy {candidate_digest!r} is not approved (state={row['state']!r})"
-            )
+            raise InvalidInputError(f"policy {candidate_digest!r} is not approved (state={row['state']!r})")
         manifest = PolicyManifest.from_dict(row["manifest"])
+        _calibrated_bundle(cfg, state, manifest)
         if not manifest.reviewed:
             raise InvalidInputError("only reviewed artifacts can be activated")
         if row.get("approval_id") != approval_id:
             raise InvalidInputError("approval_id does not match the candidate record")
         approvals = state.get("approvals") or {}
-        if approval_id not in approvals:
+        if approval_id not in approvals or approvals[approval_id].get("policy_digest") != candidate_digest:
             raise InvalidInputError("unknown approval_id")
 
         # N4: hybrid/non-incumbent must earn promotion (evaluation_status=pass).
@@ -516,7 +641,8 @@ def activate(
             approval_id=approval_id,
         )
         _commit_control(
-            cfg, state,
+            cfg,
+            state,
             op="policy_activate",
             manifest=manifest,
             digest=candidate_digest,
@@ -554,12 +680,17 @@ def rollback(
         if prior_row is None:
             raise NotFoundError(f"no policy record for prior digest {prior_digest!r}")
         prior_manifest = PolicyManifest.from_dict(prior_row["manifest"])
+        _calibrated_bundle(cfg, state, prior_manifest)
+        if not _activation_allowed(prior_manifest):
+            raise InvalidInputError("rollback policy has not earned promotion")
+        prior_approval = (state.get("approvals") or {}).get(prior_row.get("approval_id"))
+        if not isinstance(prior_approval, dict) or prior_approval.get("policy_digest") != prior_digest:
+            raise InvalidInputError("rollback approval mismatch")
         if not prior_manifest.reviewed:
             raise InvalidInputError("cannot rollback to an unreviewed artifact")
         if prior_row["state"] not in {"approved", "active", "retired"}:
             raise InvalidInputError(
-                f"prior policy {prior_digest!r} is not rollback-eligible "
-                f"(state={prior_row['state']!r})"
+                f"prior policy {prior_digest!r} is not rollback-eligible (state={prior_row['state']!r})"
             )
         if not prior_row.get("approval_id"):
             raise InvalidInputError("prior policy lacks approval_id; refusing rollback")
@@ -588,7 +719,8 @@ def rollback(
             expected_current=expected_current,
         )
         _commit_control(
-            cfg, state,
+            cfg,
+            state,
             op="policy_rollback",
             manifest=prior_manifest,
             digest=prior_digest,
@@ -606,9 +738,7 @@ def status(cfg: Config) -> PolicyStoreStatus:
     if state.get("pending_control") is not None:
         raise InvalidInputError("policy control finalization pending; run magicite policy reconcile")
     records_raw = state.get("records") or {}
-    records = tuple(
-        _record_from_dict(digest, row) for digest, row in sorted(records_raw.items())
-    )
+    records = tuple(_record_from_dict(digest, row) for digest, row in sorted(records_raw.items()))
     return PolicyStoreStatus(
         active_digest=state.get("active_digest"),
         prior_digest=state.get("prior_digest"),
@@ -623,8 +753,10 @@ def get_active_manifest(cfg: Config) -> PolicyManifest | None:
         return None
     for rec in st.records:
         if rec.digest == st.active_digest:
+            if rec.manifest.calibration_digest is not None and rec.state != "active":
+                raise InvalidInputError("calibrated active record is retired")
             return rec.manifest
-    return None
+    raise InvalidInputError("active policy record missing")
 
 
 def retain_simple_incumbent_evidence(

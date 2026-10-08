@@ -489,6 +489,35 @@ def policy_register_evaluated(
     )
 
 
+def policy_admit_calibration(
+    project_root: str | Path,
+    *,
+    artifact_path: str,
+    evidence_path: str,
+    reviewed_sha256: str | None,
+    actor: str,
+) -> dict[str, Any]:
+    from magicite.core import calibration_admission
+
+    cfg = _cfg(project_root)
+    artifact = calibration_admission.read_json(Path(artifact_path))
+    evidence = calibration_admission.read_json(Path(evidence_path))
+    bundle = calibration_admission.validate(artifact, evidence)
+    summary = {
+        "artifact_digest": bundle["artifact"]["digest"],
+        "evidence_digest": calibration_admission.canonical_digest(evidence),
+        "bundle_digest": calibration_admission.canonical_digest(bundle),
+        "active_policy_unchanged": True,
+        "qualification_authority": "operator attestation; JSON does not prove statistical truth",
+    }
+    if reviewed_sha256 is None:
+        return summary
+    record = policy_store_mod.admit_calibration(
+        cfg, artifact, evidence, reviewed_sha256=reviewed_sha256, actor=actor
+    )
+    return {**summary, "candidate_digest": record.digest, "state": record.state}
+
+
 def policy_approve(project_root: str | Path, *, policy_digest: str, actor: str) -> dict[str, Any]:
     return {"approval_id": policy_store_mod.approve(_cfg(project_root), policy_digest, actor=actor)}
 

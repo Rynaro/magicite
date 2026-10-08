@@ -453,6 +453,34 @@ def policy_register_evaluated_cmd(
         _die_magicite(exc)
 
 
+@policy_group.command(name="admit-calibration")
+@click.option("--project-root", default=".", show_default=True)
+@click.option("--artifact", "artifact_path", required=True, type=click.Path(exists=True))
+@click.option("--evidence", "evidence_path", required=True, type=click.Path(exists=True))
+@click.option("--actor", required=True)
+@click.option(
+    "--reviewed-sha256", default=None, help="Exact complete bundle digest; omitted gives read-only review."
+)
+def policy_admit_calibration_cmd(
+    project_root: str, artifact_path: str, evidence_path: str, actor: str, reviewed_sha256: str | None
+) -> None:
+    """Review or admit protected calibration; approve and activate separately."""
+    from magicite.mcp import bind_ops
+
+    try:
+        _echo_json(
+            bind_ops.policy_admit_calibration(
+                project_root,
+                artifact_path=artifact_path,
+                evidence_path=evidence_path,
+                actor=actor,
+                reviewed_sha256=reviewed_sha256,
+            )
+        )
+    except MagiciteError as exc:
+        _die_magicite(exc)
+
+
 @policy_group.command(name="approve")
 @click.option("--project-root", default=".", show_default=True)
 @click.option("--policy-digest", required=True)

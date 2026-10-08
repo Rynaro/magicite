@@ -265,7 +265,12 @@ def evaluate_frozen_calibration(
         or sha256_json(body) != candidate["identity"]
     ):
         raise ValueError("candidate digest/schema mismatch")
-    artifact = calibration.CalibrationArtifact.from_dict(body["artifact"])
+    from magicite.errors import InvalidInputError
+
+    try:
+        artifact = calibration.CalibrationArtifact.from_dict(body["artifact"])
+    except InvalidInputError as exc:
+        raise ValueError("fit artifact invalid or digest mismatch") from exc
     if calibration.compute_artifact_digest(artifact.to_dict()) != artifact.digest:
         raise ValueError("fit artifact digest mismatch")
     frozen, queries, families = inputs(freeze)
