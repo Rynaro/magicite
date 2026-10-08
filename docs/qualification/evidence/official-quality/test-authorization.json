@@ -1,0 +1,13 @@
+{
+  "checker": "vigil",
+  "verdict": "ACCEPTED",
+  "source_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "experiment_sha256": "738cd9eb101c43c10eac9fc1abb582fbc903b7a64254f083cacd21aa926b6574",
+  "smoke_report_sha256": "8f2c569bcc33641de03da8f58e5bb654de68240e5b2d13ee87e9793bbe0896c7",
+  "test_snapshot_sha256": "fed3b41eeadd3425471973a820ef50188d57927d549f591f2e1af6cf35ee1092",
+  "independent_review": {
+    "path": "/private/tmp/magicite-v1-quality/independent-c4-live-readiness.json",
+    "sha256": "1d154a22c0271e178717b48b1810c0e5a0e207c61eb53316e939d55211ed8adb"
+  },
+  "scope": "Only frozen official fulltest phase under existing budgets and exactlyonce completed-row rules. No source/model/policy changes or GA acceptance."
+}

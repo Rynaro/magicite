@@ -1,0 +1,1 @@
+{"argv":["/private/tmp/magicite-r3-qualification/venv/bin/python","/Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/scripts/qualify_official_quality.py","--worker","query","--experiment","/private/tmp/magicite-v1-quality/candidate-c4-evidence","--phase","smoke","--policy","dense-v1"],"at":1791419975.974693,"worker_pid":78367}

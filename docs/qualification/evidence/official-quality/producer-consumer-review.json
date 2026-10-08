@@ -1,0 +1,161 @@
+{
+  "verdict": "ACCEPTED_PRODUCER_CONSUMER_EQUIVALENCE_FOR_A03_REUSE_ONLY",
+  "producer_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+  "consumer_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "complete_diff_sha256": "32e3b4741994528f8137215241d5778d0713e268f18156981762ce746909ffbc",
+  "complete_changed_paths": [
+    ".spectra/plans/v1-official-quality.amendment-03.md",
+    ".spectra/plans/v1-official-quality.clarification-03.md",
+    ".spectra/plans/v1-official-quality.md",
+    "docs/qualification/official-quality.md",
+    "scripts/qualify_official_quality.py",
+    "src/magicite/core/router.py",
+    "tests/unit/core/test_router_policy.py",
+    "tests/unit/test_qualify_official_quality.py"
+  ],
+  "producer_source_input_count": 151,
+  "byte_identical_source_inputs": 149,
+  "changed_execution_inputs": {
+    "scripts/qualify_official_quality.py": {
+      "producer_sha256": "4356e034adcdeed8bad6f88e7b3bde705c17cb6c83da73c8f3062e331d9990da",
+      "consumer_sha256": "242a4a93339e65eca65a8cdef04b380de722ae0bdd78565ebad7e875dddf89cf"
+    },
+    "src/magicite/core/router.py": {
+      "producer_sha256": "b672f34097ea3d00b5e7ec469d6140fe9a251426b58acbe1ea300c0e79ea70b2",
+      "consumer_sha256": "8ab5d83939509d795129f92ec0f977e56199dc56b9e6274b7a6d7af9427284e3"
+    }
+  },
+  "router_equivalence": "AST identical except bounded subject cap4096\u219216384",
+  "runner_equivalence": "Reviewed provenance/reuse plumbing only; protected execution AST comparison independently passed on exact reviewed staged diff, now byte-identical committed diff",
+  "snapshot_reaudit": {
+    "train": {
+      "files": 40502,
+      "admitted": 10123,
+      "registry_id": "benchmark-6cbe8111f9b5acfabda1f337",
+      "model_manifest_sha256": "dd1d94b057aed4d5ca58fe1959f99492594dc4ca3157ccd863604247ece22b24"
+    },
+    "test": {
+      "files": 24034,
+      "admitted": 6006,
+      "registry_id": "benchmark-285c99eefea2f4a5fa158651",
+      "model_manifest_sha256": "dd1d94b057aed4d5ca58fe1959f99492594dc4ca3157ccd863604247ece22b24"
+    }
+  },
+  "snapshots": {
+    "train": {
+      "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/train-snapshot.json",
+      "sha256": "e53b623880d6ae8844ae63b9d182a4593dc18d94af80861b4d6527d610cacc27"
+    },
+    "test": {
+      "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/test-snapshot.json",
+      "sha256": "fed3b41eeadd3425471973a820ef50188d57927d549f591f2e1af6cf35ee1092"
+    }
+  },
+  "model_material_hashes_reverified": 13,
+  "producer_experiment_sha256": "300f4aa0f6b2bf9cbbe329dec5f23f2b1bf9dda139942479f0fb7596aa4e2334",
+  "decision_bindings": {
+    "corpus_seal": {
+      "path": "/private/tmp/magicite-v1-corpus/candidate-c3-evidence/replay-1/seal.json",
+      "sha256": "0df256714f13fdee9a9c3a543f578d2ebd49b6726e01074dc4f7928a68a5c25e"
+    },
+    "model_manifest": {
+      "path": "/private/tmp/magicite-v1-empirical/expected-model.json",
+      "sha256": "dd1d94b057aed4d5ca58fe1959f99492594dc4ca3157ccd863604247ece22b24"
+    },
+    "libraries": {
+      "fastembed": "0.8.0",
+      "numpy": "2.5.2",
+      "onnxruntime": "1.28.0",
+      "ruamel.yaml": "0.19.1"
+    },
+    "splits": {
+      "test": {
+        "inventory": {
+          "path": "/private/tmp/magicite-v1-corpus/candidate-c3-evidence/replay-1/test/inventory.json",
+          "sha256": "0fdf88482006c2eb96962689dd72ddc62756ce218ef21649153f912c8668bc07"
+        },
+        "runtime": {
+          "path": "/private/tmp/magicite-v1-corpus/candidate-c3-evidence/replay-1/test/runtime-queries.json",
+          "sha256": "463c4e0999f48e9bd19561dc28acaab0b48942b2599160e4922ed42190174ffd"
+        },
+        "scoring": {
+          "path": "/private/tmp/magicite-v1-corpus/candidate-c3-evidence/replay-1/test/scoring.json",
+          "sha256": "3e2f84de80bee5fa9bb05d1a1c235afb356f376ef6edbc6ef293ceb0995d03a7"
+        }
+      },
+      "train": {
+        "inventory": {
+          "path": "/private/tmp/magicite-v1-corpus/candidate-c3-evidence/replay-1/train/inventory.json",
+          "sha256": "8762c0bbccb3a220c006b440b3a6f119dc7b5dba73b36223bc0b7d0722dd58cc"
+        },
+        "runtime": {
+          "path": "/private/tmp/magicite-v1-corpus/candidate-c3-evidence/replay-1/train/runtime-queries.json",
+          "sha256": "c8934c5486c874f72e113f7c7478d3a840881327ac74a69b933c797abef3555b"
+        },
+        "scoring": {
+          "path": "/private/tmp/magicite-v1-corpus/candidate-c3-evidence/replay-1/train/scoring.json",
+          "sha256": "304adf44118a7c6cc6292101cfca8365d2f30b93d70de1dff7eaea37aa8b595c"
+        }
+      }
+    },
+    "policies": {
+      "dense-v1": {
+        "abstention_enabled": true,
+        "calibration": "NONE",
+        "config_digest": "0f7daafab2a71e428e45bb46f5afdd0f07ffeb2fa5f57115a6587141e6869cc5",
+        "margin_threshold": 0.0,
+        "policy_digest": "d8b32376cddaf28eabde3a3bc895c4fe659520dde45c0c9e898927d7894ed497",
+        "policy_id": "dense-v1",
+        "rank_depth": 10,
+        "score_threshold": 0.0
+      },
+      "experimental/adaptive-blend-v1": {
+        "abstention_enabled": true,
+        "calibration": "NONE",
+        "config_digest": "45e4d04e5b3eff1e8d47923998c6cf110c1b0f51a71558a20826572ebebb974b",
+        "margin_threshold": 0.0,
+        "policy_digest": "b0de5b71623a4ef177666871eed54f879a71b5b391f413ebc1f186d4fde78270",
+        "policy_id": "experimental/adaptive-blend-v1",
+        "rank_depth": 10,
+        "score_threshold": 0.0
+      }
+    },
+    "parameters": {
+      "bootstrap_resamples": 10000,
+      "bootstrap_seed": 0,
+      "phase_budget_seconds": 7200,
+      "pool_build_budget_seconds": 7200,
+      "progress_seconds": 30,
+      "query_timeout_seconds": 120,
+      "rank_depth": 10,
+      "repeat_tolerance": 1e-06
+    },
+    "sample": {
+      "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/train-sample.json",
+      "sha256": "da03ec3d340e120b49dc7f646c653aeda4bf2dea991b1d635fa8a47d68582dcc"
+    },
+    "runtime": {
+      "smoke": {
+        "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/runtime-smoke.json",
+        "sha256": "56e456e880691690783f665beb68bba0931f2cbdf3d117e1b7af1f7e4725ca56"
+      },
+      "test": {
+        "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/runtime-test.json",
+        "sha256": "463c4e0999f48e9bd19561dc28acaab0b48942b2599160e4922ed42190174ffd"
+      }
+    }
+  },
+  "provenance": "C3 is actual snapshot/admission/embedding producer. C4 is only consumer. Original manifests remain byte-identical; no reenrollment/reembedding/row carryforward. Copied authority/journal/vector/registry bodies are included in full file seal hashes.",
+  "docs_note": "Complete eight-file delta includes prospective A03 and C03 source copies plus docs; A03 source copy removes extra EOF blank line. Authoritative temp handoff not rewritten.",
+  "limits": [
+    "No new model/query/pool execution by checker.",
+    "Manual separate-agent engineering review, not authenticated Gauge/human acceptance.",
+    "C4 CI pending. P02 comparison and freshC4smoke still required before heldout authorization."
+  ],
+  "evidence_refs": {
+    "independent-c4-source-readiness.json": "81bfb1fd7c9f795f922d68397cb09a5f964e7d6f05be6898bf86418595a6d127",
+    "independent-c4-reuse-control.json": "302eb30715cae6f57eb1b6e43c70487f2e03cb8a02f7f6d26633bd210a8c4bda",
+    "independent-c3-train-audit.json": "cc6bc92d76f89da064b96feeb1218e61170a58b74cc9d53df8bab7fb7b2e7556",
+    "independent-c3-test-audit.json": "74dfc9423d08272cb02b98305d1f9ce14ad9a3758a873fc669a840f6a14370c8"
+  }
+}

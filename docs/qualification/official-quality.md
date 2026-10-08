@@ -62,3 +62,54 @@ snapshot byte, preserves original producer attribution and records a separate
 consumer source freeze. It does not claim a new pool build or replay completed
 queries. Train-only profiling, fresh smoke and independent readiness still
 precede any held-out query.
+
+## Complete official observation
+
+Measured execution source is `389834606e6b9d4158f128515517ce5d5ad97126`;
+`b752eab99e22950df5c9f6d3c3dc56b3c11c2970` produced the reused complete
+admission/embedding snapshots. An evidence/docs successor archives this result;
+it did not execute the model. The [lossless evidence archive](evidence/official-quality/README.md)
+binds all151 runtime inputs and preserves both identities.
+
+Every4,392 official test query ran against all6,006 candidates for each real
+policy, depth10, with unchanged0/0 thresholds. All8,784 outcomes selected, with
+zero errors, timeouts or abstentions. Both policies selected a relevant first
+result for2,011/4,392 queries (45.787796%).
+
+| Measure | dense-v1 | experimental/adaptive-blend-v1 |
+| --- | ---: | ---: |
+| Decision Hit@1 | 45.787796% | 45.787796% |
+| Macro Recall@5 | 48.034305% | 48.034305% |
+| Macro Recall@10 | 53.255920% | 53.255920% |
+| Truncated MRR@10 | 0.537718 | 0.537718 |
+| Linear NDCG@10 | 0.466259 | 0.466259 |
+| Selection coverage | 100% | 100% |
+
+Ordered rankings and metric vectors match on all4,392 queries, while raw scores
+differ on every query and policy families/digests differ. Paired descriptive
+query-row metric differences and intervals are zero; this does not establish
+algorithm equivalence or superiority. No-match false-selection and calibrated
+ECE remain null. Groups are bookkeeping only, not proven independent. This is
+an observed result, not an absolute quality-gate failure or E3 qualification.
+The official test is now exposed; subsequent fitting needs separate calibration
+and final data rather than treating this observation as an untouched holdout.
+
+Cumulative measured query time was1,055.908s dense and1,099.324s adaptive, with
+unprofiled warm medians0.228s/0.238s on the local Mac. These are descriptive
+observations, not reference-hardware E6 evidence. Earlier C3 warm train queries
+cost about23.5s and the4096-entry subject cache reparsed the full pool. The
+reviewed16384-entry bound preserved freshness/trust/context guards; three fixed
+train-only P02 controls retained all compared decisions/scores while warm
+parsing dropped to zero. Whole-process peak RSS included setup/model/clone and
+does not bound isolated cache bytes or maximum-capacity memory.
+
+All ten bounded measured engineering criteria were independently accepted; six
+exact measured-source CI checks and the clean exact-source verifier passed.
+Archive integrity, all151 unchanged runtime hashes and the complete evidence-only
+diff require separate review, followed by archive-head CI. Native orchestration
+remains self-attested/not Gauge-accepted. Earlier C1 duplicate-label failure, C2
+raw-newline authentication failure, C3 incomplete smoke and P01/P02 histories
+remain retained; no original packet, source body or completed outcome was
+rewritten. The archive omits large corpora/models/pools/authority keys, and
+original local paths do not imply publicly durable availability. No original
+skill execution, licence-origin audit, human security approval or GA promotion.
