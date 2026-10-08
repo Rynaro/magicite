@@ -1,4 +1,4 @@
-"""0.3 release-version and package-metadata acceptance checks."""
+"""Proposed preview release-version and package-metadata acceptance checks."""
 
 from __future__ import annotations
 
@@ -13,9 +13,10 @@ def _project() -> dict[str, object]:
         return tomllib.load(stream)["project"]
 
 
-def test_package_and_release_notes_identify_031() -> None:
+def test_package_and_release_notes_identify_preview() -> None:
     project = _project()
-    assert project["version"] == "0.3.1"
+    assert project["version"] == "1.0.0rc1"
+    assert (ROOT / "docs" / "releases" / "1.0.0-rc.1.md").is_file()
     assert (ROOT / "docs" / "releases" / "0.3.1.md").is_file()
 
 

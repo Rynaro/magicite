@@ -8,8 +8,8 @@ Magicite is a local-first MCP server that routes an agent to the right skill,
 captures what happened, and turns that evidence into reviewable improvements.
 
 [![CI](https://github.com/Rynaro/magicite/actions/workflows/ci.yml/badge.svg)](https://github.com/Rynaro/magicite/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.3.1-7c3aed)](CHANGELOG.md)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776ab?logo=python&logoColor=white)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-1.0.0rc1-7c3aed)](docs/releases/1.0.0-rc.1.md)
+[![Python](https://img.shields.io/badge/python-3.12-3776ab?logo=python&logoColor=white)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-stdio-0f766e)](https://modelcontextprotocol.io/)
 [![License](https://img.shields.io/github/license/Rynaro/magicite)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/Rynaro/magicite?style=flat)](https://github.com/Rynaro/magicite/stargazers)
@@ -47,32 +47,51 @@ sandboxing, and execution.
 | **Governed** | Every tool has a risk and side-effect class. Durable lifecycle changes are approval-gated by default and leave an audit trail. |
 | **Host-agnostic** | Any MCP client can use the core server. Hooks improve signal quality, but they are an adapter—not a dependency. |
 
-This is an unreleased v1 integration, still packaged as **0.3.1**. It is not a GA
-claim. See the [current authority](docs/AUTHORITY.md), [operator tutorial](docs/operator-tutorial.md),
+This is a **draft 1.0.0rc1 developer preview**, unpublished and awaiting a concrete
+release decision. The [preview contract](docs/releases/1.0.0-rc.1.md) bounds the
+Python 3.12 native-package and scoped route/read observations; it does not
+qualify a combined production deployment or the original v1 GA contract. See the [current authority](docs/AUTHORITY.md), [operator tutorial](docs/operator-tutorial.md),
 and [UNEVALUATED evidence catalog](docs/evaluation/v1/unevaluated.md).
 
 ## Quick start
 
-### 1. Install from source
+### 1. Install the explicit candidate and provision custody
 
-Magicite requires Python 3.11+ and [`uv`](https://docs.astral.sh/uv/).
+The proposed native preview uses Python 3.12. Candidate wheel/sdist artifacts
+are local review artifacts until publication is approved. Follow the
+[candidate installation procedure](docs/qualification/candidate-install.md)
+to build from the reviewed clean commit and install the explicit artifact in a
+fresh environment. No PyPI or container v1 installation is qualified.
 
 ```bash
-git clone https://github.com/Rynaro/magicite.git
-cd magicite
-
-uv sync --all-extras
-uv run magicite fetch-model
-uv run magicite sync --project-root .
-uv run magicite doctor --project-root .
+python3.12 -m venv /tmp/magicite-preview
+/tmp/magicite-preview/bin/python -m pip install /absolute/path/to/magicite-1.0.0rc1-py3-none-any.whl
+/tmp/magicite-preview/bin/magicite --version
+/tmp/magicite-preview/bin/magicite doctor --project-root /absolute/path/to/your-project
 ```
 
-`fetch-model` is the one intentional network-bearing runtime setup step. Once
-the ONNX model is present, Magicite can run with network access disabled. The
-repository includes 30 first-party engrams, so the commands above produce a
-working dogfood registry immediately. `doctor` will still warn that 30 skills
-sit below a historical ~50-skill research reference; that warning is expected
-and deliberately does not present the heuristic as a proven break-even point.
+A fresh registry is unconfigured: `doctor` reports the missing prerequisite.
+Before `sync`, `register`, `serve` or other trust-dependent use, provision
+protected custody: a root-installed descriptor under `/etc/magicite/registries/`,
+a separate custodian account running `magicite custody serve`, explicit
+`magicite custody enroll`, and `magicite custody initialize-journal`. Magicite
+does not create accounts or write `/etc`. Follow the
+[operator tutorial's custody prerequisites](docs/operator-tutorial.md) and
+[Linux custody procedure](docs/qualification/linux-custody.md) in an isolated
+Linux deployment. The tutorial's in-process custodian is a disposable simulation,
+not workstation provisioning. macOS production custody remains UNEVALUATED.
+
+After protected setup, import local skills through `register` or `sync`, inspect
+`magicite trust review --project-root PROJECT --engram-id ID`, and explicitly
+approve the reviewed digest with `magicite trust approve --project-root PROJECT
+--engram-id ID --expected-digest DIGEST --actor OPERATOR`. Imported content cannot
+approve itself. Keep autonomous policy disabled (the default).
+
+For production embeddings, run `magicite fetch-model` explicitly before offline
+use, then `magicite doctor --project-root PROJECT`. Model acquisition is the
+intentional network-bearing setup step; lookup can run offline afterward.
+The repository's 30 first-party engrams are examples requiring the same review;
+their count is not evidence of a break-even point or routing quality.
 
 ### 2. Connect your MCP client
 
@@ -83,7 +102,7 @@ Point the client at the installed executable and the project whose
 {
   "mcpServers": {
     "magicite": {
-      "command": "/absolute/path/to/magicite/.venv/bin/magicite",
+      "command": "/tmp/magicite-preview/bin/magicite",
       "args": [
         "serve",
         "--project-root",
@@ -163,7 +182,7 @@ flowchart TD
 Magicite separates the system into three paths:
 
 - **Hot path:** check trust and typed eligibility, embed full canonical routing
-  content under `dense-v1`, apply the selected calibrated abstention policy, and
+  content under `dense-v1`, apply the selected abstention thresholds (accuracy remains unqualified), and
   return a validated bounded plan when selection is allowed.
 - **Signal path:** record session-scoped use and outcome evidence without
   writing learned state into skill files.
@@ -356,7 +375,7 @@ documented in the [operations configuration reference](docs/operations.md#10-qui
 
 | Read this | For |
 |---|---|
-| [Authority manifest](docs/AUTHORITY.md) | What defines current 0.3 behavior when historical records disagree. |
+| [Authority manifest](docs/AUTHORITY.md) | What defines current preview behavior when historical records disagree. |
 | [Documentation index](docs/README.md) | The complete reading order and terminology. |
 | [Vision and hypotheses](docs/01-vision-and-hypotheses.md) | Problem statement, falsification record, and research agenda. |
 | [Architecture](docs/02-architecture.md) | Hot/write/Dream paths, storage, concurrency, and security boundary. |
@@ -390,15 +409,15 @@ remain synchronized with the runtime.
 
 ## Project status
 
-Magicite 0.3.0 is an experimental but fully test-governed local skill router.
+Magicite 1.0.0rc1 is a proposed, unpublished developer preview.
 The portable format, MCP surface, integrity model, lifecycle governance, and
 Dream recovery are implemented. The research question—whether graph and
 plasticity layers improve routing over simpler retrieval—remains open by
 design, measured rather than assumed.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and
-[GitHub Releases](https://github.com/Rynaro/magicite/releases) for signed
-artifacts and immutable container digests.
+[GitHub Releases](https://github.com/Rynaro/magicite/releases) for historical
+artifacts and immutable container digests; preview publication remains pending.
 
 ## License
 

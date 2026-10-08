@@ -1599,5 +1599,5 @@
     }
   ],
   "schema": "magicite/runtime-reference/1",
-  "version": "0.3.1"
+  "version": "1.0.0rc1"
 }
