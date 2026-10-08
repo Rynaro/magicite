@@ -272,7 +272,8 @@ def dense_candidates(
         score = float(np.dot(query_vec, entry.dense_vec))
         scored.append((engram_id, score))
     scored.sort(key=lambda item: (-item[1], item[0]))
-    truncated = max(0, len(scored) - limit)
+    eligible_count = sum(1 for eid in index.entries if eligible_ids is None or eid in eligible_ids)
+    truncated = max(0, len(scored) - limit) + max(0, eligible_count - scanned)
     hits = [
         ComponentHit(engram_id=eid, rank=rank, score=score)
         for rank, (eid, score) in enumerate(scored[:limit], start=1)
@@ -304,6 +305,7 @@ def sparse_candidates(
 
     page = max(limit, 32)
     examined = 0
+    visited = 0
     eligible_hits: list[tuple[str, float]] = []
     table = index.fts_table
     while examined < scan_budget and len(eligible_hits) < limit:
@@ -323,6 +325,7 @@ def sparse_candidates(
             break
         examined += len(rows)
         for engram_id, raw_score in rows:
+            visited += 1
             eid = str(engram_id)
             if eligible_ids is not None and eid not in eligible_ids:
                 continue
@@ -333,7 +336,14 @@ def sparse_candidates(
             break
 
     eligible_hits.sort(key=lambda item: (-item[1], item[0]))
-    truncated = 1 if examined >= scan_budget and len(eligible_hits) >= limit else 0
+    # Count the unexamined matching tail, even if denied hits exhausted the budget.
+    total_matching = int(
+        index.sparse_conn.execute(
+            f"SELECT count(*) FROM {table} WHERE {table} MATCH ? AND generation_id = ?",
+            (match, index.generation_id),
+        ).fetchone()[0]
+    )
+    truncated = max(0, total_matching - visited)
     ranked = [
         ComponentHit(engram_id=eid, rank=i, score=score)
         for i, (eid, score) in enumerate(eligible_hits[:limit], start=1)
@@ -381,7 +391,8 @@ def trigger_candidates(
         if score > 0:
             scored.append((engram_id, score))
     scored.sort(key=lambda item: (-item[1], item[0]))
-    truncated = max(0, len(scored) - limit)
+    eligible_count = sum(1 for eid in index.entries if eligible_ids is None or eid in eligible_ids)
+    truncated = max(0, len(scored) - limit) + max(0, eligible_count - scanned)
     hits = [
         ComponentHit(engram_id=eid, rank=rank, score=score)
         for rank, (eid, score) in enumerate(scored[:limit], start=1)
@@ -482,6 +493,7 @@ def generate(
     sparse_by_id = {h.engram_id: h for h in components.get("sparse", ())}
     trigger_by_id = {h.engram_id: h for h in components.get("trigger", ())}
 
+    truncations["fused_output"] = max(0, len(fused) - cfg.top_k)
     candidates: list[Candidate] = []
     for engram_id, fused_score in fused[: cfg.top_k]:
         entry = index.entries.get(engram_id)

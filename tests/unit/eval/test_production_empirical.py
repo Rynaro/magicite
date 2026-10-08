@@ -341,3 +341,30 @@ def test_unknown_retrieval_provider_cannot_fall_back_to_fixture(tmp_path):
             provider="unclassified",
             output=tmp_path / "out",
         )
+
+
+@pytest.mark.parametrize(
+    "policy", ("experimental/sparse-v1", "experimental/trigger-v1", "experimental/hybrid-rrf-v1")
+)
+def test_actual_router_baselines_use_real_boundary_with_fixture_vectors(cfg, db_conn, embedder, policy):
+    """Structural adapter fixture only: never empirical model evidence."""
+    from tests.unit.core.test_router_policy import _baseline_registry
+
+    from magicite.embeddings.fastembed_provider import FastEmbedProvider
+
+    class FixtureProvider(FastEmbedProvider):
+        def __init__(self):
+            self.model_name, self.dim = embedder.model_name, embedder.dim
+
+        def embed(self, text):
+            return embedder.embed(text)
+
+    _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    adapter = production.ActualRouter(cfg, db_conn, FixtureProvider())
+    prediction = adapter.predict({"query_id": "fixture", "query_text": "orchid", "compatibility_context": {}})
+    assert prediction["policy_id"] == policy
+    assert prediction["policy_family"] == "experimental"
+    assert prediction["status"] == "selected"
+    assert prediction["index_generation_id"]
+    assert prediction["confidence"] is None
