@@ -1,0 +1,14 @@
+[
+  {
+    "query_id": "fixture-q0",
+    "split": "development"
+  },
+  {
+    "query_id": "fixture-q1",
+    "split": "calibration"
+  },
+  {
+    "query_id": "fixture-q2",
+    "split": "final"
+  }
+]

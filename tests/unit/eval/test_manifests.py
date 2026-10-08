@@ -113,7 +113,7 @@ def test_leakage_rejected() -> None:
     group_leak["queries"][1]["group_id"] = group_leak["queries"][0]["group_id"]
     # query 0 is development, query 1 is final — shared group_id is leakage
     errors = validate_corpus_manifest_data(group_leak)
-    assert any("group_id leakage" in error for error in errors)
+    assert any("group leakage" in error for error in errors)
 
 
 def test_claim_digest_failure() -> None:
@@ -146,17 +146,17 @@ def test_claim_digest_failure() -> None:
         limitations="local fixture only",
         schema=SCHEMA_CLAIM,
     )
-    assert (
-        validate_claim_integrity(
-            claim,
-            result=result,
-            predictions=predictions,
-            experiment=experiment,
-            current_labels_sha256=experiment.labels_sha256,
-            corpus=corpus,
-        )
-        == []
-    )
+    assert validate_claim_integrity(
+        claim,
+        result=result,
+        predictions=predictions,
+        experiment=experiment,
+        current_labels_sha256=experiment.labels_sha256,
+        corpus=corpus,
+    ) == [
+        "final/test/holdout requires verified data packet/access bindings; "
+        "bare final_labels_opened=true is not qualifying"
+    ]
 
     # Missing prediction bytes
     missing = validate_claim_integrity(
@@ -423,17 +423,17 @@ def test_claim_binds_experiment_and_corpus_digests() -> None:
         limitations="fixture",
         schema=SCHEMA_CLAIM,
     )
-    assert (
-        validate_claim_integrity(
-            claim,
-            result=result,
-            predictions=predictions,
-            experiment=experiment,
-            current_labels_sha256=experiment.labels_sha256,
-            corpus=corpus,
-        )
-        == []
-    )
+    assert validate_claim_integrity(
+        claim,
+        result=result,
+        predictions=predictions,
+        experiment=experiment,
+        current_labels_sha256=experiment.labels_sha256,
+        corpus=corpus,
+    ) == [
+        "final/test/holdout requires verified data packet/access bindings; "
+        "bare final_labels_opened=true is not qualifying"
+    ]
 
     # Same labels_sha256, different corpus_sha256 → must fail.
     drifted = _experiment(
@@ -541,8 +541,8 @@ def test_supported_claim_requires_corpus() -> None:
     assert any("incomplete evidence chain" in e and "corpus" in e for e in errors)
 
 
-def test_supported_claim_full_bundle_passes() -> None:
-    """ATLAS residual: complete experiment+corpus+result+predictions passes."""
+def test_supported_claim_full_bundle_cannot_authenticate_fixture() -> None:
+    """Complete hash bindings do not authenticate a fixture final-data claim."""
     corpus = _corpus_from_offline()
     experiment = _seal(
         _experiment(
@@ -571,17 +571,17 @@ def test_supported_claim_full_bundle_passes() -> None:
         limitations="fixture",
         schema=SCHEMA_CLAIM,
     )
-    assert (
-        validate_claim_integrity(
-            claim,
-            result=result,
-            predictions=predictions,
-            experiment=experiment,
-            current_labels_sha256=experiment.labels_sha256,
-            corpus=corpus,
-        )
-        == []
-    )
+    assert validate_claim_integrity(
+        claim,
+        result=result,
+        predictions=predictions,
+        experiment=experiment,
+        current_labels_sha256=experiment.labels_sha256,
+        corpus=corpus,
+    ) == [
+        "final/test/holdout requires verified data packet/access bindings; "
+        "bare final_labels_opened=true is not qualifying"
+    ]
 
 
 def test_circular_plan_f1_cannot_be_supported() -> None:
@@ -645,7 +645,11 @@ def test_final_holdout_requires_seal() -> None:
         "label_provenance",
         {**sealed.label_provenance, "final_labels_opened": True},
     )
-    assert validate_experiment_corpus_seal(sealed, corpus) == []
+    assert validate_experiment_corpus_seal(sealed, corpus)
+    assert (
+        validate_experiment_corpus_seal(sealed, corpus, fixture_classification="synthetic_hashing_diagnostic")
+        == []
+    )
 
 
 def test_v03_checker_rejects_non_historical_evidence_class(tmp_path) -> None:
@@ -665,22 +669,78 @@ def test_v03_checker_rejects_non_historical_evidence_class(tmp_path) -> None:
     assert any("evidence_class to historical" in e for e in errors)
 
 
-@pytest.mark.parametrize("metric,value", [
-    ("made_up_accuracy", 1.0), ("hit_at_1", None), ("hit_at_1", True),
-    ("hit_at_1", float("nan")), ("hit_at_1", float("inf")),
-])
+@pytest.mark.parametrize(
+    "metric,value",
+    [
+        ("made_up_accuracy", 1.0),
+        ("hit_at_1", None),
+        ("hit_at_1", True),
+        ("hit_at_1", float("nan")),
+        ("hit_at_1", float("inf")),
+    ],
+)
 def test_supported_claim_requires_actual_finite_metric(metric, value) -> None:
     corpus = _corpus_from_offline()
-    experiment = _seal(_experiment(corpus_sha256=corpus.content_identity_sha256,
-                                  labels_sha256=corpus.content_identity_sha256))
+    experiment = _seal(
+        _experiment(
+            corpus_sha256=corpus.content_identity_sha256, labels_sha256=corpus.content_identity_sha256
+        )
+    )
     predictions = run_predictions(experiment, corpus)
-    result = build_result_manifest(result_id="finite/1", experiment=experiment,
-                                   predictions=predictions, aggregates={"hit_at_1": 0.5})
-    claim = Claim(claim_id="finite", text_location="README.md", metric=metric, value=value,
-                  unit="fraction", population_split="final", result_digest=result.digest(),
-                  confidence_interval=None, evidence_class="retrieval", status="supported",
-                  limitations="fixture")
-    errors = validate_claim_integrity(claim, result=result, predictions=predictions,
-                                     experiment=experiment, corpus=corpus,
-                                     current_labels_sha256=experiment.labels_sha256)
+    result = build_result_manifest(
+        result_id="finite/1", experiment=experiment, predictions=predictions, aggregates={"hit_at_1": 0.5}
+    )
+    claim = Claim(
+        claim_id="finite",
+        text_location="README.md",
+        metric=metric,
+        value=value,
+        unit="fraction",
+        population_split="final",
+        result_digest=result.digest(),
+        confidence_interval=None,
+        evidence_class="retrieval",
+        status="supported",
+        limitations="fixture",
+    )
+    errors = validate_claim_integrity(
+        claim,
+        result=result,
+        predictions=predictions,
+        experiment=experiment,
+        corpus=corpus,
+        current_labels_sha256=experiment.labels_sha256,
+    )
     assert any("finite" in error for error in errors)
+
+
+def test_development_calibration_group_overlap_is_rejected():
+    corpus = _corpus_from_offline().to_dict()
+    corpus["queries"] = [
+        {
+            **corpus["queries"][0],
+            "query_id": "development-only",
+            "query_text": "unique first",
+            "split": "development",
+            "group_id": "related-task",
+        },
+        {
+            **corpus["queries"][0],
+            "query_id": "calibration-only",
+            "query_text": "unique second",
+            "split": "calibration",
+            "group_id": "related-task",
+        },
+    ]
+    assert any("group" in e and "calibration" in e for e in validate_corpus_manifest_data(corpus))
+
+
+def test_bare_opened_boolean_never_qualifies_final_data():
+    from magicite.eval.validate import validate_experiment_corpus_seal
+
+    corpus = _corpus_from_offline()
+    experiment = _experiment(
+        corpus_sha256=corpus.content_identity_sha256, labels_sha256=corpus.content_identity_sha256
+    )
+    object.__setattr__(experiment, "label_provenance", {"final_labels_opened": True})
+    assert any("verified data" in e for e in validate_experiment_corpus_seal(experiment, corpus))

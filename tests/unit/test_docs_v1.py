@@ -4,9 +4,12 @@ from __future__ import annotations
 import json
 import runpy
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
+
+from magicite.eval.external import recompute_content_identity_sha256
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -42,17 +45,27 @@ def test_unmanifested_readme_claim_rejected(tmp_path: Path, text: str) -> None:
     assert contracts.check_readme_claims(tmp_path)
 
 
-def _bundle() -> dict:
-    # Reuse the independent S01 test's sealed fixture construction, never a release claim.
+def _bundle(*, final_claim: bool = False) -> dict:
+    # Diagnostic integrity fixture; final content is used only for explicit rejection.
     ns = runpy.run_path(str(ROOT / "tests/unit/eval/test_manifests.py"))
     corpus = ns["_corpus_from_offline"]()
-    experiment = ns["_seal"](ns["_experiment"](
-        corpus_sha256=corpus.content_identity_sha256, labels_sha256=corpus.content_identity_sha256))
+    if not final_claim:
+        development = tuple(q for q in corpus.queries if q.split == "development")
+        assert development
+        corpus = replace(
+            corpus, queries=development,
+            content_identity_sha256=recompute_content_identity_sha256([q.to_dict() for q in development]),
+        )
+    experiment = ns["_experiment"](
+        corpus_sha256=corpus.content_identity_sha256, labels_sha256=corpus.content_identity_sha256)
+    if final_claim:
+        experiment = ns["_seal"](experiment)
     predictions = ns["run_predictions"](experiment, corpus)
     result = ns["build_result_manifest"](result_id="docs-fixture/1", experiment=experiment,
                                         predictions=predictions, aggregates={"hit_at_1": 0.5})
     claim = ns["Claim"](claim_id="fixture", text_location="README.md#claim:fixture",
-                        metric="hit_at_1", value=0.5, unit="fraction", population_split="final",
+                        metric="hit_at_1", value=0.5, unit="fraction",
+                        population_split="final" if final_claim else "development",
                         result_digest=result.digest(), confidence_interval=None,
                         evidence_class="retrieval", status="supported", limitations="test fixture")
     return {"claim": claim.to_dict(), "result": result.to_dict(),
@@ -65,7 +78,7 @@ def _bundle() -> dict:
 def test_readme_claim_uses_full_integrity_chain(tmp_path: Path, mutation: str | None) -> None:
     (tmp_path / "docs").mkdir()
     bundle = _bundle()
-    (tmp_path / "README.md").write_text('<!-- claim:fixture --> hit_at_1: 0.5 fraction (final).\n')
+    (tmp_path / "README.md").write_text('<!-- claim:fixture --> hit_at_1: 0.5 fraction (development).\n')
     if mutation == "value":
         bundle["claim"]["value"] = 0.99
     elif mutation == "metric":
@@ -81,6 +94,30 @@ def test_readme_claim_uses_full_integrity_chain(tmp_path: Path, mutation: str | 
         {"schema":"magicite/readme-claims/1", "claims":[{"bundle":"bundle.json"}]}))
     errors = contracts.check_readme_claims(tmp_path)
     assert bool(errors) == (mutation is not None), errors
+    assert not any("verified data packet/access bindings" in error for error in errors), errors
+    if mutation is not None:
+        reason = {
+            "value": "does not match result.aggregates",
+            "metric": "finite result aggregate",
+            "scope": "scope binding mismatch",
+            "missing_predictions": "missing prediction bytes",
+            "historical": "historical evidence cannot satisfy a new-run gate",
+        }[mutation]
+        assert any(reason in error for error in errors), errors
+
+
+def test_readme_bare_final_seal_cannot_qualify_supported_claim(tmp_path: Path) -> None:
+    (tmp_path / "docs").mkdir()
+    bundle = _bundle(final_claim=True)
+    assert bundle["claim"]["status"] == "supported"
+    assert bundle["experiment"]["label_provenance"]["final_labels_opened"] is True
+    assert any(q["split"] == "final" for q in bundle["corpus"]["queries"])
+    (tmp_path / "README.md").write_text('<!-- claim:fixture --> hit_at_1: 0.5 fraction (final).\n')
+    (tmp_path / "bundle.json").write_text(json.dumps(bundle))
+    (tmp_path / "docs/readme-claims.json").write_text(json.dumps(
+        {"schema": "magicite/readme-claims/1", "claims": [{"bundle": "bundle.json"}]}))
+    errors = contracts.check_readme_claims(tmp_path)
+    assert any("bare final_labels_opened=true is not qualifying" in error for error in errors), errors
 
 
 @pytest.mark.parametrize("missing", ["replacement", "support_deadline"])

@@ -239,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
 
     retrieval = subparsers.add_parser(
         "run-retrieval",
-        help="Run sealed-corpus predictions + ranking aggregates (offline deterministic harness).",
+        help="Run nonqualifying synthetic hashing retrieval diagnostics.",
     )
     retrieval.add_argument("--experiment", type=Path, required=True)
     retrieval.add_argument("--corpus", type=Path, required=True)
@@ -251,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     paired = subparsers.add_parser(
         "run-paired-policies",
         help=(
-            "Paired incumbent vs candidate Hit@1 verdicts (never activates policies). "
+            "Nonqualifying synthetic hashing paired diagnostics (never activates policies). "
             "The candidate arm is a seed-perturbed harness arm, not a real policy rank."
         ),
     )
@@ -271,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
 
     abstain = subparsers.add_parser(
         "run-abstention-gate",
-        help="Abstention Wilson/verdict gate on a sealed corpus (calibration recorded, not refit).",
+        help="Run nonqualifying synthetic hashing abstention diagnostics (no refit).",
     )
     abstain.add_argument("--calibration-split", required=True)
     abstain.add_argument("--final-split", required=True)

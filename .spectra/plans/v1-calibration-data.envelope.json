@@ -1,0 +1,71 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "809ab2e7-af1c-486b-af20-02db7f4b0d7a",
+  "thread_id": "59f3b808-f1e0-43c3-baed-a40b525be9e8",
+  "parent_id": "7512ffd7-9c28-46ff-baef-367131982d1f",
+  "from": {
+    "eidolon": "ramza",
+    "version": "1.1.0"
+  },
+  "to": {
+    "eidolon": "vivi",
+    "version": "n/a"
+  },
+  "performative": "PROPOSE",
+  "edge_origin": "roster",
+  "objective": "Implement bounded calibration-data provenance, partition, freeze and local final-access controls while leaving unsupported authentic empirical readiness UNEVALUATED.",
+  "artifact": {
+    "kind": "spec",
+    "schema_version": "1.0",
+    "path": "v1-calibration-data.md",
+    "sha256": "0ef93afaacb058c1a48f6861f9bf2987d4c97b783b2896c95d76a7526fcf5d55",
+    "size_bytes": 13457
+  },
+  "context_delta": {
+    "token_budget": 6500,
+    "tokens_used": 3200,
+    "input_handles": [
+      "/private/tmp/magicite-v1-calibration/scout-report.envelope.json",
+      "/private/tmp/magicite-v1-calibration/exposed-official-inputs.json"
+    ],
+    "summary": "Ten frozen control criteria; pairwise dev/cal/final group separation, typed referenced provenance, pool-bound no-match labels, temporal limitations, deterministic freeze and guarded local exposure receipts; no model/fit/activation or empirical gate PASS."
+  },
+  "constraints": {
+    "trust_level": "standard"
+  },
+  "ise": {
+    "assertion_grade": "self-attested",
+    "provenance": {
+      "methodology_version": "ramza-1.1.0",
+      "tool_surface": [
+        "exec_command",
+        "collaboration"
+      ],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  },
+  "confidence": 0.93,
+  "integrity": {
+    "method": "sha256",
+    "value": "0ef93afaacb058c1a48f6861f9bf2987d4c97b783b2896c95d76a7526fcf5d55"
+  },
+  "trace": {
+    "ts": "2026-10-08T03:39:17.603127+00:00",
+    "host": "codex",
+    "model": "unknown",
+    "tier": "standard"
+  },
+  "x_ramza_acceptance_criteria": {
+    "path": "v1-calibration-data.acceptance.md",
+    "sha256": "a5f8cbbd36a7104ba2839e92b889ba1eaf095f1266528a933466213c136a0ff7"
+  },
+  "x_source_lock": {
+    "path": "v1-official-corpus.upstream-lock.json",
+    "sha256": "17890a8d3de85efb151ade46f495aa28556f9bd0fe6f8bdddd8f22eb86d0d0da"
+  }
+}

@@ -1,0 +1,83 @@
+[
+  {
+    "annotation": {
+      "author_id": "fixture-author0",
+      "evidence_ref": "review0",
+      "independent_review": true,
+      "reviewer_id": "fixture-reviewer0"
+    },
+    "evidence_class": "synthetic_fixture",
+    "query_id": "fixture-q0",
+    "source": {
+      "evidence_ref": "source0",
+      "group_keys": {
+        "repository": "fixture-repository0",
+        "session": "fixture-session0",
+        "task": "fixture-task0"
+      },
+      "related_sources": [],
+      "revision": "fixture-r1",
+      "source_id": "fixture-source0"
+    },
+    "temporal": {
+      "annotated_at": "2026-04-01T00:00:00+00:00",
+      "collected_at": "2026-03-01T00:00:00+00:00",
+      "event_at": "2025-06-01T00:00:00+00:00",
+      "evidence_ref": "time0"
+    }
+  },
+  {
+    "annotation": {
+      "author_id": "fixture-author1",
+      "evidence_ref": "review1",
+      "independent_review": true,
+      "reviewer_id": "fixture-reviewer1"
+    },
+    "evidence_class": "synthetic_fixture",
+    "query_id": "fixture-q1",
+    "source": {
+      "evidence_ref": "source1",
+      "group_keys": {
+        "repository": "fixture-repository1",
+        "session": "fixture-session1",
+        "task": "fixture-task1"
+      },
+      "related_sources": [],
+      "revision": "fixture-r1",
+      "source_id": "fixture-source1"
+    },
+    "temporal": {
+      "annotated_at": "2026-04-01T00:00:00+00:00",
+      "collected_at": "2026-03-01T00:00:00+00:00",
+      "event_at": "2025-07-01T00:00:00+00:00",
+      "evidence_ref": "time1"
+    }
+  },
+  {
+    "annotation": {
+      "author_id": "fixture-author2",
+      "evidence_ref": "review2",
+      "independent_review": true,
+      "reviewer_id": "fixture-reviewer2"
+    },
+    "evidence_class": "synthetic_fixture",
+    "query_id": "fixture-q2",
+    "source": {
+      "evidence_ref": "source2",
+      "group_keys": {
+        "repository": "fixture-repository2",
+        "session": "fixture-session2",
+        "task": "fixture-task2"
+      },
+      "related_sources": [],
+      "revision": "fixture-r1",
+      "source_id": "fixture-source2"
+    },
+    "temporal": {
+      "annotated_at": "2026-04-01T00:00:00+00:00",
+      "collected_at": "2026-03-01T00:00:00+00:00",
+      "event_at": "2026-02-01T00:00:00+00:00",
+      "evidence_ref": "time2"
+    }
+  }
+]

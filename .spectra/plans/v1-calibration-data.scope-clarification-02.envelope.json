@@ -1,0 +1,75 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "025707c4-904b-4b4c-8682-0e75f067dd26",
+  "thread_id": "59f3b808-f1e0-43c3-baed-a40b525be9e8",
+  "parent_id": "4ca87e22-6f3f-4b60-b5f1-ea12f39bd251",
+  "from": {
+    "eidolon": "ramza",
+    "version": "1.1.0"
+  },
+  "to": {
+    "eidolon": "vivi",
+    "version": "n/a"
+  },
+  "performative": "INFORM",
+  "edge_origin": "roster",
+  "objective": "Prospectively permit documentation-claim fixture alignment and explicit bare-final rejection regression in one ancillary test path, preserving frozen criteria.",
+  "artifact": {
+    "kind": "spec",
+    "schema_version": "1.0",
+    "path": "v1-calibration-data.scope-clarification-02.md",
+    "sha256": "304f5cf5768cfe2c256fbc7f6018a4131cea4bc07e252e5bba69f133896c82dd",
+    "size_bytes": 5702
+  },
+  "context_delta": {
+    "token_budget": 3500,
+    "input_handles": [
+      "v1-calibration-data.envelope.json",
+      "v1-calibration-data.scope-clarification-01.envelope.json",
+      "/private/tmp/magicite-v1-calibration/root-cause-ci-a2-to-idg.envelope.json"
+    ],
+    "summary": "Add tests/unit/test_docs_v1.py only for existing-development positive integrity fixture and separate bare-final rejection. VIGIL twice reproduced stale final-positive expectation; criteria/product guards unchanged; successor own-head CI required."
+  },
+  "constraints": {
+    "trust_level": "standard"
+  },
+  "ise": {
+    "assertion_grade": "self-attested",
+    "provenance": {
+      "methodology_version": "ramza-1.1.0",
+      "tool_surface": [
+        "exec_command",
+        "collaboration"
+      ],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  },
+  "integrity": {
+    "method": "sha256",
+    "value": "304f5cf5768cfe2c256fbc7f6018a4131cea4bc07e252e5bba69f133896c82dd"
+  },
+  "trace": {
+    "ts": "2026-10-08T12:20:42.590949+00:00",
+    "host": "codex",
+    "model": "unknown",
+    "tier": "standard"
+  },
+  "x_ramza_acceptance_criteria": {
+    "path": "v1-calibration-data.acceptance.md",
+    "sha256": "a5f8cbbd36a7104ba2839e92b889ba1eaf095f1266528a933466213c136a0ff7"
+  },
+  "x_scope_clarification": {
+    "original_spec_sha256": "0ef93afaacb058c1a48f6861f9bf2987d4c97b783b2896c95d76a7526fcf5d55",
+    "prior_clarification_message_id": "8f2e6fd3-60ca-4fec-a451-1f3c7b58eeff",
+    "effective_scope_path": "v1-calibration-data.scope-clarification-02.scope.txt",
+    "effective_state_path": "v1-calibration-data.scope-clarification-02.state.json",
+    "criteria_changed": false,
+    "added_path": "tests/unit/test_docs_v1.py",
+    "diagnosed_head": "16d66bb906eddb0c4192d0905a02dc572daf99db"
+  }
+}

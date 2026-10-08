@@ -302,3 +302,42 @@ def test_worker_model_guard_precedes_provider_or_query(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="missing"):
         runner.worker(manifest, "dense-v1", "quality", 0, tmp_path / "out")
     assert called == [] and not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("consumer", ["retrieval", "paired", "abstention"])
+def test_final_fixture_consumer_explicit_classification_before_predictions(tmp_path, monkeypatch, consumer):
+    from magicite.eval import operator_cli as cli
+
+    seen = []
+    monkeypatch.setattr(cli, "_load_experiment", lambda p: object())
+    monkeypatch.setattr(cli, "_load_corpus", lambda p: object())
+
+    def seal(exp, corpus, **kw):
+        seen.append(kw)
+        return ["probe denies before predictions"]
+
+    monkeypatch.setattr(cli, "validate_experiment_corpus_seal", seal)
+    monkeypatch.setattr(cli, "run_predictions", lambda *a, **kw: pytest.fail("predictions before seal"))
+    args = dict(experiment_path=tmp_path / "exp", corpus_path=tmp_path / "corpus", output=tmp_path / "out")
+    with pytest.raises(ValueError, match="probe denies"):
+        if consumer == "retrieval":
+            cli.cmd_run_retrieval(**args, split="final", provider="hashing")
+        elif consumer == "paired":
+            cli.cmd_run_paired_policies(
+                **args, incumbent="dense-v1", candidate="hybrid-rrf-v1", n_resamples=2, seed=0
+            )
+        else:
+            cli.cmd_run_abstention_gate(**args, calibration_split="calibration", final_split="final")
+    assert seen == [{"fixture_classification": "synthetic_hashing_diagnostic"}]
+    assert not (tmp_path / "out").exists()
+
+
+def test_unknown_retrieval_provider_cannot_fall_back_to_fixture(tmp_path):
+    with pytest.raises(ValueError, match="production adapter"):
+        cmd_run_retrieval(
+            experiment_path=tmp_path / "missing",
+            corpus_path=tmp_path / "missing",
+            split="final",
+            provider="unclassified",
+            output=tmp_path / "out",
+        )

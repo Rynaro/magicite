@@ -1,0 +1,16 @@
+[
+  {
+    "artifact": {
+      "path": "candidate-one.txt",
+      "sha256": "4e431b320ba619f9f5916804fe4e108e0fdbffc909fa95303a73c8d508cbcc1c"
+    },
+    "candidate_id": "egr_fixture1"
+  },
+  {
+    "artifact": {
+      "path": "candidate-two.txt",
+      "sha256": "b674a2e7cff209319bb93737ad4562bcb5556370a35570a786f51c0649832070"
+    },
+    "candidate_id": "egr_fixture2"
+  }
+]
