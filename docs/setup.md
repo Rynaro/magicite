@@ -8,6 +8,12 @@ qualification. macOS production custody remains unqualified. The existing
 [Linux custody qualification](qualification/linux-custody.md) records its own
 bounded evidence; its runner is not a workstation installer.
 
+After this prerequisite is complete, source installations containing the new
+`magicite init --host claude` command can perform [one-command project connection](quick-setup.md#one-command-connection-source--next-build-only).
+The published **1.0.0rc1 wheel does not contain `init`** and uses the manual Quick
+Setup steps. Init checks existing custody; it never provisions privileged accounts,
+enrollment, protected directories or genesis, and never promotes imported drafts.
+
 Use this recipe for a **new registry**. Existing registries need the migration
 and recovery procedures in [Operations](operations.md), not a fresh genesis.
 

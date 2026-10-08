@@ -74,6 +74,18 @@ def serve(project_root: str) -> None:
     asyncio.run(run_stdio(cfg))
 
 
+@cli.command(name="init")
+@click.option("--host", required=True, type=click.Choice(["claude"]), help="Project MCP host.")
+@click.option("--project-root", default=".", show_default=True, help="Existing enrolled project directory.")
+@click.option("--skills", "skills_path", default=None, help="Optional project-contained skills directory.")
+@click.option("--fetch-model", is_flag=True, help="Explicit model download consent; never skill approval.")
+def init_cmd(host: str, project_root: str, skills_path: str | None, fetch_model: bool) -> None:
+    """Connect Claude Code after protected custody Setup; optional explicit skill review."""
+    from magicite.project_init import run_init
+
+    run_init(project_root, fetch=fetch_model, skills_path=skills_path)
+
+
 @cli.command(name="tools")
 def tools_cmd() -> None:
     """Print the authoritative 16-tool manifest as JSON (AC-003/AC-004)."""

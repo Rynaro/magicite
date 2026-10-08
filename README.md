@@ -68,6 +68,31 @@ short project-user path. Custody is mandatory; this preview does not yet have a
 one-command bootstrap. macOS production custody remains unqualified. Keep
 autonomous approval disabled and review each imported skill's exact digest.
 
+### One-command project connection (source / next build)
+
+The published **1.0.0rc1 wheel does not include `magicite init`**. From a source
+installation containing this command, after administrator [Setup](docs/setup.md):
+
+```bash
+magicite init --host claude --project-root /absolute/path/to/project
+```
+
+Inside the enrolled project, omit `--project-root`. Init checks protected custody
+and performs an offline model inference before merging `.mcp.json` and one owned
+`CLAUDE.md` instruction block. It preserves other servers and instructions, keeps
+private backups of changed existing files, and verifies a local MCP handshake.
+Reconnect Claude Code afterward. This does not provision the machine or qualify
+Claude model execution.
+
+If the model is missing, the interactive command offers a separate default-no
+network download. `--fetch-model` supplies only model-download consent; it never
+imports or approves skills. A terminal operator may separately elect import from
+`skills/` (or `--skills path`) and approve each displayed digest with an explicit
+identity. Noninteractive runs configure and verify, then print manual import and
+review commands. Approval does not promote imported drafts; an empty registry is
+connected with skill preparation still remaining. See [Quick Setup](docs/quick-setup.md)
+for failure recovery and the manual path supported by the published preview.
+
 The repository's 30 first-party engrams are examples requiring the same review;
 their count is not evidence of a break-even point or routing quality.
 

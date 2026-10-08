@@ -740,6 +740,54 @@
         "type": "text"
       }
     ],
+    "magicite init": [
+      {
+        "choices": [
+          "claude"
+        ],
+        "default": "Sentinel.UNSET",
+        "name": "host",
+        "options": [
+          "--host"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "choice"
+      },
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "name": "skills_path",
+        "options": [
+          "--skills"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": false,
+        "name": "fetch_model",
+        "options": [
+          "--fetch-model"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "boolean"
+      }
+    ],
     "magicite migration": [],
     "magicite migration apply": [
       {
