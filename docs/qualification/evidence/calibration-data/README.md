@@ -1,0 +1,15 @@
+# Calibration-data control evidence
+
+Measured source: `5167757c5b5e661096cf86bacab670e90f44980e`. This packet records actual offline synthetic data controls. The new packet CLI commands performed no model, ranking, calibration fit/save or activation calls and do not qualify empirical release. The retained unit regression command exercised existing diagnostic/UnitModel ranking mechanics; those tests are not empirical observations. The clean source stayed unchanged through all commands. The supported Python 3.12.14 focused invocation passed 89 tests against this source.
+
+Two immutable freezes produced identity `649f31112f4c2969f8b07a38db643f71e210165e462d320dbe6c5dbc93c68926`. Access intent preceded final scoring-label release; a second fresh open failed, exact replay retained the receipt, wrong-purpose replay failed, and changed candidate bytes failed before new intent. The already-exposed official revision remained denied after experiment renaming. Runtime receipt timestamps describe local intent publication, not a model-call timestamp.
+
+`control-summary.json.gz` records exact source/input identities and every actual command, expected/observed exit code and stdout/stderr hash. `inventory.json` maps all retained raw inputs/results to archive paths and hashes; gzip uses deterministic headers. `inputs/` contains the tiny invented packet. `exposed/` is a separately labeled identity-rejection mutation of that fixture, not the real upstream dataset. `run-offline-proof.py` and its invocation log preserve the actual execution wrapper. Freeze paths retain their actual temporary input root; portable verification uses the inventory to map retained bytes rather than silently rewriting frozen content.
+
+`source-equivalence.json` records unchanged measured runtime, runner, lock and fixture inputs before the docs-only archive successor. Later commit/CI identities remain separate from measured C. `ledger-source-c-status.json` is an actual native snapshot with manual, self-attested checks; it reports not-accepted/not-complete, because independent/current-head CI are separate and Gauge provenance is unavailable. No old official-quality result is reattributed to C.
+
+`execution-scope-clarification.json` clarifies the original summary wording without modifying raw reports or claiming observed call counters.
+
+All authentic annotation, group independence, no-match, project-temporal, fresh-final, E2, E3 and E6 obligations remain UNEVALUATED. Invented source/person/time declarations demonstrate validation only. Byte hashes do not prove authenticity, and local receipts cannot prevent out-of-band reads, copied ledgers or rollback. Preparation authors inspect labels before evaluation-consumer access.
+
+`historical-failures/` preserves earlier red runs, static/tooling failures and the independently reproduced group/temporal suppression findings. These predate measured C and are retained as history, not C failure or success outcomes. Independent review and final-head six CI outcomes are recorded separately by the checker and orchestrator.

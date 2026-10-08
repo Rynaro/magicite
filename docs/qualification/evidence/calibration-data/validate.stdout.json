@@ -1,0 +1,78 @@
+{
+  "inputs": {
+    "candidate-one.txt": "4e431b320ba619f9f5916804fe4e108e0fdbffc909fa95303a73c8d508cbcc1c",
+    "candidate-two.txt": "b674a2e7cff209319bb93737ad4562bcb5556370a35570a786f51c0649832070",
+    "judgment1.json": "709ebb2b44dd369209f7139259c93763e2ac2bc4e5d17d3f2b0dca613ca7f14e",
+    "judgment2.json": "c5b90dc095cf941c12aac392dde28e92e0370ea4c7a7450b66e7224d1a84fb2c",
+    "labels.json": "cde51f5390321972a121f7270dcf7285c2a8b0884838be43fc32b6b83d85aac8",
+    "packet.json": "1dad5712926e2e25993a2bbf9f7eba2949638affc075aa1c5ba4f32a72fdb7c6",
+    "partitions.json": "8316cbc80ecc08280ccf44f51a75d57108ebb822698020969f8fa3bd2110601d",
+    "pool.json": "76919ebae1a7df43d2f55089778bcc907cc300f29ffbcabeef534d77c047aace",
+    "preregistration.json": "5b426f480f75795655c4828c8546f1037ef9b89ece0c6daef20c9c2b39cc478d",
+    "provenance.json": "b37008a7688ea42390b5feea0c5de01232f8e8160b1a5e2b5a3cbfc951b8f202",
+    "review0.json": "1e3d259a4c7003b2fe78057425a15822d593eb90c2cee58abbb21da1dcc78e6c",
+    "review1.json": "5501dfd6784e932f07e7c4909d03f49e8a0a23ae2e756ff7960dee59c853e721",
+    "review2.json": "a742392c800b827703d16a5aa1ab4caad506aa58ad7fb8f5851e8856e2fcabce",
+    "runtime.json": "f6e870853fb8a6a10702f9ba4342627fa3b14b7a51d6e04f316881fc55c6dea9",
+    "source0.json": "742ac5c9664b9a0e72fa852817b05003ff05afee25585b84f51e0263fd357f12",
+    "source1.json": "b78b619f342cbaa47af14de5892b9eeee7b1c7d3bfb2f256c114d78f459bfb07",
+    "source2.json": "d1ee0caa3774932356a094239e433eea652733037b3a792bfde2bc15eeaf70c4",
+    "time0.json": "ccf05d76e68f14b05219343d67dc8e96fae19a5c3c9d212c4c449578442b09c1",
+    "time1.json": "515400cc889f4122ca649d8a5b0d4114db2c6e1277c67f0035e37695484d6526",
+    "time2.json": "a138a8debd49f3d73dbb994908c25f2cee04905c2d67e334afba8d6739ce047d"
+  },
+  "report": {
+    "counts": {
+      "final": 1,
+      "no_match": 1,
+      "pool": 2,
+      "queries": 3
+    },
+    "empirical_obligations": {
+      "E2": {
+        "reason": "Referenced declaration bytes do not independently prove authentic E2",
+        "status": "UNEVALUATED"
+      },
+      "E3": {
+        "reason": "Referenced declaration bytes do not independently prove authentic E3",
+        "status": "UNEVALUATED"
+      },
+      "E6": {
+        "reason": "Referenced declaration bytes do not independently prove authentic E6",
+        "status": "UNEVALUATED"
+      },
+      "annotation_authenticity": {
+        "reason": "Referenced declaration bytes do not independently prove authentic annotation_authenticity",
+        "status": "UNEVALUATED"
+      },
+      "fresh_final": {
+        "reason": "Referenced declaration bytes do not independently prove authentic fresh_final",
+        "status": "UNEVALUATED"
+      },
+      "group_independence": {
+        "reason": "Referenced declaration bytes do not independently prove authentic group_independence",
+        "status": "UNEVALUATED"
+      },
+      "no_match_judgment": {
+        "reason": "Referenced declaration bytes do not independently prove authentic no_match_judgment",
+        "status": "UNEVALUATED"
+      },
+      "project_temporal": {
+        "reason": "Referenced declaration bytes do not independently prove authentic project_temporal",
+        "status": "UNEVALUATED"
+      }
+    },
+    "evidence_classes": [
+      "synthetic_fixture"
+    ],
+    "known_exposed_final": false,
+    "limitations": [
+      "Fixture/control success does not qualify E2/E3/E6, fitting, activation or release",
+      "Identity/reviewer/group/time declarations are self-attested; hashes verify bytes only",
+      "Local receipt cannot prove absence of out-of-band reads or prevent rollback"
+    ],
+    "preparation_role": "Authors/reviewers inspected labels; not evaluation-consumer fresh access",
+    "qualifying": false,
+    "structural_controls": "PASS"
+  }
+}

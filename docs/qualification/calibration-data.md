@@ -1,6 +1,6 @@
 # Calibration-data controls
 
-This workflow validates companion data packets and demonstrates local freeze/access controls. It performs no model calls, ranking, calibration fitting, save or activation. Structural control success leaves authentic annotation, independent groups, no-match judgments, project-temporal history, fresh final, E2, E3 and E6 readiness **UNEVALUATED**. No qualifying dataset was supplied for this slice.
+This workflow validates companion data packets and demonstrates local freeze/access controls. The new packet CLI commands perform no model calls, ranking, calibration fitting, save or activation. Retained unit regression tests exercise existing diagnostic/UnitModel ranking mechanics and are not empirical observations. Structural control success leaves authentic annotation, independent groups, no-match judgments, project-temporal history, fresh final, E2, E3 and E6 readiness **UNEVALUATED**. No qualifying dataset was supplied for this slice.
 
 `CorpusManifest/1` query identity semantics stay intact. The companion `magicite/calibration-data-packet/1` binds the complete candidate pool, exact runtime rows, scoring labels, preserved partition assignments, typed provenance, preregistration and referenced supporting declarations. Paths must remain inside the packet directory, with SHA256 and exact row counts. Hashes verify bytes; they do not authenticate people, source independence, annotations or event truth.
 
