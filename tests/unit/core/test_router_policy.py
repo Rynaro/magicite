@@ -358,3 +358,324 @@ def test_subject_cache_isolates_roots_with_same_inode_and_registry(
     assert second is not first
     assert router_mod._build_subject_entry(cfg, row, scope=scope) is first
     assert router_mod._build_subject_entry(other, row, scope=second_scope) is second
+
+
+BASELINES = ("experimental/sparse-v1", "experimental/trigger-v1", "experimental/hybrid-rrf-v1")
+
+
+def _baseline_registry(cfg, conn, embedder):
+    """Live reviewed skills and durable published generation, no model acquisition."""
+    from magicite.core import index_generation as generation
+    from magicite.core import trust
+    from magicite.engram import parser
+    from magicite.storage.lease import writer_lease
+
+    ids = ("egr_aa01cc11", "egr_aa01cc12", "egr_aa01cc13")
+    names = ("orchid", "orchid-orchid", "vector")
+    for nid, name in zip(ids, names, strict=True):
+        digest = _insert_engram(cfg, conn, nid, name)
+        _embed_and_store(conn, embedder, nid, "orchid" if name == "vector" else "different", digest)
+    catalog = generation.IndexCatalog(conn)
+    fp = generation.IndexFingerprint(
+        provider="hashing",
+        dimension=embedder.dim,
+        model_artifact_digest=generation.model_artifact_digest(
+            model_name=embedder.model_name, dim=embedder.dim
+        ),
+    )
+    with writer_lease("baseline-test"):
+        gid = catalog.begin(snapshot_id="baseline-snapshot", fingerprint=fp)
+        projections = []
+        for row in conn.execute("SELECT * FROM engram"):
+            full = cfg.project_root / row["path"]
+            raw = full.read_text()
+            artifact, _ = parser.parse_artifact(
+                raw,
+                relpath=row["path"],
+                admit=False,
+                registry_root=cfg.registry_dir,
+                require_asset_files=False,
+            )
+            _, body = parser.split_frontmatter(raw)
+            proj = generation.project_artifact(artifact, raw_body_text=body)
+            vector = conn.execute(
+                "SELECT vec FROM eph_embedding WHERE engram_id=? AND model=?",
+                (row["id"], embedder.model_name),
+            ).fetchone()["vec"]
+            import numpy as np
+
+            catalog.add_entry(
+                gid,
+                proj,
+                dense_vec=np.frombuffer(vector, dtype=np.float32),
+                asset_digest=trust.resource_digest_for_artifact(cfg, artifact),
+            )
+            projections.append(proj)
+        catalog.complete(gid, projections, expected_fingerprint=fp)
+        catalog.publish(gid)
+    return ids, gid
+
+
+@pytest.mark.parametrize("policy", BASELINES)
+def test_baseline_declared_dispatch_and_raw_scores(cfg, db_conn, embedder, monkeypatch, policy):
+    from magicite.core import candidates as source
+
+    ids, gid = _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("baseline dispatched adaptive blend")
+
+    monkeypatch.setattr(router_mod, "_route_adaptive_blend_v1", forbidden)
+    outcome = router_mod.route(cfg, db_conn, embedder, query="orchid", k=3)
+    d = outcome.decision
+    assert d is not None and d.status == "selected", d
+    assert d.policy_id == policy and d.policy_family == "experimental"
+    assert d.index_generation_id == gid and d.snapshot_id == "baseline-snapshot"
+    assert d.confidence.value is None
+    expected_sources = (
+        {"sparse"} if "sparse" in policy else {"trigger"} if "trigger" in policy else {"dense", "sparse"}
+    )
+    for candidate in d.candidates:
+        comps = d.score_components[candidate.id]
+        assert {key[:-6] for key in comps if key.endswith("_score")} <= expected_sources
+        if len(expected_sources) == 1:
+            assert candidate.score == comps[f"{next(iter(expected_sources))}_score"]
+        else:
+            assert candidate.score == pytest.approx(
+                sum(1 / (60 + comps[f"{name}_rank"]) for name in expected_sources if f"{name}_rank" in comps)
+            )
+    # Lexical and trigger policy cannot silently use the dense winner.
+    if len(expected_sources) == 1:
+        assert d.selected_ids[0] != ids[2]
+    assert source.DEFAULT_RRF_K == 60
+
+
+@pytest.mark.parametrize("policy", BASELINES)
+def test_baseline_absent_generation_errors_even_empty(cfg, db_conn, embedder, policy):
+    cfg.routing_policy = policy
+    out = router_mod.route(cfg, db_conn, embedder, query="orchid")
+    assert out.decision.status == "error"
+    assert out.decision.operational_error == "index_generation_absent"
+
+
+@pytest.mark.parametrize("policy", BASELINES)
+def test_baseline_live_drift_after_warm_denied_before_sources(cfg, db_conn, embedder, monkeypatch, policy):
+    from magicite.core import candidates as source
+
+    ids, _ = _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    assert router_mod.route(cfg, db_conn, embedder, query="orchid").decision.status == "selected"
+    path = (
+        cfg.project_root / db_conn.execute("SELECT path FROM engram WHERE id=?", (ids[0],)).fetchone()["path"]
+    )
+    path.write_bytes(path.read_bytes() + b"\nDrift\n")
+    actual_generate = source.generate
+
+    def checked(*args, **kwargs):
+        assert ids[0] not in kwargs["eligible_ids"]
+        return actual_generate(*args, **kwargs)
+
+    monkeypatch.setattr(source, "generate", checked)
+    out = router_mod.route(cfg, db_conn, embedder, query="orchid")
+    assert ids[0] not in [candidate.id for candidate in out.candidates]
+    assert any(item.engram_id == ids[0] for item in out.decision.exclusions)
+
+
+@pytest.mark.parametrize("policy", BASELINES)
+def test_baseline_stale_projection_is_operational_error(cfg, db_conn, embedder, policy):
+    ids, gid = _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    db_conn.execute(
+        "UPDATE index_entry SET projection_sha256=? WHERE generation_id=? AND engram_id=?",
+        ("0" * 64, gid, ids[0]),
+    )
+    db_conn.commit()
+    out = router_mod.route(cfg, db_conn, embedder, query="orchid")
+    assert out.decision.status == "error"
+    assert out.decision.operational_error == "index_generation_stale"
+
+
+@pytest.mark.parametrize("policy", (BASELINES[0], BASELINES[2]))
+def test_baseline_missing_sparse_never_falls_back(cfg, db_conn, embedder, monkeypatch, policy):
+    from magicite.core import candidates as source
+
+    _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    original = source.RetrievalIndex.from_catalog
+
+    def absent(*args, **kwargs):
+        index = original(*args, **kwargs)
+        index.sparse_conn = None
+        return index
+
+    monkeypatch.setattr(source.RetrievalIndex, "from_catalog", absent)
+    out = router_mod.route(cfg, db_conn, embedder, query="orchid")
+    assert out.decision.status == "error"
+    assert out.decision.operational_error == "sparse_capability_unavailable"
+    assert not out.candidates
+
+
+@pytest.mark.parametrize("policy", BASELINES)
+def test_baseline_reranker_fallback_names_actual_mechanism(cfg, db_conn, embedder, policy):
+    _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    cfg.reranker_provider = "missing-provider"
+    cfg.reranker_required = True
+    cfg.reranker_fallback = "dense-v1"
+    out = router_mod.route(cfg, db_conn, embedder, query="orchid")
+    assert out.decision.status == "selected"
+    assert out.decision.fallback_identity == policy
+    assert out.decision.selection_mechanism == policy
+
+
+@pytest.mark.parametrize("fault", ("model", "assets", "snapshot", "dimension", "batch"))
+def test_baseline_generation_binding_faults(cfg, db_conn, embedder, monkeypatch, fault):
+    from dataclasses import replace
+
+    from magicite.core import candidates as source
+
+    _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = BASELINES[2]
+    original = source.RetrievalIndex.from_catalog
+
+    def corrupt(*args, **kwargs):
+        index = original(*args, **kwargs)
+        if fault == "model":
+            index.fingerprint = replace(index.fingerprint, model_artifact_digest="0" * 64)
+        elif fault == "assets":
+            first = next(iter(index.entries))
+            index.entries[first] = replace(index.entries[first], asset_digest="0" * 64)
+        elif fault == "snapshot":
+            index.snapshot_id = "wrong"
+        elif fault == "dimension":
+            index.fingerprint = replace(index.fingerprint, dimension=embedder.dim + 1)
+        return index
+
+    monkeypatch.setattr(source.RetrievalIndex, "from_catalog", corrupt)
+    if fault == "batch":
+        generate = source.generate
+        monkeypatch.setattr(
+            source, "generate", lambda *a, **kw: replace(generate(*a, **kw), generation_id="wrong")
+        )
+    out = router_mod.route(cfg, db_conn, embedder, query="orchid")
+    assert out.decision.status == "error" and not out.candidates
+    assert out.decision.operational_error == "index_generation_stale"
+
+
+@pytest.mark.parametrize("policy", BASELINES)
+def test_baseline_empty_match_and_threshold_confidence(cfg, db_conn, embedder, policy):
+    _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    cfg.abstention_score_threshold = 1000.0
+    out = router_mod.route(cfg, db_conn, embedder, query="unmatched-zymology")
+    assert out.decision.status == "abstained"
+    assert out.decision.confidence.value is None
+    assert cfg.abstention_score_threshold == 1000.0
+
+
+@pytest.mark.parametrize("policy", BASELINES)
+def test_baseline_revoked_top_refills_live_slate(cfg, db_conn, embedder, monkeypatch, policy):
+    from magicite.core import candidates as source
+    from magicite.core import registry
+
+    ids, _ = _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    warm = router_mod.route(cfg, db_conn, embedder, query="orchid", k=1)
+    top = warm.candidates[0].id
+    registry.review_revoke(
+        cfg,
+        db_conn,
+        engram_id=top,
+        expected_digest=db_conn.execute("SELECT content_sha256 FROM engram WHERE id=?", (top,)).fetchone()[0],
+        actor="test-operator",
+    )
+    generate = source.generate
+
+    def checked(*a, **kw):
+        assert top not in kw["eligible_ids"]
+        return generate(*a, **kw)
+
+    monkeypatch.setattr(source, "generate", checked)
+    out = router_mod.route(cfg, db_conn, embedder, query="orchid", k=1)
+    assert out.decision.status == "selected"
+    assert out.candidates[0].id in ids and out.candidates[0].id != top
+
+
+@pytest.mark.parametrize("policy", BASELINES)
+def test_baseline_rejects_authenticated_dense_calibration(cfg, db_conn, embedder, policy):
+    from magicite.core import calibration as cal
+    from magicite.core import routing_policy as policies
+
+    _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    config_digest = policies.compute_config_digest(cfg)
+    artifact = cal.fit_abstention(
+        [
+            cal.CalibrationExample(
+                query_fingerprint="a" * 64, top_score=0.9, margin=0.5, label_relevant=True
+            ),
+            cal.CalibrationExample(
+                query_fingerprint="b" * 64, top_score=0.0, margin=0.0, label_relevant=False
+            ),
+        ],
+        cfg=cfg,
+        policy_id="dense-v1",
+        policy_digest=policies.compute_policy_digest("dense-v1", cfg),
+        config_digest=config_digest,
+        rejection_queries=(),
+    )
+    cal.save_calibration(cfg, artifact)
+    assert cal.load_calibration(cfg, expected_config_digest=config_digest) is not None
+    out = router_mod.route(cfg, db_conn, embedder, query="orchid")
+    assert out.decision.status == "selected"
+    assert out.decision.confidence.value is None
+    assert out.decision.calibration_digest is None
+
+
+@pytest.mark.parametrize("policy", BASELINES)
+@pytest.mark.parametrize("change", ("missing", "symlink", "context"))
+def test_baseline_warm_assets_context_filtered_before_sources(
+    cfg, db_conn, embedder, monkeypatch, policy, change
+):
+    from magicite.core import candidates as source
+    from magicite.core import registry
+    from magicite.core.context import RouteContext
+    from tests.unit.core.test_router_core import _asset_bound_engram
+
+    path, asset = _asset_bound_engram(cfg, b"asset-v1")
+    path.write_text(path.read_text().replace("routing:\n", "compatibility:\n  os: [linux]\nrouting:\n"))
+    registered = registry.register(cfg, db_conn, embedder, path=str(path))
+    identity = registered.registered[0].id
+    digest = db_conn.execute("SELECT content_sha256 FROM engram WHERE id=?", (identity,)).fetchone()[0]
+    registry.review_approve(cfg, db_conn, engram_id=identity, expected_digest=digest, actor="test-operator")
+    _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    warm = router_mod.route(
+        cfg, db_conn, embedder, query="asset bound", k=5, route_context=RouteContext(platform="linux")
+    )
+    assert identity in [c.id for c in warm.candidates]
+    if change == "missing":
+        asset.unlink()
+    elif change == "symlink":
+        outside = cfg.project_root / "outside-asset"
+        outside.write_bytes(asset.read_bytes())
+        asset.unlink()
+        asset.symlink_to(outside)
+    actual = source.generate
+
+    def checked(*a, **kw):
+        assert identity not in kw["eligible_ids"]
+        return actual(*a, **kw)
+
+    monkeypatch.setattr(source, "generate", checked)
+    out = router_mod.route(
+        cfg,
+        db_conn,
+        embedder,
+        query="asset bound",
+        k=5,
+        route_context=RouteContext(platform="macos" if change == "context" else "linux"),
+    )
+    assert identity not in [c.id for c in out.candidates]
+    assert any(item.engram_id == identity for item in out.decision.exclusions)

@@ -72,6 +72,7 @@ import numpy as np
 from magicite.config import Config
 from magicite.core import activation as activation_mod
 from magicite.core import calibration as calibration_mod
+from magicite.core import candidates as candidates_mod
 from magicite.core import composition as composition_mod
 from magicite.core import edge_weight as edge_weight_mod
 from magicite.core import eligibility as eligibility_mod
@@ -505,8 +506,12 @@ def compose_route_plan(
         except Exception:
             resource_digest = None
         return _route_trust_view(
-            cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy,
-            snapshot=trust_snapshot, resource_digest=resource_digest
+            cfg,
+            row,
+            cached_decision=decisions.get(engram_id),
+            cached_policy=trust_policy,
+            snapshot=trust_snapshot,
+            resource_digest=resource_digest,
         )
 
     try:
@@ -817,8 +822,12 @@ def _route_trust_view(
         if resource_digest is None and "path" in row.keys():
             resource_digest = trust_mod.compute_resource_digest_at(cfg, relpath=str(row["path"]))
         admitted = trust_mod.decision_valid_under_policy(
-            decision, cached_policy, content_digest=content_digest,
-            resource_digest=resource_digest, snapshot=snapshot)
+            decision,
+            cached_policy,
+            content_digest=content_digest,
+            resource_digest=resource_digest,
+            snapshot=snapshot,
+        )
     except InvalidInputError:
         admitted = False
 
@@ -892,8 +901,12 @@ def _evaluate_route_eligibility(
             entry = _build_subject_entry(cfg, row, scope)
             subject = entry.subject
             trust = _route_trust_view(
-                cfg, row, cached_decision=decisions.get(engram_id), cached_policy=trust_policy,
-                snapshot=trust_snapshot, resource_digest=entry.resource_digest
+                cfg,
+                row,
+                cached_decision=decisions.get(engram_id),
+                cached_policy=trust_policy,
+                snapshot=trust_snapshot,
+                resource_digest=entry.resource_digest,
             )
             result = eligibility_mod.evaluate_eligibility(
                 subject, route_context, trust, server_policy, path="route"
@@ -1522,6 +1535,32 @@ def route(
     rctx = route_context if route_context is not None else RouteContext()
     spolicy = server_policy if server_policy is not None else DEFAULT_SERVER_POLICY
 
+    if policy_id in policy_mod.BASELINE_SOURCES:
+        return _route_baseline_v1(
+            cfg,
+            conn,
+            embedder,
+            query=query,
+            qvec=qvec,
+            rows=rows,
+            k=k,
+            session_id=sid,
+            registry_size=registry_size,
+            policy_id=policy_id,
+            policy_digest=digest,
+            policy_family=family,
+            config_digest=config_digest,
+            calibration=cal,
+            route_context=rctx,
+            server_policy=spolicy,
+            index_generation_id=gen_id,
+            snapshot_id=snap_id,
+            schema_digest=schema_d,
+            tokenizer_digest=tok_d,
+            pin_reasons=(*policy_extra_reasons, *pin_reasons),
+            policy_source=policy_source,
+        )
+
     if not rows:
         return _finalize_route(
             cfg,
@@ -1832,6 +1871,203 @@ def _finalize_route(
         policy_family=policy_family,
         decision=route_decision,
         plan=composed_plan,
+    )
+
+
+def _route_baseline_v1(
+    cfg: Config,
+    conn: sqlite3.Connection,
+    embedder: Embedder,
+    *,
+    query: str,
+    qvec: np.ndarray,
+    rows: list[sqlite3.Row],
+    k: int,
+    session_id: str,
+    registry_size: int,
+    policy_id: str,
+    policy_digest: str,
+    policy_family: str,
+    config_digest: str,
+    calibration: calibration_mod.CalibrationArtifact | None,
+    route_context: RouteContext,
+    server_policy: ServerPermissionPolicy,
+    index_generation_id: str | None = None,
+    snapshot_id: str | None = None,
+    schema_digest: str | None = None,
+    tokenizer_digest: str | None = None,
+    pin_reasons: tuple[str, ...] = (),
+    policy_source: Literal["store", "config_fresh_install"] | None = None,
+) -> RouteOutcome:
+    """Explicit indexed baseline: live eligibility → pinned sources → shared finalizer."""
+    eligible_rows, exclusions, missing_ctx = _evaluate_route_eligibility(
+        cfg,
+        conn,
+        rows,
+        route_context=route_context,
+        server_policy=server_policy,
+    )
+    bound_exclusions = _bound_exclusions(exclusions, limit=cfg.max_exclusion_summaries)
+    sources = policy_mod.BASELINE_SOURCES[policy_id]
+    candidates: list[Candidate] = []
+    components: dict[str, dict[str, float]] = {}
+    truncations: dict[str, int] = {}
+    reasons = list(pin_reasons)
+    operational_error = None
+    fallback_identity = None
+    try:
+        if index_generation_id is None:
+            raise index_gen_mod.IncompleteGenerationError("no pinned active generation")
+        catalog = index_gen_mod.IndexCatalog(conn)
+        if catalog.generation_state(index_generation_id) != "published":
+            raise index_gen_mod.IncompleteGenerationError("generation is not published")
+        index = candidates_mod.RetrievalIndex.from_catalog(catalog, index_generation_id)
+        if index.snapshot_id != snapshot_id or not snapshot_id:
+            raise index_gen_mod.StaleGenerationError("generation snapshot mismatch")
+        fp = index.fingerprint
+        if (
+            fp.model_artifact_digest
+            != index_gen_mod.model_artifact_digest(model_name=embedder.model_name, dim=embedder.dim)
+            or fp.dimension != embedder.dim
+            or fp.normalization != "l2"
+            or fp.projection_version != index_gen_mod.PROJECTION_VERSION
+            or fp.index_schema_version != index_gen_mod.INDEX_SCHEMA_VERSION
+            or fp.tokenizer_id != index_gen_mod.TOKENIZER_ID
+        ):
+            raise index_gen_mod.StaleGenerationError("generation fingerprint mismatch")
+        row_by_id = {str(row["id"]): row for row in eligible_rows}
+        for nid, row in row_by_id.items():
+            entry = index.entries.get(nid)
+            if entry is None:
+                raise index_gen_mod.StaleGenerationError("eligible skill missing from generation")
+            path = Path(row["path"])
+            full = path if path.is_absolute() else cfg.project_root / path
+            raw = full.read_bytes()
+            if ids_mod.content_sha256(raw) != str(row["content_sha256"]):
+                raise index_gen_mod.StaleGenerationError("live content changed during route")
+            artifact, _ = parser_mod.parse_artifact(
+                raw.decode("utf-8"),
+                relpath=str(path),
+                admit=False,
+                registry_root=cfg.registry_dir,
+                require_asset_files=False,
+            )
+            _, raw_body = parser_mod.split_frontmatter(raw.decode("utf-8"))
+            projection = index_gen_mod.project_artifact(artifact, raw_body_text=raw_body)
+            if (
+                entry.projection.projection_sha256 != projection.projection_sha256
+                or entry.resolved_body_digest() != projection.body_digest
+                or entry.projection.revision != int(row["version"])
+            ):
+                raise index_gen_mod.StaleGenerationError("generation content mismatch")
+            expected_assets = trust_mod.resource_digest_for_artifact(cfg, artifact)
+            if entry.asset_digest != expected_assets:
+                raise index_gen_mod.StaleGenerationError("generation asset identity mismatch")
+            if entry.dense_vec is None or not np.array_equal(
+                entry.dense_vec, np.frombuffer(row["vec"], dtype=np.float32)
+            ):
+                raise index_gen_mod.StaleGenerationError("generation model/vector mismatch")
+        refill_n = min(candidates_mod.DEFAULT_PER_SOURCE_LIMIT, max(k, k + int(cfg.candidate_refill_limit)))
+        batch = candidates_mod.generate(
+            query,
+            index,
+            candidates_mod.CandidateConfig(sources=sources, top_k=refill_n),
+            query_vec=qvec,
+            eligible_ids=frozenset(row_by_id),
+        )
+        if batch.generation_id != index_generation_id or batch.snapshot_id != snapshot_id:
+            raise index_gen_mod.StaleGenerationError("candidate batch generation mismatch")
+        truncations.update(batch.truncations)
+        reasons.extend(batch.reason_codes)
+        if len(sources) == 1:
+            scores = {hit.engram_id: hit.score for hit in batch.components[sources[0]]}
+        else:
+            scores = {candidate.id: candidate.fused_score for candidate in batch.candidates}
+        ranked = sorted((c.id for c in batch.candidates), key=lambda nid: (-scores[nid], nid))
+        ordered, fallback_identity, operational_error = _apply_optional_reranker(
+            cfg,
+            query=query,
+            ranked_ids=ranked,
+            scores_by_id=scores,
+        )
+        # The reranker returns the original baseline slate on failure; no dense reroute occurred.
+        if fallback_identity is not None:
+            fallback_identity = policy_id
+        if len(ranked) > k:
+            truncations["output"] = len(ranked) - k
+        generated_by_id = {c.id: c for c in batch.candidates}
+        for i, nid in enumerate(ordered[:k]):
+            row = row_by_id[nid]
+            generated = generated_by_id[nid]
+            diagnostics = {
+                "final": scores[nid],
+                "policy_experimental": 1.0,
+                "per_source_limit": float(candidates_mod.DEFAULT_PER_SOURCE_LIMIT),
+                "scan_budget": float(candidates_mod.DEFAULT_SCAN_BUDGET),
+            }
+            if len(sources) > 1:
+                diagnostics["rrf_k"] = float(candidates_mod.DEFAULT_RRF_K)
+            for source in sources:
+                score = getattr(generated, f"{source}_score")
+                rank = getattr(generated, f"{source}_rank")
+                if score is not None:
+                    diagnostics[f"{source}_score"] = score
+                if rank is not None:
+                    diagnostics[f"{source}_rank"] = float(rank)
+            components[nid] = diagnostics
+            candidates.append(
+                Candidate(
+                    rank=i + 1,
+                    id=nid,
+                    name=row["name"],
+                    intent_does=row["intent_does"][:INTENT_TRUNCATE],
+                    intent_use_when=row["intent_use_when"][:INTENT_TRUNCATE],
+                    score=scores[nid],
+                    status=row["status"],
+                    exposure_count=row["exposure_count"],
+                    body_ref=row["path"],
+                    content_digest=str(row["content_sha256"]),
+                    diagnostics=diagnostics,
+                )
+            )
+    except (index_gen_mod.FTS5UnavailableError, sqlite3.OperationalError):
+        operational_error = (
+            "sparse_capability_unavailable" if "sparse" in sources else "index_generation_unpinnable"
+        )
+    except (index_gen_mod.IndexGenerationError, OSError, ValueError):
+        operational_error = "index_generation_stale" if index_generation_id else "index_generation_absent"
+    if operational_error:
+        reasons.extend((operational_error, "operational_error"))
+    return _finalize_route(
+        cfg,
+        conn,
+        query=query,
+        k=k,
+        candidates=candidates,
+        unresolved_context=[],
+        session_id=session_id,
+        registry_size=registry_size,
+        policy_id=policy_id,
+        policy_digest=policy_digest,
+        policy_family=policy_family,
+        config_digest=config_digest,
+        calibration=calibration,
+        exclusions=bound_exclusions,
+        missing_context=missing_ctx,
+        reason_codes=tuple(reasons),
+        selection_mechanism=policy_id,
+        score_components=components,
+        truncations=truncations,
+        model_digest=embedder.model_name,
+        fallback_identity=fallback_identity,
+        operational_error=operational_error,
+        index_generation_id=index_generation_id,
+        snapshot_id=snapshot_id,
+        schema_digest=schema_digest,
+        tokenizer_digest=tokenizer_digest,
+        policy_source=policy_source,
+        route_context=route_context,
+        server_policy=server_policy,
     )
 
 

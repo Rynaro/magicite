@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+import pytest
+
 from magicite.core import dream as dream_mod
 from magicite.core import router as router_mod
 from magicite.core import routing_policy as policy_mod
@@ -251,3 +253,35 @@ def test_no_raw_query_logging(cfg, db_conn, embedder) -> None:
         assert payload.get("query_fingerprint") == expected_fp
         assert payload.get("fingerprint_scheme") == fingerprint_key_mod.FINGERPRINT_SCHEME
         assert payload.get("policy_id") == policy_mod.POLICY_DENSE_V1
+
+
+@pytest.mark.parametrize(
+    "policy", ("experimental/sparse-v1", "experimental/trigger-v1", "experimental/hybrid-rrf-v1")
+)
+def test_baseline_inventory_and_digest_isolation(cfg, policy):
+    from magicite.core import routing_policy as policies
+
+    stable = policies.compute_policy_digest("dense-v1", cfg)
+    baseline = policies.compute_policy_digest(policy, cfg)
+    assert policy in policies.EXPERIMENTAL_POLICY_IDS
+    assert policy not in policies.STABLE_POLICY_IDS
+    assert policies.DEFAULT_ROUTING_POLICY == "dense-v1"
+    assert baseline != stable
+    cfg.candidate_refill_limit += 1
+    assert policies.compute_policy_digest(policy, cfg) != baseline
+    cfg.candidate_refill_limit -= 1
+    cfg.w_activation += 0.1
+    assert policies.compute_policy_digest("dense-v1", cfg) == stable
+    assert policies.compute_policy_digest(policy, cfg) == baseline
+
+
+@pytest.mark.parametrize("constant", ("DEFAULT_PER_SOURCE_LIMIT", "DEFAULT_SCAN_BUDGET", "DEFAULT_RRF_K"))
+def test_baseline_source_budget_digest_sensitive(cfg, monkeypatch, constant):
+    from magicite.core import candidates
+
+    policy = "experimental/hybrid-rrf-v1"
+    stable = policy_mod.compute_policy_digest("dense-v1", cfg)
+    before = policy_mod.compute_policy_digest(policy, cfg)
+    monkeypatch.setattr(candidates, constant, getattr(candidates, constant) + 1)
+    assert policy_mod.compute_policy_digest(policy, cfg) != before
+    assert policy_mod.compute_policy_digest("dense-v1", cfg) == stable

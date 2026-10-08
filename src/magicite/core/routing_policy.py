@@ -18,11 +18,21 @@ from magicite.errors import InvalidInputError
 
 POLICY_DENSE_V1 = "dense-v1"
 POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1 = "experimental/adaptive-blend-v1"
+POLICY_EXPERIMENTAL_SPARSE_V1 = "experimental/sparse-v1"
+POLICY_EXPERIMENTAL_TRIGGER_V1 = "experimental/trigger-v1"
+POLICY_EXPERIMENTAL_HYBRID_RRF_V1 = "experimental/hybrid-rrf-v1"
+BASELINE_SOURCES: dict[str, tuple[str, ...]] = {
+    POLICY_EXPERIMENTAL_SPARSE_V1: ("sparse",),
+    POLICY_EXPERIMENTAL_TRIGGER_V1: ("trigger",),
+    POLICY_EXPERIMENTAL_HYBRID_RRF_V1: ("dense", "sparse"),
+}
 
 DEFAULT_ROUTING_POLICY = POLICY_DENSE_V1
 
 STABLE_POLICY_IDS: frozenset[str] = frozenset({POLICY_DENSE_V1})
-EXPERIMENTAL_POLICY_IDS: frozenset[str] = frozenset({POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1})
+EXPERIMENTAL_POLICY_IDS: frozenset[str] = frozenset(
+    {POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1, *BASELINE_SOURCES}
+)
 KNOWN_POLICY_IDS: frozenset[str] = STABLE_POLICY_IDS | EXPERIMENTAL_POLICY_IDS
 
 PolicyFamily = Literal["stable", "experimental"]
@@ -96,6 +106,39 @@ def compute_policy_digest(
             "fusion": fusion or "none",
             "reranker_provider": cfg.reranker_provider or "none",
             "reranker_fallback": fb or "none",
+            "reranker_required": bool(cfg.reranker_required),
+            "reranker_timeout_s": float(cfg.reranker_timeout_s),
+            "candidate_refill_limit": int(cfg.candidate_refill_limit),
+            "abstention_enabled": bool(cfg.abstention_enabled),
+            "abstention_score_threshold": float(cfg.abstention_score_threshold),
+            "abstention_margin_threshold": float(cfg.abstention_margin_threshold),
+            "default_local_authorship_admission": bool(cfg.default_local_authorship_admission),
+            "calibration_digest": calibration_digest or "none",
+        }
+    elif policy_id in BASELINE_SOURCES:
+        from magicite.core.candidates import (
+            DEFAULT_PER_SOURCE_LIMIT,
+            DEFAULT_RRF_K,
+            DEFAULT_SCAN_BUDGET,
+        )
+
+        sources = BASELINE_SOURCES[policy_id]
+        payload = {
+            "policy_id": policy_id,
+            "family": "experimental",
+            "sources": sources,
+            "selection": "rrf" if len(sources) > 1 else f"raw_{sources[0]}",
+            "tie_break": "stable_id",
+            "fusion": "rrf" if len(sources) > 1 else "none",
+            "rrf_k": DEFAULT_RRF_K if len(sources) > 1 else None,
+            "per_source_limit": DEFAULT_PER_SOURCE_LIMIT,
+            "scan_budget": DEFAULT_SCAN_BUDGET,
+            "dense_only_fallback": False,
+            "eligibility_evaluator_version": eligibility_evaluator_version,
+            "reranker_provider": cfg.reranker_provider or "none",
+            "reranker_fallback": reranker_fallback
+            if reranker_fallback is not None
+            else cfg.reranker_fallback,
             "reranker_required": bool(cfg.reranker_required),
             "reranker_timeout_s": float(cfg.reranker_timeout_s),
             "candidate_refill_limit": int(cfg.candidate_refill_limit),
