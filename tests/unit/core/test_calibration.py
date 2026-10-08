@@ -98,7 +98,7 @@ def test_threshold_manifest(cfg) -> None:
         )
         assert ok.abstain is False
         assert ok.calibrated is True
-        assert ok.confidence_value is not None
+        assert ok.confidence_value is None
 
         # Incompatible/stale calibration must clear — never stale probabilities.
         stale = cal_mod.decide_abstention(

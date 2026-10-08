@@ -1011,6 +1011,63 @@
         "type": "text"
       }
     ],
+    "magicite policy admit-calibration": [
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "artifact_path",
+        "options": [
+          "--artifact"
+        ],
+        "path_exists": true,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "evidence_path",
+        "options": [
+          "--evidence"
+        ],
+        "path_exists": true,
+        "required": true,
+        "type": "path"
+      },
+      {
+        "choices": null,
+        "default": "Sentinel.UNSET",
+        "name": "actor",
+        "options": [
+          "--actor"
+        ],
+        "path_exists": null,
+        "required": true,
+        "type": "text"
+      },
+      {
+        "choices": null,
+        "default": null,
+        "name": "reviewed_sha256",
+        "options": [
+          "--reviewed-sha256"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      }
+    ],
     "magicite policy approve": [
       {
         "choices": null,

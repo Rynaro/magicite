@@ -320,7 +320,7 @@ def project_route_output(outcome: router_mod.RouteOutcome) -> RouteOutput:
     )
 
 
-def _active_policy_digest(cfg: Any) -> str | None:
+def _active_policy_digest(cfg: Any, conn: Any = None, embedder: Any = None) -> str | None:
     try:
         manifest = policy_store_mod.get_active_manifest(cfg)
     except InvalidInputError as exc:
@@ -333,6 +333,19 @@ def _active_policy_digest(cfg: Any) -> str | None:
             hint=str(exc),
         ) from exc
     if manifest is not None:
+        if manifest.calibration_digest is not None:
+            if conn is None:
+                from magicite.embeddings import get_embedder
+                from magicite.storage import db
+
+                live_conn = db.connect(cfg.db_path)
+                try:
+                    policy_store_mod.active_calibration(cfg, live_conn, get_embedder(cfg))
+                finally:
+                    live_conn.close()
+            else:
+                policy_store_mod.active_calibration(cfg, conn, embedder)
+            return manifest.policy_digest
         return (
             policy_mod.bind_server_ceiling_digest(manifest.policy_digest, cfg)
             if manifest.policy_digest
@@ -505,7 +518,7 @@ def load_skill_body(ctx: ToolContext, params: LoadSkillBodyInput) -> LoadSkillBo
             codes=["stale_decision", "not_admitted"],
         )
 
-    active_policy = _active_policy_digest(ctx.cfg)
+    active_policy = _active_policy_digest(ctx.cfg, ctx.conn, ctx.embedder)
     if active_policy != expected_policy_digest:
         return _refuse_stale(row["name"], params.level, codes=["stale_decision", "policy_digest_drift"])
 

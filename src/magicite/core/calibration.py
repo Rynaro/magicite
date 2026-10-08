@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -31,6 +32,13 @@ DEFAULT_REJECTION_QUERIES: tuple[str, ...] = (
     "no matching skill should abstain",
     "unrelated query with no relevant skill in the registry",
 )
+
+
+def _finite_number(value: int | float) -> bool:
+    try:
+        return math.isfinite(value)
+    except (OverflowError, ValueError):
+        return False
 
 
 @dataclass(frozen=True)
@@ -85,26 +93,49 @@ class CalibrationArtifact:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> CalibrationArtifact:
-        if data.get("schema_version") != CALIBRATION_SCHEMA:
-            raise InvalidInputError(
-                f"unsupported calibration schema {data.get('schema_version')!r}"
-            )
-        return cls(
-            calibration_id=str(data["calibration_id"]),
-            digest=str(data["digest"]),
-            policy_id=str(data["policy_id"]),
-            policy_digest=str(data["policy_digest"]),
-            config_digest=str(data["config_digest"]),
-            score_threshold=float(data["score_threshold"]),
-            margin_threshold=float(data["margin_threshold"]),
-            rule_id=str(data["rule_id"]),
-            split="calibration",
-            rejection_query_fingerprints=tuple(
-                str(x) for x in (data.get("rejection_query_fingerprints") or ())
-            ),
-            data_provenance=dict(data.get("data_provenance") or {}),
-            n_examples=int(data.get("n_examples") or 0),
-        )
+        required = set(cls.__dataclass_fields__)
+        if not isinstance(data, Mapping) or set(data) != required:
+            raise InvalidInputError("calibration fields must match the supported schema")
+        for key in ("calibration_id", "digest", "policy_id", "policy_digest", "config_digest"):
+            if not isinstance(data[key], str) or not data[key]:
+                raise InvalidInputError(f"calibration {key} must be a nonempty string")
+        if data["schema_version"] != CALIBRATION_SCHEMA or data["split"] != "calibration":
+            raise InvalidInputError("unsupported calibration schema or split")
+        if data["rule_id"] != FROZEN_ABSTENTION_RULE:
+            raise InvalidInputError("unsupported calibration rule")
+        for key in ("score_threshold", "margin_threshold"):
+            value = data[key]
+            if type(value) not in (int, float) or not _finite_number(value):
+                raise InvalidInputError(f"calibration {key} must be finite numeric")
+        if type(data["n_examples"]) is not int or data["n_examples"] <= 0:
+            raise InvalidInputError("calibration count must be a positive integer")
+        provenance = data["data_provenance"]
+        if not isinstance(provenance, dict) or provenance.get("split") != "calibration":
+            raise InvalidInputError("calibration provenance must identify calibration split")
+        if type(provenance.get("n_examples")) is not int or provenance["n_examples"] != data["n_examples"]:
+            raise InvalidInputError("calibration provenance count mismatch")
+        if provenance.get("rule_id") != FROZEN_ABSTENTION_RULE:
+            raise InvalidInputError("calibration provenance rule mismatch")
+        negatives = provenance.get("n_non_relevant")
+        examples = provenance.get("example_fingerprints")
+        if (
+            type(negatives) is not int
+            or not 0 <= negatives <= data["n_examples"]
+            or not isinstance(examples, list)
+            or len(examples) != data["n_examples"]
+            or any(not isinstance(x, str) or not x for x in examples)
+        ):
+            raise InvalidInputError("calibration provenance observations invalid")
+        try:
+            json.dumps(provenance, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise InvalidInputError("calibration provenance must be finite JSON") from exc
+        fps = data["rejection_query_fingerprints"]
+        if not isinstance(fps, list) or any(not isinstance(x, str) or not x for x in fps):
+            raise InvalidInputError("calibration rejection fingerprints must be strings")
+        if data["digest"] != compute_artifact_digest(data):
+            raise InvalidInputError("calibration canonical digest mismatch")
+        return cls(**{**data, "rejection_query_fingerprints": tuple(fps)})
 
 
 @dataclass(frozen=True)
@@ -172,9 +203,7 @@ def fit_abstention(
         raise InvalidInputError("calibration fit requires at least one calibration example")
     for ex in examples:
         if ex.split != "calibration":
-            raise InvalidInputError(
-                f"refusing non-calibration split {ex.split!r} in fit_abstention"
-            )
+            raise InvalidInputError(f"refusing non-calibration split {ex.split!r} in fit_abstention")
 
     non_relevant = [ex for ex in examples if not ex.label_relevant]
     if non_relevant:
@@ -319,11 +348,8 @@ def decide_abstention(
             abstain = True
             reasons.append("below_margin_threshold")
 
+    # Threshold margins are not calibrated probabilities.
     confidence: float | None = None
-    if not abstain and top_score is not None:
-        score_gap = max(0.0, top_score - artifact.score_threshold)
-        margin_gap = max(0.0, (margin or 0.0) - artifact.margin_threshold)
-        confidence = max(0.0, min(1.0, 0.5 * (score_gap + margin_gap)))
 
     if abstain and not reasons:
         reasons.append("abstain")
