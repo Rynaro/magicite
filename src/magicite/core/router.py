@@ -586,7 +586,10 @@ class _SubjectCacheEntry:
 
 
 _SUBJECT_CACHE: OrderedDict[tuple[Any, ...], _SubjectCacheEntry] = OrderedDict()
-_SUBJECT_CACHE_MAX = 4096
+# Bounded metadata working set: full official pools exceed 4096 entries and
+# otherwise evict an entire sequential sweep. Freshness/trust evaluation stays
+# per route; this retains only the existing subject projection entry type.
+_SUBJECT_CACHE_MAX = 16384
 
 
 class _SubjectProjectionDenied(Exception):

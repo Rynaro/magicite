@@ -2,7 +2,7 @@
 
 This slice observes actual `dense-v1` and `experimental/adaptive-blend-v1` routing on the accepted complete SkillRet v1.1 conversion. It adds no policy fit, default activation or calibration. `ActualRouter` retains its default depth5; the official observer explicitly requests10. Adaptive blend is not hybrid-RRF.
 
-Before any embedding/query compute, commit a clean candidate and freeze accepted corpus hashes, expected14-file model inventory, installed library versions, source inputs, exact configurations, metrics and operational bounds. The model pin describes self-observed downloaded bytes, not authenticated publisher provenance. Runtime inputs contain only original query text, namespaced query ID and compatibility context. Labels are used separately for deterministic train-group bookkeeping and post-prediction scoring.
+Before any embedding/query compute, commit a clean candidate and freeze accepted corpus hashes, expected model inventory (13 material files in the authoritative manifest), installed library versions, source inputs, exact configurations, metrics and operational bounds. The model pin describes self-observed downloaded bytes, not authenticated publisher provenance. Runtime inputs contain only original query text, namespaced query ID and compatibility context. Labels are used separately for deterministic train-group bookkeeping and post-prediction scoring.
 
 The smoke sample is exactly64 train queries: sort original_id groups by SHA256(`magicite-official-quality-v1` + NUL + upstream original_id), choose first64, then choose each group's smallest hashed converted runtime query_id, including `train:`. Group variants and memberships are retained; original_id does not prove statistical independence. Both arms use all10,123 train candidates. The fixed final observation uses all4,392 test queries in lexical runtime-ID order and exactly6,006 test candidates.
 
@@ -46,3 +46,19 @@ authorize newline-only changes to authenticated file bytes. LF and CRLF
 frontmatter fences are supported. Lone-CR fences expose the existing text-parser
 rejection instead of receiving incidental file-reader normalization. Invalid
 UTF-8 remains rejected, and loaders do not rewrite source files.
+
+The subject metadata cache has a hard LRU bound of16,384 entries so a complete
+official pool can remain warm. Cache entries, identity/stat/digest/asset guards,
+fresh authenticated trust evaluation and policy/context checks remain unchanged;
+this caches no eligibility decisions. The capacity does not imply a performance
+gate pass.
+
+A reviewed successor may consume previously sealed pools with `--reuse-pools`
+at freeze time. The receipt binds the actual producer commit, both original
+snapshot manifests, independent review and complete producer-to-consumer diff.
+The runner checks unchanged decision inputs and restricts executable changes to
+the reviewed cache capacity and provenance plumbing. It verifies every copied
+snapshot byte, preserves original producer attribution and records a separate
+consumer source freeze. It does not claim a new pool build or replay completed
+queries. Train-only profiling, fresh smoke and independent readiness still
+precede any held-out query.

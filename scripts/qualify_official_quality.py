@@ -5,6 +5,7 @@ from __future__ import annotations
 
 # ruff: noqa: E402 -- pin candidate before any Magicite/helper import.
 import argparse
+import ast
 import fcntl
 import importlib.metadata
 import json
@@ -144,7 +145,9 @@ def verify_corpus(corpus: Path) -> dict:
     return seal
 
 
-def freeze(corpus: Path, model: Path, cache: Path, output: Path) -> dict:
+def freeze(
+    corpus: Path, model: Path, cache: Path, output: Path, *, reuse_receipt: Path | None = None
+) -> dict:
     if output.exists() or output.resolve().is_relative_to(ROOT):
         raise ValueError("fresh external experiment directory required")
     verify_corpus(corpus)
@@ -176,7 +179,7 @@ def freeze(corpus: Path, model: Path, cache: Path, output: Path) -> dict:
         output / "runtime-test.json",
         sorted(read_bound(bindings["test"]["runtime"]), key=lambda row: row["query_id"]),
     )
-    contract = {
+    contract: dict = {
         "schema": "magicite/official-quality-freeze/1",
         "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "source_inputs": source_inputs(),
@@ -226,6 +229,15 @@ def freeze(corpus: Path, model: Path, cache: Path, output: Path) -> dict:
         ],
     }
     assert_source(contract)
+    contract["subject_cache_capacity"] = router._SUBJECT_CACHE_MAX
+    contract["pool_reuse"] = bound(reuse_receipt) if reuse_receipt is not None else None
+    if reuse_receipt is not None:
+        receipt = verify_reuse_receipt(read_bound(contract["pool_reuse"]), contract)
+        producer = Path(receipt["producer_experiment"])
+        for split in COUNTS:
+            snapshot = json.loads(read_bound_bytes(receipt["snapshots"][split]))
+            copy_snapshot(producer / (split + "-base"), output / (split + "-base"), snapshot)
+            (output / (split + "-snapshot.json")).write_bytes(read_bound_bytes(receipt["snapshots"][split]))
     write(output / "run-freeze.json", contract)
     (output / "run-freeze.sha256").write_text(sha256(output / "run-freeze.json") + "\n")
     return contract
@@ -238,9 +250,135 @@ def frozen_contract(experiment: Path) -> dict:
     return json.loads(path.read_bytes())
 
 
+def read_bound_bytes(record: dict) -> bytes:
+    read_bound(record)
+    return Path(record["path"]).read_bytes()
+
+
+def verify_reuse_receipt(receipt: dict, consumer: dict) -> dict:
+    """Verify a reviewed C3 producer, not a fabricated C4 build claim."""
+    producer = frozen_contract(Path(receipt["producer_experiment"]))
+    if (
+        receipt["schema"] != "magicite/official-quality-pool-reuse/1"
+        or receipt["checker"] != "vigil"
+        or receipt["verdict"] != "ACCEPTED"
+        or receipt["producer_commit"] != producer["source_commit"]
+        or receipt["consumer_commit"] != consumer["source_commit"]
+    ):
+        raise ValueError("reused pool producer/consumer receipt mismatch")
+    read_bound(receipt["independent_review"])
+    delta = subprocess.check_output(
+        ["git", "diff", "--binary", producer["source_commit"], consumer["source_commit"]], cwd=ROOT
+    )
+    import hashlib
+
+    if hashlib.sha256(delta).hexdigest() != receipt["complete_diff_sha256"]:
+        raise ValueError("reviewed complete source diff changed")
+    current = source_inputs()
+    allowed = {"src/magicite/core/router.py", "scripts/qualify_official_quality.py"}
+    if set(producer["source_inputs"]) != set(current) or any(
+        current[name] != digest for name, digest in producer["source_inputs"].items() if name not in allowed
+    ):
+        raise ValueError("decision runtime changed outside cache/provenance scope")
+    for name in allowed:
+        old = ast.parse(
+            subprocess.check_output(["git", "show", producer["source_commit"] + ":" + name], cwd=ROOT)
+        )
+        new = ast.parse((ROOT / name).read_bytes())
+        if name.endswith("router.py"):
+            for tree, capacity in [(old, 4096), (new, 16384)]:
+                nodes = [
+                    n
+                    for n in tree.body
+                    if isinstance(n, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id == "_SUBJECT_CACHE_MAX" for t in n.targets)
+                ]
+                if (
+                    len(nodes) != 1
+                    or not isinstance(nodes[0].value, ast.Constant)
+                    or nodes[0].value.value != capacity
+                ):
+                    raise ValueError("unexpected cache capacity delta")
+                nodes[0].value = ast.Constant(value=0)
+            if ast.dump(old, include_attributes=False) != ast.dump(new, include_attributes=False):
+                raise ValueError("router decision logic changed beyond capacity")
+        else:
+            protected = {
+                "configuration",
+                "policy_identity",
+                "verify_corpus",
+                "admitted",
+                "review_with_evidence",
+                "build_pool",
+                "authorization",
+                "query_worker",
+                "Channel",
+                "launch",
+                "run_arm",
+                "validate_rows",
+                "score_phase",
+            }
+
+            def functions(tree, protected=protected):
+                return {
+                    n.name: ast.dump(n, include_attributes=False)
+                    for n in tree.body
+                    if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name in protected
+                }
+
+            if functions(old) != functions(new):
+                raise ValueError("pool/route/metric execution changed beyond provenance")
+    for key in [
+        "corpus",
+        "corpus_seal",
+        "model_cache",
+        "model_manifest",
+        "libraries",
+        "splits",
+        "policies",
+        "parameters",
+    ]:
+        if producer.get(key) != consumer.get(key):
+            raise ValueError("reused decision input changed: " + key)
+    for key in ["sample", "runtime"]:
+        old = producer[key]
+        new = consumer[key]
+        if key == "sample":
+            if old["sha256"] != new["sha256"]:
+                raise ValueError("train sample changed")
+        elif {k: v["sha256"] for k, v in old.items()} != {k: v["sha256"] for k, v in new.items()}:
+            raise ValueError("runtime query bytes changed")
+    if set(receipt["snapshots"]) != set(COUNTS):
+        raise ValueError("both full producer pools required")
+    return receipt
+
+
+def verify_pool_binding(experiment: Path, split: str, contract: dict, snapshot: dict) -> None:
+    if contract.get("pool_reuse"):
+        receipt = verify_reuse_receipt(read_bound(contract["pool_reuse"]), contract)
+        original = read_bound(receipt["snapshots"][split])
+        if (
+            snapshot != original
+            or sha256(experiment / (split + "-snapshot.json")) != receipt["snapshots"][split]["sha256"]
+        ):
+            raise ValueError("reused producer manifest changed")
+        if snapshot["source_commit"] != receipt["producer_commit"] or snapshot["experiment_sha256"] != sha256(
+            Path(receipt["producer_experiment"]) / "run-freeze.json"
+        ):
+            raise ValueError("false pool producer attribution")
+    elif snapshot["source_commit"] != contract["source_commit"] or snapshot["experiment_sha256"] != sha256(
+        experiment / "run-freeze.json"
+    ):
+        raise ValueError("admitted snapshot source/experiment mismatch")
+
+
 def verify_inputs(experiment: Path) -> dict:
     contract = frozen_contract(experiment)
     assert_source(contract)
+    if contract.get("subject_cache_capacity", router._SUBJECT_CACHE_MAX) != router._SUBJECT_CACHE_MAX:
+        raise ValueError("frozen cache capacity changed")
+    if contract.get("pool_reuse"):
+        verify_reuse_receipt(read_bound(contract["pool_reuse"]), contract)
     if {name: importlib.metadata.version(name) for name in contract["libraries"]} != contract["libraries"]:
         raise ValueError("frozen dependency versions changed")
     verify_corpus(Path(contract["corpus"]))
@@ -831,10 +969,7 @@ def verify_phase(experiment: Path, phase: str) -> None:
     ids = [row["query_id"] for row in queries]
     split = "train" if phase == "smoke" else "test"
     snapshot = pool_manifest(experiment, split)
-    if snapshot["source_commit"] != contract["source_commit"] or snapshot["experiment_sha256"] != sha256(
-        experiment / "run-freeze.json"
-    ):
-        raise ValueError("admitted snapshot source/experiment mismatch")
+    verify_pool_binding(experiment, split, contract, snapshot)
     declared = read_bound(contract["splits"][split]["inventory"])
     pool = {row["id"] for row in snapshot["admitted"]}
     if pool != {row["id"] for row in declared} or len(pool) != COUNTS[split]:
@@ -915,6 +1050,11 @@ def main() -> int:
     parser.add_argument("--model-manifest", type=Path)
     parser.add_argument("--model-cache", type=Path)
     parser.add_argument("--prepare", action="store_true")
+    parser.add_argument(
+        "--reuse-pools",
+        type=Path,
+        help="Reviewed producer/consumer receipt; preserve original pool provenance",
+    )
     parser.add_argument("--phase", choices=("smoke", "test"))
     parser.add_argument("--authorization", type=Path)
     parser.add_argument("--verify", action="store_true")
@@ -923,7 +1063,13 @@ def main() -> int:
     parser.add_argument("--policy", choices=POLICIES)
     args = parser.parse_args()
     if args.freeze:
-        freeze(args.corpus, args.model_manifest, args.model_cache, args.experiment)
+        freeze(
+            args.corpus,
+            args.model_manifest,
+            args.model_cache,
+            args.experiment,
+            reuse_receipt=args.reuse_pools,
+        )
         return 0
     global EXECUTION_LOCK_FD
     if not args.worker and not args.verify:

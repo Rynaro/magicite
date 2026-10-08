@@ -210,3 +210,103 @@ def test_supported_review_retains_pre_review_status_and_actual_decisions(cfg, db
         row["decision"]["decision"] == "admit" and row["decision"]["content_digest"] == row["content_sha256"]
         for row in after
     )
+
+
+@pytest.fixture
+def producer_receipt(tmp_path, monkeypatch):
+    import copy
+
+    producer_path = tmp_path / "producer"
+    producer_path.mkdir()
+    producer = {
+        "source_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+        "source_inputs": runner.source_inputs(),
+        "corpus_seal": {"sha256": "original"},
+        "sample": {"sha256": "sample"},
+        "runtime": {"smoke": {"sha256": "smoke"}, "test": {"sha256": "test"}},
+    }
+    runner.write(producer_path / "run-freeze.json", producer)
+    (producer_path / "run-freeze.sha256").write_text(runner.sha256(producer_path / "run-freeze.json") + "\n")
+    for split in runner.COUNTS:
+        runner.write(producer_path / (split + "-snapshot.json"), {"producer": split})
+    consumer = copy.deepcopy(producer)
+    consumer["source_commit"] = "unit-consumer"
+    review = tmp_path / "review.json"
+    review.write_text('{"scope":"unit receipt binding"}')
+    delta = b"unit-reviewed-diff"
+    receipt = {
+        "schema": "magicite/official-quality-pool-reuse/1",
+        "checker": "vigil",
+        "verdict": "ACCEPTED",
+        "producer_experiment": str(producer_path),
+        "producer_commit": producer["source_commit"],
+        "consumer_commit": consumer["source_commit"],
+        "independent_review": runner.bound(review),
+        "complete_diff_sha256": hashlib.sha256(delta).hexdigest(),
+        "snapshots": {
+            split: runner.bound(producer_path / (split + "-snapshot.json")) for split in runner.COUNTS
+        },
+    }
+    actual = runner.subprocess.check_output
+
+    def git_output(args, **kwargs):
+        if args[:3] == ["git", "diff", "--binary"]:
+            return delta
+        if args[:2] == ["git", "show"]:
+            name = args[2].split(":", 1)[1]
+            data = (runner.ROOT / name).read_bytes()
+            if name.endswith("router.py"):
+                data = data.replace(b"_SUBJECT_CACHE_MAX = 16384", b"_SUBJECT_CACHE_MAX = 4096")
+            return data
+        return actual(args, **kwargs)
+
+    monkeypatch.setattr(runner.subprocess, "check_output", git_output)
+    return receipt, consumer
+
+
+def test_reused_pools_bind_actual_producer_and_unchanged_decision_inputs(producer_receipt):
+    receipt, consumer = producer_receipt
+    assert runner.verify_reuse_receipt(receipt, consumer) == receipt
+    consumer["corpus_seal"]["sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="decision input changed: corpus_seal"):
+        runner.verify_reuse_receipt(receipt, consumer)
+
+
+def test_reused_pools_reject_unreviewed_diff_and_missing_pool(producer_receipt):
+    receipt, consumer = producer_receipt
+    receipt["complete_diff_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="complete source diff"):
+        runner.verify_reuse_receipt(receipt, consumer)
+    receipt["complete_diff_sha256"] = hashlib.sha256(b"unit-reviewed-diff").hexdigest()
+    del receipt["snapshots"]["test"]
+    with pytest.raises(ValueError, match="both full producer pools"):
+        runner.verify_reuse_receipt(receipt, consumer)
+
+
+def test_reused_pool_manifest_cannot_relabel_producer(tmp_path, monkeypatch):
+    import json
+
+    producer = tmp_path / "producer"
+    producer.mkdir()
+    runner.write(producer / "run-freeze.json", {"producer": "unchanged"})
+    snapshot = {"source_commit": "C3", "experiment_sha256": runner.sha256(producer / "run-freeze.json")}
+    runner.write(producer / "train-snapshot.json", snapshot)
+    receipt = {
+        "producer_commit": "C3",
+        "producer_experiment": str(producer),
+        "snapshots": {"train": runner.bound(producer / "train-snapshot.json")},
+    }
+    receipt_path = tmp_path / "receipt.json"
+    runner.write(receipt_path, receipt)
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    manifest = consumer / "train-snapshot.json"
+    manifest.write_bytes((producer / "train-snapshot.json").read_bytes())
+    contract = {"source_commit": "C4", "pool_reuse": runner.bound(receipt_path)}
+    monkeypatch.setattr(runner, "verify_reuse_receipt", lambda value, contract: value)
+    runner.verify_pool_binding(consumer, "train", contract, snapshot)
+    relabeled = dict(snapshot, source_commit="C4")
+    runner.write(manifest, relabeled)
+    with pytest.raises(ValueError, match="producer manifest changed"):
+        runner.verify_pool_binding(consumer, "train", contract, relabeled)
+    assert json.loads((producer / "train-snapshot.json").read_bytes()) == snapshot
