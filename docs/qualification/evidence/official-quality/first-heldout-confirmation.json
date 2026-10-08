@@ -1,0 +1,11 @@
+{
+  "schema": "magicite/first-heldout-confirmation/1",
+  "source_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "pending_record_sha256": "81e0baa64cf12587859540a58469dcbb04ca6e4cabfaac0a96ec1b6265af8e2e",
+  "first_query_id": "test:q-00001",
+  "worker_pid": 79704,
+  "outcome_status": "selected",
+  "first_row_sha256": "222b09938797a5d6d555d73a427b19b3a5f2440a4f7f8988ff0f63462d3fdb77",
+  "first_query_elapsed_seconds": 14.810761208995245,
+  "scope": "Retained actual first outcome confirms prior observed dispatch intent; no exact model start timestamp claimed"
+}

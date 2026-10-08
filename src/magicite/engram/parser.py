@@ -288,7 +288,7 @@ def parse_text(raw_text: str, *, relpath: str, file_mtime_ns: int = 0) -> Parsed
 
 
 def parse_file(path: Path, *, registry_root: Path) -> ParsedFile:
-    raw_text = path.read_text(encoding="utf-8")
+    raw_text = path.read_bytes().decode("utf-8")
     relpath = str(path.resolve().relative_to(registry_root.resolve()))
     mtime_ns = path.stat().st_mtime_ns
     return parse_text(raw_text, relpath=relpath, file_mtime_ns=mtime_ns)
@@ -302,7 +302,7 @@ def parse_artifact_file(
     require_asset_files: bool = False,
 ) -> tuple[Engram | EngramV1, Any]:
     """Dual-reader file entrypoint (0.2 or 1.0). Use admit=True for intake."""
-    raw_text = path.read_text(encoding="utf-8")
+    raw_text = path.read_bytes().decode("utf-8")
     relpath = str(path.resolve().relative_to(registry_root.resolve()))
     mtime_ns = path.stat().st_mtime_ns
     return parse_artifact(

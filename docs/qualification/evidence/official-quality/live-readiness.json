@@ -1,0 +1,80 @@
+{
+  "verdict": "LIVE_READINESS_ACCEPTED_FOR_BOUND_FULL_TEST",
+  "source_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "experiment_sha256": "738cd9eb101c43c10eac9fc1abb582fbc903b7a64254f083cacd21aa926b6574",
+  "smoke_report_sha256": "8f2c569bcc33641de03da8f58e5bb654de68240e5b2d13ee87e9793bbe0896c7",
+  "test_snapshot_sha256": "fed3b41eeadd3425471973a820ef50188d57927d549f591f2e1af6cf35ee1092",
+  "producer_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+  "consumer_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "source_inputs_verified": 151,
+  "copied_pool_hashes_verified": 64536,
+  "sample_independently_rederived": true,
+  "sample_count": 64,
+  "arms": {
+    "dense-v1": {
+      "rows": 64,
+      "decision_hits": 23,
+      "independent_metrics": {
+        "decision_hit_at_1": 0.359375,
+        "rank_hit_at_1": 0.359375,
+        "recall_at_5": 0.35677083333333326,
+        "recall_at_10": 0.3880208333333332,
+        "mrr_at_10": 0.4653645833333332,
+        "ndcg_at_10_linear_gain": 0.3486996800202341
+      },
+      "errors": 0,
+      "abstentions": 0,
+      "safety_exclusion_violations": 0,
+      "actual_embedding_calls": 64,
+      "query_seconds": 48.723638042021776,
+      "cold_query_seconds": 25.05672887500259,
+      "warm_median_seconds": 0.35406199999852106,
+      "max_seconds": 25.05672887500259,
+      "worker_pid": 78367
+    },
+    "experimental/adaptive-blend-v1": {
+      "rows": 64,
+      "decision_hits": 23,
+      "independent_metrics": {
+        "decision_hit_at_1": 0.359375,
+        "rank_hit_at_1": 0.359375,
+        "recall_at_5": 0.35677083333333326,
+        "recall_at_10": 0.3880208333333332,
+        "mrr_at_10": 0.4653645833333332,
+        "ndcg_at_10_linear_gain": 0.3486996800202341
+      },
+      "errors": 0,
+      "abstentions": 0,
+      "safety_exclusion_violations": 0,
+      "actual_embedding_calls": 64,
+      "query_seconds": 50.40963620488765,
+      "cold_query_seconds": 25.53454366599908,
+      "warm_median_seconds": 0.3743895829829853,
+      "max_seconds": 25.53454366599908,
+      "worker_pid": 78480
+    }
+  },
+  "raw_artifact_hashes": {
+    "smoke-dense-v1.jsonl": "2ec3091445ecfce658b5553e7e3644dc911c82ea5462a4f968b17d0734db6491",
+    "smoke-dense-v1-checkpoint.json": "ec59b83493d9fc5d4d0809479088901c8c40b760ee28a8fcdbfd71d50a99dd3b",
+    "smoke-dense-v1-result.json": "7248affce7970208a5301c65a16f8607befa9fed705156a924ed1f8349b94863",
+    "smoke-dense-v1-commands.jsonl": "63d0880dbb8a81deb4a7a4fe4065c7f438f2e4c49a6790c363c17c9b45a0a3e5",
+    "smoke-experimental_adaptive-blend-v1.jsonl": "633cd6ad4b5e7629a6e2f6668e5260404e8da88901621ffb43db7c45ce6e9517",
+    "smoke-experimental_adaptive-blend-v1-checkpoint.json": "dde17c2f8972f4a525355f201d61b919fa5c095dee8b934caac65b80040e52ee",
+    "smoke-experimental_adaptive-blend-v1-result.json": "f91e5bcc7c75faad3c815cfb80a77a7f1436c5743ceb86b7ea74092d982dee9b",
+    "smoke-experimental_adaptive-blend-v1-commands.jsonl": "91b869dc5c8757807302c354455c7d7023fd229c198dc8ca358a653289333293"
+  },
+  "prior_controls": {
+    "independent-c4-producer-consumer-review.json": "2753ddd647d0b8300587cbad0e6d5affcfed892f9fb1d7975beb306a66dac648",
+    "independent-p02-final-review.json": "b1254ce23cbd3e275c8f75f8df9f1d7eefccb3dadf796ee0fcaf2342416a5180"
+  },
+  "limits": [
+    "Fixedpolicy train plumbing, not quality threshold tuning or E3/E6 acceptance.",
+    "Next test phase remains exactly4392queries perpolicy/full6006pool,120squery/7200sphase bounds; no retry/tuning/promotions.",
+    "SourceC4/producerC3 distinction retained; no reenrollment/newpoolbuild claim.",
+    "Simulated evaluation custody/review is not human safety approval.",
+    "No independent query/model execution; metrics recomputed only.",
+    "Final acceptance still needs8784row reconciliation and exactheadCI.",
+    "Null index generation retained; actual byte-bound snapshots provide separate provenance."
+  ]
+}

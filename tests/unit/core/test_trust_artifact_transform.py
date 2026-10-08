@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -110,3 +111,62 @@ def test_transform_record_has_no_admission_effect_and_is_immutable(tmp_path):
             )
     finally:
         store.close()
+
+
+@pytest.mark.parametrize("ending", ["lf", "crlf", "mixed"])
+def test_authenticated_loader_preserves_exact_enrolled_newlines(cfg, db_conn, ending):
+    from magicite.core import trust_artifacts, writer_guard
+    from magicite.engram.digests import routing_body_digest
+
+    source = FIXTURE.read_bytes()
+    if ending == "crlf":
+        source = source.replace(b"\n", b"\r\n")
+    elif ending == "mixed":
+        yaml, body = split_frontmatter(source.decode())
+        lines = body.split("\n")
+        body = lines[0] + "\r\n" + lines[1] + "\r" + "\n".join(lines[2:])
+        source = ("---\n" + yaml + "\n---\n" + body).encode()
+    target = cfg.registry_dir / "enrolled-newlines.egr.md"
+    with writer_guard.registry_writer_lease(cfg, db_conn).acquire():
+        trust_artifacts.publish_new_artifact(cfg, target, source, actor="explicit-newline-test")
+    raw = target.read_bytes()
+    artifact = trust_artifacts.require_bound_artifact(cfg, target)
+    body = split_frontmatter(raw.decode())[1]
+    assert artifact.content_sha256 == hashlib.sha256(raw).hexdigest()
+    assert artifact.body_sha256 == hashlib.sha256(body.encode()).hexdigest()
+    assert artifact.frontmatter.routing.body_digest == routing_body_digest(body)
+    snapshot = writer_guard.journal_for(cfg).snapshot()
+    assert any(
+        record["kind"] == "artifact_transform"
+        and record["payload"]["target_digest"] == artifact.content_sha256
+        for record in snapshot.records
+    )
+    assert target.read_bytes() == raw
+
+
+def test_authenticated_loader_rejects_newline_only_tamper(cfg, db_conn):
+    from magicite.core import trust_artifacts, writer_guard
+
+    target = cfg.registry_dir / "tampered-newlines.egr.md"
+    with writer_guard.registry_writer_lease(cfg, db_conn).acquire():
+        trust_artifacts.publish_new_artifact(cfg, target, FIXTURE.read_bytes(), actor="explicit-newline-test")
+    before = trust_artifacts.require_bound_artifact(cfg, target)
+    tampered = target.read_bytes().replace(b"\n", b"\r\n")
+    target.write_bytes(tampered)
+    after, _ = trust_artifacts.load_registry_artifact(cfg, target)
+    assert after.id == before.id
+    assert after.frontmatter.routing.body_digest == before.frontmatter.routing.body_digest
+    with pytest.raises(CustodianError, match="authenticated transformed content identity"):
+        trust_artifacts.require_bound_artifact(cfg, target)
+    assert target.read_bytes() == tampered
+
+
+def test_registry_loader_rejects_invalid_utf8_without_rewrite(cfg):
+    from magicite.core.trust_artifacts import load_registry_artifact
+
+    target = cfg.registry_dir / "invalid-utf8.egr.md"
+    raw = b"---\ninvalid: \xff\n---\nbody\n"
+    target.write_bytes(raw)
+    with pytest.raises(UnicodeDecodeError):
+        load_registry_artifact(cfg, target)
+    assert target.read_bytes() == raw

@@ -340,7 +340,7 @@ def bind_prepared_transform(
 def load_registry_artifact(cfg: Any, path: Any, *, require_asset_files: bool = True) -> Any:
     """Keep index paths project-relative while resolving declared registry assets."""
     return parser.parse_artifact(
-        path.read_text(encoding="utf-8"),
+        path.read_bytes().decode("utf-8"),
         relpath=str(path.resolve().relative_to(cfg.project_root.resolve())),
         file_mtime_ns=path.stat().st_mtime_ns,
         registry_root=cfg.registry_dir,
