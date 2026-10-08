@@ -275,6 +275,38 @@
       "raw_sha256": "f6ad487d712d06625e9c1d24a0918db38ef3381a70f7f01221df8c0092d47e73",
       "scope": "Historical pre-source-C candidate/reproduction; not measured C outcomes"
     },
+    "historical-failures/checker-ci-a2-counterfactual.log": {
+      "archive_path": "historical-failures/checker-ci-a2-counterfactual.log.gz",
+      "archive_sha256": "fe3691d60f156b377762b18c3a94e75ef3613310dcd4b07b32d1319158bd2979",
+      "compression": "gzip",
+      "raw_bytes": 98,
+      "raw_sha256": "0ce88768a9473be1e7b8becbb63962f3be004760e3e27bda4664d1d0167f549a",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
+    },
+    "historical-failures/checker-ci-a2-reproduction-1.log": {
+      "archive_path": "historical-failures/checker-ci-a2-reproduction-1.log.gz",
+      "archive_sha256": "b0dabc1e7f8f6ba20f296ac255b631f31775d5ec1c16222d7543efd214096696",
+      "compression": "gzip",
+      "raw_bytes": 2356,
+      "raw_sha256": "f7f53634ee9d66c576b4b1764a56ab7ac9c0fa8dec4f99de7baffee33f9bd4aa",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
+    },
+    "historical-failures/checker-ci-a2-reproduction-2.log": {
+      "archive_path": "historical-failures/checker-ci-a2-reproduction-2.log.gz",
+      "archive_sha256": "6d7b52897e7fa32187a087b5db1ed575aa4246bc452e47f4681bc1342cbf47b7",
+      "compression": "gzip",
+      "raw_bytes": 2356,
+      "raw_sha256": "6adf83e4c579892c495f7934f9b68dec3caf057734e3bbe34901694be614ded6",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
+    },
+    "historical-failures/checker-ci-a2-reproductions.json": {
+      "archive_path": "historical-failures/checker-ci-a2-reproductions.json.gz",
+      "archive_sha256": "74faec0def12066831c3570314e9ef0a0e84050369deca6cc758862f08f7ad69",
+      "compression": "gzip",
+      "raw_bytes": 295,
+      "raw_sha256": "e69ef70934cb2914b1869cbba3a70f6ebbbaf5bc1c83c684f1d8d5521e452754",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
+    },
     "historical-failures/checker-ci-diagnosis.json": {
       "archive_path": "historical-failures/checker-ci-diagnosis.json.gz",
       "archive_sha256": "e3890c4bf6fff509254ec77df67f4d98e7501c2db70fbf1747478142d6fdc625",
@@ -307,6 +339,14 @@
       "raw_sha256": "4d136cca93e54cafc8a242d502b7acba76ea18fddea268a7e62025d97b4dd288",
       "scope": "Historical pre-source-C execution/finding; not measured C outcomes"
     },
+    "historical-failures/ci-16d66bb-failed.json": {
+      "archive_path": "historical-failures/ci-16d66bb-failed.json.gz",
+      "archive_sha256": "a4875fa8dd7dcb90b4575508a494e9bb3e6149d038e7b4875790f7c203608bf6",
+      "compression": "gzip",
+      "raw_bytes": 1837,
+      "raw_sha256": "3deaa75abe642b516a17b252a00c0f4e14215b4a218f4a3b537f01727f8e00d2",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
+    },
     "historical-failures/ci-archive-a-failure-receipt.json": {
       "archive_path": "historical-failures/ci-archive-a-failure-receipt.json.gz",
       "archive_sha256": "a035979a3ec29881aae0ac8ff90da76fd095c08c36fbf4187b831f74d69ff94b",
@@ -322,6 +362,14 @@
       "raw_bytes": 1837,
       "raw_sha256": "b3e41bdc79aacf18863bd71948165709f051c3cfed6ebf3b38a91204aa390421",
       "scope": "Actual GitHub head d314f89 rollup: six completed checks, two FAILURE/four SUCCESS; no successor CI inference"
+    },
+    "historical-failures/ci-format-successor-watch.log": {
+      "archive_path": "historical-failures/ci-format-successor-watch.log.gz",
+      "archive_sha256": "1b85d84e0052efd90ea8bfc349eb20da6b7f9f8308b95a71a4c010f6610c2135",
+      "compression": "gzip",
+      "raw_bytes": 28235,
+      "raw_sha256": "737498e53842d943a3ace5116933ee1739d363b453e19480a4ffaedcbfb76be5",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
     },
     "historical-failures/ci-job-113292363509-failed.log": {
       "archive_path": "historical-failures/ci-job-113292363509-failed.log.gz",
@@ -339,6 +387,22 @@
       "raw_sha256": "e126ecb977965f449855423714d9500770b845aa3d0f70c15ebc4a2d677b22b4",
       "scope": "Actual archiveA d314f89 hosted failure/status/diagnosis; distinct from sourceC fixture execution and future A2 CI"
     },
+    "historical-failures/ci-job-113298790523-failed.log": {
+      "archive_path": "historical-failures/ci-job-113298790523-failed.log.gz",
+      "archive_sha256": "899067ab4bb1faaffe6052ea13b9938d2217a26900ed826fd72f88ab1a2dd632",
+      "compression": "gzip",
+      "raw_bytes": 44421,
+      "raw_sha256": "2dd65d1550b9670d77d768b3c526bf8dcc870ab74434abb56169d5377af0ec28",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
+    },
+    "historical-failures/ci-job-113298790635-failed.log": {
+      "archive_path": "historical-failures/ci-job-113298790635-failed.log.gz",
+      "archive_sha256": "65835104dc1eb5491aad5f7e71229719139bdf51a49a249395ebce187a714576",
+      "compression": "gzip",
+      "raw_bytes": 44411,
+      "raw_sha256": "310fe56b8252c3da12b47d4934689d4f2a1046badea833ed3f930ea10e74e324",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
+    },
     "historical-failures/ci-watch.log": {
       "archive_path": "historical-failures/ci-watch.log.gz",
       "archive_sha256": "7af7914dbfb31aafd2ab4c34d82e6f154f8ab17a43c471cb644dccab01e2b698",
@@ -346,6 +410,22 @@
       "raw_bytes": 3560,
       "raw_sha256": "12d832ea5fa6107988ae7cccf62809bb77b338790b795c58aef5221fd8cf8881",
       "scope": "Actual archiveA d314f89 hosted failure/status/diagnosis; distinct from sourceC fixture execution and future A2 CI"
+    },
+    "historical-failures/docs-test-repair-pre-import-order.log": {
+      "archive_path": "historical-failures/docs-test-repair-pre-import-order.log.gz",
+      "archive_sha256": "cab6bc0a7a9b0254356f4185cb33e7a6fd5c9f9f6ff52ac4094fc7e184e41071",
+      "compression": "gzip",
+      "raw_bytes": 99,
+      "raw_sha256": "0d182f23d6996be3a532b5afc12fcee336419ba805fd92013ef231455faadbb6",
+      "scope": "Earlier29-pass repaired-test execution before localized import-order fix; exact final-test bytes executed separately"
+    },
+    "historical-failures/docs-test-repair-ruff.log": {
+      "archive_path": "historical-failures/docs-test-repair-ruff.log.gz",
+      "archive_sha256": "f7456c4cc36580a36ee7af09311ce6ff882e87009bdddaac4366153e152fe811",
+      "compression": "gzip",
+      "raw_bytes": 770,
+      "raw_sha256": "98df03570445f1b6b67f0f743aa4ec3ca972f56fcb3db69e96f4776d828fe369",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
     },
     "historical-failures/first-focused.log": {
       "archive_path": "historical-failures/first-focused.log.gz",
@@ -395,6 +475,14 @@
       "raw_sha256": "8bb655251763603642bb02cd0cbf0506674518d966afa6c4ad8407ee22381fc7",
       "scope": "Actual archiveA d314f89 hosted failure/status/diagnosis; distinct from sourceC fixture execution and future A2 CI"
     },
+    "historical-failures/ledger-archive-a2-failed-status.json": {
+      "archive_path": "historical-failures/ledger-archive-a2-failed-status.json.gz",
+      "archive_sha256": "635094dcac59d47e0b7f1cc82bd35c8659a51128c869a80be916a326e070d2cc",
+      "compression": "gzip",
+      "raw_bytes": 1881,
+      "raw_sha256": "00c68cc2e60f2d56afca31a7fa69e5016a5e4c2b6ae6c9d59bfdb1bc2795aa30",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
+    },
     "historical-failures/mypy-repair.log": {
       "archive_path": "historical-failures/mypy-repair.log.gz",
       "archive_sha256": "1c8867aa4af5ff1c4ea72052b50f1ca8fb39fb00a89f1de0b94b7985992ee7e4",
@@ -402,6 +490,22 @@
       "raw_bytes": 902,
       "raw_sha256": "dd6ef397375a0c68d46feef287f330a2fa312f3444476609e30b502d4cb30999",
       "scope": "Historical pre-source-C execution/finding; not measured C outcomes"
+    },
+    "historical-failures/root-cause-ci-a2-to-idg.envelope.json": {
+      "archive_path": "historical-failures/root-cause-ci-a2-to-idg.envelope.json.gz",
+      "archive_sha256": "011fdb31b98876754dae9c4e6809161b96c28f984a1e7f1ee55fba444b525183",
+      "compression": "gzip",
+      "raw_bytes": 1796,
+      "raw_sha256": "0234d605f4bd64f664504e6e1edb4e06c6f7f46c6b5eb053c198b9dc90b5de88",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
+    },
+    "historical-failures/root-cause-ci-a2-to-idg.md": {
+      "archive_path": "historical-failures/root-cause-ci-a2-to-idg.md.gz",
+      "archive_sha256": "6ca93212070fe05d8c87c8a674e0ec8b8fc936adeb870a23385d05186e87d248",
+      "compression": "gzip",
+      "raw_bytes": 4609,
+      "raw_sha256": "2d2a20ac6878443146cbce601249f52ce6deaa36e09cc4779dad587bb1338cd2",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
     },
     "historical-failures/suppressed-group-anchor.py": {
       "archive_path": "historical-failures/suppressed-group-anchor.py.gz",
@@ -418,6 +522,14 @@
       "raw_bytes": 467,
       "raw_sha256": "68b8b9aefc1ae006733c0bec481394abbca43dd5f26e5e415e2d3b982de23b35",
       "scope": "Historical pre-source-C execution/finding; not measured C outcomes"
+    },
+    "historical-failures/test_docs_development_counterfactual.py": {
+      "archive_path": "historical-failures/test_docs_development_counterfactual.py.gz",
+      "archive_sha256": "1e0ecc0528cbfe62ae2ccb0c89a1a100a3d0bdee542a79216b0a56019f18384d",
+      "compression": "gzip",
+      "raw_bytes": 6306,
+      "raw_sha256": "4f56f304637e1c92b58f6fcb4849864d31d6155186704fe006e77d837255ad3f",
+      "scope": "Actual A2 hosted failure/diagnosis or test repair history, distinct from measured C packet execution and future current-head CI"
     },
     "inputs/README.md": {
       "archive_path": "inputs/README.md",
@@ -628,6 +740,30 @@
       "compression": "none",
       "raw_bytes": 237,
       "raw_sha256": "0ace957271b2ee9f77dc06fe09b99377adc9e81485dc99d48f351ec32ad5a6bd"
+    },
+    "test-contract-repair-focused.log": {
+      "archive_path": "test-contract-repair-focused.log",
+      "archive_sha256": "f772327bd4d3032c806ad72a634ba3717d7f08f78d90b417bbb498c0e28bc222",
+      "compression": "none",
+      "raw_bytes": 99,
+      "raw_sha256": "f772327bd4d3032c806ad72a634ba3717d7f08f78d90b417bbb498c0e28bc222",
+      "scope": "Actual final repaired-test bytes scoped execution or repository lint; distinct from measured C packet execution"
+    },
+    "test-contract-repair-ruff.log": {
+      "archive_path": "test-contract-repair-ruff.log",
+      "archive_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "compression": "none",
+      "raw_bytes": 19,
+      "raw_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "scope": "Actual final repaired-test bytes scoped execution or repository lint; distinct from measured C packet execution"
+    },
+    "test-contract-repair.json": {
+      "archive_path": "test-contract-repair.json",
+      "archive_sha256": "0a3fac5a9c3501d862f8630069c22693081d3076e5beb8e91bb5554c03b8497c",
+      "compression": "none",
+      "raw_bytes": 1581,
+      "raw_sha256": "0a3fac5a9c3501d862f8630069c22693081d3076e5beb8e91bb5554c03b8497c",
+      "scope": "New test-source identity and actual scoped29-test execution; not measured C test execution"
     },
     "validate.stderr.txt": {
       "archive_path": "validate.stderr.txt",

@@ -1,0 +1,21 @@
+{
+  "actual_new_test_invocation": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src /private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -p no:cacheprovider -q tests/unit/test_docs_v1.py",
+  "actual_new_test_result": "29 passed",
+  "actual_packet_execution_source": "5167757c5b5e661096cf86bacab670e90f44980e",
+  "all_ten_condition": "PENDING successor own-head six SUCCESS receipt",
+  "changed_test_path": "tests/unit/test_docs_v1.py",
+  "criteria_unchanged": true,
+  "failed_head": "16d66bb906eddb0c4192d0905a02dc572daf99db",
+  "note": "Existing diagnostic ranking executes inside these unit tests; no new empirical observation or readiness is asserted.",
+  "old_packet_outputs_relabelled": false,
+  "packet_inputs_unchanged": 20,
+  "packet_workflow_rerun": false,
+  "previous_test_sha256": "2fb78635155a68c55e09c553a201eeb1d84c986a2a7ed8da23d2fe49cba3a687",
+  "product_source_unchanged": true,
+  "prospective_scope_message": "025707c4-904b-4b4c-8682-0e75f067dd26",
+  "repair": "Positive fixture filters existing development query without relabeling and recomputes canonical query identity. Five mutants retain their specific rejection reason and exclude unrelated final-binding masking. Separate supported bare-final seal rejection uses original split content.",
+  "repaired_test_sha256": "f4304ee9f2be887e83ec5a47cf19019009c1cfbfc903b439b989d9ea39afc505",
+  "runtime_inputs_unchanged": 173,
+  "schema": "magicite/calibration-data-test-contract-repair/1",
+  "validation_stage": "Repaired test bytes with working-tree source HEAD A2; no final committed-head CI outcome yet"
+}

@@ -214,5 +214,15 @@
   "successor_scope": [
     "docs/qualification/evidence/calibration-data/*",
     "docs/qualification/calibration-data.md (execution-scope prose only)"
-  ]
+  ],
+  "test_contract_repair": {
+    "all_source_and_test_bytes_unchanged": false,
+    "changed_test_path": "tests/unit/test_docs_v1.py",
+    "failed_head": "16d66bb906eddb0c4192d0905a02dc572daf99db",
+    "final_own_head_ci": "PENDING",
+    "packet_execution_not_rerun": true,
+    "previous_test_sha256": "2fb78635155a68c55e09c553a201eeb1d84c986a2a7ed8da23d2fe49cba3a687",
+    "repaired_test_sha256": "f4304ee9f2be887e83ec5a47cf19019009c1cfbfc903b439b989d9ea39afc505",
+    "runtime173_packet20_equal_to_source_c": true
+  }
 }

@@ -1,0 +1,61 @@
+{
+  "at": "2026-10-08T12:21:01.212130+00:00",
+  "commands": [
+    {
+      "argv": [
+        "/Users/henrique/workspace/oss/magicite/.eidolons/ramza/bin/ramza-freeze",
+        "--state",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.state.json",
+        "--criteria",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.acceptance.md",
+        "--verify"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "ok: criteria match frozen hash\n"
+    },
+    {
+      "argv": [
+        "/Users/henrique/workspace/oss/magicite/.eidolons/ramza/bin/ramza-freeze",
+        "--state",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-02.state.json",
+        "--criteria",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.acceptance.md",
+        "--amend",
+        "--reason",
+        "Prospective scope-only addition tests/unit/test_docs_v1.py per VIGIL diagnosed stale positive fixture; all criteria unchanged; original states preserved"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "no change: criteria hash unchanged\n"
+    },
+    {
+      "argv": [
+        "/Users/henrique/workspace/oss/magicite/.eidolons/ramza/bin/ramza-drift",
+        "--state",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-02.state.json",
+        "--declare-from",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-02.scope.txt"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "scope declared: 15 glob(s)\n"
+    },
+    {
+      "argv": [
+        "/Users/henrique/workspace/oss/magicite/.eidolons/ramza/bin/ramza-verify-emit",
+        "--spec",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-02.md",
+        "--envelope",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-02.envelope.json"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "ok: emission gate passed (v1-calibration-data.scope-clarification-02.md + envelope)\n"
+    }
+  ],
+  "prior_files_preserved": 23,
+  "original_hashes_unchanged": true,
+  "source_edits_by_planner": false,
+  "independent_root_receiver_verification": "pending"
+}
