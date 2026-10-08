@@ -152,7 +152,7 @@ class ActualRouter:
         self.cfg, self.conn, self.embedder = cfg, conn, embedder
         self.rank_depth = rank_depth
 
-    def predict(self, query: dict[str, Any]) -> dict[str, Any]:
+    def predict(self, query: dict[str, Any], *, raw_trace: bool = False) -> dict[str, Any]:
         runtime_queries([query])
         before = router._cached_route_index.cache_info()
         calls_before = getattr(self.embedder, "embed_calls", None)
@@ -169,9 +169,9 @@ class ActualRouter:
         if outcome.policy_id != self.cfg.routing_policy or outcome.decision is None:
             raise ValueError("actual policy dispatch or decision missing")
         decision = outcome.decision
-        if decision.status == "error":
+        if decision.status == "error" and not raw_trace:
             raise ValueError("actual router operational error: " + str(decision.operational_error))
-        return {
+        trace = {
             "query_id": query["query_id"],
             "policy_id": outcome.policy_id,
             "policy_family": outcome.policy_family,
@@ -203,6 +203,20 @@ class ActualRouter:
                 "subject_projection": "Live subject cache may be warm; no fabricated hit counter.",
             },
         }
+        if raw_trace:
+            trace.update(
+                {
+                    "raw_candidate_ids": [row.id for row in decision.raw_candidates],
+                    "raw_scores": [row.score for row in decision.raw_candidates],
+                    "query_fingerprint": decision.query_fingerprint,
+                    "snapshot_id": decision.snapshot_id,
+                    "schema_digest": decision.schema_digest,
+                    "tokenizer_digest": decision.tokenizer_digest,
+                    "reason_codes": list(decision.reason_codes),
+                    "operational_error": decision.operational_error,
+                }
+            )
+        return trace
 
 
 def descriptive_quality(predictions: list[dict[str, Any]], oracle: list[dict[str, Any]]) -> dict[str, Any]:

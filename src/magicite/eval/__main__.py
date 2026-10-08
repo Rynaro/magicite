@@ -293,7 +293,46 @@ def main(argv: list[str] | None = None) -> int:
     host.add_argument("--seed", type=int, default=0)
     host.add_argument("--output", type=Path, required=True)
 
+    for name in ("fit-calibration", "evaluate-frozen-calibration"):
+        sp = subparsers.add_parser(name, help="Actual-router offline calibration; nonqualifying.")
+        sp.add_argument("--freeze", type=Path, required=True)
+        sp.add_argument("--project-root", type=Path, required=True)
+        sp.add_argument("--model-cache", type=Path, required=True)
+        sp.add_argument("--model-manifest", type=Path, required=True)
+        sp.add_argument("--rank-depth", type=int, default=5)
+        sp.add_argument("--output", type=Path, required=True)
+        if name == "evaluate-frozen-calibration":
+            sp.add_argument("--candidate", type=Path, required=True)
+            sp.add_argument("--replay", action="store_true")
     args = parser.parse_args(argv)
+    if args.command in {"fit-calibration", "evaluate-frozen-calibration"}:
+        from magicite.eval import calibration_consumer as consumer
+        from magicite.eval.production import verify_model
+
+        try:
+            model = json.loads(args.model_manifest.read_bytes())
+            verify_model(args.model_cache, model)
+            actual = consumer.cli_actual(args.project_root, args.model_cache, args.rank_depth)
+            try:
+                if args.command == "fit-calibration":
+                    result = consumer.fit_calibration(
+                        args.freeze, args.output, actual, model_cache=args.model_cache, model_manifest=model
+                    )
+                else:
+                    result = consumer.evaluate_frozen_calibration(
+                        args.freeze,
+                        args.candidate,
+                        args.output,
+                        actual,
+                        model_cache=args.model_cache,
+                        replay=args.replay,
+                    )
+            finally:
+                actual.conn.close()
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            return _print_errors([str(exc)])
 
     if args.command == "validate-corpus":
         errors = validate_corpus(args.path)

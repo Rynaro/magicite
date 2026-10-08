@@ -27,3 +27,13 @@ SkillRet revision `6583d7d2ed07644d0fb8938ed8178f3a7dc42a12` test was previously
 Existing hashing retrieval, paired-policy and abstention commands explicitly classify their outputs as synthetic diagnostics, `qualifying=false`, and demote efficacy verdicts. Direct seal and claim-integrity validation reject bare `final_labels_opened=true`; a typed local receipt also cannot qualify synthetic declarations. Missing/unclassified qualifying contexts fail closed. This slice adds no real empirical adapter.
 
 Verification covers tamper/path/count/membership errors, all-pair leakage, label/provenance/time contradictions, runtime injection, deterministic freezes, byte drift, persistence/race/replay, actual legacy consumer classifications, supported-claim rejection and the actual archived exposure identities. Source-bound fixture execution evidence is archived separately after a clean candidate is committed; later evidence documentation does not become the measured source. Current-head CI remains separate from fixture execution and from previous measured official-quality outcomes.
+
+## Actual-score consumer
+
+New preparations include a digest-bound calibration-only label projection. The
+[actual-score consumer](calibration-consumer.md) fits the existing threshold rule
+from actual production raw rankings and evaluates a frozen final partition only
+after durable candidate/run and final-access intents. This additive engineering
+path does not authenticate data declarations or qualify E2/E3. Existing freezes
+without a projection remain valid for diagnostic controls but cannot be fitted by
+the new consumer. Preparation still inspects complete authored labels.
