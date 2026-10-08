@@ -5,6 +5,55 @@ You need a running protected custodian, initialized project journal, and the
 client account pinned in the project descriptor. This is the published
 1.0.0rc1 developer preview; production macOS custody remains unqualified.
 
+## One-command connection: source / next build only
+
+**The published 1.0.0rc1 package lacks `init`.** Use the manual steps below with
+that package. From a source installation containing the command, after completed
+administrator Setup, run inside the existing enrolled project:
+
+```sh
+magicite init --host claude
+# Or select the same canonical project enrolled by the administrator:
+magicite init --host claude --project-root /absolute/path/to/project
+```
+
+Init refuses missing/unhealthy custody before creating registry state or changing
+host files. It requires completed offline FastEmbed inference, then merges
+`.mcp.json` and one marked block in `CLAUDE.md`, preserving unrelated content.
+Absolute executable/project paths point to this installed environment. A local
+initialize/tools-list check verifies connection; reconnect Claude Code afterward.
+This checks transport, not a live Claude model request or general routing quality.
+
+When a model is unavailable, an interactive terminal offers separate default-no
+network download consent. For intentional noninteractive model fetching:
+
+```sh
+magicite init --host claude --fetch-model
+```
+
+That flag permits only the existing model fetch, not skill import or approval.
+The interactive terminal separately offers import from `skills/`, or an existing
+project-contained `--skills my-skills` directory. It preserves partial registration
+results and asks again before digest review, requires an operator identity, and
+asks default-no approval for each displayed current digest. Imported `SKILL.md`
+files stay draft even after approval; preparation still follows the lifecycle
+steps below. Noninteractive use never prompts/imports/approves, and reports the
+existing MCP register and `magicite trust review/approve` commands.
+
+The result distinguishes **connection verified** from **approved non-draft skills
+available**. Even admitted non-drafts must satisfy query policy/context eligibility.
+No available skills is a successful connection with more preparation needed.
+
+Rerunning preserves configuration bytes and creates no redundant blocks/backups.
+Malformed JSON, duplicate keys, conflicting Magicite entries, malformed markers,
+and symlink targets stop with manual remediation. Changed existing targets have
+private content-addressed `.magicite-<sha256>.bak` backups beside the file. On a
+configuration or connection failure, init restores only files still owned by its
+attempt; it preserves concurrent edits and reports recovery paths. Registry,
+database and model-cache effects are not rolled back. Import/approval failures
+keep the verified connection and earlier committed effects, and exit unsuccessfully.
+Never replace a concurrent edit with a backup without reviewing both.
+
 ## 1. Prepare the embedding model
 
 As the same client account/environment that will run MCP:
