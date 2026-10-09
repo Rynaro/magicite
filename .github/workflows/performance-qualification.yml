@@ -1,0 +1,133 @@
+name: performance qualification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reference:
+    name: E6 / ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Hardware capacity before expensive preparation
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e6-evidence"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/harness-commit.txt"
+          sha256sum scripts/run_benchmark_matrix.py scripts/prepare_performance_corpus.py scripts/qualify_performance_linux.sh > "$out/harness-sha256.txt"
+          bash scripts/qualify_performance_linux.sh preflight "$out" 2>&1 | tee "$out/preflight.log"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Rynaro/magicite
+          ref: 964511d8e55702ca90c70e712f83ccdb1325e375
+          path: rc4-lock
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.23"
+      - name: Frozen noneditable published runtime and isolated decoder
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e6-evidence"
+          uv --version | tee "$out/uv-version.txt"
+          sha256sum "$(command -v uv)" > "$out/uv-executable.sha256"
+          sudo install -d -m 0755 /var/lib/magicite-e6-runtime
+          sudo cp -a rc4-lock /var/lib/magicite-e6-runtime/lock
+          sudo cp -a scripts /var/lib/magicite-e6-runtime/harness
+          sudo env UV_CACHE_DIR=/var/lib/magicite-e6-runtime/uv-cache "$(command -v uv)" export --project /var/lib/magicite-e6-runtime/lock --locked --format requirements.txt --no-dev --no-default-groups --no-emit-project --no-editable --output-file /var/lib/magicite-e6-runtime/runtime-requirements.txt
+          sudo "$(command -v uv)" venv --python /usr/bin/python3 /var/lib/magicite-e6-runtime/venv
+          sudo env UV_CACHE_DIR=/var/lib/magicite-e6-runtime/uv-cache "$(command -v uv)" pip sync --python /var/lib/magicite-e6-runtime/venv/bin/python --require-hashes /var/lib/magicite-e6-runtime/runtime-requirements.txt
+          curl --fail --location --retry 2 https://github.com/Rynaro/magicite/releases/download/v1.0.0-rc.4/magicite-1.0.0rc4-py3-none-any.whl -o "$out/magicite-1.0.0rc4-py3-none-any.whl"
+          echo "5234b140399c44ec10cce4eb221ca6bc0b8eeec7fafc6af88439ce0cf88b6b07  $out/magicite-1.0.0rc4-py3-none-any.whl" | sha256sum --check
+          sudo "$(command -v uv)" pip install --python /var/lib/magicite-e6-runtime/venv/bin/python --no-deps --no-index "$out/magicite-1.0.0rc4-py3-none-any.whl"
+          sudo "$(command -v uv)" venv --python /usr/bin/python3 /var/lib/magicite-e6-runtime/decoder
+          python3 - "$out" <<'PYDECODER'
+          import hashlib,json,platform,sys,urllib.request
+          from pathlib import Path
+          out=Path(sys.argv[1]);url='https://pypi.org/pypi/pyarrow/21.0.0/json'
+          data=urllib.request.urlopen(url).read();(out/'decoder-pypi.json').write_bytes(data)
+          arch='aarch64' if platform.machine()=='aarch64' else 'x86_64'
+          rows=[r for r in json.loads(data)['urls'] if '-cp312-cp312-' in r['filename'] and 'manylinux_2_28_'+arch in r['filename']]
+          assert len(rows)==1
+          row=rows[0];payload=urllib.request.urlopen(row['url']).read();assert hashlib.sha256(payload).hexdigest()==row['digests']['sha256']
+          (out/row['filename']).write_bytes(payload)
+          (out/'decoder-official-byte-proof.json').write_text(json.dumps({'metadata_url':url,'wheel':row,'actual_sha256':hashlib.sha256(payload).hexdigest()},indent=2))
+          PYDECODER
+          sudo "$(command -v uv)" pip install --python /var/lib/magicite-e6-runtime/decoder/bin/python --no-deps --no-index "$out"/pyarrow-21.0.0-*.whl
+          sudo cp /var/lib/magicite-e6-runtime/runtime-requirements.txt "$out/"
+          sudo env PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /var/lib/magicite-e6-runtime/venv/bin/python - "$out" <<'PYIDENTITY'
+          import hashlib,importlib.metadata,json,sys
+          from pathlib import Path
+          import magicite
+          out=Path(sys.argv[1]);root=Path(magicite.__file__).parent
+          assert importlib.metadata.version('magicite')=='1.0.0rc4' and '/site-packages/' in str(root)
+          inventory={d.metadata['Name']:d.version for d in importlib.metadata.distributions()}
+          resources={str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob('*')) if p.is_file() and '__pycache__' not in p.parts}
+          (out/'installed-subject.json').write_text(json.dumps({'runtime_source_commit':'964511d8e55702ca90c70e712f83ccdb1325e375','version':'1.0.0rc4','module_path':str(root),'dependencies':inventory,'resources':resources,'python':sys.version,'wheel_sha256':'5234b140399c44ec10cce4eb221ca6bc0b8eeec7fafc6af88439ce0cf88b6b07','lock_sha256':hashlib.sha256(Path('/var/lib/magicite-e6-runtime/lock/uv.lock').read_bytes()).hexdigest(),'requirements_sha256':hashlib.sha256((out/'runtime-requirements.txt').read_bytes()).hexdigest()},indent=2))
+          PYIDENTITY
+      - name: Frozen licensed input and production model preparation
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e6-evidence"
+          env PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /var/lib/magicite-e6-runtime/venv/bin/python scripts/prepare_performance_corpus.py --output "$out/corpus" --decoder-python /var/lib/magicite-e6-runtime/decoder/bin/python 2>&1 | tee "$out/corpus-preparation.log"
+          env PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /var/lib/magicite-e6-runtime/venv/bin/python - "$out" <<'PYMODEL'
+          import json,sys
+          from pathlib import Path
+          from magicite.embeddings.fastembed_provider import fetch_model
+          from magicite.eval.production import freeze_model,verify_model
+          out=Path(sys.argv[1]);cache=out/'model-cache'
+          fetch_model(cache_dir=str(cache))
+          manifest=freeze_model(cache);verify_model(cache,manifest)
+          (out/'model-manifest.json').write_text(json.dumps(manifest,indent=2))
+          PYMODEL
+          sudo chown -R root:root "$out/corpus" "$out/model-cache" "$out/model-manifest.json"
+          sudo chmod -R a+rX "$out/corpus" "$out/model-cache"
+          # Custody clients must traverse the fresh runner task evidence directory.
+          sudo chmod a+rx "$RUNNER_TEMP" "$out"
+      - name: Actual separate-UID production four-stratum matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/e6-evidence"
+          # Harness files stay distinct from the measured RC4 distribution.
+          sudo install -d -m 0755 /var/lib/magicite-e6-runtime/reviewed/scripts
+          sudo cp scripts/run_benchmark_matrix.py /var/lib/magicite-e6-runtime/reviewed/scripts/
+          sudo env PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 bash scripts/qualify_performance_linux.sh run "$out" /var/lib/magicite-e6-runtime/venv/bin/python /var/lib/magicite-e6-runtime/reviewed /var/lib/magicite-e6-runtime/lock 2>&1 | tee "$out/execution.log"
+      - name: Retain raw public qualification evidence on every outcome
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e6-${{ matrix.runner }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/e6-evidence/*.json
+            ${{ runner.temp }}/e6-evidence/*.txt
+            ${{ runner.temp }}/e6-evidence/*.sha256
+            ${{ runner.temp }}/e6-evidence/*.log
+            ${{ runner.temp }}/e6-evidence/*.stdout
+            ${{ runner.temp }}/e6-evidence/*.stderr
+            ${{ runner.temp }}/e6-evidence/results
+            ${{ runner.temp }}/e6-evidence/corpus/corpus-manifest.json
+            ${{ runner.temp }}/e6-evidence/corpus/attribution.jsonl
+            ${{ runner.temp }}/e6-evidence/corpus/query-selection-rejections.jsonl
+            ${{ runner.temp }}/e6-evidence/corpus/acquisition.json
+            ${{ runner.temp }}/e6-evidence/corpus/preparation-receipt.json
+          if-no-files-found: error
+          retention-days: 30
