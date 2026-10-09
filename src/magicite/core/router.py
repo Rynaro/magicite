@@ -1443,6 +1443,7 @@ def route(
     route_context: RouteContext | None = None,
     server_policy: ServerPermissionPolicy | None = None,
     comparison_budget: ComparisonBudget | None = None,
+    _evaluation_context: Any = None,
 ) -> RouteOutcome:
     # S12 C8/C9: refuse routing while restore reconciliation is required.
     # Cheap no-op when no restore-generation markers exist.
@@ -1518,6 +1519,19 @@ def route(
             raise InvalidInputError("evaluation-budget calibration cannot authorize ordinary runtime")
     except (InvalidInputError, OSError, ValueError) as exc:
         raise InvalidInputError("calibration authority unavailable or incompatible", hint=str(exc)) from exc
+    if _evaluation_context is not None:
+        from magicite.core.evaluation_context import EvaluationContext
+
+        if type(_evaluation_context) is not EvaluationContext:
+            raise InvalidInputError("internal evaluation context required")
+        # Validate the governing store above before selecting any evaluation arm.
+        cfg, cal = _evaluation_context.validate(cfg, k, comparison_budget)
+        policy_id = _evaluation_context.policy_id
+        config_digest = _evaluation_context.config_digest
+        digest = policy_mod.compute_policy_digest(
+            policy_id, cfg, calibration_digest=cal.digest if cal else None
+        )
+        policy_extra_reasons = (*policy_extra_reasons, "non_authorizing_evaluation_context")
     family = policy_mod.policy_family(policy_id)
     gen_id, snap_id, schema_d, tok_d, pin_reasons = _pin_index_identity(conn)
 
@@ -1548,7 +1562,7 @@ def route(
             policy_digest=digest,
             policy_family=family,
             config_digest=config_digest,
-            calibration=None,
+            calibration=cal if _evaluation_context is not None else None,
             route_context=rctx,
             server_policy=spolicy,
             index_generation_id=gen_id,

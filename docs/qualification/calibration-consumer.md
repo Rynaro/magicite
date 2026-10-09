@@ -50,7 +50,8 @@ A candidate binds source bytes, observed model bytes/libraries, protected policy
 and trust state, configuration, registry/index/snapshot/schema/tokenizer identity,
 rank depth, and all annotation-free query contexts. Drift rejects evaluation.
 Candidate identity and fit identity are separate from the base production policy.
-The active-loader circular binding is a separate gap; no active store is modified.
+Protected production admission and runtime loading use separate base and effective
+policy identities; this offline consumer grants neither approval nor activation.
 
 Before final labels or actual final queries, the consumer durably publishes a
 no-replace run binding and a packet-root owner receipt, then the existing final
@@ -132,3 +133,17 @@ empty bins remain visible. ECE has no release PASS threshold. All outputs remain
 fixtures, self-hashes and local numeric results never authorize release or
 production calibration. Fresh authentic data and protected benchmark orchestration
 remain later named milestones.
+
+
+### Multi-arm actual finalizer workflow
+
+Use [protected-benchmark.md](protected-benchmark.md) for development-only strongest
+simple baseline selection, bound grouped power, a linked same-root successor
+freeze and complete multi-arm calibration/final routing. Its internal evaluation
+context applies frozen calibration through actual composition and finalization
+without changing protected production authority. Both consumers share packet-root
+final ownership; one cannot reclaim the other's exposed partition.
+
+The benchmark also provides a separate read-only ordinary production witness for
+an already approved compatible probability calibration. Local evaluation files
+and self-hashed reports never authorize production calibration.

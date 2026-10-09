@@ -103,6 +103,9 @@ def runtime_identity(actual: ActualRouter) -> dict[str, Any]:
         "comparison_budget": actual.comparison_budget.to_dict()
         if actual.comparison_budget is not None
         else None,
+        "evaluation_context": asdict(actual.evaluation_context)
+        if actual.evaluation_context is not None
+        else None,
         "score_semantics": SEMANTICS,
     }
 
@@ -534,7 +537,13 @@ def cli_actual(project_root: Path, cache: Path, rank_depth: int) -> ActualRouter
 
 
 def prepare_power_input(
-    freeze: Path, actual: ActualRouter, predictions: dict, *, model_cache: Path, model_manifest: dict
+    freeze: Path,
+    actual: ActualRouter,
+    predictions: dict,
+    *,
+    model_cache: Path,
+    model_manifest: dict,
+    selection: dict | None = None,
 ) -> dict:
     """Bind saved DEVELOPMENT actual raw arms to live source/custody/model state.
 
@@ -545,8 +554,9 @@ def prepare_power_input(
 
     from magicite.core.comparison_budget import ComparisonBudget, comparison_config_digest
     from magicite.core.routing_policy import compute_config_digest, compute_policy_digest
-    from magicite.eval.grouped_evaluation import validate_protocol
+    from magicite.eval.grouped_evaluation import validate_incumbent_selection, validate_protocol
 
+    selected_incumbent = validate_incumbent_selection(selection) if selection is not None else "dense-v1"
     frozen, queries, families = inputs(freeze)
     fits = Path(frozen["input_root"]) / ".calibration-consumer-fits"
     if (
@@ -594,9 +604,19 @@ def prepare_power_input(
     from magicite.core import fingerprint_key
 
     key = fingerprint_key.load_or_create_fingerprint_key(actual.cfg)
+    if selection is not None and (
+        selection["labels"] != labels or selection["rows"][selected_incumbent] != predictions["incumbent"]
+    ):
+        raise ValueError("selection differs from bound development labels/observations")
     arms = {}
     policies = {}
-    for arm, rows in predictions.items():
+    all_predictions = {
+        **predictions,
+        **(
+            {"selection:" + p: rows for p, rows in selection["rows"].items()} if selection is not None else {}
+        ),
+    }
+    for arm, rows in all_predictions.items():
         if not isinstance(rows, list) or any(
             not isinstance(row, dict) or not isinstance(row.get("query_id"), str) for row in rows
         ):
@@ -608,7 +628,9 @@ def prepare_power_input(
         if len(policy_ids) != 1:
             raise ValueError("one actual policy per development arm required")
         policy = next(iter(policy_ids))
-        if policy not in protocol["paired_policy_ids"] or (arm == "incumbent" and policy != "dense-v1"):
+        if policy not in protocol["paired_policy_ids"] or (
+            arm == "incumbent" and policy != selected_incumbent
+        ):
             raise ValueError("unfrozen development policy pair")
         policies[arm] = policy
         for qid, row in indexed.items():
@@ -647,7 +669,8 @@ def prepare_power_input(
                 raise ValueError("invalid saved actual raw prediction")
             if row["status"] == "error":
                 raise ValueError("operational error cannot support development power model")
-        arms[arm] = indexed
+        if arm in predictions:
+            arms[arm] = indexed
     if policies["candidate"] == policies["incumbent"]:
         raise ValueError("distinct actual power arms required")
     observations = []
@@ -693,6 +716,8 @@ def prepare_power_input(
         "identities": identities,
         "power_assumptions": power_assumptions,
     }
+    if selection is not None:
+        body["incumbent_selection"] = selection
     guard(expected, frozen, queries, actual, model_cache)
     return {"identity": sha256_json(body), "input": body}
 
@@ -708,7 +733,12 @@ def validate_power_input(
     ):
         raise ValueError("power input envelope integrity mismatch")
     observed = prepare_power_input(
-        freeze, actual, value["input"]["predictions"], model_cache=model_cache, model_manifest=model_manifest
+        freeze,
+        actual,
+        value["input"]["predictions"],
+        model_cache=model_cache,
+        model_manifest=model_manifest,
+        selection=value["input"].get("incumbent_selection"),
     )
     if observed != value:
         raise ValueError("power development projection/binding substitution or live source drift")

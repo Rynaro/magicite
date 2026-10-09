@@ -136,6 +136,11 @@ def _parse_args() -> argparse.Namespace:
             "custodian, is never GA-eligible and leaves deployment custody UNEVALUATED"
         ),
     )
+    parser.add_argument(
+        "--quality-evidence",
+        type=Path,
+        help="compatible local protected benchmark result; never grants E6/GA",
+    )
     parser.add_argument("--output", type=Path, help="write the JSON result to this path")
     args = parser.parse_args()
     if args.sizes is not None and any(size < 1 for size in args.sizes):
@@ -819,6 +824,22 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             finally:
                 conn.close()
 
+        quality_path = getattr(args, "quality_evidence", None)
+        if quality_path is not None:
+            from magicite.eval.production import freeze_model
+            from magicite.eval.protected_benchmark import quality_reference
+
+            quality = json.loads(quality_path.read_bytes())
+            expected_cache = Path(quality["plan"]["binding"]["runtime"]["model_cache"]).resolve()
+            inner = getattr(embedder, "_inner", embedder)
+            runtime = getattr(inner, "_model", None)
+            model = getattr(runtime, "model", None)
+            loaded_dir = getattr(model, "_model_dir", None)
+            if loaded_dir is None or not Path(loaded_dir).resolve().is_relative_to(expected_cache):
+                raise ValueError("quality reference model cache is not the actual loaded matrix provider")
+            result["quality_evidence"] = quality_reference(
+                quality, result, observed_model=freeze_model(expected_cache)
+            )
         result["status"] = "measured"
         result["process_id"] = os.getpid()
         result["measured_queries"] = calls
