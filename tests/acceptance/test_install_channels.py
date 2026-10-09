@@ -8,7 +8,9 @@ installs (PyPI/pipx/uvx/OCI digest pull) remain UNEVALUATED until milestone
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -396,3 +398,126 @@ def test_release_manifest_rejects_build_metadata_only(tmp_path: Path) -> None:
     (tmp_path / "build-report.txt").write_text("not a release subject")
     with pytest.raises(FileNotFoundError, match="no artifacts found"):
         supply.build_manifest(artifacts_dir=tmp_path)
+
+
+@pytest.fixture(scope="module")
+def publisher_metadata_tools(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, str]:
+    """Offline check uses Twine 7.0.0 from the existing pinned PyPA action."""
+    uv = os.environ.get("MAGICITE_TEST_UV") or shutil.which("uv")
+    python = os.environ.get("MAGICITE_TEST_TWINE_PYTHON")
+    if python is None or uv is None:
+        tools = tmp_path_factory.mktemp("publisher-metadata-tools") / "venv"
+        venv.create(tools, with_pip=True)
+        python = str(tools / "bin" / "python")
+        subprocess.run(
+            [python, "-m", "pip", "install", "twine==7.0.0", "uv==0.11.23"],
+            check=True,
+            env=_child_env(),
+        )
+        uv = str(tools / "bin" / "uv")
+    version = subprocess.run(
+        [python, "-c", "import importlib.metadata; print(importlib.metadata.version('twine'))"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert version.stdout.strip() == "7.0.0"
+    return uv, python
+
+
+def test_verified_publisher_binary_staging(
+    tmp_path: Path, publisher_metadata_tools: tuple[str, str]
+) -> None:
+    """Run the shipped workflow over real UV bytes without OIDC or upload."""
+    from ruamel.yaml import YAML
+
+    uv, twine_python = publisher_metadata_tools
+    workflow = YAML(typ="safe").load((ROOT / ".github/workflows/release.yml").read_text())
+    steps = workflow["jobs"]["release-pypi"]["steps"]
+    verify = next(
+        step for step in steps if step["name"] == "Verify downloaded artifacts match release manifest"
+    )
+    stage = next(step for step in steps if step["name"] == "Stage verified binaries for publishing")
+    assert steps.index(verify) < steps.index(stage)
+    publishers = [step for step in steps if step.get("uses", "").startswith("pypa/gh-action-pypi-publish@")]
+    assert len(publishers) == 2
+    assert all(step["with"]["packages-dir"] == "publisher-dist/" for step in publishers)
+    build = tmp_path / "producer"
+    (build / "scripts").mkdir(parents=True)
+    shutil.copyfile(ROOT / "scripts/check_supply_chain.py", build / "scripts/check_supply_chain.py")
+    subprocess.run([uv, "build", "--out-dir", str(build / "dist")], cwd=ROOT, check=True, env=_child_env())
+    assert (build / "dist/.gitignore").is_file()
+    subprocess.run(
+        [sys.executable, "scripts/check_supply_chain.py", "--skip-immutable-inputs",
+         "--write-manifest", "dist/release-manifest.json", "--artifacts", "dist"],
+        cwd=build, check=True,
+    )
+    received = tmp_path / "received"
+    (received / "dist").mkdir(parents=True)
+    (received / "scripts").mkdir()
+    shutil.copyfile(ROOT / "scripts/check_supply_chain.py", received / "scripts/check_supply_chain.py")
+    for artifact in (build / "dist").iterdir():
+        if artifact.name.endswith((".whl", ".tar.gz")) or artifact.name == "release-manifest.json":
+            shutil.copyfile(artifact, received / "dist" / artifact.name)
+    shutil.rmtree(build)
+    manifest = received / "dist/release-manifest.json"
+    manifest_bytes = manifest.read_bytes()
+    payload = json.loads(manifest_bytes)
+    declared = {entry["name"]: entry["sha256"] for entry in payload["artifacts"]}
+
+    # The exact action's metadata command rejects evidence JSON as a distribution.
+    counterfactual = subprocess.run(
+        [twine_python, "-m", "twine", "check", *map(str, sorted((received / "dist").iterdir()))],
+        capture_output=True, text=True,
+    )
+    print(json.dumps({"publisher_counterfactual": counterfactual.returncode,
+                      "stdout": counterfactual.stdout, "stderr": counterfactual.stderr}))
+    assert counterfactual.returncode != 0
+    assert "Unknown distribution format" in counterfactual.stdout + counterfactual.stderr
+    verified = subprocess.run(
+        ["bash", "-e", "-c", verify["run"]], cwd=received, capture_output=True, text=True
+    )
+    print(json.dumps({
+        "workflow_verify": verified.returncode, "stdout": verified.stdout, "stderr": verified.stderr
+    }))
+    assert verified.returncode == 0, verified.stdout + verified.stderr
+    staged = subprocess.run(["bash", "-e", "-c", stage["run"]], cwd=received, capture_output=True, text=True)
+    print(json.dumps({
+        "workflow_staging": staged.returncode, "stdout": staged.stdout, "stderr": staged.stderr
+    }))
+    assert staged.returncode == 0, staged.stdout + staged.stderr
+    destination = received / "publisher-dist"
+    assert {path.name for path in destination.iterdir()} == set(declared)
+    assert all(
+        hashlib.sha256((destination / name).read_bytes()).hexdigest() == digest
+        for name, digest in declared.items()
+    )
+    assert manifest.read_bytes() == manifest_bytes
+    subprocess.run(
+        [twine_python, "-m", "twine", "check", *map(str, sorted(destination.iterdir()))], check=True
+    )
+    # A preexisting destination is not silently merged or overwritten.
+    repeated = subprocess.run(
+        ["bash", "-e", "-c", stage["run"]], cwd=received, capture_output=True, text=True
+    )
+    assert repeated.returncode != 0
+
+    wheel = next((received / "dist").glob("*.whl"))
+    for kind in ("tampered", "missing"):
+        bad = tmp_path / kind
+        shutil.copytree(received, bad)
+        shutil.rmtree(bad / "publisher-dist")
+        target = bad / "dist" / wheel.name
+        if kind == "tampered":
+            target.write_bytes(target.read_bytes() + b"tampered")
+        else:
+            target.unlink()
+        denied = subprocess.run(
+            ["bash", "-e", "-c", verify["run"] + "\n" + stage["run"]],
+            cwd=bad, capture_output=True, text=True,
+        )
+        print(json.dumps({"negative_control": kind, "exit": denied.returncode,
+                          "stdout": denied.stdout, "stderr": denied.stderr}))
+        assert denied.returncode != 0
+        assert ("digest mismatch" if kind == "tampered" else "missing artifact file") in denied.stderr
+        assert not (bad / "publisher-dist").exists()

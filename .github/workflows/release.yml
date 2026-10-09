@@ -408,6 +408,38 @@ jobs:
             --skip-immutable-inputs \
             --verify-manifest dist/release-manifest.json
 
+      - name: Stage verified binaries for publishing
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib
+          import json
+          import shutil
+          from pathlib import Path
+
+          source = Path("dist")
+          manifest = json.loads((source / "release-manifest.json").read_text())
+          entries = manifest["artifacts"]
+          names = {entry["name"] for entry in entries}
+          assert len(names) == len(entries), "duplicate publisher subject"
+          assert any(name.endswith(".whl") for name in names), "wheel required"
+          assert any(name.endswith(".tar.gz") for name in names), "sdist required"
+          assert all(Path(name).name == name and name.endswith((".whl", ".tar.gz")) for name in names)
+          binaries = {path.name for path in source.iterdir() if path.is_file() and path.name.endswith((".whl", ".tar.gz"))}
+          assert binaries == names, "publisher subjects differ from verified manifest"
+          for entry in entries:
+              path = source / entry["name"]
+              assert path.is_file() and not path.is_symlink(), "regular binary required"
+              assert entry["path"] == str(path), "unexpected manifest path"
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == entry["sha256"], "binary digest mismatch"
+          destination = Path("publisher-dist")
+          destination.mkdir()
+          for entry in entries:
+              target = destination / entry["name"]
+              shutil.copyfile(source / entry["name"], target)
+              assert hashlib.sha256(target.read_bytes()).hexdigest() == entry["sha256"], "staged digest mismatch"
+          assert {path.name for path in destination.iterdir()} == names, "unexpected publisher input"
+          PYTHON
+
       # Re-assert AC-031 against the *same* bytes release-wheel attested —
       # no second `uv build`.
       - name: AC-031 — assert the published wheel does not depend on torch
@@ -423,9 +455,12 @@ jobs:
       - name: Publish to PyPI (OIDC trusted publishing)
         if: ${{ !contains(github.ref_name, '-rc') && !contains(github.ref_name, '-beta') }}
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          packages-dir: publisher-dist/
 
       - name: Publish to TestPyPI (pre-releases)
         if: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          packages-dir: publisher-dist/

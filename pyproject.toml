@@ -1,6 +1,6 @@
 [project]
 name = "magicite"
-version = "1.0.0rc3"
+version = "1.0.0rc4"
 description = "Local-first plasticity-inspired skill router speaking MCP over stdio."
 readme = "README.md"
 license = "Apache-2.0"
