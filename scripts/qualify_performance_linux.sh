@@ -2,6 +2,57 @@
 # Exclusive fresh GitHub VM qualification only. No publication or deployment.
 set -euo pipefail
 mode="${1:?preflight or run}"; out="${2:?owned evidence path}"
+if [[ "$mode" == stage || "$mode" == copyback ]]; then
+  [[ "$(id -u)" == 0 ]]
+  python3 - "$mode" "$out" "${@:3}" <<'PUBLIC'
+import hashlib,json,os,shutil,stat,sys
+from pathlib import Path
+mode=sys.argv[1]; prefix=Path('/var/lib/magicite-e6-public')
+def protected_directory(path):
+ info=path.lstat()
+ if path.is_symlink() or not stat.S_ISDIR(info.st_mode) or info.st_uid!=0 or info.st_mode&0o022:raise ValueError('public staging ancestry unprotected')
+if mode=='stage':
+ run,attempt,arch,uid,gid=sys.argv[2:]
+ if not run.isdecimal() or not attempt.isdecimal() or arch not in ['x86_64','aarch64']:raise ValueError('exact numeric run/attempt and native architecture required')
+ for parent in [Path('/var'),Path('/var/lib')]:protected_directory(parent)
+ if not prefix.exists():prefix.mkdir(mode=0o755)
+ protected_directory(prefix)
+ runroot=prefix/(run+'-'+attempt)
+ if not runroot.exists():runroot.mkdir(mode=0o755)
+ protected_directory(runroot)
+ leaf=runroot/arch
+ leaf.mkdir(mode=0o755);os.chown(leaf,int(uid),int(gid))
+ print(leaf)
+else:
+ source=Path(sys.argv[2]);destination=Path(sys.argv[3]);uid=int(sys.argv[4]);gid=int(sys.argv[5])
+ if not source.is_absolute() or source!=source.resolve() or not source.is_relative_to(prefix) or not source.is_dir():raise ValueError('owned canonical public staging source required')
+ if not destination.is_absolute() or destination!=destination.resolve() or destination.name!='e6-evidence' or destination.exists():raise ValueError('fresh owned public artifact destination required')
+ destination.mkdir(mode=0o755);os.chown(destination,uid,gid)
+ selected=[path for path in source.iterdir() if path.suffix in ['.json','.txt','.sha256','.log','.stdout','.stderr'] or path.name=='provider-runner-document.html']
+ if any(path.is_symlink() or not path.is_file() for path in selected):raise ValueError('top-level public reports must be regular non-symlink files')
+ for relative in ['results','corpus/licenses','corpus/dataset-card.md','corpus/corpus-manifest.json','corpus/attribution.jsonl','corpus/query-selection-rejections.jsonl','corpus/acquisition.json','corpus/preparation-receipt.json']:
+  path=source/relative
+  if path.exists() or path.is_symlink():
+   if path.is_symlink() or (not path.is_dir() if relative in ['results','corpus/licenses'] else not path.is_file()):raise ValueError('explicit public copyback object type mismatch')
+   selected.append(path)
+ files=[]
+ for path in selected:
+  if path.is_symlink():raise ValueError('public copyback symlink refused')
+  candidates=list(path.rglob('*')) if path.is_dir() else [path]
+  for item in candidates:
+   if item.is_symlink() or not item.resolve().is_relative_to(source):raise ValueError('public copyback path escape refused')
+   if item.is_dir():continue
+   if not item.is_file():raise ValueError('public copyback nonregular object refused')
+   relative=item.relative_to(source);target=destination/relative;target.parent.mkdir(parents=True,exist_ok=True,mode=0o755)
+   shutil.copyfile(item,target);os.chmod(target,0o644);os.chown(target,uid,gid)
+   digest=hashlib.sha256(item.read_bytes()).hexdigest()
+   if hashlib.sha256(target.read_bytes()).hexdigest()!=digest:raise ValueError('public copyback bytes changed')
+   files.append({'path':str(relative),'sha256':digest,'bytes':item.stat().st_size})
+ receipt=destination/'public-copyback.json';receipt.write_text(json.dumps({'source':str(source),'destination':str(destination),'reader_uid':uid,'files':files,'private_store_or_model_payloads_copied':False},indent=2)+'\n');receipt.chmod(0o644);os.chown(receipt,uid,gid)
+ print(json.dumps({'status':'PUBLIC_ARTIFACT_COPYBACK_PASS','files':len(files)}))
+PUBLIC
+  exit $?
+fi
 if [[ "$mode" == preflight ]]; then
   mkdir -p "$out"
   python3 - "$out" <<'PREFLIGHT'
@@ -68,7 +119,7 @@ def provider_identity_errors(repository,run,jobs,tag,context,label,architecture,
  if label!=expected or context.get('GITHUB_REPOSITORY')!='Rynaro/magicite':errors.append('standard native runner class mismatch')
  if document_sha!='4f959a553da1bbfc86d4f24167981fb76177bb14c39b01296bc0ab6b6c779c38':errors.append('reviewed provider document bytes changed or missing')
  if run.get('id')!=int(context.get('GITHUB_RUN_ID','0')) or run.get('head_sha')!=context.get('checked_out_commit') or run.get('head_sha')!=context.get('GITHUB_SHA') or run.get('event')!='push' or run.get('path')!='.github/workflows/performance-qualification.yml' or run.get('run_attempt')!=int(context.get('GITHUB_RUN_ATTEMPT','0')) or run.get('actor',{}).get('login')!=context.get('GITHUB_ACTOR'):errors.append('actual run/context identity mismatch')
- ref='refs/tags/qualification/e6-rc4-20261009-03'
+ ref='refs/tags/qualification/e6-rc4-20261009-04'
  if context.get('GITHUB_REF')!=ref or context.get('GITHUB_EVENT_NAME')!='push' or context.get('GITHUB_WORKFLOW_REF')!='Rynaro/magicite/.github/workflows/performance-qualification.yml@'+ref or tag.get('ref')!=ref or tag.get('object',{}).get('type')!='commit' or tag.get('object',{}).get('sha')!=run.get('head_sha'):errors.append('actual exact qualification tag/source mismatch')
  matches=[row for row in jobs.get('jobs',[]) if row.get('name')=='E6 / '+str(label)]
  if len(matches)!=1:errors.append('actual standard runner job unresolved')
@@ -162,7 +213,7 @@ try:
  run_id=context['GITHUB_RUN_ID']
  run=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/actions/runs/'+run_id,'provider-run.json'))
  jobs=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/actions/runs/'+run_id+'/jobs?per_page=100','provider-jobs.json'))
- tag=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/git/ref/tags/qualification/e6-rc4-20261009-03','provider-tag.json'))
+ tag=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/git/ref/tags/qualification/e6-rc4-20261009-04','provider-tag.json'))
  document=acquire_public('https://docs.github.com/en/actions/reference/runners/github-hosted-runners','provider-runner-document.html')
  provider_errors=provider_identity_errors(repository,run,jobs,tag,context,label,platform.machine(),hashlib.sha256(document).hexdigest())
 except (OSError,ValueError,KeyError) as error:provider_errors.append('actual public provider proof unavailable: '+type(error).__name__)
@@ -266,7 +317,7 @@ def command(uid,args,*,capture=True):
  global command_sequence
  command_sequence+=1
  argv=[py,'-m','magicite','custody',*args]
- result=subprocess.run(argv,user=uid,group=uid,extra_groups=[project_gid],env=env,text=True,capture_output=capture,check=False)
+ result=subprocess.run(argv,user=uid,group=uid,extra_groups=[project_gid],cwd=base,env=env,text=True,capture_output=capture,check=False)
  if result.returncode:
   prefix='custody-command-'+str(command_sequence).zfill(3)+'-'+args[0]
   (out/(prefix+'.stdout')).write_text(result.stdout or '')
@@ -287,7 +338,7 @@ try:
    destination=registry_root/(hashlib.sha256(str(root.resolve()).encode()).hexdigest()+'.json')
    with destination.open('x') as stream:stream.write(descriptor)
    log=(out/f'custody-{stratum}-{repetition}.log').open('w')
-   service=subprocess.Popen([py,'-m','magicite','custody','serve','--directory',str(store),'--profile-path',str(profile)],user=custodian.pw_uid,group=custodian.pw_uid,extra_groups=[project_gid],env=env,stdout=log,stderr=log)
+   service=subprocess.Popen([py,'-m','magicite','custody','serve','--directory',str(store),'--profile-path',str(profile)],user=custodian.pw_uid,group=custodian.pw_uid,extra_groups=[project_gid],cwd=base,env=env,stdout=log,stderr=log)
    services.append((service,log))
    for _ in range(100):
     if sock.exists():break
@@ -300,6 +351,34 @@ try:
  (out/'workload-mounts-before-timing.json').write_text(json.dumps(mounts,indent=2)+'\n')
  (out/'custody-provisioning.json').write_text(json.dumps(receipts,indent=2)+'\n')
  results=out/'results';results.mkdir(mode=0o755);os.chown(results,client.pw_uid,client.pw_gid)
+ # Complete public read/write checks run before any model load or timer.
+ access_program="""
+import importlib.metadata,json,os,sys
+from pathlib import Path
+out,harness,lockroot=map(Path,sys.argv[1:]);counts={}
+for label,root in [('corpus',out/'corpus'),('model-cache',out/'model-cache')]:
+ count=0
+ for path in root.rglob('*'):
+  if path.is_symlink() and not path.resolve().is_relative_to(root.resolve()):raise ValueError('public input symlink escapes owned tree')
+  if path.is_file():
+   with path.open('rb') as stream:stream.read(1)
+   count+=1
+ counts[label]=count
+for path in [out/'model-manifest.json',lockroot/'uv.lock',harness/'scripts/run_benchmark_matrix.py']:
+ with path.open('rb') as stream:stream.read(1)
+probe=out/'results'/'access-probe';probe.mkdir();child=probe/'child-output';child.mkdir();(child/'public.json').write_text('{}')
+ancestors=[]
+for path in [out,out/'results',out/'corpus',out/'model-cache',Path(sys.executable),lockroot,harness]:
+ for item in [path,*path.parents]:
+  if item.exists():
+   info=item.stat();ancestors.append({'path':str(item),'resolved':str(item.resolve()),'uid':info.st_uid,'gid':info.st_gid,'mode':oct(info.st_mode&0o777)})
+print(json.dumps({'status':'ACTUAL_CLIENT_PUBLIC_ACCESS_PASS','uid':os.getuid(),'groups':os.getgroups(),'input_files_read':counts,'ancestry':ancestors,'magicite_version':importlib.metadata.version('magicite'),'measurement_executed':False}))
+"""
+ probe=subprocess.run([py,'-c',access_program,str(out),str(harness),str(lockroot)],user=client.pw_uid,group=client.pw_uid,extra_groups=[project_gid],cwd=base,env=env,capture_output=True,text=True)
+ (out/'client-public-access.stdout').write_text(probe.stdout);(out/'client-public-access.stderr').write_text(probe.stderr)
+ probe.check_returncode();(out/'client-public-access.json').write_text(probe.stdout)
+ helper=subprocess.run([py,str(harness/'scripts/run_benchmark_matrix.py'),'--help'],user=client.pw_uid,group=client.pw_uid,extra_groups=[project_gid],cwd=base,env=env,capture_output=True,text=True)
+ (out/'client-helper-access.stdout').write_text(helper.stdout);(out/'client-helper-access.stderr').write_text(helper.stderr);helper.check_returncode()
  support=[]; statuses=[]
  for stratum in ['small-100','small-1k','synthetic-10k','real-10k']:
   profile=stratum if stratum in ['small-100','small-1k'] else 'supported-10k'
@@ -309,7 +388,7 @@ try:
    args+=['--corpus-manifest',str(out/'corpus/corpus-manifest.json')]
    for previous in support:args+=['--support-run',str(previous)]
   with (out/(stratum+'.stdout')).open('w') as stdout,(out/(stratum+'.stderr')).open('w') as stderr:
-   run=subprocess.run(args,user=client.pw_uid,group=client.pw_uid,extra_groups=[project_gid],env=env,stdout=stdout,stderr=stderr)
+   run=subprocess.run(args,user=client.pw_uid,group=client.pw_uid,extra_groups=[project_gid],cwd=base,env=env,stdout=stdout,stderr=stderr)
   snapshots=[]
   snapshot_program = """
 import hashlib,json,os,sys
@@ -323,7 +402,7 @@ print(json.dumps({'root':sys.argv[1],'uid':os.getuid(),'pid':os.getpid(),'authen
 """
   for repetition in range(3):
    root=base/stratum/f'repetition-{repetition:03d}'
-   snapshot=subprocess.run([py,'-c',snapshot_program,str(root)],user=client.pw_uid,group=client.pw_uid,extra_groups=[project_gid],env=env,capture_output=True,text=True,check=True)
+   snapshot=subprocess.run([py,'-c',snapshot_program,str(root)],user=client.pw_uid,group=client.pw_uid,extra_groups=[project_gid],cwd=base,env=env,capture_output=True,text=True,check=True)
    snapshots.append(json.loads(snapshot.stdout))
   (out/(stratum+'-authenticated-custody.json')).write_text(json.dumps(snapshots,indent=2)+'\n')
   statuses.append({'stratum':stratum,'exit':run.returncode,'result':str(result)})

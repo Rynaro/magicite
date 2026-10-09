@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - qualification/e6-rc4-20261009-03
+      - qualification/e6-rc4-20261009-04
 
 permissions:
   contents: read
@@ -30,8 +30,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/e6-evidence"
-          mkdir -p "$out"
+          out="$(sudo bash scripts/qualify_performance_linux.sh stage "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$(uname -m)" "$(id -u)" "$(id -g)")"
+          echo "E6_PUBLIC_ROOT=$out" >> "$GITHUB_ENV"
           git rev-parse HEAD > "$out/harness-commit.txt"
           python3 - "$out" <<'PYCONTEXT'
           import json,os,subprocess,sys
@@ -43,7 +43,7 @@ jobs:
           assert context['GITHUB_SHA']==context['checked_out_commit']
           assert context['GITHUB_EVENT_NAME'] in ['push','workflow_dispatch']
           if context['GITHUB_EVENT_NAME']=='push':
-              assert context['GITHUB_REF']=='refs/tags/qualification/e6-rc4-20261009-03'
+              assert context['GITHUB_REF']=='refs/tags/qualification/e6-rc4-20261009-04'
           PYCONTEXT
           sha256sum scripts/run_benchmark_matrix.py scripts/prepare_performance_corpus.py scripts/qualify_performance_linux.sh > "$out/harness-sha256.txt"
           env E6_STANDARD_RUNNER="${{ matrix.runner }}" bash scripts/qualify_performance_linux.sh preflight "$out" 2>&1 | tee "$out/preflight.log"
@@ -60,7 +60,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/e6-evidence"
+          out="$E6_PUBLIC_ROOT"
           uv --version | tee "$out/uv-version.txt"
           sha256sum "$(command -v uv)" > "$out/uv-executable.sha256"
           sudo install -d -m 0755 /var/lib/magicite-e6-runtime
@@ -101,7 +101,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/e6-evidence"
+          out="$E6_PUBLIC_ROOT"
           env PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /var/lib/magicite-e6-runtime/venv/bin/python scripts/prepare_performance_corpus.py --output "$out/corpus" --decoder-python /var/lib/magicite-e6-runtime/decoder/bin/python 2>&1 | tee "$out/corpus-preparation.log"
           env PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 /var/lib/magicite-e6-runtime/venv/bin/python - "$out" <<'PYMODEL'
           import json,sys
@@ -115,17 +115,29 @@ jobs:
           PYMODEL
           sudo chown -R root:root "$out/corpus" "$out/model-cache" "$out/model-manifest.json"
           sudo chmod -R a+rX "$out/corpus" "$out/model-cache"
-          # Custody clients must traverse the fresh runner task evidence directory.
-          sudo chmod a+rx "$RUNNER_TEMP" "$out"
       - name: Actual separate-UID production four-stratum matrix
         shell: bash
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/e6-evidence"
+          out="$E6_PUBLIC_ROOT"
           # Harness files stay distinct from the measured RC4 distribution.
           sudo install -d -m 0755 /var/lib/magicite-e6-runtime/reviewed/scripts
           sudo cp scripts/run_benchmark_matrix.py /var/lib/magicite-e6-runtime/reviewed/scripts/
           sudo env PYTHONPATH= PYTHONDONTWRITEBYTECODE=1 bash scripts/qualify_performance_linux.sh run "$out" /var/lib/magicite-e6-runtime/venv/bin/python /var/lib/magicite-e6-runtime/reviewed /var/lib/magicite-e6-runtime/lock 2>&1 | tee "$out/execution.log"
+      - name: Copy selected public artifacts back for ordinary runner reading
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${E6_PUBLIC_ROOT:-}"
+          sudo bash scripts/qualify_performance_linux.sh copyback "$E6_PUBLIC_ROOT" "$RUNNER_TEMP/e6-evidence" "$(id -u)" "$(id -g)"
+          python3 - "$RUNNER_TEMP/e6-evidence" <<'PYREADBACK'
+          import hashlib,json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1]);receipt=json.loads((root/'public-copyback.json').read_bytes())
+          assert all(hashlib.sha256((root/item['path']).read_bytes()).hexdigest()==item['sha256'] for item in receipt['files'])
+          print('ORDINARY_RUNNER_PUBLIC_READBACK_PASS')
+          PYREADBACK
       - name: Retain raw public qualification evidence on every outcome
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

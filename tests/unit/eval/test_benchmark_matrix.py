@@ -347,10 +347,10 @@ def _provider_fixture():
         "GITHUB_ACTOR": "operator",
         "GITHUB_EVENT_NAME": "push",
         "GITHUB_REPOSITORY": "Rynaro/magicite",
-        "GITHUB_REF": "refs/tags/qualification/e6-rc4-20261009-03",
+        "GITHUB_REF": "refs/tags/qualification/e6-rc4-20261009-04",
         "GITHUB_WORKFLOW_REF": (
             "Rynaro/magicite/.github/workflows/performance-qualification.yml@"
-            "refs/tags/qualification/e6-rc4-20261009-03"
+            "refs/tags/qualification/e6-rc4-20261009-04"
         ),
         "RUNNER_NAME": "GitHub Actions 123",
         "RUNNER_OS": "Linux",
@@ -539,6 +539,7 @@ def test_custody_subprocess_failure_preserves_public_streams_and_stage(tmp_path)
         CalledProcessError=subprocess.CalledProcessError,
     )
     namespace = {
+        "base": tmp_path,
         "command_sequence": 0,
         "py": "/installed/python",
         "project_gid": 41013,
