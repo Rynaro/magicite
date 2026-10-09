@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -350,3 +351,48 @@ def test_immutable_supply_chain_inputs() -> None:
     """Existing pin-immutability gate stays green under S13 ownership."""
     supply = _load_supply_chain()
     assert supply.check_immutable_inputs() == []
+
+
+def test_release_manifest_relocated_binary_handoff(tmp_path: Path) -> None:
+    """Build-only files cannot become missing subjects after the release handoff."""
+    supply = _load_supply_chain()
+    build = tmp_path / "build"
+    build.mkdir()
+    wheel = "magicite-1.0.0rc3-py3-none-any.whl"
+    sdist = "magicite-1.0.0rc3.tar.gz"
+    (build / wheel).write_bytes(b"wheel payload")
+    (build / sdist).write_bytes(b"sdist payload")
+    (build / ".gitignore").write_bytes(b"*")
+    (build / "build-report.txt").write_text("not a release subject")
+    manifest = build / "release-manifest.json"
+    supply.write_manifest(artifacts_dir=build, output=manifest, version="1.0.0rc3")
+
+    received = tmp_path / "received" / "dist"
+    received.mkdir(parents=True)
+    for name in (wheel, sdist, manifest.name):
+        shutil.copyfile(build / name, received / name)
+    shutil.rmtree(build)
+    received_manifest = received / manifest.name
+    assert supply.verify_manifest(received_manifest, artifacts_root=received.parent) == []
+
+    received_wheel = received / wheel
+    original = received_wheel.read_bytes()
+    received_wheel.write_bytes(original + b"tampered")
+    assert any(
+        "digest mismatch" in failure and wheel in failure
+        for failure in supply.verify_manifest(received_manifest, artifacts_root=received.parent)
+    )
+    received_wheel.write_bytes(original)
+    received_wheel.unlink()
+    assert any(
+        "missing artifact file" in failure and wheel in failure
+        for failure in supply.verify_manifest(received_manifest, artifacts_root=received.parent)
+    )
+
+
+def test_release_manifest_rejects_build_metadata_only(tmp_path: Path) -> None:
+    supply = _load_supply_chain()
+    (tmp_path / ".gitignore").write_bytes(b"*")
+    (tmp_path / "build-report.txt").write_text("not a release subject")
+    with pytest.raises(FileNotFoundError, match="no artifacts found"):
+        supply.build_manifest(artifacts_dir=tmp_path)
