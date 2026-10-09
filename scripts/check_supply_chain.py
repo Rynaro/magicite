@@ -67,9 +67,7 @@ def build_manifest(*, artifacts_dir: Path, version: str | None = None) -> dict:
         raise FileNotFoundError(f"artifacts directory not found: {artifacts_dir}")
     artifacts: list[dict[str, str]] = []
     for path in sorted(artifacts_dir.iterdir()):
-        if not path.is_file():
-            continue
-        if path.name.endswith(".json") and "manifest" in path.name:
+        if not path.is_file() or not path.name.endswith((".whl", ".tar.gz")):
             continue
         artifacts.append(
             {
@@ -150,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--write-manifest",
         type=Path,
-        help="Write a release-manifest JSON for files under --artifacts",
+        help="Write a release-manifest JSON for wheel/sdist binaries under --artifacts",
     )
     parser.add_argument(
         "--verify-manifest",
