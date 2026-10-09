@@ -68,7 +68,7 @@ def provider_identity_errors(repository,run,jobs,tag,context,label,architecture,
  if label!=expected or context.get('GITHUB_REPOSITORY')!='Rynaro/magicite':errors.append('standard native runner class mismatch')
  if document_sha!='4f959a553da1bbfc86d4f24167981fb76177bb14c39b01296bc0ab6b6c779c38':errors.append('reviewed provider document bytes changed or missing')
  if run.get('id')!=int(context.get('GITHUB_RUN_ID','0')) or run.get('head_sha')!=context.get('checked_out_commit') or run.get('head_sha')!=context.get('GITHUB_SHA') or run.get('event')!='push' or run.get('path')!='.github/workflows/performance-qualification.yml' or run.get('run_attempt')!=int(context.get('GITHUB_RUN_ATTEMPT','0')) or run.get('actor',{}).get('login')!=context.get('GITHUB_ACTOR'):errors.append('actual run/context identity mismatch')
- ref='refs/tags/qualification/e6-rc4-20261009-02'
+ ref='refs/tags/qualification/e6-rc4-20261009-03'
  if context.get('GITHUB_REF')!=ref or context.get('GITHUB_EVENT_NAME')!='push' or context.get('GITHUB_WORKFLOW_REF')!='Rynaro/magicite/.github/workflows/performance-qualification.yml@'+ref or tag.get('ref')!=ref or tag.get('object',{}).get('type')!='commit' or tag.get('object',{}).get('sha')!=run.get('head_sha'):errors.append('actual exact qualification tag/source mismatch')
  matches=[row for row in jobs.get('jobs',[]) if row.get('name')=='E6 / '+str(label)]
  if len(matches)!=1:errors.append('actual standard runner job unresolved')
@@ -162,7 +162,7 @@ try:
  run_id=context['GITHUB_RUN_ID']
  run=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/actions/runs/'+run_id,'provider-run.json'))
  jobs=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/actions/runs/'+run_id+'/jobs?per_page=100','provider-jobs.json'))
- tag=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/git/ref/tags/qualification/e6-rc4-20261009-02','provider-tag.json'))
+ tag=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/git/ref/tags/qualification/e6-rc4-20261009-03','provider-tag.json'))
  document=acquire_public('https://docs.github.com/en/actions/reference/runners/github-hosted-runners','provider-runner-document.html')
  provider_errors=provider_identity_errors(repository,run,jobs,tag,context,label,platform.machine(),hashlib.sha256(document).hexdigest())
 except (OSError,ValueError,KeyError) as error:provider_errors.append('actual public provider proof unavailable: '+type(error).__name__)
@@ -219,7 +219,7 @@ py="${3:?installed RC4 Python}"; harness="${4:?reviewed checkout}"; lockroot="${
 # No changes to preexisting /etc descriptors, services, identities or paths.
 [[ -d /var/lib/magicite-e6 && ! -L /var/lib/magicite-e6 ]]
 "$py" - "$out" "$harness" "$lockroot" <<'EXECUTE'
-import hashlib,json,os,pwd,subprocess,sys,time
+import grp,hashlib,json,os,pwd,subprocess,sys,time
 from pathlib import Path
 from magicite.core.trust import default_policy
 out,harness,lockroot=map(Path,sys.argv[1:]); py=sys.executable
@@ -240,6 +240,17 @@ for name,uid in [('magicite-e6-custodian',41011),('magicite-e6-client',41012)]:
  else:raise ValueError('preexisting task identity')
  subprocess.run(['useradd','--uid',str(uid),'--user-group','--no-create-home','--shell','/usr/sbin/nologin',name],check=True)
 custodian=pwd.getpwnam('magicite-e6-custodian'); client=pwd.getpwnam('magicite-e6-client')
+shared_name='magicite-e6-project';project_gid=41013
+for lookup,value in [(grp.getgrnam,shared_name),(grp.getgrgid,project_gid)]:
+ try:lookup(value)
+ except KeyError:pass
+ else:raise ValueError('preexisting task project group')
+subprocess.run(['groupadd','--gid',str(project_gid),shared_name],check=True)
+for account in ['magicite-e6-custodian','magicite-e6-client']:
+ subprocess.run(['usermod','--append','--groups',shared_name,account],check=True)
+project_group=grp.getgrnam(shared_name)
+if project_group.gr_gid!=project_gid or not {'magicite-e6-custodian','magicite-e6-client'}.issubset(project_group.gr_mem):raise ValueError('task group membership mismatch')
+
 # Public prepared corpus/cache are root-owned; model files immutable during measurement.
 cache=out/'model-cache'; manifest=out/'model-manifest.json'
 for path in cache.rglob('*'):
@@ -250,14 +261,24 @@ policy_digest=hashlib.sha256(policy.read_bytes()).hexdigest()
 registry_root=Path('/etc/magicite/registries'); registry_root.mkdir(parents=True,exist_ok=True,mode=0o755)
 services=[]; receipts=[]
 env={**os.environ,'PYTHONDONTWRITEBYTECODE':'1','PYTHONPATH':'','MAGICITE_EMBEDDING_PROVIDER':'fastembed','HF_HUB_OFFLINE':'1','HF_DATASETS_OFFLINE':'1'}
+command_sequence=0
 def command(uid,args,*,capture=True):
- result=subprocess.run([py,'-m','magicite','custody',*args],user=uid,group=uid,extra_groups=[],env=env,text=True,capture_output=capture,check=True)
+ global command_sequence
+ command_sequence+=1
+ argv=[py,'-m','magicite','custody',*args]
+ result=subprocess.run(argv,user=uid,group=uid,extra_groups=[project_gid],env=env,text=True,capture_output=capture,check=False)
+ if result.returncode:
+  prefix='custody-command-'+str(command_sequence).zfill(3)+'-'+args[0]
+  (out/(prefix+'.stdout')).write_text(result.stdout or '')
+  (out/(prefix+'.stderr')).write_text(result.stderr or '')
+  (out/(prefix+'.json')).write_text(json.dumps({'stage':args[0],'command':argv,'uid':uid,'gid':uid,'extra_groups':[project_gid],'exit':result.returncode,'stdout_file':prefix+'.stdout','stderr_file':prefix+'.stderr','scope':'Public custody CLI streams only; no private store/key/environment export'},indent=2)+'\n')
+  raise subprocess.CalledProcessError(result.returncode,argv,output=result.stdout,stderr=result.stderr)
  return result.stdout
 try:
  for stratum in ['small-100','small-1k','synthetic-10k','real-10k']:
   roots=base/stratum; roots.mkdir(mode=0o755)
   for repetition in range(3):
-   root=roots/f'repetition-{repetition:03d}';root.mkdir(mode=0o700);os.chown(root,client.pw_uid,client.pw_gid)
+   root=roots/f'repetition-{repetition:03d}';root.mkdir(mode=0o750);os.chown(root,client.pw_uid,project_gid)
    custody=base/f'{stratum}-{repetition}-custody';custody.mkdir(mode=0o755);os.chown(custody,custodian.pw_uid,custodian.pw_gid)
    store=custody/'private';profile=custody/'profile.json';sock=custody/'socket';registry_id=f'e6-{stratum}-{repetition}'
    command(custodian.pw_uid,['init','--directory',str(store)])
@@ -266,7 +287,7 @@ try:
    destination=registry_root/(hashlib.sha256(str(root.resolve()).encode()).hexdigest()+'.json')
    with destination.open('x') as stream:stream.write(descriptor)
    log=(out/f'custody-{stratum}-{repetition}.log').open('w')
-   service=subprocess.Popen([py,'-m','magicite','custody','serve','--directory',str(store),'--profile-path',str(profile)],user=custodian.pw_uid,group=custodian.pw_uid,extra_groups=[],env=env,stdout=log,stderr=log)
+   service=subprocess.Popen([py,'-m','magicite','custody','serve','--directory',str(store),'--profile-path',str(profile)],user=custodian.pw_uid,group=custodian.pw_uid,extra_groups=[project_gid],env=env,stdout=log,stderr=log)
    services.append((service,log))
    for _ in range(100):
     if sock.exists():break
@@ -274,7 +295,7 @@ try:
     time.sleep(.05)
    head=json.loads(command(client.pw_uid,['status','--project-root',str(root)]))
    genesis=command(client.pw_uid,['initialize-journal','--project-root',str(root)])
-   receipts.append({'root':str(root),'registry_id':registry_id,'custodian_uid':custodian.pw_uid,'client_uid':client.pw_uid,'service_pid':service.pid,'descriptor':json.loads(descriptor),'profile':json.loads(profile.read_bytes()),'reviewed_policy_sha256':policy_digest,'initial_authenticated_head':head,'genesis':json.loads(genesis),'private_store_mode':oct(store.stat().st_mode&0o777),'local_review_scope':'isolated performance evaluation only; no production human admissions'})
+   receipts.append({'root':str(root),'registry_id':registry_id,'custodian_uid':custodian.pw_uid,'client_uid':client.pw_uid,'project_gid':project_gid,'project_group_members':project_group.gr_mem,'project_mode':oct(root.stat().st_mode&0o777),'project_owner_uid':root.stat().st_uid,'project_owner_gid':root.stat().st_gid,'service_pid':service.pid,'descriptor':json.loads(descriptor),'profile':json.loads(profile.read_bytes()),'reviewed_policy_sha256':policy_digest,'initial_authenticated_head':head,'genesis':json.loads(genesis),'private_store_mode':oct(store.stat().st_mode&0o777),'local_review_scope':'isolated performance evaluation only; no production human admissions'})
  mounts=[{'root':row['root'],'filesystem':observed_mount(Path(row['root']))} for row in receipts]
  (out/'workload-mounts-before-timing.json').write_text(json.dumps(mounts,indent=2)+'\n')
  (out/'custody-provisioning.json').write_text(json.dumps(receipts,indent=2)+'\n')
@@ -288,7 +309,7 @@ try:
    args+=['--corpus-manifest',str(out/'corpus/corpus-manifest.json')]
    for previous in support:args+=['--support-run',str(previous)]
   with (out/(stratum+'.stdout')).open('w') as stdout,(out/(stratum+'.stderr')).open('w') as stderr:
-   run=subprocess.run(args,user=client.pw_uid,group=client.pw_uid,extra_groups=[],env=env,stdout=stdout,stderr=stderr)
+   run=subprocess.run(args,user=client.pw_uid,group=client.pw_uid,extra_groups=[project_gid],env=env,stdout=stdout,stderr=stderr)
   snapshots=[]
   snapshot_program = """
 import hashlib,json,os,sys
@@ -302,7 +323,7 @@ print(json.dumps({'root':sys.argv[1],'uid':os.getuid(),'pid':os.getpid(),'authen
 """
   for repetition in range(3):
    root=base/stratum/f'repetition-{repetition:03d}'
-   snapshot=subprocess.run([py,'-c',snapshot_program,str(root)],user=client.pw_uid,group=client.pw_uid,extra_groups=[],env=env,capture_output=True,text=True,check=True)
+   snapshot=subprocess.run([py,'-c',snapshot_program,str(root)],user=client.pw_uid,group=client.pw_uid,extra_groups=[project_gid],env=env,capture_output=True,text=True,check=True)
    snapshots.append(json.loads(snapshot.stdout))
   (out/(stratum+'-authenticated-custody.json')).write_text(json.dumps(snapshots,indent=2)+'\n')
   statuses.append({'stratum':stratum,'exit':run.returncode,'result':str(result)})

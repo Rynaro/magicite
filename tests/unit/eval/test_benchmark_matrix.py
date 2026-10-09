@@ -347,10 +347,10 @@ def _provider_fixture():
         "GITHUB_ACTOR": "operator",
         "GITHUB_EVENT_NAME": "push",
         "GITHUB_REPOSITORY": "Rynaro/magicite",
-        "GITHUB_REF": "refs/tags/qualification/e6-rc4-20261009-02",
+        "GITHUB_REF": "refs/tags/qualification/e6-rc4-20261009-03",
         "GITHUB_WORKFLOW_REF": (
             "Rynaro/magicite/.github/workflows/performance-qualification.yml@"
-            "refs/tags/qualification/e6-rc4-20261009-02"
+            "refs/tags/qualification/e6-rc4-20261009-03"
         ),
         "RUNNER_NAME": "GitHub Actions 123",
         "RUNNER_OS": "Linux",
@@ -517,3 +517,79 @@ def test_public_input_acquisition_refuses_wrong_pinned_bytes(tmp_path, monkeypat
     with pytest.raises(ValueError, match="digest/length mismatch"):
         module.acquire(response.url, payload, "0" * 64, 3)
     assert payload.read_bytes() == b"bad"
+
+
+def test_custody_subprocess_failure_preserves_public_streams_and_stage(tmp_path):
+    import ast
+    import json
+    import subprocess
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    source = (Path(__file__).resolve().parents[3] / "scripts/qualify_performance_linux.sh").read_text()
+    program = source.split("<<'EXECUTE'\n", 1)[1].split("\nEXECUTE", 1)[0]
+    tree = ast.parse(program)
+    function = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "command"
+    )
+    fake = SimpleNamespace(
+        run=lambda *args, **kwargs: SimpleNamespace(
+            returncode=2, stdout="public reply", stderr="project not readable"
+        ),
+        CalledProcessError=subprocess.CalledProcessError,
+    )
+    namespace = {
+        "command_sequence": 0,
+        "py": "/installed/python",
+        "project_gid": 41013,
+        "env": {},
+        "subprocess": fake,
+        "out": tmp_path,
+        "json": json,
+    }
+    exec(compile(ast.Module(body=[function], type_ignores=[]), "approved-custody-command", "exec"), namespace)
+    with pytest.raises(subprocess.CalledProcessError) as error:
+        namespace["command"](41011, ["profile", "--project-root", "/owned/project"])
+    assert error.value.returncode == 2 and error.value.stderr == "project not readable"
+    receipt = json.loads(next(tmp_path.glob("*.json")).read_text())
+    assert receipt["stage"] == "profile" and receipt["uid"] == 41011 and receipt["extra_groups"] == [41013]
+    assert (tmp_path / receipt["stdout_file"]).read_text() == "public reply"
+    assert (tmp_path / receipt["stderr_file"]).read_text() == "project not readable"
+    assert "environment" not in receipt and "private_store" not in receipt
+
+
+def test_shipped_empty_bootstrap_lock_is_accepted_without_changing_bytes(tmp_path):
+    from magicite.config import Config
+    from magicite.storage import db
+
+    module = _matrix_module()
+    cfg = Config(project_root=tmp_path.resolve())
+    cfg.ensure_dirs()
+    db.connect(cfg.db_path).close()
+    cfg.dream_lock_path.write_bytes(b"")
+    cfg.dream_lock_path.chmod(0o600)
+    assert module._clean_project_root(cfg.project_root, protected=False)["project_root"] == str(
+        cfg.project_root
+    )
+    assert cfg.dream_lock_path.read_bytes() == b""
+
+
+@pytest.mark.parametrize("kind", ["nonempty", "directory", "symlink", "group-writable"])
+def test_bootstrap_lock_exception_refuses_nonempty_nonregular_alias_or_writable(tmp_path, kind):
+    from magicite.config import Config
+
+    module = _matrix_module()
+    cfg = Config(project_root=tmp_path.resolve())
+    cfg.ensure_dirs()
+    if kind == "directory":
+        cfg.dream_lock_path.mkdir()
+    elif kind == "symlink":
+        cfg.dream_lock_path.symlink_to(tmp_path / "outside-missing-target")
+    else:
+        cfg.dream_lock_path.write_bytes(b"residue" if kind == "nonempty" else b"")
+        if kind == "group-writable":
+            cfg.dream_lock_path.chmod(0o660)
+    with pytest.raises(ValueError, match="bootstrap writer lock"):
+        module._clean_project_root(cfg.project_root, protected=False)
+    if kind == "nonempty":
+        assert cfg.dream_lock_path.read_bytes() == b"residue"

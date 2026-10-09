@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - qualification/e6-rc4-20261009-02
+      - qualification/e6-rc4-20261009-03
 
 permissions:
   contents: read
@@ -43,7 +43,7 @@ jobs:
           assert context['GITHUB_SHA']==context['checked_out_commit']
           assert context['GITHUB_EVENT_NAME'] in ['push','workflow_dispatch']
           if context['GITHUB_EVENT_NAME']=='push':
-              assert context['GITHUB_REF']=='refs/tags/qualification/e6-rc4-20261009-02'
+              assert context['GITHUB_REF']=='refs/tags/qualification/e6-rc4-20261009-03'
           PYCONTEXT
           sha256sum scripts/run_benchmark_matrix.py scripts/prepare_performance_corpus.py scripts/qualify_performance_linux.sh > "$out/harness-sha256.txt"
           env E6_STANDARD_RUNNER="${{ matrix.runner }}" bash scripts/qualify_performance_linux.sh preflight "$out" 2>&1 | tee "$out/preflight.log"

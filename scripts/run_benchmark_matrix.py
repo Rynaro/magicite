@@ -190,6 +190,19 @@ def _clean_project_root(root: Path, *, protected: bool) -> dict[str, Any]:
         raise ValueError("symlink project root is unsafe")
     cfg = Config(project_root=root)
     allowed = {cfg.db_path, Path(str(cfg.db_path) + "-wal"), Path(str(cfg.db_path) + "-shm")}
+    lock = cfg.dream_lock_path
+    if lock.exists() or lock.is_symlink():
+        if (
+            lock.is_symlink()
+            or not lock.is_file()
+            or lock.stat().st_size != 0
+            or lock.stat().st_uid != os.getuid()
+            or lock.stat().st_mode & 0o022
+        ):
+            raise ValueError(
+                "bootstrap writer lock must be client-owned regular empty non-writable-to-others"
+            )
+        allowed.add(lock)
     for path in root.rglob("*"):
         if path.is_symlink():
             raise ValueError("symlink within project root is unsafe")
