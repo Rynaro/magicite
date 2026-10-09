@@ -343,16 +343,20 @@ async def test_without_uid_override_the_server_cannot_even_boot(
     The same valid fixture must initialize under its owner; Desktop host-bind
     ownership translation is intentionally excluded from this prerequisite.
     """
+    import hashlib
+    import io
+    import stat
+    import tarfile
     import uuid
 
     volume = "magicite-smoke-" + uuid.uuid4().hex
     owner_name, default_name = volume + "-owner", volume + "-default"
     evidence: dict = {}
 
-    def checked(*args: str) -> str:
-        done = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=30)
+    def checked(*args: str, payload: bytes | None = None) -> str:
+        done = subprocess.run(["docker", *args], input=payload, capture_output=True, timeout=30)
         assert done.returncode == 0, (args, done.returncode, done.stdout, done.stderr)
-        return done.stdout
+        return done.stdout.decode()
 
     custody_directory, registry_id = custody
     native_project, native_custody = "/fixture/project", "/fixture/custody"
@@ -362,14 +366,50 @@ async def test_without_uid_override_the_server_cannot_even_boot(
     try:
         common = [*_HARDENING_FLAGS, "--network", "none", "-v", f"{volume}:/fixture",
                   "-v", f"{_REPO_TESTS}:{_CONTAINER_SRC}/tests:ro", "--entrypoint", "python"]
-        setup = (
-            "import os,shutil;shutil.copytree('/seed/project','/fixture/project');"
-            "shutil.copytree('/seed/custody','/fixture/custody');"
-            "os.chmod('/fixture/project',0o700);os.chmod('/fixture/custody',0o700)"
-        )
-        checked("run", "--rm", "--user", "0:0", *common,
-                "-v", f"{project_root}:/seed/project:ro",
-                "-v", f"{custody_directory}:/seed/custody:ro", IMAGE_TAG, "-c", setup)
+        # The host owner reads its seeds; a cap-dropped container root cannot
+        # read another Linux UID's private host mount. Stream bytes instead.
+        archive_bytes = io.BytesIO()
+        inventory: dict[str, str] = {}
+        with tarfile.open(fileobj=archive_bytes, mode="w") as archive:
+            for prefix, root in (("project", project_root), ("custody", custody_directory)):
+                for path in [root, *sorted(root.rglob("*"))]:
+                    mode = path.lstat().st_mode
+                    assert stat.S_ISDIR(mode) or stat.S_ISREG(mode), path
+                    relative = Path(prefix) / path.relative_to(root)
+                    assert not relative.is_absolute() and ".." not in relative.parts
+                    member = tarfile.TarInfo(relative.as_posix())
+                    member.mode = stat.S_IMODE(mode)
+                    if stat.S_ISDIR(mode):
+                        member.type = tarfile.DIRTYPE
+                        archive.addfile(member)
+                    else:
+                        raw = path.read_bytes()
+                        member.size = len(raw)
+                        archive.addfile(member, io.BytesIO(raw))
+                        inventory[relative.as_posix()] = hashlib.sha256(raw).hexdigest()
+        setup = """
+import hashlib, io, json, os, pathlib, sys, tarfile
+root = pathlib.Path('/fixture').resolve()
+with tarfile.open(fileobj=io.BytesIO(sys.stdin.buffer.read()), mode='r:') as archive:
+    for member in archive.getmembers():
+        name = pathlib.PurePosixPath(member.name)
+        assert not name.is_absolute() and '..' not in name.parts
+        assert name.parts and name.parts[0] in {'project', 'custody'}
+        assert member.isdir() or member.isreg()
+        assert (root / member.name).resolve().is_relative_to(root)
+    archive.extractall(root, filter='data')
+for name in ('project', 'custody'):
+    os.chmod(root / name, 0o700)
+print(json.dumps({str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+                  for name in ('project', 'custody') for p in sorted((root / name).rglob('*'))
+                  if p.is_file()}, sort_keys=True))
+"""
+        native_inventory = json.loads(checked("run", "--rm", "-i", "--user", "0:0", *common,
+                                              IMAGE_TAG, "-c", setup, payload=archive_bytes.getvalue()))
+        assert native_inventory == dict(sorted(inventory.items()))
+        evidence["host_seed_sha256"] = dict(sorted(inventory.items()))
+        evidence["native_seed_sha256"] = native_inventory
+        evidence["seed_transport"] = "host-owner tar stdin; data filter; no archived UID restoration"
         probe = (
             "import json,os; p='/fixture/custody';s=os.stat(p);"
             "print(json.dumps({'uid':os.getuid(),'gid':os.getgid(),"
