@@ -15,7 +15,8 @@ def _project() -> dict[str, object]:
 
 def test_package_and_release_notes_identify_preview() -> None:
     project = _project()
-    assert project["version"] == "1.0.0rc3"
+    assert project["version"] == "1.0.0rc4"
+    assert (ROOT / "docs" / "releases" / "1.0.0-rc.4.md").is_file()
     assert (ROOT / "docs" / "releases" / "1.0.0-rc.3.md").is_file()
     assert (ROOT / "docs" / "releases" / "1.0.0-rc.2.md").is_file()
     assert (ROOT / "docs" / "releases" / "1.0.0-rc.1.md").is_file()

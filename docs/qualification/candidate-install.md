@@ -3,7 +3,7 @@
 This rehearsal builds local candidate artifacts from a clean committed checkout,
 then installs each explicit artifact into a different fresh environment outside
 the checkout. It does not install Magicite by name from a package index. The
-proposed package metadata is 1.0.0rc3: these freshly built candidate bytes are
+proposed package metadata is 1.0.0rc4: these freshly built candidate bytes are
 unpublished developer-preview artifacts, not a published 1.0.0 GA release.
 The historical 0.3.1 installation witness at source
 274020cbf78bff4884913d7ba5c3b39b7441dd5a remains unchanged; its execution is not
