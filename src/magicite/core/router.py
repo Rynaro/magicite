@@ -83,6 +83,7 @@ from magicite.core import recovery_gate as recovery_gate_mod
 from magicite.core import routing_policy as policy_mod
 from magicite.core import session as session_mod
 from magicite.core import trust as trust_mod
+from magicite.core.comparison_budget import ComparisonBudget
 from magicite.core.context import RouteContext, ServerPermissionPolicy
 from magicite.core.decay_math import effective_value
 from magicite.embeddings import reranker as reranker_mod
@@ -1441,6 +1442,7 @@ def route(
     session_id: str | None = None,
     route_context: RouteContext | None = None,
     server_policy: ServerPermissionPolicy | None = None,
+    comparison_budget: ComparisonBudget | None = None,
 ) -> RouteOutcome:
     # S12 C8/C9: refuse routing while restore reconciliation is required.
     # Cheap no-op when no restore-generation markers exist.
@@ -1512,6 +1514,8 @@ def route(
     # active.json remains an analysis helper, never a routing authority.
     try:
         cal = policy_store_mod.active_calibration(cfg, conn, embedder) if policy_source == "store" else None
+        if cal is not None and cal.evaluation_budget_digest is not None:
+            raise InvalidInputError("evaluation-budget calibration cannot authorize ordinary runtime")
     except (InvalidInputError, OSError, ValueError) as exc:
         raise InvalidInputError("calibration authority unavailable or incompatible", hint=str(exc)) from exc
     family = policy_mod.policy_family(policy_id)
@@ -1522,6 +1526,39 @@ def route(
     registry_size = conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"]
     rctx = route_context if route_context is not None else RouteContext()
     spolicy = server_policy if server_policy is not None else DEFAULT_SERVER_POLICY
+
+    if comparison_budget is not None:
+        if (
+            k != comparison_budget.output_k
+            or bool(cfg.reranker_provider)
+            or policy_id not in (*policy_mod.BASELINE_SOURCES, "dense-v1")
+        ):
+            raise InvalidInputError("unsupported comparison policy/reranker/output allowance")
+        return _route_baseline_v1(
+            cfg,
+            conn,
+            embedder,
+            query=query,
+            k=k,
+            qvec=qvec,
+            rows=rows,
+            session_id=sid,
+            registry_size=registry_size,
+            policy_id=policy_id,
+            policy_digest=digest,
+            policy_family=family,
+            config_digest=config_digest,
+            calibration=None,
+            route_context=rctx,
+            server_policy=spolicy,
+            index_generation_id=gen_id,
+            snapshot_id=snap_id,
+            schema_digest=schema_d,
+            tokenizer_digest=tok_d,
+            pin_reasons=pin_reasons,
+            policy_source=policy_source,
+            comparison_budget=comparison_budget,
+        )
 
     if policy_id in policy_mod.BASELINE_SOURCES:
         return _route_baseline_v1(
@@ -1725,6 +1762,7 @@ def _finalize_route(
                 top_score=top_score,
                 margin=margin,
                 artifact=calibration,
+                rank_depth=k,
                 expected_policy_digest=policy_mod.compute_policy_digest(policy_id, cfg),
                 expected_config_digest=cfg_digest,
                 fallback_score_threshold=cfg.abstention_score_threshold,
@@ -1746,6 +1784,7 @@ def _finalize_route(
                     calibration_id=abstention.calibration_id,
                 )
                 cal_digest = abstention.calibration_digest
+                final_reasons.extend(abstention.reason_codes)
 
         if status is not None and not final_candidates and status == "abstained":
             final_status = "abstained"
@@ -1793,6 +1832,8 @@ def _finalize_route(
     selected_ids = tuple(c.id for c in final_candidates[:1]) if final_status == "selected" else ()
     selected_digests = {c.id: (c.content_digest or "") for c in final_candidates if c.content_digest}
 
+    if final_status != "selected":
+        confidence = Confidence(value=None, calibration_id=confidence.calibration_id)
     route_decision = RouteDecision(
         decision_id=f"rd_{uuid.uuid4().hex[:16]}",
         status=final_status,
@@ -1887,6 +1928,7 @@ def _route_baseline_v1(
     tokenizer_digest: str | None = None,
     pin_reasons: tuple[str, ...] = (),
     policy_source: Literal["store", "config_fresh_install"] | None = None,
+    comparison_budget: ComparisonBudget | None = None,
 ) -> RouteOutcome:
     """Explicit indexed baseline: live eligibility → pinned sources → shared finalizer."""
     eligible_rows, exclusions, missing_ctx = _evaluate_route_eligibility(
@@ -1897,7 +1939,7 @@ def _route_baseline_v1(
         server_policy=server_policy,
     )
     bound_exclusions = _bound_exclusions(exclusions, limit=cfg.max_exclusion_summaries)
-    sources = policy_mod.BASELINE_SOURCES[policy_id]
+    sources = policy_mod.BASELINE_SOURCES[policy_id] if policy_id != "dense-v1" else ("dense",)
     candidates: list[Candidate] = []
     components: dict[str, dict[str, float]] = {}
     truncations: dict[str, int] = {}
@@ -1960,13 +2002,28 @@ def _route_baseline_v1(
         batch = candidates_mod.generate(
             query,
             index,
-            candidates_mod.CandidateConfig(sources=sources, top_k=refill_n),
+            candidates_mod.CandidateConfig(
+                sources=sources,
+                top_k=min(comparison_budget.per_source_candidate_limit, k + comparison_budget.refill_limit),
+                per_source_limit=comparison_budget.per_source_candidate_limit,
+                scan_budget=comparison_budget.per_source_scan_limit,
+            )
+            if comparison_budget is not None
+            else candidates_mod.CandidateConfig(sources=sources, top_k=refill_n),
             query_vec=qvec,
             eligible_ids=frozenset(row_by_id),
         )
         if batch.generation_id != index_generation_id or batch.snapshot_id != snapshot_id:
             raise index_gen_mod.StaleGenerationError("candidate batch generation mismatch")
         truncations.update(batch.truncations)
+        if comparison_budget is not None:
+            for source, work in (batch.work or {}).items():
+                for name, count in work.items():
+                    truncations["work_" + source + "_" + name] = count
+            visited = sum(w.get("visited", 0) for w in (batch.work or {}).values())
+            if visited > comparison_budget.total_source_scan_allowance:
+                raise InvalidInputError("comparison total allowance exceeded")
+            truncations["unused_scan_allowance"] = comparison_budget.total_source_scan_allowance - visited
         reasons.extend(batch.reason_codes)
         if len(sources) == 1:
             scores = {hit.engram_id: hit.score for hit in batch.components[sources[0]]}
@@ -1991,8 +2048,16 @@ def _route_baseline_v1(
             diagnostics = {
                 "final": scores[nid],
                 "policy_experimental": 1.0,
-                "per_source_limit": float(candidates_mod.DEFAULT_PER_SOURCE_LIMIT),
-                "scan_budget": float(candidates_mod.DEFAULT_SCAN_BUDGET),
+                "per_source_limit": float(
+                    comparison_budget.per_source_candidate_limit
+                    if comparison_budget is not None
+                    else candidates_mod.DEFAULT_PER_SOURCE_LIMIT
+                ),
+                "scan_budget": float(
+                    comparison_budget.per_source_scan_limit
+                    if comparison_budget is not None
+                    else candidates_mod.DEFAULT_SCAN_BUDGET
+                ),
             }
             if len(sources) > 1:
                 diagnostics["rrf_k"] = float(candidates_mod.DEFAULT_RRF_K)

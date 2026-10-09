@@ -21,6 +21,7 @@ from magicite.core import fingerprint_key as fingerprint_key_mod
 from magicite.errors import InvalidInputError
 
 CALIBRATION_SCHEMA = "CalibrationArtifact/1"
+CALIBRATION_SCHEMA_V2 = "CalibrationArtifact/2"
 EXPLANATION_VERSION = "abstention-rule/1"
 
 #: Frozen decision rule id for the locked rejection-set gate (AC-S07-02).
@@ -74,8 +75,11 @@ class CalibrationArtifact:
     n_examples: int
     schema_version: str = CALIBRATION_SCHEMA
 
+    evaluation_budget_digest: str | None = None
+    probability_model: Mapping[str, Any] | None = None
+
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "schema_version": self.schema_version,
             "calibration_id": self.calibration_id,
             "digest": self.digest,
@@ -90,16 +94,31 @@ class CalibrationArtifact:
             "data_provenance": dict(self.data_provenance),
             "n_examples": self.n_examples,
         }
+        if self.schema_version == CALIBRATION_SCHEMA_V2:
+            result.update(
+                evaluation_budget_digest=self.evaluation_budget_digest,
+                probability_model=dict(self.probability_model)
+                if self.probability_model is not None
+                else None,
+            )
+        return result
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> CalibrationArtifact:
-        required = set(cls.__dataclass_fields__)
+        if not isinstance(data, Mapping):
+            raise InvalidInputError("calibration must be a mapping")
+        required = set(cls.__dataclass_fields__) - {"evaluation_budget_digest", "probability_model"}
+        if data.get("schema_version") == CALIBRATION_SCHEMA_V2:
+            required |= {"evaluation_budget_digest", "probability_model"}
         if not isinstance(data, Mapping) or set(data) != required:
             raise InvalidInputError("calibration fields must match the supported schema")
         for key in ("calibration_id", "digest", "policy_id", "policy_digest", "config_digest"):
             if not isinstance(data[key], str) or not data[key]:
                 raise InvalidInputError(f"calibration {key} must be a nonempty string")
-        if data["schema_version"] != CALIBRATION_SCHEMA or data["split"] != "calibration":
+        if (
+            data["schema_version"] not in (CALIBRATION_SCHEMA, CALIBRATION_SCHEMA_V2)
+            or data["split"] != "calibration"
+        ):
             raise InvalidInputError("unsupported calibration schema or split")
         if data["rule_id"] != FROZEN_ABSTENTION_RULE:
             raise InvalidInputError("unsupported calibration rule")
@@ -133,6 +152,16 @@ class CalibrationArtifact:
         fps = data["rejection_query_fingerprints"]
         if not isinstance(fps, list) or any(not isinstance(x, str) or not x for x in fps):
             raise InvalidInputError("calibration rejection fingerprints must be strings")
+        if data["schema_version"] == CALIBRATION_SCHEMA_V2:
+            import re
+
+            budget = data["evaluation_budget_digest"]
+            if budget is not None and (
+                not isinstance(budget, str) or not re.fullmatch("[0-9a-f]{64}", budget)
+            ):
+                raise InvalidInputError("invalid evaluation budget digest")
+            if data["probability_model"] is not None:
+                validate_probability_model(data["probability_model"])
         if data["digest"] != compute_artifact_digest(data):
             raise InvalidInputError("calibration canonical digest mismatch")
         return cls(**{**data, "rejection_query_fingerprints": tuple(fps)})
@@ -267,6 +296,7 @@ def decide_abstention(
     fallback_score_threshold: float | None = None,
     fallback_margin_threshold: float | None = None,
     abstention_enabled: bool = True,
+    rank_depth: int | None = None,
 ) -> AbstentionDecision:
     """Apply the frozen abstention rule.
 
@@ -350,13 +380,23 @@ def decide_abstention(
 
     # Threshold margins are not calibrated probabilities.
     confidence: float | None = None
+    if (
+        not abstain
+        and artifact.schema_version == CALIBRATION_SCHEMA_V2
+        and artifact.probability_model is not None
+        and margin is not None
+    ):
+        if rank_depth == artifact.probability_model["rank_depth"] and type(rank_depth) is int:
+            confidence = probability_at_margin(artifact.probability_model, margin)
+        else:
+            reasons.append("probability_rank_depth_mismatch")
 
     if abstain and not reasons:
         reasons.append("abstain")
 
     return AbstentionDecision(
         abstain=abstain,
-        reason_codes=tuple(reasons) if abstain else ("select",),
+        reason_codes=tuple(reasons) if abstain else ("select", *reasons),
         rule_id=artifact.rule_id,
         calibrated=True,
         confidence_value=None if abstain else confidence,
@@ -489,3 +529,133 @@ __all__ = [
     "save_calibration",
     "score_margin",
 ]
+
+
+def validate_probability_model(model: Mapping[str, Any]) -> None:
+    required = {
+        "schema",
+        "method",
+        "feature",
+        "target",
+        "x",
+        "y",
+        "n_examples",
+        "calibration_input_digest",
+        "rank_depth",
+        "interpolation",
+        "extrapolation",
+        "ece_edges",
+    }
+    fixed = {
+        "schema": "magicite/isotonic-top1-confidence/1",
+        "method": "weighted-pool-adjacent-violators/1",
+        "feature": "top1-minus-top2;singleton=top1",
+        "target": "raw-top1-correctness",
+        "interpolation": "linear",
+        "extrapolation": "endpoint",
+        "ece_edges": [i / 10 for i in range(11)],
+    }
+    if (
+        not isinstance(model, Mapping)
+        or set(model) != required
+        or any(model[k] != v for k, v in fixed.items())
+    ):
+        raise InvalidInputError("unsupported probability model fields/semantics")
+    import re
+
+    if not isinstance(model["calibration_input_digest"], str) or not re.fullmatch(
+        "[0-9a-f]{64}", model["calibration_input_digest"]
+    ):
+        raise InvalidInputError("probability calibration input digest invalid")
+    if any(type(model[k]) is not int or model[k] <= 0 for k in ("n_examples", "rank_depth")):
+        raise InvalidInputError("probability count/depth invalid")
+    if any(type(v) not in (int, float) for v in model["ece_edges"]):
+        raise InvalidInputError("ECE edges must be numeric")
+    x, y = model["x"], model["y"]
+    if (
+        not isinstance(x, list)
+        or not isinstance(y, list)
+        or not x
+        or len(x) != len(y)
+        or any(type(v) not in (int, float) or not _finite_number(v) for v in x + y)
+        or any(a >= b for a, b in zip(x, x[1:], strict=False))
+        or any(not 0 <= v <= 1 for v in y)
+        or any(a > b for a, b in zip(y, y[1:], strict=False))
+    ):
+        raise InvalidInputError("probability knots must be finite, increasing and monotone")
+
+
+def fit_probability(
+    margins: Sequence[float], correct: Sequence[bool], *, calibration_input_digest: str, rank_depth: int
+) -> tuple[dict[str, Any] | None, str | None]:
+    if (
+        len(margins) != len(correct)
+        or any(type(v) not in (int, float) or not _finite_number(v) for v in margins)
+        or any(type(v) is not bool for v in correct)
+    ):
+        raise InvalidInputError("invalid probability calibration observations")
+    if not margins or len(set(correct)) < 2:
+        return None, "empty-or-one-class-top1-calibration"
+    counts: dict[float, list[int]] = {}
+    for x, y in zip(margins, correct, strict=True):
+        pair = counts.setdefault(float(x), [0, 0])
+        pair[0] += int(y)
+        pair[1] += 1
+    xs = sorted(counts)
+    blocks: list[tuple[list[float], int, int]] = []
+    for x in xs:
+        yes, n = counts[x]
+        blocks.append(([x], yes, n))
+        while len(blocks) > 1 and blocks[-2][1] / blocks[-2][2] > blocks[-1][1] / blocks[-1][2]:
+            right = blocks.pop()
+            left = blocks.pop()
+            blocks.append((left[0] + right[0], left[1] + right[1], left[2] + right[2]))
+    fitted = {x: yes / n for keys, yes, n in blocks for x in keys}
+    model = {
+        "schema": "magicite/isotonic-top1-confidence/1",
+        "method": "weighted-pool-adjacent-violators/1",
+        "feature": "top1-minus-top2;singleton=top1",
+        "target": "raw-top1-correctness",
+        "x": xs,
+        "y": [fitted[x] for x in xs],
+        "n_examples": len(margins),
+        "calibration_input_digest": calibration_input_digest,
+        "rank_depth": rank_depth,
+        "interpolation": "linear",
+        "extrapolation": "endpoint",
+        "ece_edges": [i / 10 for i in range(11)],
+    }
+    validate_probability_model(model)
+    return model, None
+
+
+def probability_at_margin(model: Mapping[str, Any], margin: float) -> float:
+    validate_probability_model(model)
+    if type(margin) not in (int, float) or not _finite_number(margin):
+        raise InvalidInputError("finite probability feature required")
+    from bisect import bisect_right
+
+    x, y = model["x"], model["y"]
+    index = bisect_right(x, margin)
+    if index == 0:
+        return float(y[0])
+    if index == len(x):
+        return float(y[-1])
+    fraction = (margin - x[index - 1]) / (x[index] - x[index - 1])
+    return float(y[index - 1] * (1 - fraction) + fraction * y[index])
+
+
+def with_probability(
+    artifact: CalibrationArtifact,
+    model: Mapping[str, Any] | None,
+    *,
+    evaluation_budget_digest: str | None = None,
+) -> CalibrationArtifact:
+    payload = artifact.to_dict()
+    payload.update(
+        schema_version=CALIBRATION_SCHEMA_V2,
+        probability_model=dict(model) if model is not None else None,
+        evaluation_budget_digest=evaluation_budget_digest,
+    )
+    payload["digest"] = compute_artifact_digest(payload)
+    return CalibrationArtifact.from_dict(payload)

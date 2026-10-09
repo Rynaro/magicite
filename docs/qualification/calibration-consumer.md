@@ -65,10 +65,70 @@ Reports retain raw ranking, actual selection, and the offline threshold decision
 separately. A threshold allow cannot establish composition readiness for a route
 production abstained from, so usable selection is conservatively unconfirmed.
 Reports include exact graded ranking, selection and no-match denominators,
-empty/error accounting, and partial-run status. Confidence and ECE remain null;
+empty/error accounting, and partial-run status. Without a frozen statistical
+protocol and supported probability fit, confidence and ECE remain null;
 no independent-case Wilson interval substitutes for grouped statistical evidence.
 Observed calibration maxima do not guarantee abstention on every future query.
 
 Missing projections require preparation of a new freeze before exposure. Changed
 inputs require a distinct valid experiment; do not delete receipts or refit an
 exposed final partition. Correct prerequisites or inputs before the first final run.
+
+
+### Frozen grouped protocol and confidence
+
+Preregistration may include `statistical_protocol` with schema
+`magicite/grouped-evaluation-protocol/1`. Preparation freezes connected source
+groups and slice membership separately from final labels. The consumer fits
+weighted isotonic PAV to calibration raw top1 correctness and top1-minus-top2
+margin (singleton: top1 score); this is separate from answerability thresholds.
+Version 1 artifacts retain null probability. Version 2 binds the complete
+probability map and request depth. Errors, abstentions, composition failures and
+mismatched depth never publish usable-result confidence.
+
+`fit-calibration` and `evaluate-frozen-calibration` accept optional
+`--statistical-protocol` and `--comparison-budget` files only when they exactly
+match frozen preregistration. Budgeted artifacts are evaluation-only and
+protected admission rejects them. Dense, sparse, trigger and hybrid comparison
+routes share declared pre-scoring source ceilings; measured visited/scored,
+fetched, truncation and unused allowance remain distinct. SQLite count queries
+and engine operations are not bounded by the source row allowance.
+
+Grouped paired inference uses query-weighted complete-group bootstrap with
+10,000 seeded resamples, descriptive weight concentration, conservative bounded
+group inferiority p-values and the existing Holm family. Target-specific grouped
+abstention adds Hoeffding guards; all-zero errors do not imply certainty.
+Independent Wilson requires one justified independent case per group. Missing
+independence evidence, fewer than 30 applicable groups, or absent frozen power
+support leaves inference inconclusive.
+
+`python -m magicite.eval plan-grouped-power --input DEVELOPMENT.json
+--freeze PRE_POWER_FREEZE.json --project-root PROJECT --model-cache CACHE
+--model-manifest MODEL.json --group-floors 30,60,120 --repetitions 200
+--seed 7 --output POWER.json`
+runs the actual 10,000-resample primary test on empirical development-group
+simulation draws. Input is a `magicite/development-power-input/1` envelope produced by
+`calibration_consumer.prepare_power_input` from saved actual candidate/incumbent
+raw traces and preparation-materialized DEVELOPMENT labels/groups. The CLI
+revalidates live source, model bytes, custody, snapshot, per-arm policy/config,
+query context and common budget before and after simulations.
+Preregistration separately freezes `power_assumptions` (typed
+`development_representative` and referenced `evidence_digests`). A one-group
+fixture cannot manufacture the 30-original-group floor.
+The planning protocol frame has `power_plan=null`; the generated report is then
+archived in preregistration for a new freeze before fitting. Its current-source
+model/config/budget/policy pair, DEVELOPMENT group projection and protocol frame
+must match later evaluation. This avoids a circular report/projection digest.
+Unbound pure mathematical API calls are explicitly diagnostic only. The entire grid is declared before execution; simultaneous
+Monte Carlo lower bounds use Bonferroni across it. This can be computationally
+expensive. Archive the generated report and its SHA256 in preregistration before
+calibration/final. Simulated groups and resamples are never extra authentic data.
+Diagnostic reduced runs cannot support a floor.
+
+Final ECE reports ten frozen equal-width bins for all error-free nonempty raw
+top1 proposals and separately for usable selections; null/error exclusions and
+empty bins remain visible. ECE has no release PASS threshold. All outputs remain
+`qualifying=false`, with E2/E3 `UNEVALUATED`: declarations, synthetic custody
+fixtures, self-hashes and local numeric results never authorize release or
+production calibration. Fresh authentic data and protected benchmark orchestration
+remain later named milestones.

@@ -6,9 +6,10 @@ import json
 import math
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from magicite.core import calibration, router
+from magicite.core.comparison_budget import comparison_config_digest
 from magicite.eval import data_readiness as data
 from magicite.eval.digests import sha256_bytes, sha256_json
 from magicite.eval.production import (
@@ -88,6 +89,7 @@ def runtime_identity(actual: ActualRouter) -> dict[str, Any]:
         },
         "config": cfg,
         "config_digest": compute_config_digest(actual.cfg),
+        "comparison_config_digest": comparison_config_digest(actual.cfg),
         "registry_digest": router._registry_digest(actual.conn),
         "registry_semantics": registry_semantics(actual),
         "generation": generation,
@@ -98,6 +100,9 @@ def runtime_identity(actual: ActualRouter) -> dict[str, Any]:
         "model_name": actual.embedder.model_name,
         "model_dim": actual.embedder.dim,
         "rank_depth": actual.rank_depth,
+        "comparison_budget": actual.comparison_budget.to_dict()
+        if actual.comparison_budget is not None
+        else None,
         "score_semantics": SEMANTICS,
     }
 
@@ -160,6 +165,13 @@ def checked_trace(actual: ActualRouter, query: dict) -> dict:
         raise ValueError("invalid ordered raw trace")
     if any(isinstance(s, bool) or not isinstance(s, (int, float)) or not math.isfinite(s) for s in scores):
         raise ValueError("nonfinite raw score")
+    from magicite.core.comparison_budget import comparison_config_digest
+
+    trace["comparison_config_digest"] = comparison_config_digest(actual.cfg)
+    trace["source_digest"] = sha256_json(source_identity())
+    trace["query_context_digest"] = sha256_json(query)
+    trace["custody_digest"] = sha256_json(runtime_identity(actual)["trust_snapshot"])
+    trace["model_manifest_digest"] = sha256_json(freeze_model(Path(actual.embedder._cache_dir or "")))
     if not trace["query_fingerprint"]:
         raise ValueError("query fingerprint missing")
     return trace
@@ -191,6 +203,19 @@ def fit_calibration(
     expected_ids = {qid for qid, family in families.items() if family == "calibration"}
     if len(labels) != len(projection) or set(labels) != expected_ids:
         raise ValueError("calibration projection membership mismatch")
+    statistical = frozen["binding"].get("statistical_projection")
+    if statistical is not None:
+        from magicite.eval.grouped_evaluation import validate_protocol
+
+        validate_protocol(statistical["protocol"])
+        if sha256_json(statistical) != frozen["binding"]["statistical_projection_sha256"]:
+            raise ValueError("statistical projection digest mismatch")
+        if statistical["protocol"]["comparison_budget"] != (
+            actual.comparison_budget.to_dict() if actual.comparison_budget is not None else None
+        ):
+            raise ValueError("frozen comparison budget mismatch")
+    elif actual.comparison_budget is not None:
+        raise ValueError("budgeted fit requires frozen statistical protocol")
     expected = binding(frozen, queries, actual, model_manifest)
     guard(expected, frozen, queries, actual, model_cache)
     traces, examples = [], []
@@ -229,18 +254,41 @@ def fit_calibration(
         policy_digest=identity["policy_digest"],
         config_digest=identity["config_digest"],
     )
+    probability_reason: str | None = "statistical protocol absent"
+    if statistical is not None:
+        capable = [t for t in traces if t["raw_scores"] and t["status"] != "error"]
+        model, probability_reason = calibration.fit_probability(
+            [cast(float, calibration.score_margin(t["raw_scores"])) for t in capable],
+            [labels[t["query_id"]]["relevance"].get(t["raw_candidate_ids"][0], 0) > 0 for t in capable],
+            calibration_input_digest=sha256_json({"labels": projection, "traces": traces}),
+            rank_depth=actual.rank_depth,
+        )
+        artifact = calibration.with_probability(
+            artifact,
+            model,
+            evaluation_budget_digest=actual.comparison_budget.digest
+            if actual.comparison_budget is not None
+            else None,
+        )
     guard(expected, frozen, queries, actual, model_cache)
     body = {
         "schema": "magicite/frozen-calibration-consumer/1",
         "binding": expected,
         "trace_identity": identity,
         "artifact": artifact.to_dict(),
+        "statistical_projection": statistical,
+        "probability_reason": probability_reason,
         "calibration_traces": traces,
         "empty_slates": sum(not t["raw_scores"] for t in traces),
         "qualifying": False,
         "confidence": None,
         "ECE": None,
-        "limitations": "Observed maxima do not prove universal future abstention. No probability fit.",
+        "limitations": (
+            "Observed maxima do not prove universal future abstention; "
+            "a fitted probability map is an unqualified calibration-only model."
+        )
+        if artifact.probability_model is not None
+        else "Observed maxima do not prove universal future abstention. No supported probability fit.",
     }
     candidate: dict[str, Any] = {"identity": sha256_json(body), "candidate": body}
     data._publish_immutable(output, candidate)
@@ -332,6 +380,7 @@ def evaluate_frozen_calibration(
                 top_score=scores[0] if scores else None,
                 margin=calibration.score_margin(scores),
                 artifact=artifact,
+                rank_depth=actual.rank_depth,
                 expected_policy_digest=trace["policy_digest"],
                 expected_config_digest=trace["config_digest"],
             )
@@ -350,8 +399,93 @@ def evaluate_frozen_calibration(
                     "frozen_rule_abstained": decision.abstain,
                     "frozen_reason_codes": list(decision.reason_codes),
                     "usable_selection_confirmed": bool(chosen),
+                    "proposed_top1_probability": calibration.probability_at_margin(
+                        artifact.probability_model, cast(float, calibration.score_margin(scores))
+                    )
+                    if artifact.probability_model is not None
+                    and scores
+                    and trace["status"] != "error"
+                    and artifact.probability_model["rank_depth"] == actual.rank_depth
+                    else None,
+                    "confidence": decision.confidence_value if chosen else None,
                 }
             )
+        if body.get("statistical_projection") is not None:
+            from magicite.eval.grouped_evaluation import grouped_abstention, support
+            from magicite.eval.metrics import fixed_bin_ece
+
+            statistical = body["statistical_projection"]
+            protocol = statistical["protocol"]
+            report.update(
+                schema="magicite/grouped-calibration-evaluation/1",
+                classification="nonqualifying_local_evaluation",
+                protocol_digest=sha256_json(protocol),
+                group_projection_digest=sha256_json(statistical),
+                fit_digest=artifact.digest,
+                budget_digest=artifact.evaluation_budget_digest,
+                probability_model_digest=sha256_json(artifact.probability_model)
+                if artifact.probability_model
+                else None,
+            )
+            gains = {r["query_id"]: r["relevance"] for r in labels}
+            correct = [
+                bool(r["raw_candidate_ids"] and gains[r["query_id"]].get(r["raw_candidate_ids"][0], 0) > 0)
+                for r in rows
+            ]
+            report["ECE"] = fixed_bin_ece(
+                [r["proposed_top1_probability"] for r in rows],
+                correct,
+                errors=[r["status"] == "error" for r in rows],
+            )
+            selected_rows = [
+                (r, c) for r, c in zip(rows, correct, strict=True) if r["usable_selection_confirmed"]
+            ]
+            report["selected_ECE"] = fixed_bin_ece(
+                [r["proposed_top1_probability"] for r, _ in selected_rows], [c for _, c in selected_rows]
+            )
+            group_map = {r["query_id"]: r["group_id"] for r in statistical["rows"]}
+            bounds = {}
+            for name, answerable, upper in (("coverage", True, False), ("false_selection", False, True)):
+                subset = [r for r in rows if any(g > 0 for g in gains[r["query_id"]].values()) == answerable]
+                bound = grouped_abstention(
+                    [group_map[r["query_id"]] for r in subset],
+                    [r["usable_selection_confirmed"] or (upper and r["status"] == "error") for r in subset],
+                    seed=protocol["seed"],
+                    upper=upper,
+                    method=protocol["abstention_method"],
+                )
+                power_subject = {
+                    "source_digest": sha256_json(expected["source_inputs"]),
+                    "model_digest": sha256_json(expected["model_manifest"]),
+                    "config_digest": comparison_config_digest(actual.cfg),
+                    "comparison_budget_digest": artifact.evaluation_budget_digest,
+                    "candidate_policy_id": body["trace_identity"]["policy_id"],
+                    "incumbent_policy_id": "dense-v1",
+                    "protocol_frame_digest": sha256_json({**protocol, "power_plan": None}),
+                    "development_group_projection_digest": sha256_json(
+                        [r for r in statistical["rows"] if r["family"] == "development"]
+                    ),
+                }
+                bound["support"] = support(protocol, bound["n_groups"], identities=power_subject)
+                bound["operational_errors"] = sum(r["status"] == "error" for r in subset)
+                bound["error_accounting"] = (
+                    "no-match errors penalized conservatively as potential selection; answerable errors miss"
+                )
+                bound["threshold"] = 0.05 if upper else 0.80
+                bound["numeric_gate"] = (
+                    "inconclusive"
+                    if bound["bound"] is None
+                    else "pass"
+                    if (bound["bound"] <= 0.05 if upper else bound["bound"] >= 0.80)
+                    else "fail"
+                )
+                bound["status"] = (
+                    "inconclusive"
+                    if bound["support"]["status"] != "supported_assumptions" or bound["operational_errors"]
+                    else bound["numeric_gate"]
+                )
+                bounds[name] = bound
+            report["abstention_bounds"] = bounds
         report["quality"] = descriptive_quality(rows, labels)
         gains = {label["query_id"]: label["relevance"] for label in labels}
         graded = []
@@ -397,3 +531,185 @@ def cli_actual(project_root: Path, cache: Path, rank_depth: int) -> ActualRouter
     return ActualRouter(
         cfg, connect(cfg.db_path, migrate=False), ProductionEmbedder(cache), rank_depth=rank_depth
     )
+
+
+def prepare_power_input(
+    freeze: Path, actual: ActualRouter, predictions: dict, *, model_cache: Path, model_manifest: dict
+) -> dict:
+    """Bind saved DEVELOPMENT actual raw arms to live source/custody/model state.
+
+    This validates local observation bindings; it never attests authentic data.
+    Final labels are not decoded. No route, fit, activation or simulation runs.
+    """
+    from dataclasses import replace
+
+    from magicite.core.comparison_budget import ComparisonBudget, comparison_config_digest
+    from magicite.core.routing_policy import compute_config_digest, compute_policy_digest
+    from magicite.eval.grouped_evaluation import validate_protocol
+
+    frozen, queries, families = inputs(freeze)
+    fits = Path(frozen["input_root"]) / ".calibration-consumer-fits"
+    if (
+        data.access_path(freeze).exists()
+        or final_owner(frozen).exists()
+        or (fits.exists() and any(fits.iterdir()))
+    ):
+        raise ValueError("power input must be archived before calibration/final exposure")
+    projection = frozen["binding"].get("statistical_projection")
+    labels = frozen["binding"].get("development_projection")
+    if (
+        projection is None
+        or not labels
+        or sha256_json(projection) != frozen["binding"]["statistical_projection_sha256"]
+        or sha256_json(labels) != frozen["binding"]["development_projection_sha256"]
+    ):
+        raise ValueError("preparation-materialized development labels/groups required")
+    power_assumptions = frozen["binding"].get("power_assumptions")
+    if (
+        not isinstance(power_assumptions, dict)
+        or set(power_assumptions) != {"development_representative", "evidence_digests"}
+        or type(power_assumptions["development_representative"]) is not bool
+        or not isinstance(power_assumptions["evidence_digests"], list)
+        or not power_assumptions["evidence_digests"]
+        or any(
+            not isinstance(d, str) or not data.HEX.fullmatch(d) for d in power_assumptions["evidence_digests"]
+        )
+    ):
+        raise ValueError("preregistered development model assumptions required")
+    protocol = validate_protocol(projection["protocol"])
+    if protocol["power_plan"] is not None:
+        raise ValueError("planning freeze must precede generated power report")
+    budget_body = actual.comparison_budget.to_dict() if actual.comparison_budget else None
+    if protocol["comparison_budget"] != budget_body:
+        raise ValueError("power comparison budget differs from frozen protocol")
+    if not isinstance(predictions, dict) or set(predictions) != {"candidate", "incumbent"}:
+        raise ValueError("both saved actual prediction arms required")
+    expected = binding(frozen, queries, actual, model_manifest)
+    guard(expected, frozen, queries, actual, model_cache)
+    dev = {row["query_id"]: row for row in projection["rows"] if row["family"] == "development"}
+    gold = {row["query_id"]: row["relevance"] for row in labels}
+    runtime = {row["query_id"]: row for row in queries if families[row["query_id"]] == "development"}
+    if len(gold) != len(labels) or set(gold) != set(dev) or set(runtime) != set(dev):
+        raise ValueError("development projection membership mismatch")
+    from magicite.core import fingerprint_key
+
+    key = fingerprint_key.load_or_create_fingerprint_key(actual.cfg)
+    arms = {}
+    policies = {}
+    for arm, rows in predictions.items():
+        if not isinstance(rows, list) or any(
+            not isinstance(row, dict) or not isinstance(row.get("query_id"), str) for row in rows
+        ):
+            raise ValueError("invalid actual prediction rows")
+        indexed = {row["query_id"]: row for row in rows}
+        if len(indexed) != len(rows) or set(indexed) != set(dev):
+            raise ValueError("complete unique paired DEVELOPMENT membership required")
+        policy_ids = {row.get("policy_id") for row in rows}
+        if len(policy_ids) != 1:
+            raise ValueError("one actual policy per development arm required")
+        policy = next(iter(policy_ids))
+        if policy not in protocol["paired_policy_ids"] or (arm == "incumbent" and policy != "dense-v1"):
+            raise ValueError("unfrozen development policy pair")
+        policies[arm] = policy
+        for qid, row in indexed.items():
+            wanted = {
+                "source_digest": sha256_json(expected["source_inputs"]),
+                "model_manifest_digest": sha256_json(model_manifest),
+                "config_digest": compute_config_digest(replace(actual.cfg, routing_policy=policy)),
+                "comparison_config_digest": comparison_config_digest(actual.cfg),
+                "registry_digest": expected["runtime"]["registry_digest"],
+                "index_generation_id": expected["runtime"]["generation"],
+                "snapshot_id": expected["runtime"]["snapshot"],
+                "schema_digest": expected["runtime"]["schema"],
+                "tokenizer_digest": expected["runtime"]["tokenizer"],
+                "custody_digest": sha256_json(expected["runtime"]["trust_snapshot"]),
+                "comparison_budget_digest": ComparisonBudget.from_dict(budget_body).digest
+                if budget_body
+                else None,
+                "query_context_digest": sha256_json(runtime[qid]),
+                "query_fingerprint": fingerprint_key.query_fingerprint(runtime[qid]["query_text"], key=key),
+                "rank_depth": actual.rank_depth,
+                "policy_digest": compute_policy_digest(policy, actual.cfg),
+            }
+            mismatched = [k for k, value in wanted.items() if k not in row or row[k] != value]
+            if mismatched:
+                raise ValueError("saved power trace binding mismatch: " + ", ".join(mismatched))
+            ids, scores = row.get("raw_candidate_ids"), row.get("raw_scores")
+            if (
+                row.get("status") not in {"selected", "abstained", "error"}
+                or not isinstance(ids, list)
+                or not isinstance(scores, list)
+                or len(ids) != len(scores)
+                or len(set(ids)) != len(ids)
+                or any(not isinstance(cid, str) or not cid for cid in ids)
+                or any(type(score) not in (int, float) or not math.isfinite(score) for score in scores)
+            ):
+                raise ValueError("invalid saved actual raw prediction")
+            if row["status"] == "error":
+                raise ValueError("operational error cannot support development power model")
+        arms[arm] = indexed
+    if policies["candidate"] == policies["incumbent"]:
+        raise ValueError("distinct actual power arms required")
+    observations = []
+    for qid in sorted(dev):
+        hits = {}
+        for arm in arms:
+            row = arms[arm][qid]
+            hits[arm] = bool(
+                row["status"] == "selected"
+                and row["raw_candidate_ids"]
+                and gold[qid].get(row["raw_candidate_ids"][0], 0) > 0
+            )
+        observations.append(
+            {
+                "query_id": qid,
+                "group_id": dev[qid]["group_id"],
+                "family": "development",
+                "candidate_hit": hits["candidate"],
+                "incumbent_hit": hits["incumbent"],
+            }
+        )
+    frame = {**protocol, "power_plan": None}
+    identities = {
+        "source_digest": sha256_json(expected["source_inputs"]),
+        "model_digest": sha256_json(model_manifest),
+        "config_digest": comparison_config_digest(actual.cfg),
+        "comparison_budget_digest": actual.comparison_budget.digest if actual.comparison_budget else None,
+        "candidate_policy_id": policies["candidate"],
+        "incumbent_policy_id": policies["incumbent"],
+        "development_group_projection_digest": sha256_json([dev[qid] for qid in sorted(dev)]),
+        "protocol_frame_digest": sha256_json(frame),
+    }
+    body = {
+        "schema": "magicite/development-power-input/1",
+        "classification": "nonqualifying_local_evaluation",
+        "qualifying": False,
+        "binding": expected,
+        "protocol_frame": frame,
+        "development_groups": [dev[qid] for qid in sorted(dev)],
+        "development_labels": labels,
+        "predictions": predictions,
+        "development": observations,
+        "identities": identities,
+        "power_assumptions": power_assumptions,
+    }
+    guard(expected, frozen, queries, actual, model_cache)
+    return {"identity": sha256_json(body), "input": body}
+
+
+def validate_power_input(
+    value: dict, freeze: Path, actual: ActualRouter, *, model_cache: Path, model_manifest: dict
+) -> dict:
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"identity", "input"}
+        or not isinstance(value["input"], dict)
+        or sha256_json(value["input"]) != value["identity"]
+    ):
+        raise ValueError("power input envelope integrity mismatch")
+    observed = prepare_power_input(
+        freeze, actual, value["input"]["predictions"], model_cache=model_cache, model_manifest=model_manifest
+    )
+    if observed != value:
+        raise ValueError("power development projection/binding substitution or live source drift")
+    return observed

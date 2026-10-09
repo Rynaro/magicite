@@ -77,6 +77,7 @@ class CandidateBatch:
     components: Mapping[str, tuple[ComponentHit, ...]]
     snapshot_id: str
     generation_id: str
+    work: Mapping[str, Mapping[str, int]] | None = None
     schema_version: Literal["CandidateBatch/1"] = "CandidateBatch/1"
 
 
@@ -256,6 +257,7 @@ def dense_candidates(
     limit: int = DEFAULT_PER_SOURCE_LIMIT,
     eligible_ids: frozenset[str] | None = None,
     scan_budget: int = DEFAULT_SCAN_BUDGET,
+    stats: dict[str, int] | None = None,
 ) -> tuple[list[ComponentHit], int]:
     """Cosine over dense rows; keep scanning until ``limit`` eligible or budget."""
     scored: list[tuple[str, float]] = []
@@ -278,6 +280,8 @@ def dense_candidates(
         ComponentHit(engram_id=eid, rank=rank, score=score)
         for rank, (eid, score) in enumerate(scored[:limit], start=1)
     ]
+    if stats is not None:
+        stats.update(visited=scanned, scored=len(scored), fetched=scanned, count_queries=0)
     return hits, truncated
 
 
@@ -288,6 +292,7 @@ def sparse_candidates(
     limit: int = DEFAULT_PER_SOURCE_LIMIT,
     eligible_ids: frozenset[str] | None = None,
     scan_budget: int = DEFAULT_SCAN_BUDGET,
+    stats: dict[str, int] | None = None,
 ) -> tuple[list[ComponentHit], int]:
     """FTS5 BM25 with eligibility refill across the scan budget.
 
@@ -301,6 +306,8 @@ def sparse_candidates(
         raise FTS5UnavailableError("sparse index connection is not available")
     match = build_fts5_query(query)
     if match is None:
+        if stats is not None:
+            stats.update(visited=0, scored=0, fetched=0, count_queries=0)
         return [], 0
 
     page = max(limit, 32)
@@ -348,6 +355,14 @@ def sparse_candidates(
         ComponentHit(engram_id=eid, rank=i, score=score)
         for i, (eid, score) in enumerate(eligible_hits[:limit], start=1)
     ]
+    if stats is not None:
+        stats.update(
+            visited=visited,
+            scored=len(eligible_hits),
+            fetched=examined,
+            count_queries=1,
+            total_matching=total_matching,
+        )
     return ranked, truncated
 
 
@@ -358,6 +373,7 @@ def trigger_candidates(
     limit: int = DEFAULT_PER_SOURCE_LIMIT,
     eligible_ids: frozenset[str] | None = None,
     scan_budget: int = DEFAULT_SCAN_BUDGET,
+    stats: dict[str, int] | None = None,
 ) -> tuple[list[ComponentHit], int]:
     """Positive-trigger / exact-symbol overlap. Negative triggers are features only."""
     q_lower = query.lower()
@@ -397,6 +413,10 @@ def trigger_candidates(
         ComponentHit(engram_id=eid, rank=rank, score=score)
         for rank, (eid, score) in enumerate(scored[:limit], start=1)
     ]
+    if stats is not None:
+        stats.update(
+            visited=scanned, scored=scanned, positive_matches=len(scored), fetched=scanned, count_queries=0
+        )
     return hits, truncated
 
 
@@ -414,6 +434,7 @@ def generate(
     if cfg.per_source_limit < 1 or cfg.per_source_limit > 1000:
         raise ValueError("per_source_limit must be in [1, 1000]")
 
+    work: dict[str, dict[str, int]] = {}
     truncations: dict[str, int] = {}
     reason_codes: list[str] = []
     components: dict[str, tuple[ComponentHit, ...]] = {}
@@ -442,6 +463,7 @@ def generate(
             limit=cfg.per_source_limit,
             eligible_ids=eligible_ids,
             scan_budget=cfg.scan_budget,
+            stats=work.setdefault("dense", {}),
         )
         truncations["dense"] = dense_trunc
         components["dense"] = tuple(dense_hits)
@@ -454,6 +476,7 @@ def generate(
             limit=cfg.per_source_limit,
             eligible_ids=eligible_ids,
             scan_budget=cfg.scan_budget,
+            stats=work.setdefault("sparse", {}),
         )
         truncations["sparse"] = sparse_trunc
         components["sparse"] = tuple(sparse_hits)
@@ -466,6 +489,7 @@ def generate(
             limit=cfg.per_source_limit,
             eligible_ids=eligible_ids,
             scan_budget=cfg.scan_budget,
+            stats=work.setdefault("trigger", {}),
         )
         truncations["trigger"] = trigger_trunc
         components["trigger"] = tuple(trigger_hits)
@@ -524,6 +548,7 @@ def generate(
 
     return CandidateBatch(
         candidates=tuple(candidates),
+        work=work,
         truncations=truncations,
         reason_codes=tuple(reason_codes),
         components=components,
