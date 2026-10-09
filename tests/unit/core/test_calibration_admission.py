@@ -257,3 +257,60 @@ def test_cli_read_only_review_and_exact_admission(cfg, synthetic_bundle, tmp_pat
     result = CliRunner().invoke(cli, args + ["--reviewed-sha256", summary["bundle_digest"]])
     assert result.exit_code == 0, result.output
     assert ps.status(cfg).active_digest is None
+
+
+def probability_bundle(bundle, *, budget=None):
+    artifact, evidence = copy.deepcopy(bundle)
+    model, _ = cal.fit_probability(
+        [-0.1, 0.1, 0.9], [False, False, True], calibration_input_digest="f" * 64, rank_depth=5
+    )
+    fitted = cal.with_probability(
+        cal.CalibrationArtifact.from_dict(artifact), model, evaluation_budget_digest=budget
+    )
+    evidence["subject"]["artifact_digest"] = fitted.digest
+    for phase in ("fit", "final"):
+        evidence[phase]["report"]["subject"] = copy.deepcopy(evidence["subject"])
+        if phase == "final":
+            evidence[phase]["report"]["fit_digest"] = evidence["fit"]["sha256"]
+        evidence[phase]["sha256"] = ca.canonical_digest(evidence[phase]["report"])
+    return fitted.to_dict(), evidence
+
+
+def test_synthetic_v2_protected_probability_and_depth(cfg, db_conn, embedder, synthetic_bundle):
+    bundle = probability_bundle(synthetic_bundle)
+    activate(cfg, bundle)
+    result = router.route(cfg, db_conn, embedder, query="orchid", k=5)
+    assert result.decision.status == "selected"
+    fitted = cal.CalibrationArtifact.from_dict(bundle[0])
+    margin = cal.score_margin([c.score for c in result.decision.raw_candidates])
+    assert result.decision.confidence.value == cal.probability_at_margin(fitted.probability_model, margin)
+    different = router.route(cfg, db_conn, embedder, query="orchid", k=1)
+    assert different.decision.confidence.value is None
+    assert "probability_rank_depth_mismatch" in different.decision.reason_codes
+
+
+def test_budget_v2_refuses_even_consistent_synthetic_ordinary_subject(cfg, synthetic_bundle):
+    bundle = probability_bundle(synthetic_bundle, budget="d" * 64)
+    with pytest.raises(InvalidInputError, match="evaluation-budget"):
+        ca.validate(*bundle)
+    assert ps.status(cfg).active_digest is None
+
+
+def test_composition_error_clears_protected_probability(
+    cfg, db_conn, embedder, synthetic_bundle, monkeypatch
+):
+    activate(cfg, probability_bundle(synthetic_bundle))
+
+    # Use the real composition-result shape, preserving actual route selection.
+    from dataclasses import replace
+
+    original = router.compose_route_plan
+
+    def invalid(*args, **kwargs):
+        value = original(*args, **kwargs)
+        return replace(value, ok=False, reason_codes=("composition_invalid",))
+
+    monkeypatch.setattr(router, "compose_route_plan", invalid)
+    result = router.route(cfg, db_conn, embedder, query="orchid", k=5)
+    assert result.decision.status != "selected"
+    assert result.decision.confidence.value is None

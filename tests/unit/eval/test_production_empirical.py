@@ -92,6 +92,8 @@ def test_actual_router_projection_rejects_annotations_and_preserves_dispatch(mon
     query = {"query_id": "q", "query_text": "public diagnostic", "compatibility_context": {}}
     seen = []
     decision = SimpleNamespace(
+        confidence=SimpleNamespace(value=None),
+        truncations={},
         config_digest="config",
         status="selected",
         operational_error=None,

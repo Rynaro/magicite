@@ -86,6 +86,8 @@ def _strings(value: dict[str, Any], label: str) -> None:
 
 def validate(artifact_body: Mapping[str, Any], evidence: Mapping[str, Any]) -> dict[str, Any]:
     artifact = CalibrationArtifact.from_dict(artifact_body)
+    if artifact.evaluation_budget_digest is not None:
+        raise InvalidInputError("evaluation-budget calibration cannot authorize ordinary runtime")
     body = _exact(
         evidence,
         {"schema", "status", "qualifying", "classification", "gates", "subject", "source", "fit", "final"},

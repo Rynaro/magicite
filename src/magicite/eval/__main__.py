@@ -300,11 +300,92 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--model-cache", type=Path, required=True)
         sp.add_argument("--model-manifest", type=Path, required=True)
         sp.add_argument("--rank-depth", type=int, default=5)
+        sp.add_argument("--statistical-protocol", type=Path)
+        sp.add_argument("--comparison-budget", type=Path)
         sp.add_argument("--output", type=Path, required=True)
         if name == "evaluate-frozen-calibration":
             sp.add_argument("--candidate", type=Path, required=True)
             sp.add_argument("--replay", action="store_true")
+    power = subparsers.add_parser("plan-grouped-power", help="Development-only conditional power simulation")
+    power.add_argument("--input", type=Path, required=True)
+    power.add_argument("--freeze", type=Path, required=True)
+    power.add_argument("--rank-depth", type=int, default=5)
+    power.add_argument("--project-root", type=Path, required=True)
+    power.add_argument("--model-cache", type=Path, required=True)
+    power.add_argument("--model-manifest", type=Path, required=True)
+    power.add_argument("--group-floors", required=True)
+    power.add_argument("--repetitions", type=int, required=True)
+    power.add_argument("--seed", type=int, required=True)
+    power.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.command == "plan-grouped-power":
+        from magicite.eval.data_readiness import _publish_immutable
+        from magicite.eval.grouped_evaluation import plan_grouped_power
+
+        try:
+            from magicite.core.comparison_budget import ComparisonBudget
+            from magicite.eval import calibration_consumer as consumer
+            from magicite.eval.production import verify_model
+
+            model = json.loads(args.model_manifest.read_bytes())
+            verify_model(args.model_cache, model)
+            frozen = consumer.data.verify_freeze(args.freeze)
+            protocol = frozen["binding"]["statistical_projection"]["protocol"]
+            actual = consumer.cli_actual(
+                args.project_root,
+                args.model_cache,
+                protocol["comparison_budget"]["output_k"]
+                if protocol["comparison_budget"]
+                else args.rank_depth,
+            )
+            actual.comparison_budget = (
+                ComparisonBudget.from_dict(protocol["comparison_budget"])
+                if protocol["comparison_budget"]
+                else None
+            )
+            input_bytes = args.input.read_bytes()
+            try:
+                envelope = consumer.validate_power_input(
+                    json.loads(input_bytes),
+                    args.freeze,
+                    actual,
+                    model_cache=args.model_cache,
+                    model_manifest=model,
+                )
+                source = envelope["input"]
+                result = plan_grouped_power(
+                    source["development"],
+                    group_floors=[int(g) for g in args.group_floors.split(",")],
+                    seed=args.seed,
+                    repetitions=args.repetitions,
+                    identities=source["identities"],
+                    assumptions={
+                        "independent_original_groups": source["protocol_frame"]["group_assumptions"][
+                            "independent_original_groups"
+                        ],
+                        "development_representative": source["power_assumptions"][
+                            "development_representative"
+                        ],
+                        "evidence_digests": source["power_assumptions"]["evidence_digests"],
+                    },
+                    bound_input=envelope,
+                )
+                consumer.guard(
+                    source["binding"],
+                    consumer.inputs(args.freeze)[0],
+                    consumer.inputs(args.freeze)[1],
+                    actual,
+                    args.model_cache,
+                )
+                if args.input.read_bytes() != input_bytes:
+                    raise ValueError("power input bytes changed during simulation")
+            finally:
+                actual.conn.close()
+            _publish_immutable(args.output, result)
+            print(json.dumps(result, sort_keys=True, indent=2))
+            return 0
+        except (ValueError, KeyError, TypeError, OSError) as exc:
+            return _print_errors([str(exc)])
     if args.command in {"fit-calibration", "evaluate-frozen-calibration"}:
         from magicite.eval import calibration_consumer as consumer
         from magicite.eval.production import verify_model
@@ -312,7 +393,27 @@ def main(argv: list[str] | None = None) -> int:
         try:
             model = json.loads(args.model_manifest.read_bytes())
             verify_model(args.model_cache, model)
+            from magicite.core.comparison_budget import ComparisonBudget
+            from magicite.eval import data_readiness
+
+            freeze = data_readiness.verify_freeze(args.freeze)
+            projection = freeze["binding"].get("statistical_projection")
+            frozen_protocol = projection["protocol"] if projection else None
+            if (
+                args.statistical_protocol is not None
+                and json.loads(args.statistical_protocol.read_bytes()) != frozen_protocol
+            ):
+                raise ValueError("protocol CLI input differs from frozen preregistration")
+            budget_body = frozen_protocol["comparison_budget"] if frozen_protocol else None
+            if (
+                args.comparison_budget is not None
+                and json.loads(args.comparison_budget.read_bytes()) != budget_body
+            ):
+                raise ValueError("budget CLI input differs from frozen preregistration")
             actual = consumer.cli_actual(args.project_root, args.model_cache, args.rank_depth)
+            actual.comparison_budget = (
+                ComparisonBudget.from_dict(budget_body) if budget_body is not None else None
+            )
             try:
                 if args.command == "fit-calibration":
                     result = consumer.fit_calibration(

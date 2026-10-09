@@ -142,6 +142,7 @@ class ActualRouter:
         embedder: FastEmbedProvider,
         *,
         rank_depth: int = 5,
+        comparison_budget: Any = None,
     ) -> None:
         if not isinstance(embedder, FastEmbedProvider):
             raise ValueError("production diagnostic requires actual FastEmbedProvider")
@@ -151,6 +152,9 @@ class ActualRouter:
             raise ValueError("positive rank depth required")
         self.cfg, self.conn, self.embedder = cfg, conn, embedder
         self.rank_depth = rank_depth
+        self.comparison_budget = comparison_budget
+        if comparison_budget is not None and comparison_budget.output_k != rank_depth:
+            raise ValueError("comparison output depth mismatch")
 
     def predict(self, query: dict[str, Any], *, raw_trace: bool = False) -> dict[str, Any]:
         runtime_queries([query])
@@ -164,6 +168,7 @@ class ActualRouter:
             query=query["query_text"],
             context=query["compatibility_context"],
             k=self.rank_depth,
+            **({"comparison_budget": self.comparison_budget} if self.comparison_budget is not None else {}),
         )
         after = router._cached_route_index.cache_info()
         if outcome.policy_id != self.cfg.routing_policy or outcome.decision is None:
@@ -188,8 +193,18 @@ class ActualRouter:
             "model_digest_semantics": "Raw router name/config identity, not downloaded-byte authenticity",
             "registry_digest": decision.registry_digest,
             "index_generation_id": decision.index_generation_id,
-            "confidence": None,
-            "confidence_reason": "No authenticated calibration for this diagnostic.",
+            "rank_depth": self.rank_depth,
+            "confidence": decision.confidence.value,
+            "comparison_budget_digest": self.comparison_budget.digest
+            if self.comparison_budget is not None
+            else None,
+            "comparison_budget": self.comparison_budget.to_dict()
+            if self.comparison_budget is not None
+            else None,
+            "candidate_work": dict(decision.truncations),
+            "confidence_reason": "Authenticated compatible top1 probability"
+            if decision.confidence.value is not None
+            else "No usable compatible probability for this result",
             "cache": {
                 "route_index_hits": after.hits - before.hits,
                 "route_index_misses": after.misses - before.misses,
@@ -203,6 +218,46 @@ class ActualRouter:
                 "subject_projection": "Live subject cache may be warm; no fabricated hit counter.",
             },
         }
+        if self.comparison_budget is not None:
+            from magicite.core.comparison_budget import comparison_config_digest
+            from magicite.eval.digests import sha256_json
+
+            trace["comparison_config_digest"] = comparison_config_digest(self.cfg)
+
+            eligible, _, _ = router._evaluate_route_eligibility(
+                self.cfg,
+                self.conn,
+                router._fetch_candidates(self.conn, self.embedder.model_name),
+                route_context=router.RouteContext(),
+                server_policy=router.DEFAULT_SERVER_POLICY,
+            )
+            trace["eligibility_digest"] = sha256_json(sorted(str(r["id"]) for r in eligible))
+            trace["body_availability_digest"] = sha256_json(
+                sorted((str(r["id"]), str(r["content_sha256"]), str(r["path"])) for r in eligible)
+            )
+            trace["query_context_digest"] = sha256_json(query)
+            from magicite.core.candidates import RetrievalIndex
+            from magicite.core.index_generation import IndexCatalog
+
+            index = RetrievalIndex.from_catalog(IndexCatalog(self.conn), decision.index_generation_id)
+            trace["iteration_order_digest"] = sha256_json(list(index.entries))
+            trace["source_digest"] = sha256_json(
+                {
+                    str(p.relative_to(Path(__file__).parents[1])): sha256(p)
+                    for p in sorted(Path(__file__).parents[1].rglob("*.py"))
+                }
+            )
+            trace["mechanism_digest"] = sha256_json(
+                {
+                    "policy": outcome.policy_id,
+                    "budget": self.comparison_budget.to_dict(),
+                    "algorithm": "indexed-candidates/1;RRF60",
+                    "source": {
+                        str(p.relative_to(Path(__file__).parents[1])): sha256(p)
+                        for p in (Path(router.__file__), Path(router.candidates_mod.__file__))
+                    },
+                }
+            )
         if raw_trace:
             trace.update(
                 {

@@ -369,6 +369,11 @@ def prepare_packet(packet_path: Path) -> PreparedPacket:
                         changed = True
     for row in group_rows:
         row["groups"] = sorted(source_group_sets[row["source_id"]])
+    statistical_projection = None
+    if prereg.get("statistical_protocol") is not None:
+        from magicite.eval.grouped_evaluation import canonical_projection
+
+        statistical_projection = canonical_projection(group_rows, prereg["statistical_protocol"])
     errors = partition_errors(group_rows)
     if errors:
         raise ValueError("; ".join(errors))
@@ -380,6 +385,7 @@ def prepare_packet(packet_path: Path) -> PreparedPacket:
         or any(ref["sha256"] in EXPOSED_DIGESTS for ref in refs.values())
     )
     report = {
+        "statistical_projection": statistical_projection,
         "structural_controls": "PASS",
         "empirical_obligations": {
             key: {
@@ -446,7 +452,15 @@ def freeze_packet(
     calibration_ids = {r["query_id"] for r in partitions if FAMILIES[r["split"]] == "calibration"}
     labels = _read(root, prepared.packet["files"]["labels"], {})
     projection = [r for r in labels if r["query_id"] in calibration_ids]
+    development_ids = {r["query_id"] for r in partitions if FAMILIES[r["split"]] == "development"}
+    development_labels = [r for r in labels if r["query_id"] in development_ids]
+    preregistration = _read(root, prepared.packet["files"]["preregistration"], {})
     body = {
+        "power_assumptions": preregistration.get("power_assumptions"),
+        "development_projection": development_labels,
+        "development_projection_sha256": sha256_json(development_labels),
+        "statistical_projection": prepared.report.get("statistical_projection"),
+        "statistical_projection_sha256": sha256_json(prepared.report.get("statistical_projection")),
         "calibration_projection": projection,
         "calibration_projection_sha256": sha256_json(projection),
         "schema": FREEZE_SCHEMA,

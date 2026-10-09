@@ -367,3 +367,96 @@ def abstention_report(
         coverage_wilson_low=coverage_low,
         false_selection_wilson_high=false_high,
     )
+
+
+def query_weighted_bootstrap(
+    group_ids: list[str],
+    candidate: list[float],
+    incumbent: list[float],
+    *,
+    n_resamples: int = 10_000,
+    seed: int = 0,
+) -> dict:
+    """Resample complete groups; every draw retains its query count."""
+    import numpy as np
+
+    if not group_ids or not len(group_ids) == len(candidate) == len(incumbent):
+        raise ValueError("nonempty aligned observations required")
+    if type(n_resamples) is not int or n_resamples < 1 or type(seed) is not int or seed < 0:
+        raise ValueError("invalid bootstrap controls")
+    groups: dict[str, list[float]] = {}
+    for group, c, i in zip(group_ids, candidate, incumbent, strict=True):
+        if (
+            not isinstance(group, str)
+            or not group
+            or any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1 for v in (c, i))
+        ):
+            raise ValueError("invalid bounded grouped observation")
+        groups.setdefault(group, []).append(c - i)
+    counts = np.array([len(groups[g]) for g in sorted(groups)], dtype=float)
+    sums = np.array([sum(groups[g]) for g in sorted(groups)], dtype=float)
+    rng = np.random.default_rng(seed)
+    samples = np.empty(n_resamples)
+    # Chunking bounds memory without changing seeded draw order.
+    for start in range(0, n_resamples, 256):
+        draw = rng.integers(0, len(groups), size=(min(256, n_resamples - start), len(groups)))
+        samples[start : start + len(draw)] = sums[draw].sum(axis=1) / counts[draw].sum(axis=1)
+    weights = counts / counts.sum()
+    return {
+        "point": float(sums.sum() / counts.sum()),
+        "low": float(np.quantile(samples, 0.025)),
+        "high": float(np.quantile(samples, 0.975)),
+        "upper_one_sided": float(np.quantile(samples, 0.95)),
+        "n_queries": len(group_ids),
+        "n_groups": len(groups),
+        "weights": weights.tolist(),
+        "n_eff": float(1 / (weights @ weights)),
+        "seed": seed,
+        "n_resamples": n_resamples,
+        "method": "whole-group-ratio",
+        "diagnostic": n_resamples != 10_000,
+    }
+
+
+def fixed_bin_ece(
+    probabilities: list[float | None], correct: list[bool], *, errors: list[bool] | None = None
+) -> dict:
+    """Ten frozen equal-width bins, final bin includes probability one."""
+    if len(probabilities) != len(correct) or (errors is not None and len(errors) != len(correct)):
+        raise ValueError("unaligned ECE observations")
+    bins: list[list[tuple[float, bool]]] = [[] for _ in range(10)]
+    excluded = 0
+    for index, (p, label) in enumerate(zip(probabilities, correct, strict=True)):
+        if type(label) is not bool:
+            raise ValueError("ECE requires boolean top1 correctness")
+        if p is None or (errors is not None and errors[index]):
+            excluded += 1
+            continue
+        if type(p) not in (int, float) or not math.isfinite(p) or not 0 <= p <= 1:
+            raise ValueError("invalid probability")
+        bins[min(9, int(p * 10))].append((p, label))
+    n = sum(map(len, bins))
+    result = []
+    ece = 0.0
+    for index, values in enumerate(bins):
+        mean = sum(p for p, _ in values) / len(values) if values else None
+        acc = sum(y for _, y in values) / len(values) if values else None
+        if values:
+            assert mean is not None and acc is not None
+            ece += len(values) / n * abs(mean - acc)
+        result.append(
+            {
+                "lower": index / 10,
+                "upper": (index + 1) / 10,
+                "count": len(values),
+                "mean_probability": mean,
+                "empirical_correctness": acc,
+            }
+        )
+    return {
+        "n": n,
+        "excluded": excluded,
+        "bins": result,
+        "ECE": ece if n else None,
+        "release_threshold": None,
+    }

@@ -114,3 +114,53 @@ def test_threshold_manifest(cfg) -> None:
         assert "uncalibrated" in stale.reason_codes
     finally:
         fk.set_fingerprint_key_override(None)
+
+
+def test_pav_top1_correctness_and_ties():
+    model, reason = cal_mod.fit_probability(
+        [-3.0, -3.0, 2.0, 5.0], [True, False, False, True], calibration_input_digest="a" * 64, rank_depth=5
+    )
+    assert reason is None and model is not None
+    assert model["x"] == [-3.0, 2.0, 5.0]
+    assert model["y"] == [1 / 3, 1 / 3, 1.0]
+    assert cal_mod.probability_at_margin(model, 3.5) == 2 / 3
+    assert cal_mod.probability_at_margin(model, -100) == 1 / 3
+    assert cal_mod.probability_at_margin(model, 100) == 1
+    assert cal_mod.fit_probability([1.0], [True], calibration_input_digest="a" * 64, rank_depth=5)[0] is None
+
+
+def test_v2_digest_legacy_compatibility_and_depth(cfg):
+    import pytest
+
+    from magicite.errors import InvalidInputError
+
+    base = cal_mod.fit_abstention(
+        [
+            cal_mod.CalibrationExample("no", 0.1, 0.1, False),
+            cal_mod.CalibrationExample("yes", 0.9, 0.8, True),
+        ],
+        cfg=cfg,
+        policy_id="dense-v1",
+        policy_digest="b" * 64,
+        config_digest="c" * 64,
+    )
+    legacy = base.to_dict()
+    assert "probability_model" not in legacy
+    assert cal_mod.CalibrationArtifact.from_dict(legacy).to_dict() == legacy
+    model, _ = cal_mod.fit_probability(
+        [0.1, 0.8], [False, True], calibration_input_digest="a" * 64, rank_depth=5
+    )
+    fitted = cal_mod.with_probability(base, model)
+    assert cal_mod.CalibrationArtifact.from_dict(fitted.to_dict()).digest == fitted.digest
+    kwargs = dict(query_fingerprint="yes", top_score=0.9, margin=0.8, artifact=fitted)
+    assert cal_mod.decide_abstention(**kwargs, rank_depth=5).confidence_value == 1
+    assert cal_mod.decide_abstention(**kwargs, rank_depth=1).confidence_value is None
+    assert cal_mod.decide_abstention(**{**kwargs, "top_score": 0.05}, rank_depth=5).confidence_value is None
+    tampered = fitted.to_dict()
+    tampered["probability_model"] = {**model, "y": [0.0, 0.7]}
+    with pytest.raises(InvalidInputError):
+        cal_mod.CalibrationArtifact.from_dict(tampered)
+    downgraded = fitted.to_dict()
+    downgraded["schema_version"] = "CalibrationArtifact/1"
+    with pytest.raises(InvalidInputError):
+        cal_mod.CalibrationArtifact.from_dict(downgraded)

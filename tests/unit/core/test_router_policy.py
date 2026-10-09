@@ -679,3 +679,32 @@ def test_baseline_warm_assets_context_filtered_before_sources(
     )
     assert identity not in [c.id for c in out.candidates]
     assert any(item.engram_id == identity for item in out.decision.exclusions)
+
+
+@pytest.mark.parametrize("policy", ["dense-v1", *BASELINES])
+def test_explicit_common_allowance_applies_before_scoring(cfg, db_conn, embedder, policy):
+    from magicite.core.comparison_budget import ComparisonBudget
+
+    _baseline_registry(cfg, db_conn, embedder)
+    cfg.routing_policy = policy
+    budget = ComparisonBudget(1, 1, 2, 1, 1)
+    result = router_mod.route(cfg, db_conn, embedder, query="orchid", k=1, comparison_budget=budget)
+    assert result.policy_id == policy
+    assert result.decision.operational_error is None
+    visits = [
+        v
+        for key, v in result.decision.truncations.items()
+        if key.startswith("work_") and key.endswith("_visited")
+    ]
+    assert visits and all(v <= 1 for v in visits) and sum(visits) <= 2
+    assert result.decision.truncations["unused_scan_allowance"] == 2 - sum(visits)
+    assert len(result.decision.raw_candidates) <= 1
+    larger = ComparisonBudget(3, 3, 6, 1, 1)
+    warm = router_mod.route(cfg, db_conn, embedder, query="orchid", k=1, comparison_budget=larger)
+    assert sum(
+        v
+        for key, v in warm.decision.truncations.items()
+        if key.startswith("work_") and key.endswith("_visited")
+    ) >= sum(visits)
+    ordinary = router_mod.route(cfg, db_conn, embedder, query="orchid", k=1)
+    assert not any(k.startswith("work_") for k in ordinary.decision.truncations)

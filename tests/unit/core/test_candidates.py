@@ -315,3 +315,16 @@ def test_sparse_bare_star_returns_no_candidates() -> None:
         assert trunc == 0
     finally:
         index.close()
+
+
+def test_comparison_budget_typed_limits():
+    import pytest
+
+    from magicite.core.comparison_budget import ComparisonBudget
+
+    b = ComparisonBudget(20, 10, 40, 5, 3)
+    assert ComparisonBudget.from_dict(b.to_dict()) == b
+    assert len(b.digest) == 64
+    for args in ((True, 10, 40, 5, 3), (20, 21, 40, 5, 3), (20, 10, 39, 5, 3), (1001, 10, 2002, 5, 3)):
+        with pytest.raises(ValueError):
+            ComparisonBudget(*args)
