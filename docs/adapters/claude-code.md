@@ -70,17 +70,15 @@ client cannot self-upgrade a call's trust level.
    }
    ```
 
-   **`--user 1000:1000` is required here, not optional** (M7 finding,
-   `tests/acceptance/test_docker_smoke.py`): `magicite serve` calls
-   `Config.ensure_dirs()` at every boot, creating `.magicite/{archive,
-   approvals,runtime}` if absent. A bind mount preserves the *host's* file
-   ownership, so a container running as the image's baked-in default (UID
-   10001, i.e. this flag omitted) hits a bare `PermissionError` against any
-   normal host-owned `<project_root>` before it can even complete
-   `initialize` -- it is not merely a file-ownership hygiene nicety, the
-   server cannot boot without it. Replace `1000:1000` with your own
-   `$(id -u):$(id -g)` if your host user is not UID/GID 1000. See the
-   Dockerfile's own PRIVILEGE-BOUNDARY NOTE for the full reasoning.
+   Use your host UID/GID for predictable host file ownership: replace
+   `1000:1000` with `$(id -u):$(id -g)` when needed. On native Linux,
+   private directories owned by another UID can prevent the default image
+   user from accessing custody or creating project state before `initialize`.
+   Docker Desktop bind sharing can translate ownership and access, so omitting
+   `--user` does not universally prevent boot. The container smoke test verifies
+   refusal on an actually foreign-private native directory, paired with a
+   successful initialize by its owner. Its custody is simulated; this does not
+   qualify a real deployment custody service.
 
 3. **Configure Claude Code's hooks** (`.claude/settings.json`, project- or
    user-scoped) to call `signal_use`/`signal_outcome` with the same secret as

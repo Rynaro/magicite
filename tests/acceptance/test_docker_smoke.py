@@ -10,21 +10,13 @@ pytest collection run). If ``magicite:verify`` does not exist locally, every
 test here is skipped with the exact build command to run first -- a missing
 prerequisite is never silently reported as a pass.
 
-**M7 finding (privilege boundary, close-out item #4), discovered by actually
-running this suite rather than assumed:** ``mcp/app.py::build_state`` calls
-``Config.ensure_dirs()`` unconditionally at *every* server boot -- creating
-``.magicite/{archive,approvals,runtime}`` if absent -- so the container needs
-WRITE access to the mounted project directory just to complete the
-``initialize`` handshake, not only for a later ``register()``/``sync()``
-call. A bind mount preserves the HOST's file ownership; a container running
-as the image's baked-in default (UID 10001, no ``--user`` override) hits a
-bare ``PermissionError`` at boot against any normal host-owned project
-directory that isn't pre-chowned/world-writable -- confirmed empirically
-below (``test_without_uid_override_the_server_cannot_even_boot``). This
-makes ``--user "$(id -u):$(id -g)"`` (the house pattern this project's own
-``.mcp.json``/``docs/adapters/claude-code.md`` already use) **mandatory for
-this image against a real project, not merely an ownership-hygiene
-recommendation** -- every other test below passes it for that reason.
+**Ownership scope:** native Linux mounts retain owner permissions, so a
+foreign UID cannot access private custody. Docker Desktop bind sharing can
+translate ownership/access; omitting ``--user`` does not universally prevent
+boot there. Explicit host UID/GID remains recommended for predictable host
+file ownership. The negative test uses native container storage and verifies
+the foreign-owner prerequisite, paired with a valid permitted-owner initialize.
+All custody here remains simulated and does not qualify deployment custody.
 """
 
 from __future__ import annotations
@@ -120,10 +112,8 @@ async def _spawn_container(
     extra_docker_args: list[str] | None = None,
 ) -> asyncio.subprocess.Process:
     """``user="host"`` (the default) passes ``--user <host-uid>:<host-gid>``
-    -- the REQUIRED invocation against a normal host-owned mount (see the
-    module docstring). ``user=None`` deliberately omits ``--user``,
-    exercising the image's baked-in default (UID 10001) -- used only by
-    the one test that exists to prove that omission breaks server boot."""
+    for predictable host file ownership (see the module docstring).
+    ``user=None`` exercises the image's configured default UID."""
     user_args: list[str] = []
     if user == "host":
         user_args = ["--user", f"{os.getuid()}:{os.getgid()}"]
@@ -348,33 +338,94 @@ async def test_uid_override_preserves_host_file_ownership(
 async def test_without_uid_override_the_server_cannot_even_boot(
     project_root: Path, custody: tuple[Path, str]
 ) -> None:
-    """The empirically-discovered half of the privilege-boundary finding
-    (module docstring): WITHOUT --user, the container runs as the image's
-    baked-in default (UID 10001). `build_state()` calls
-    `Config.ensure_dirs()` unconditionally at boot, and a bind mount
-    preserves host ownership -- so against `project_root` (owned by
-    whatever host user pytest ran as, NOT uid 10001), directory creation
-    hits a bare PermissionError before the server can even accept
-    `initialize`. This is a harder failure than a mere file-ownership
-    mismatch: the container does not merely leave the wrong owner behind,
-    it cannot function at all. `--user "$(id -u):$(id -g)"` is therefore
-    REQUIRED for this image against a real, host-owned project directory,
-    not an optional hardening nicety."""
-    proc = await _spawn_container(project_root=project_root, custody=custody, user=None)  # no --user override
-    try:
-        returncode = await asyncio.wait_for(proc.wait(), timeout=30.0)
-        stderr = (await proc.stderr.read()).decode("utf-8", errors="replace") if proc.stderr else ""
-    finally:
-        await _terminate(proc)
+    """A verified foreign-private native fixture refuses the default UID.
 
-    assert returncode != 0, (
-        "expected the container to fail to boot without --user against a host-owned mount "
-        "it does not own (UID 10001 vs the host uid) -- it exited 0 instead. Either the "
-        "privilege-boundary finding no longer holds (re-verify against a fresh host uid), or "
-        "this environment's tmp_path happens to already be uid-10001-writable."
-    )
-    # Custody preflight now runs before ensure_dirs(); the same ownership
-    # boundary refuses the host-owned custodian store first.
-    assert "PermissionError" in stderr or "custody state must remain private" in stderr, (
-        f"expected a host-ownership refusal (custody store or ensure_dirs) in stderr; got:\n{stderr}"
-    )
+    The same valid fixture must initialize under its owner; Desktop host-bind
+    ownership translation is intentionally excluded from this prerequisite.
+    """
+    import uuid
+
+    volume = "magicite-smoke-" + uuid.uuid4().hex
+    owner_name, default_name = volume + "-owner", volume + "-default"
+    evidence: dict = {}
+
+    def checked(*args: str) -> str:
+        done = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=30)
+        assert done.returncode == 0, (args, done.returncode, done.stdout, done.stderr)
+        return done.stdout
+
+    custody_directory, registry_id = custody
+    native_project, native_custody = "/fixture/project", "/fixture/custody"
+    configured_user = checked("image", "inspect", IMAGE_TAG, "--format", "{{.Config.User}}").strip()
+    checked("volume", "create", volume)
+    created_containers: list[str] = []
+    try:
+        common = [*_HARDENING_FLAGS, "--network", "none", "-v", f"{volume}:/fixture",
+                  "-v", f"{_REPO_TESTS}:{_CONTAINER_SRC}/tests:ro", "--entrypoint", "python"]
+        setup = (
+            "import os,shutil;shutil.copytree('/seed/project','/fixture/project');"
+            "shutil.copytree('/seed/custody','/fixture/custody');"
+            "os.chmod('/fixture/project',0o700);os.chmod('/fixture/custody',0o700)"
+        )
+        checked("run", "--rm", "--user", "0:0", *common,
+                "-v", f"{project_root}:/seed/project:ro",
+                "-v", f"{custody_directory}:/seed/custody:ro", IMAGE_TAG, "-c", setup)
+        probe = (
+            "import json,os; p='/fixture/custody';s=os.stat(p);"
+            "print(json.dumps({'uid':os.getuid(),'gid':os.getgid(),"
+            "'custody_uid':s.st_uid,'custody_mode':s.st_mode&511,"
+            "'traverse':os.access(p,os.X_OK),'read':os.access(p,os.R_OK),"
+            "'key_read':os.access(p+'/journal.key',os.R_OK)}))"
+        )
+        evidence["configured_user"] = configured_user
+        evidence["default_access"] = json.loads(checked("run", "--rm", *common, IMAGE_TAG, "-c", probe))
+        access = evidence["default_access"]
+        assert configured_user and access["uid"] != access["custody_uid"]
+        assert access["custody_uid"] == 0 and access["custody_mode"] == 0o700
+        assert not access["traverse"] and not access["read"] and not access["key_read"]
+        evidence["owner_access"] = json.loads(checked("run", "--rm", "--user", "0:0", *common,
+                                                     IMAGE_TAG, "-c", probe))
+        assert evidence["owner_access"]["key_read"]
+
+        async def launch(name: str, owner: bool) -> asyncio.subprocess.Process:
+            created_containers.append(name)
+            return await asyncio.create_subprocess_exec(
+                "docker", "run", "--rm", "--name", name, "-i",
+                *(["--user", "0:0"] if owner else []), *common,
+                IMAGE_TAG, f"{_CONTAINER_SRC}/tests/support/serve_with_fixture_custody.py",
+                native_project, native_custody, registry_id, "serve", "--project-root", native_project,
+                stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+
+        owner = await launch(owner_name, True)
+        try:
+            response = await _initialize(owner, timeout=30)
+            assert response.get("result", {}).get("protocolVersion") == "2025-11-25", response
+            stdout, stderr = await asyncio.wait_for(owner.communicate(), timeout=30)
+            evidence["owner_initialize"] = response
+            evidence["owner_exit"] = owner.returncode
+            evidence["owner_stdout"] = stdout.decode(errors="replace")
+            evidence["owner_stderr"] = stderr.decode(errors="replace")
+            assert owner.returncode == 0, evidence
+        finally:
+            await _terminate(owner)
+
+        default = await launch(default_name, False)
+        try:
+            stdout, stderr = await asyncio.wait_for(default.communicate(input=b""), timeout=30)
+            evidence["default_exit"] = default.returncode
+            evidence["default_stdout"] = stdout.decode(errors="replace")
+            evidence["default_stderr"] = stderr.decode(errors="replace")
+            assert default.returncode != 0, evidence
+            assert "PermissionError" in evidence["default_stderr"], evidence
+            assert native_custody + "/journal.key" in evidence["default_stderr"], evidence
+            assert "ModuleNotFoundError" not in evidence["default_stderr"], evidence
+        finally:
+            await _terminate(default)
+    finally:
+        for name in created_containers:
+            done = subprocess.run(["docker", "rm", "-f", name], capture_output=True, text=True, timeout=30)
+            assert done.returncode == 0 or "No such container" in done.stderr, done.stderr
+        checked("volume", "rm", volume)
+        evidence["owned_volume_removed"] = volume
+        (project_root.parent / "native-permission-evidence.json").write_text(json.dumps(evidence, indent=2))
