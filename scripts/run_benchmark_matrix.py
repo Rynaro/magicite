@@ -1064,6 +1064,10 @@ def _apply_ga_eligibility(
     if getattr(args, "custody", "protected") != "protected":
         eligible = False
         reasons = [*reasons, f"custody={args.custody!r} (deployment custody UNEVALUATED)"]
+    if result.get("fingerprint", {}).get("machine") in {"aarch64", "arm64"}:
+        eligible = False
+        reasons = [*reasons, "native ARM observation; original performance reference is Linux amd64"]
+        result["reference_role"] = "native-arm-observation"
     corpus["ga_eligible"] = eligible
     corpus["ga_ineligible_reasons"] = reasons
     result["corpus"] = corpus

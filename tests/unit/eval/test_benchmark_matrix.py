@@ -236,3 +236,102 @@ def test_repetitions_preflight_all_roots_and_forward_frozen_model(tmp_path, monk
     assert command[-2:] == ["--project-root", str(roots[0])]
     assert command[command.index("--model-cache") + 1] == str(cache)
     assert command[command.index("--model-manifest") + 1] == str(manifest)
+
+
+def _hardware_capacity_functions():
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[3] / "scripts/qualify_performance_linux.sh"
+    content = script.read_text()
+    prefix = content.split("# Installed allocation is distinct", 1)[1]
+    functions = prefix[prefix.index("def installed_memory_evidence") :].split(
+        "# End installed allocation semantics.", 1
+    )[0]
+    namespace = {}
+    exec(compile(functions, str(script), "exec"), namespace)
+    return namespace["installed_memory_evidence"], namespace["allocation_failures"]
+
+
+def test_reference_uses_installed_ram_and_logical_cpu_allocation():
+    parse, failures = _hardware_capacity_functions()
+    observation = {
+        "exit": 0,
+        "stdout": "Handle 0x0010, DMI type 17, 40 bytes\nMemory Device\n\tSize: 16 GB\n",
+    }
+    allocated, devices = parse(observation)
+    assert allocated == 16 * 1024**3 and devices[0]["reported_size"] == "16 GB"
+    # Usable MemTotal and physical cores remain observations, not allocation bounds.
+    assert failures(allocated, "max", 4, None, usable=int(15.6 * 1024**3)) == []
+    assert any("conflicts" in error for error in failures(allocated, "max", 4, None, usable=17 * 1024**3))
+    assert failures(allocated, str(16 * 1024**3), 4, 4.0) == []
+
+
+@pytest.mark.parametrize(
+    ("allocated", "limit", "affinity", "quota", "reason"),
+    [
+        (None, "max", 4, None, "not substantiated"),
+        (15 * 1024**3, "max", 4, None, "below original"),
+        (16 * 1024**3, str(15 * 1024**3), 4, None, "restricts original"),
+        (16 * 1024**3, None, 4, None, "limit unavailable"),
+        (16 * 1024**3, "max", 3, None, "logical CPU"),
+        (16 * 1024**3, "max", 4, 3.5, "logical CPU"),
+    ],
+)
+def test_reference_refuses_unproved_or_restricted_allocation(allocated, limit, affinity, quota, reason):
+    _, failures = _hardware_capacity_functions()
+    assert any(reason in error for error in failures(allocated, limit, affinity, quota))
+
+
+@pytest.mark.parametrize(
+    "observation",
+    [
+        {"exit": 1, "stdout": "Memory Device\nSize: 16 GB\n"},
+        {"exit": 0, "stdout": "advertised 16GB GitHub runner"},
+        {"exit": 0, "stdout": "Memory Device\nSize: Unknown\n"},
+        {"exit": 0, "stdout": "Memory Device\nSize: 16000000000 bytes\n"},
+        {"exit": 0, "stdout": "Memory Device\nSize: No Module Installed\n"},
+    ],
+)
+def test_reference_does_not_infer_ram_from_unknown_or_marketing_data(observation):
+    parse, _ = _hardware_capacity_functions()
+    assert parse(observation)[0] is None
+
+
+def _all_hardware_functions():
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[3] / "scripts/qualify_performance_linux.sh"
+    functions = (
+        script.read_text()
+        .split("def installed_memory_evidence", 1)[1]
+        .split("# End installed allocation semantics.", 1)[0]
+    )
+    namespace = {}
+    exec(compile("def installed_memory_evidence" + functions, str(script), "exec"), namespace)
+    return namespace
+
+
+def test_reference_effective_limits_honor_finite_ancestor_restrictions():
+    functions = _all_hardware_functions()
+    rows = [
+        {"memory_max": "max", "cpu_max": "max 100000", "global_root": False},
+        {"memory_max": str(15 * 1024**3), "cpu_max": "350000 100000", "global_root": False},
+        {"memory_max": None, "cpu_max": None, "global_root": True},
+    ]
+    memory, quota, errors = functions["effective_cgroup_limits"](rows)
+    assert memory == str(15 * 1024**3) and quota == 3.5 and errors == []
+    failures = functions["allocation_failures"](16 * 1024**3, memory, 4, quota)
+    assert any("restricts original" in row for row in failures)
+    assert any("logical CPU" in row for row in failures)
+    assert functions["effective_cgroup_limits"]([])[2]
+    assert functions["effective_cgroup_limits"]([{"global_root": False}])[2]
+
+
+def test_native_arm_keeps_reference_comparisons_observational():
+    outcome = _all_hardware_functions()["preflight_outcome"]
+    failures = ["installed allocation unknown", "fewer than four CPU units"]
+    assert outcome("aarch64", "Linux", failures, 20 * 1024**3) == ("ARM_OBSERVATION_READY", [])
+    assert outcome("x86_64", "Linux", failures, 20 * 1024**3) == ("UNEVALUATED", failures)
+    assert outcome("x86_64", "Linux", [], 20 * 1024**3) == ("REFERENCE_PREFLIGHT_PASSED", [])
+    assert outcome("aarch64", "Darwin", [], 20 * 1024**3)[0] == "UNEVALUATED"
+    assert outcome("aarch64", "Linux", [], 1 * 1024**3)[0] == "UNEVALUATED"
