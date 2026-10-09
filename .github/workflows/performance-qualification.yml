@@ -2,6 +2,9 @@ name: performance qualification
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - qualification/e6-rc4-20261009-01
 
 permissions:
   contents: read
@@ -30,6 +33,18 @@ jobs:
           out="$RUNNER_TEMP/e6-evidence"
           mkdir -p "$out"
           git rev-parse HEAD > "$out/harness-commit.txt"
+          python3 - "$out" <<'PYCONTEXT'
+          import json,os,subprocess,sys
+          from pathlib import Path
+          keys=('GITHUB_EVENT_NAME','GITHUB_REF','GITHUB_SHA','GITHUB_WORKFLOW_REF','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','GITHUB_ACTOR')
+          context={key:os.environ[key] for key in keys}
+          context['checked_out_commit']=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          (Path(sys.argv[1])/'workflow-context.json').write_text(json.dumps(context,indent=2)+'\n')
+          assert context['GITHUB_SHA']==context['checked_out_commit']
+          assert context['GITHUB_EVENT_NAME'] in ['push','workflow_dispatch']
+          if context['GITHUB_EVENT_NAME']=='push':
+              assert context['GITHUB_REF']=='refs/tags/qualification/e6-rc4-20261009-01'
+          PYCONTEXT
           sha256sum scripts/run_benchmark_matrix.py scripts/prepare_performance_corpus.py scripts/qualify_performance_linux.sh > "$out/harness-sha256.txt"
           bash scripts/qualify_performance_linux.sh preflight "$out" 2>&1 | tee "$out/preflight.log"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
