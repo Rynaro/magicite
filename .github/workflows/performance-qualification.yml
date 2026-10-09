@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - qualification/e6-rc4-20261009-01
+      - qualification/e6-rc4-20261009-02
 
 permissions:
   contents: read
@@ -36,17 +36,17 @@ jobs:
           python3 - "$out" <<'PYCONTEXT'
           import json,os,subprocess,sys
           from pathlib import Path
-          keys=('GITHUB_EVENT_NAME','GITHUB_REF','GITHUB_SHA','GITHUB_WORKFLOW_REF','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','GITHUB_ACTOR')
+          keys=('GITHUB_EVENT_NAME','GITHUB_REF','GITHUB_SHA','GITHUB_WORKFLOW_REF','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','GITHUB_ACTOR','GITHUB_REPOSITORY','RUNNER_NAME','RUNNER_OS','RUNNER_ARCH')
           context={key:os.environ[key] for key in keys}
           context['checked_out_commit']=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
           (Path(sys.argv[1])/'workflow-context.json').write_text(json.dumps(context,indent=2)+'\n')
           assert context['GITHUB_SHA']==context['checked_out_commit']
           assert context['GITHUB_EVENT_NAME'] in ['push','workflow_dispatch']
           if context['GITHUB_EVENT_NAME']=='push':
-              assert context['GITHUB_REF']=='refs/tags/qualification/e6-rc4-20261009-01'
+              assert context['GITHUB_REF']=='refs/tags/qualification/e6-rc4-20261009-02'
           PYCONTEXT
           sha256sum scripts/run_benchmark_matrix.py scripts/prepare_performance_corpus.py scripts/qualify_performance_linux.sh > "$out/harness-sha256.txt"
-          bash scripts/qualify_performance_linux.sh preflight "$out" 2>&1 | tee "$out/preflight.log"
+          env E6_STANDARD_RUNNER="${{ matrix.runner }}" bash scripts/qualify_performance_linux.sh preflight "$out" 2>&1 | tee "$out/preflight.log"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: Rynaro/magicite
@@ -138,6 +138,9 @@ jobs:
             ${{ runner.temp }}/e6-evidence/*.log
             ${{ runner.temp }}/e6-evidence/*.stdout
             ${{ runner.temp }}/e6-evidence/*.stderr
+            ${{ runner.temp }}/e6-evidence/provider-runner-document.html
+            ${{ runner.temp }}/e6-evidence/corpus/licenses
+            ${{ runner.temp }}/e6-evidence/corpus/dataset-card.md
             ${{ runner.temp }}/e6-evidence/results
             ${{ runner.temp }}/e6-evidence/corpus/corpus-manifest.json
             ${{ runner.temp }}/e6-evidence/corpus/attribution.jsonl

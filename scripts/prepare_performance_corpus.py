@@ -39,12 +39,19 @@ def dump(path, value):
 def acquire(url, path, expected=None, size=None):
     with urllib.request.urlopen(url, timeout=120) as response, path.open("xb") as stream:
         final = response.url
+        status = response.status
         while chunk := response.read(1024 * 1024):
             stream.write(chunk)
     digest = sha(path.read_bytes())
     if (expected is not None and digest != expected) or (size is not None and path.stat().st_size != size):
         raise ValueError("pinned public source digest/length mismatch")
-    return {"url": url, "resolved_url": final, "sha256": digest, "bytes": path.stat().st_size}
+    return {
+        "url": url,
+        "resolved_url": final,
+        "http_status": status,
+        "sha256": digest,
+        "bytes": path.stat().st_size,
+    }
 
 
 def batches(path):
@@ -84,8 +91,17 @@ def main():
     receipts.append(acquire("https://www.gnu.org/licenses/fdl-1.3.txt", output / "licenses/GFDL-1.3.txt"))
     receipts.append(
         acquire(
-            "https://creativecommons.org/licenses/by-sa/3.0/legalcode", output / "licenses/CC-BY-SA-3.0.html"
+            "https://raw.githubusercontent.com/creativecommons/cc-legal-tools-data/"
+            "a0dac18d1a773b4cdb7d8dd5d9bf4efab7901030/docs/licenses/by-sa/3.0/legalcode.en.html",
+            output / "licenses/CC-BY-SA-3.0.html",
+            "c33d7ebdbcc5c8db073e69a794b2ac44805f5d7d9edcfb8b5181a71869a9b7d5",
+            54093,
         )
+    )
+    receipts[-1].update(
+        canonical_license_url="https://creativecommons.org/licenses/by-sa/3.0/legalcode",
+        official_source_commit="a0dac18d1a773b4cdb7d8dd5d9bf4efab7901030",
+        source_semantics="Byte-identical immutable official license representation",
     )
     dump(output / "acquisition.json", receipts)
     rows_path = output / "decoded-rows.jsonl"

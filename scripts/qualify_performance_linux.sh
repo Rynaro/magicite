@@ -61,6 +61,44 @@ def preflight_outcome(architecture,system,comparison_failures,free):
   return ('ARM_OBSERVATION_READY',[]) if free>=12*1024**3 else ('UNEVALUATED',['preparation disk capacity unavailable'])
  if architecture!='x86_64':return 'UNEVALUATED',['unsupported native qualification architecture']
  return ('UNEVALUATED',comparison_failures) if comparison_failures else ('REFERENCE_PREFLIGHT_PASSED',[])
+def provider_identity_errors(repository,run,jobs,tag,context,label,architecture,document_sha):
+ errors=[]
+ expected='ubuntu-24.04' if architecture=='x86_64' else 'ubuntu-24.04-arm' if architecture in ['aarch64','arm64'] else None
+ if repository.get('full_name')!='Rynaro/magicite' or repository.get('private') is not False:errors.append('actual public repository unsubstantiated')
+ if label!=expected or context.get('GITHUB_REPOSITORY')!='Rynaro/magicite':errors.append('standard native runner class mismatch')
+ if document_sha!='4f959a553da1bbfc86d4f24167981fb76177bb14c39b01296bc0ab6b6c779c38':errors.append('reviewed provider document bytes changed or missing')
+ if run.get('id')!=int(context.get('GITHUB_RUN_ID','0')) or run.get('head_sha')!=context.get('checked_out_commit') or run.get('head_sha')!=context.get('GITHUB_SHA') or run.get('event')!='push' or run.get('path')!='.github/workflows/performance-qualification.yml' or run.get('run_attempt')!=int(context.get('GITHUB_RUN_ATTEMPT','0')) or run.get('actor',{}).get('login')!=context.get('GITHUB_ACTOR'):errors.append('actual run/context identity mismatch')
+ ref='refs/tags/qualification/e6-rc4-20261009-02'
+ if context.get('GITHUB_REF')!=ref or context.get('GITHUB_EVENT_NAME')!='push' or context.get('GITHUB_WORKFLOW_REF')!='Rynaro/magicite/.github/workflows/performance-qualification.yml@'+ref or tag.get('ref')!=ref or tag.get('object',{}).get('type')!='commit' or tag.get('object',{}).get('sha')!=run.get('head_sha'):errors.append('actual exact qualification tag/source mismatch')
+ matches=[row for row in jobs.get('jobs',[]) if row.get('name')=='E6 / '+str(label)]
+ if len(matches)!=1:errors.append('actual standard runner job unresolved')
+ else:
+  job=matches[0]
+  if job.get('run_id')!=run.get('id') or job.get('head_sha')!=run.get('head_sha') or job.get('labels')!=[label] or not job.get('runner_id') or job.get('runner_name')!=context.get('RUNNER_NAME') or job.get('runner_group_id')!=0 or job.get('runner_group_name')!='GitHub Actions':errors.append('actual hosted runner/job identity mismatch')
+ if context.get('RUNNER_OS')!='Linux' or context.get('RUNNER_ARCH')!=('X64' if architecture=='x86_64' else 'ARM64'):errors.append('native OS/architecture context mismatch')
+ return errors
+
+def guest_local_mapping(filesystems,blockdevices):
+ import re
+ if len(filesystems)!=1:return None
+ fs=filesystems[0]
+ if not re.fullmatch(r'\d+:\d+',str(fs.get('maj:min',''))):return None
+ if fs.get('fstype') not in ['ext4','xfs','btrfs'] or fs.get('target')!='/' or not str(fs.get('source','')).startswith('/dev/'):return None
+ matches=[]
+ def walk(rows,parent=None):
+  for row in rows:
+   disk=row if row.get('type')=='disk' else parent
+   if row.get('maj:min')==fs.get('maj:min') and disk is not None and re.fullmatch(r'\d+:\d+',str(disk.get('maj:min',''))):matches.append({'mounted_device':row,'backing_disk':disk.get('name'),'backing_major_minor':disk.get('maj:min'),'rotational':disk.get('rota'),'filesystem':fs})
+   walk(row.get('children',[]),disk)
+ walk(blockdevices)
+ return matches[0] if len(matches)==1 else None
+
+def guest_storage_errors(evidence,anchor,prospective,sysfs):
+ errors=[]
+ if evidence is None or anchor is None or prospective is None:return ['actual evidence/created workload/prospective local block mapping unresolved']
+ if evidence['filesystem']!=anchor['filesystem'] or prospective['filesystem']!=anchor['filesystem'] or evidence['backing_major_minor']!=anchor['backing_major_minor'] or prospective['backing_major_minor']!=anchor['backing_major_minor']:errors.append('evidence/prospective/created workload guest block mounts differ')
+ if not sysfs.get('source_is_block_device') or sysfs.get('block_major_minor')!=evidence['filesystem']['maj:min'] or sysfs.get('sysfs_device_major_minor')!=evidence['filesystem']['maj:min'] or sysfs.get('queue_rotational') not in ['0','1'] or bool(int(sysfs['queue_rotational']))!=evidence['rotational']:errors.append('actual sysfs/block/virtual rotational observations unresolved or conflicting')
+ return errors
 # End installed allocation semantics.
 out=Path(sys.argv[1])
 def raw(command):
@@ -105,26 +143,71 @@ cores={(read(f'/sys/devices/system/cpu/cpu{i}/topology/physical_package_id'),rea
 accelerators=[str(p) for p in Path('/dev').glob('nvidia*')]+[str(p) for p in Path('/dev/dri').glob('render*')]
 devices=json.loads(disk['stdout']) if disk['exit']==0 else {}
 mounts=json.loads(mount['stdout']).get('filesystems',[]) if mount['exit']==0 else []
-backing=[]
-def walks(rows,parent=None):
- for row in rows:
-  disk=row if row.get('type')=='disk' else parent
-  if mounts and row.get('maj:min')==mounts[0].get('maj:min') and disk is not None:
-   backing.append({'mounted_device':row,'backing_disk':disk.get('name'),'rotational':disk.get('rota')})
-  walks(row.get('children',[]),disk)
-walks(devices.get('blockdevices',[]))
+local_mapping=guest_local_mapping(mounts,devices.get('blockdevices',[]))
+backing=[local_mapping] if local_mapping else []
+import hashlib,urllib.request
+context=json.loads((out/'workflow-context.json').read_bytes())
+label=os.environ.get('E6_STANDARD_RUNNER','')
+provider_errors=[]; api_receipts=[]; provider={}
+def acquire_public(url,name):
+ request=urllib.request.Request(url,headers={'User-Agent':'magicite-e6-qualification','Accept':'application/vnd.github+json' if url.startswith('https://api.github.com/') else 'text/html'})
+ with urllib.request.urlopen(request,timeout=30) as response:
+  payload=response.read(2*1024*1024)
+  if response.read(1):raise ValueError('public metadata response exceeds bounded size')
+  receipt={'url':url,'final_url':response.url,'status':response.status,'sha256':hashlib.sha256(payload).hexdigest(),'bytes':len(payload)}
+ (out/name).write_bytes(payload);api_receipts.append(receipt)
+ return payload
+try:
+ repository=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite','provider-repository.json'))
+ run_id=context['GITHUB_RUN_ID']
+ run=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/actions/runs/'+run_id,'provider-run.json'))
+ jobs=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/actions/runs/'+run_id+'/jobs?per_page=100','provider-jobs.json'))
+ tag=json.loads(acquire_public('https://api.github.com/repos/Rynaro/magicite/git/ref/tags/qualification/e6-rc4-20261009-02','provider-tag.json'))
+ document=acquire_public('https://docs.github.com/en/actions/reference/runners/github-hosted-runners','provider-runner-document.html')
+ provider_errors=provider_identity_errors(repository,run,jobs,tag,context,label,platform.machine(),hashlib.sha256(document).hexdigest())
+except (OSError,ValueError,KeyError) as error:provider_errors.append('actual public provider proof unavailable: '+type(error).__name__)
+provider={'errors':provider_errors,'actual_public_api_receipts':api_receipts,'standard_label':label,'documented_storage_class':'standard public GitHub-hosted VM SSD','physical_media_independently_observed':False,'virtual_rotational_flag_observed':local_mapping.get('rotational') if local_mapping else None}
+(out/'provider-class-evidence.json').write_text(json.dumps(provider,indent=2)+'\n')
+anchor=Path('/var/lib/magicite-e6')
+prospective=raw(['findmnt','--json','-o','SOURCE,FSTYPE,MAJ:MIN,TARGET','-T',str(anchor.parent)])
+if anchor.exists() or anchor.is_symlink():raise ValueError('preexisting workload anchor refused')
+subprocess.run(['sudo','-n','mkdir','--mode=0755',str(anchor)],check=True)
+anchor_info=anchor.lstat()
+created_mount=raw(['findmnt','--json','-o','SOURCE,FSTYPE,MAJ:MIN,TARGET','-T',str(anchor)])
+anchor_mounts=json.loads(created_mount['stdout']).get('filesystems',[]) if created_mount['exit']==0 else []
+anchor_mapping=guest_local_mapping(anchor_mounts,devices.get('blockdevices',[]))
+anchor_receipt={'path':str(anchor),'device':anchor_info.st_dev,'inode':anchor_info.st_ino,'owner_uid':anchor_info.st_uid,'mode':oct(anchor_info.st_mode&0o777),'prospective_parent_mount':prospective,'created_mount':created_mount,'mapping':anchor_mapping,'newly_created':True}
+(out/'workload-anchor.json').write_text(json.dumps(anchor_receipt,indent=2)+'\n')
+prospective_mounts=json.loads(prospective['stdout']).get('filesystems',[]) if prospective['exit']==0 else []
+prospective_mapping=guest_local_mapping(prospective_mounts,devices.get('blockdevices',[]))
+block_observation={}
+if local_mapping:
+ source=Path(local_mapping['filesystem']['source']); device=Path('/sys/dev/block')/local_mapping['filesystem']['maj:min']
+ block_observation={'source_is_block_device':source.is_block_device(),'sysfs_path':str(device.resolve()),'sysfs_device_major_minor':read(device/'dev'),'queue_rotational':read(Path('/sys/class/block')/local_mapping['backing_disk']/'queue/rotational')}
+ if source.is_block_device():
+  source_info=source.stat();block_observation['block_major_minor']=str(os.major(source_info.st_rdev))+':'+str(os.minor(source_info.st_rdev))
+anchor_receipt['sysfs_block_observation']=block_observation
+anchor_receipt['prospective_mapping']=prospective_mapping
+(out/'workload-anchor.json').write_text(json.dumps(anchor_receipt,indent=2)+'\n')
+storage_errors=guest_storage_errors(local_mapping,anchor_mapping,prospective_mapping,block_observation)
+if anchor_info.st_uid!=0 or anchor_info.st_mode&0o777!=0o755 or anchor.is_symlink():storage_errors.append('workload anchor protection mismatch')
+provider['provider_documented_SSD_class_applicable']=not provider_errors and not storage_errors
+provider['guest_local_block_mapping_verified']=not storage_errors
+(out/'provider-class-evidence.json').write_text(json.dumps(provider,indent=2)+'\n')
 failures=[]
 if platform.system()!='Linux':failures.append('native Linux required')
 failures.extend(allocation_failures(allocated,limit,affinity,quota,mem))
 failures.extend(cgroup_errors)
 if accelerators:failures.append('GPU devices observed')
-if len(mounts)!=1 or mounts[0].get('fstype') not in ['ext4','xfs','btrfs'] or len(backing)!=1 or backing[0]['rotational'] is not False:failures.append('owned output filesystem not bound to a local observed nonrotational disk')
+failures.extend(provider_errors)
+failures.extend(storage_errors)
 stat=os.statvfs(out); free=stat.f_bavail*stat.f_frsize
 if free<12*1024**3:failures.append('insufficient owned local disk space')
 reference_comparison_failures=list(failures)
 architecture=platform.machine()
 status,failures=preflight_outcome(architecture,platform.system(),reference_comparison_failures,free)
-receipt={'status':status,'reference_comparison_failures':reference_comparison_failures,'reference_qualified':status=='REFERENCE_PREFLIGHT_PASSED','failures':failures,'platform':platform.platform(),'architecture':platform.machine(),'affinity_cpu_count':affinity,'visible_distinct_core_count':len(cores),'memtotal_bytes':mem,'memtotal_semantics':'usable guest RAM after kernel/hardware reservations; not installed allocation','installed_memory_bytes':allocated,'installed_memory_evidence_kind':'actual populated SMBIOS type17 guest memory devices; firmware-reported allocation, not cryptographically authenticated cloud allocation; usable MemTotal cross-checked separately','installed_memory_devices':allocation_devices,'installed_memory_observation':memory_devices,'cgroup_memory_max':limit,'cgroup_ancestry':cgroup_rows,'cgroup_mounts':mount_records,'process_cgroup_paths':process_cgroups,'cgroup_observation_errors':cgroup_errors,'effective_memory_bytes':capacity,'cgroup_cpu_max':cpu_max,'effective_cpu_quota':quota,'cpu':cpu,'blockdevices':disk,'filesystem':mount,'owned_mount_backing':backing,'free_bytes':free,'gpu_devices':accelerators,'process_snapshot':raw(['ps','-eo','pid,ppid,uid,comm']),'nominal_runner_allocation':'4 vCPU / 16 GB; marketing allocation is not guest GiB proof','job_exclusive':True,'shared_physical_infrastructure':True,'workflow_run':os.environ.get('GITHUB_RUN_ID'),'workflow_attempt':os.environ.get('GITHUB_RUN_ATTEMPT'),'runner':os.environ.get('RUNNER_NAME'),'architecture_role':'amd64 reference' if platform.machine()=='x86_64' else 'separate native ARM observation'}
+if architecture in ['aarch64','arm64'] and (provider_errors or storage_errors):status,failures='UNEVALUATED',provider_errors+storage_errors
+receipt={'status':status,'reference_comparison_failures':reference_comparison_failures,'reference_qualified':status=='REFERENCE_PREFLIGHT_PASSED','failures':failures,'platform':platform.platform(),'architecture':platform.machine(),'affinity_cpu_count':affinity,'visible_distinct_core_count':len(cores),'memtotal_bytes':mem,'memtotal_semantics':'usable guest RAM after kernel/hardware reservations; not installed allocation','installed_memory_bytes':allocated,'installed_memory_evidence_kind':'actual populated SMBIOS type17 guest memory devices; firmware-reported allocation, not cryptographically authenticated cloud allocation; usable MemTotal cross-checked separately','installed_memory_devices':allocation_devices,'installed_memory_observation':memory_devices,'cgroup_memory_max':limit,'cgroup_ancestry':cgroup_rows,'cgroup_mounts':mount_records,'process_cgroup_paths':process_cgroups,'cgroup_observation_errors':cgroup_errors,'effective_memory_bytes':capacity,'cgroup_cpu_max':cpu_max,'effective_cpu_quota':quota,'cpu':cpu,'blockdevices':disk,'provider_class':provider,'workload_anchor':anchor_receipt,'filesystem':mount,'owned_mount_backing':backing,'free_bytes':free,'gpu_devices':accelerators,'process_snapshot':raw(['ps','-eo','pid,ppid,uid,comm']),'nominal_runner_allocation':'4 vCPU / 16 GB; marketing allocation is not guest GiB proof','job_exclusive':True,'shared_physical_infrastructure':True,'workflow_run':os.environ.get('GITHUB_RUN_ID'),'workflow_attempt':os.environ.get('GITHUB_RUN_ATTEMPT'),'runner':os.environ.get('RUNNER_NAME'),'architecture_role':'amd64 reference' if platform.machine()=='x86_64' else 'separate native ARM observation'}
 (out/'hardware.json').write_text(json.dumps(receipt,indent=2)+'\n')
 print(json.dumps({'status':receipt['status'],'failures':failures}))
 raise SystemExit(2 if failures else 0)
@@ -134,8 +217,7 @@ fi
 [[ "$mode" == run && "$(id -u)" == 0 && "$(uname -s)" == Linux ]]
 py="${3:?installed RC4 Python}"; harness="${4:?reviewed checkout}"; lockroot="${5:?immutable runtime lock checkout}"
 # No changes to preexisting /etc descriptors, services, identities or paths.
-[[ ! -e /var/lib/magicite-e6 ]]
-install -d -m 0755 /var/lib/magicite-e6
+[[ -d /var/lib/magicite-e6 && ! -L /var/lib/magicite-e6 ]]
 "$py" - "$out" "$harness" "$lockroot" <<'EXECUTE'
 import hashlib,json,os,pwd,subprocess,sys,time
 from pathlib import Path
@@ -145,6 +227,13 @@ hardware=json.loads((out/'hardware.json').read_bytes())
 if hardware['status'] not in ['REFERENCE_PREFLIGHT_PASSED','ARM_OBSERVATION_READY']:raise ValueError('reference preflight or native observation readiness required before execution')
 if json.loads(subprocess.check_output([py,'-c',"import importlib.metadata,json;print(json.dumps(importlib.metadata.version('magicite')))" ]))!='1.0.0rc4':raise ValueError('published RC4 subject required')
 base=Path('/var/lib/magicite-e6')
+anchor=json.loads((out/'workload-anchor.json').read_bytes());info=base.lstat()
+if anchor['path']!=str(base) or info.st_dev!=anchor['device'] or info.st_ino!=anchor['inode'] or info.st_uid!=0 or info.st_mode&0o777!=0o755 or base.is_symlink() or any(base.iterdir()):raise ValueError('preflight-created workload anchor changed or nonempty')
+def observed_mount(path):
+ rows=json.loads(subprocess.check_output(['findmnt','--json','-o','SOURCE,FSTYPE,MAJ:MIN,TARGET','-T',str(path)],text=True))['filesystems']
+ if len(rows)!=1 or rows[0]!=anchor['mapping']['filesystem']:raise ValueError('actual provisioned workload moved to a different guest block mount')
+ return rows[0]
+observed_mount(base)
 for name,uid in [('magicite-e6-custodian',41011),('magicite-e6-client',41012)]:
  try:pwd.getpwnam(name)
  except KeyError:pass
@@ -186,6 +275,8 @@ try:
    head=json.loads(command(client.pw_uid,['status','--project-root',str(root)]))
    genesis=command(client.pw_uid,['initialize-journal','--project-root',str(root)])
    receipts.append({'root':str(root),'registry_id':registry_id,'custodian_uid':custodian.pw_uid,'client_uid':client.pw_uid,'service_pid':service.pid,'descriptor':json.loads(descriptor),'profile':json.loads(profile.read_bytes()),'reviewed_policy_sha256':policy_digest,'initial_authenticated_head':head,'genesis':json.loads(genesis),'private_store_mode':oct(store.stat().st_mode&0o777),'local_review_scope':'isolated performance evaluation only; no production human admissions'})
+ mounts=[{'root':row['root'],'filesystem':observed_mount(Path(row['root']))} for row in receipts]
+ (out/'workload-mounts-before-timing.json').write_text(json.dumps(mounts,indent=2)+'\n')
  (out/'custody-provisioning.json').write_text(json.dumps(receipts,indent=2)+'\n')
  results=out/'results';results.mkdir(mode=0o755);os.chown(results,client.pw_uid,client.pw_gid)
  support=[]; statuses=[]

@@ -335,3 +335,185 @@ def test_native_arm_keeps_reference_comparisons_observational():
     assert outcome("x86_64", "Linux", [], 20 * 1024**3) == ("REFERENCE_PREFLIGHT_PASSED", [])
     assert outcome("aarch64", "Darwin", [], 20 * 1024**3)[0] == "UNEVALUATED"
     assert outcome("aarch64", "Linux", [], 1 * 1024**3)[0] == "UNEVALUATED"
+
+
+def _provider_fixture():
+    # Consistency oracle only; fixtures never constitute actual runner evidence.
+    context = {
+        "GITHUB_RUN_ID": "101",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+        "checked_out_commit": "a" * 40,
+        "GITHUB_ACTOR": "operator",
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_REPOSITORY": "Rynaro/magicite",
+        "GITHUB_REF": "refs/tags/qualification/e6-rc4-20261009-02",
+        "GITHUB_WORKFLOW_REF": (
+            "Rynaro/magicite/.github/workflows/performance-qualification.yml@"
+            "refs/tags/qualification/e6-rc4-20261009-02"
+        ),
+        "RUNNER_NAME": "GitHub Actions 123",
+        "RUNNER_OS": "Linux",
+        "RUNNER_ARCH": "X64",
+    }
+    repository = {"full_name": "Rynaro/magicite", "private": False}
+    run = {
+        "id": 101,
+        "head_sha": "a" * 40,
+        "event": "push",
+        "path": ".github/workflows/performance-qualification.yml",
+        "run_attempt": 1,
+        "actor": {"login": "operator"},
+    }
+    jobs = {
+        "jobs": [
+            {
+                "run_id": 101,
+                "head_sha": "a" * 40,
+                "name": "E6 / ubuntu-24.04",
+                "labels": ["ubuntu-24.04"],
+                "runner_id": 123,
+                "runner_name": "GitHub Actions 123",
+                "runner_group_id": 0,
+                "runner_group_name": "GitHub Actions",
+            }
+        ]
+    }
+    tag = {"ref": context["GITHUB_REF"], "object": {"type": "commit", "sha": "a" * 40}}
+    return repository, run, jobs, tag, context
+
+
+def test_standard_provider_identity_requires_actual_matching_public_job_inputs():
+    functions = _all_hardware_functions()
+    proof = _provider_fixture()
+    sha = "4f959a553da1bbfc86d4f24167981fb76177bb14c39b01296bc0ab6b6c779c38"
+    assert functions["provider_identity_errors"](*proof, "ubuntu-24.04", "x86_64", sha) == []
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "private",
+        "repository",
+        "source",
+        "event",
+        "tag",
+        "custom",
+        "group",
+        "runner",
+        "label",
+        "native",
+        "doc",
+    ],
+)
+def test_provider_identity_refuses_forged_or_inapplicable_class(mutation):
+    functions = _all_hardware_functions()
+    repository, run, jobs, tag, context = _provider_fixture()
+    sha = "4f959a553da1bbfc86d4f24167981fb76177bb14c39b01296bc0ab6b6c779c38"
+    if mutation == "private":
+        repository["private"] = True
+    elif mutation == "repository":
+        repository["full_name"] = "someone/else"
+    elif mutation == "source":
+        run["head_sha"] = "b" * 40
+    elif mutation == "event":
+        run["event"] = "workflow_dispatch"
+    elif mutation == "tag":
+        tag["object"]["sha"] = "b" * 40
+    elif mutation == "custom":
+        jobs["jobs"][0]["labels"] = ["self-hosted"]
+    elif mutation == "group":
+        jobs["jobs"][0]["runner_group_id"] = 42
+    elif mutation == "runner":
+        jobs["jobs"][0]["runner_name"] = "foreign"
+    elif mutation == "label":
+        context["RUNNER_NAME"] = "foreign"
+    elif mutation == "native":
+        context["RUNNER_ARCH"] = "ARM64"
+    else:
+        sha = "0" * 64
+    assert functions["provider_identity_errors"](
+        repository, run, jobs, tag, context, "ubuntu-24.04", "x86_64", sha
+    )
+
+
+def _guest_storage_fixture():
+    fs = {"source": "/dev/sda1", "fstype": "ext4", "maj:min": "8:1", "target": "/"}
+    devices = [
+        {
+            "name": "sda",
+            "type": "disk",
+            "rota": True,
+            "maj:min": "8:0",
+            "children": [{"name": "sda1", "type": "part", "rota": True, "maj:min": "8:1"}],
+        }
+    ]
+    return fs, devices
+
+
+def test_provider_class_keeps_true_virtual_rotational_observation():
+    functions = _all_hardware_functions()
+    fs, devices = _guest_storage_fixture()
+    mapping = functions["guest_local_mapping"]([fs], devices)
+    assert mapping["rotational"] is True
+    sysfs = {
+        "source_is_block_device": True,
+        "block_major_minor": "8:1",
+        "sysfs_device_major_minor": "8:1",
+        "queue_rotational": "1",
+    }
+    assert functions["guest_storage_errors"](mapping, mapping, mapping, sysfs) == []
+
+
+@pytest.mark.parametrize("mutation", ["network", "overlay", "custom", "unknown", "unresolved"])
+def test_guest_mapping_refuses_nonlocal_custom_or_unknown_volume(mutation):
+    functions = _all_hardware_functions()
+    fs, devices = _guest_storage_fixture()
+    if mutation == "network":
+        fs["fstype"] = "nfs"
+    elif mutation == "overlay":
+        fs["fstype"] = "overlay"
+    elif mutation == "custom":
+        fs["target"] = "/custom-volume"
+    elif mutation == "unknown":
+        fs.pop("maj:min")
+    else:
+        devices = []
+    assert functions["guest_local_mapping"]([fs], devices) is None
+
+
+def test_created_workload_mapping_and_sysfs_conflicts_refuse():
+    functions = _all_hardware_functions()
+    fs, devices = _guest_storage_fixture()
+    mapping = functions["guest_local_mapping"]([fs], devices)
+    sysfs = {
+        "source_is_block_device": True,
+        "block_major_minor": "8:1",
+        "sysfs_device_major_minor": "8:1",
+        "queue_rotational": "0",
+    }
+    assert functions["guest_storage_errors"](mapping, mapping, mapping, sysfs)
+    sysfs["queue_rotational"] = "1"
+    other = deepcopy(mapping)
+    other["filesystem"]["maj:min"] = "8:17"
+    assert functions["guest_storage_errors"](mapping, other, mapping, sysfs)
+    assert functions["guest_storage_errors"](mapping, None, mapping, sysfs)
+
+
+def test_public_input_acquisition_refuses_wrong_pinned_bytes(tmp_path, monkeypatch):
+    import importlib.util
+    import io
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[3] / "scripts/prepare_performance_corpus.py"
+    spec = importlib.util.spec_from_file_location("e6_pinned_input", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    response = io.BytesIO(b"bad")
+    response.url = "https://raw.githubusercontent.com/official/immutable"
+    response.status = 200
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *args, **kwargs: response)
+    payload = tmp_path / "bad-license.html"
+    with pytest.raises(ValueError, match="digest/length mismatch"):
+        module.acquire(response.url, payload, "0" * 64, 3)
+    assert payload.read_bytes() == b"bad"
