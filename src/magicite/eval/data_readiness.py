@@ -485,6 +485,42 @@ def freeze_packet(
     return payload
 
 
+def link_power_freeze(planning: Path, output: Path, power: dict, selection: dict) -> dict:
+    """Immutable successor on the SAME packet root, without resealing labels."""
+    from copy import deepcopy
+
+    from magicite.eval.grouped_evaluation import validate_incumbent_selection, validate_power_report
+
+    original = verify_freeze(planning)
+    if access_path(planning).exists():
+        raise ValueError("planning final already exposed")
+    validate_power_report(power)
+    incumbent = validate_incumbent_selection(selection)
+    if power["identities"]["incumbent_policy_id"] != incumbent:
+        raise ValueError("power selected incumbent mismatch")
+    body = deepcopy(original["binding"])
+    projection = body["statistical_projection"]
+    if projection is None or projection["protocol"]["power_plan"] is not None:
+        raise ValueError("initial planning freeze required")
+    if power["identities"]["protocol_frame_digest"] != sha256_json(projection["protocol"]):
+        raise ValueError("power protocol frame mismatch")
+    projection["protocol"]["power_plan"] = {"report": power, "sha256": sha256_json(power)}
+    body["statistical_projection_sha256"] = sha256_json(projection)
+    body["planning_successor"] = {
+        "path": str(planning.resolve()),
+        "identity": original["identity"],
+        "selection": selection,
+    }
+    value = {
+        "identity": sha256_json(body),
+        "binding": body,
+        "input_root": original["input_root"],
+        "packet_name": original["packet_name"],
+    }
+    _publish_immutable(output, value)
+    return value
+
+
 def verify_freeze(path: Path) -> dict:
     value = _object(json.loads(path.read_bytes()), "freeze")
     body = _object(value.get("binding"), "binding")
@@ -494,6 +530,27 @@ def verify_freeze(path: Path) -> dict:
         or body.get("module_sha256") != sha256_bytes(Path(__file__).read_bytes())
     ):
         raise ValueError("frozen source/input binding changed")
+    successor = body.get("planning_successor")
+    if successor is not None:
+        from copy import deepcopy
+
+        from magicite.eval.grouped_evaluation import validate_incumbent_selection, validate_power_report
+
+        original = verify_freeze(Path(successor["path"]))
+        if original["identity"] != successor["identity"] or any(
+            value[k] != original[k] for k in ("input_root", "packet_name")
+        ):
+            raise ValueError("planning root/identity changed")
+        restored = deepcopy(body)
+        restored.pop("planning_successor")
+        power = restored["statistical_projection"]["protocol"]["power_plan"]["report"]
+        validate_power_report(power)
+        if power["identities"]["incumbent_policy_id"] != validate_incumbent_selection(successor["selection"]):
+            raise ValueError("power selection changed")
+        restored["statistical_projection"]["protocol"]["power_plan"] = None
+        restored["statistical_projection_sha256"] = sha256_json(restored["statistical_projection"])
+        if restored != original["binding"]:
+            raise ValueError("successor changes original non-power frozen bytes")
     root = Path(value["input_root"])
     packet = _object(json.loads(contained(root, value["packet_name"]).read_bytes()), "packet")
     if sha256_bytes(contained(root, value["packet_name"]).read_bytes()) != body["packet_sha256"]:

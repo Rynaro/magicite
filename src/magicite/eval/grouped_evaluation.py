@@ -269,8 +269,67 @@ def grouped_abstention(
     return report
 
 
+def validate_incumbent_selection(selection: dict) -> str:
+    """Recompute development-only selection, never trust a caller policy string."""
+    from magicite.core.routing_policy import (
+        POLICY_DENSE_V1,
+        POLICY_EXPERIMENTAL_SPARSE_V1,
+        POLICY_EXPERIMENTAL_TRIGGER_V1,
+    )
+
+    if not isinstance(selection, dict) or set(selection) != {
+        "schema",
+        "plan_digest",
+        "arm_order",
+        "labels",
+        "rows",
+        "incumbent",
+        "identity",
+    }:
+        raise ValueError("complete frozen incumbent selection required")
+    if selection["schema"] != "magicite/development-incumbent-selection/1" or selection[
+        "identity"
+    ] != sha256_json({k: v for k, v in selection.items() if k != "identity"}):
+        raise ValueError("incumbent selection integrity mismatch")
+    order = selection["arm_order"]
+    safe = {POLICY_DENSE_V1, POLICY_EXPERIMENTAL_SPARSE_V1, POLICY_EXPERIMENTAL_TRIGGER_V1}
+    if len(order) != len(set(order)) or set(order) != safe:
+        raise ValueError("frozen simple baseline set required")
+    labels = {r["query_id"]: r["relevance"] for r in selection["labels"]}
+    if len(labels) != len(selection["labels"]) or not labels:
+        raise ValueError("unique development selection membership required")
+    counts = {}
+    if set(selection["rows"]) != safe:
+        raise ValueError("complete simple baseline development observations required")
+    for policy in order:
+        rows = selection["rows"][policy]
+        if (
+            len(rows) != len(labels)
+            or {r["query_id"] for r in rows} != set(labels)
+            or any(r["policy_id"] != policy for r in rows)
+        ):
+            raise ValueError("complete frozen baseline development membership required")
+        counts[policy] = sum(
+            bool(
+                r["status"] == "selected"
+                and r["selected_ids"]
+                and labels[r["query_id"]].get(r["selected_ids"][0], 0) > 0
+            )
+            for r in rows
+        )
+    selected = max(order, key=lambda p: counts[p])
+    if selection["incumbent"] != selected:
+        raise ValueError("development selected incumbent mismatch")
+    return selected
+
+
 def paired_report(
-    projection: dict, candidate: list[dict], incumbent: list[dict], *, identities: dict
+    projection: dict,
+    candidate: list[dict],
+    incumbent: list[dict],
+    *,
+    identities: dict,
+    selection: dict | None = None,
 ) -> dict:
     if (
         not isinstance(projection, dict)
@@ -325,11 +384,10 @@ def paired_report(
         if len(mapped) != len(rows) or set(mapped) != expected:
             raise ValueError("complete exact paired query membership required")
         arms.append(mapped)
-    if (
-        any(len({r["policy_id"] for r in rows}) != 1 for rows in (candidate, incumbent))
-        or incumbent[0]["policy_id"] != "dense-v1"
-    ):
-        raise ValueError("each actual arm must have one frozen policy, incumbent dense-v1")
+    if any(len({r["policy_id"] for r in rows}) != 1 for rows in (candidate, incumbent)) or incumbent[0][
+        "policy_id"
+    ] != (validate_incumbent_selection(selection) if selection is not None else "dense-v1"):
+        raise ValueError("each actual arm must have one frozen policy and bound development incumbent")
     for qid in expected:
         a, b = arms[0][qid], arms[1][qid]
         from magicite.core.comparison_budget import ComparisonBudget
@@ -732,6 +790,8 @@ def validate_development_power_envelope(value: dict) -> None:
         "identities",
         "power_assumptions",
     }
+    if "incumbent_selection" in body:
+        required.add("incumbent_selection")
     if (
         set(body) != required
         or body["schema"] != "magicite/development-power-input/1"
@@ -764,7 +824,9 @@ def validate_development_power_envelope(value: dict) -> None:
         "config_digest": runtime["comparison_config_digest"],
         "comparison_budget_digest": None,
         "candidate_policy_id": identities["candidate_policy_id"],
-        "incumbent_policy_id": "dense-v1",
+        "incumbent_policy_id": validate_incumbent_selection(body["incumbent_selection"])
+        if "incumbent_selection" in body
+        else "dense-v1",
         "development_group_projection_digest": sha256_json(groups),
         "protocol_frame_digest": sha256_json(protocol),
     }
@@ -774,9 +836,19 @@ def validate_development_power_envelope(value: dict) -> None:
         expected_identities["comparison_budget_digest"] = ComparisonBudget.from_dict(
             protocol["comparison_budget"]
         ).digest
-    if identities != expected_identities or identities["candidate_policy_id"] == "dense-v1":
+    if (
+        identities != expected_identities
+        or identities["candidate_policy_id"] == identities["incumbent_policy_id"]
+    ):
         raise ValueError("power source/model/config/budget/group/protocol identity mismatch")
     arms = body["predictions"]
+    if "incumbent_selection" in body:
+        selection = body["incumbent_selection"]
+        if (
+            selection["labels"] != labels
+            or selection["rows"][identities["incumbent_policy_id"]] != arms["incumbent"]
+        ):
+            raise ValueError("selection differs from bound development labels/observations")
     if not isinstance(arms, dict) or set(arms) != {"candidate", "incumbent"}:
         raise ValueError("complete actual power arms required")
     observations = {

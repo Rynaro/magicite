@@ -143,6 +143,7 @@ class ActualRouter:
         *,
         rank_depth: int = 5,
         comparison_budget: Any = None,
+        evaluation_context: Any = None,
     ) -> None:
         if not isinstance(embedder, FastEmbedProvider):
             raise ValueError("production diagnostic requires actual FastEmbedProvider")
@@ -153,6 +154,7 @@ class ActualRouter:
         self.cfg, self.conn, self.embedder = cfg, conn, embedder
         self.rank_depth = rank_depth
         self.comparison_budget = comparison_budget
+        self.evaluation_context = evaluation_context
         if comparison_budget is not None and comparison_budget.output_k != rank_depth:
             raise ValueError("comparison output depth mismatch")
 
@@ -168,10 +170,20 @@ class ActualRouter:
             query=query["query_text"],
             context=query["compatibility_context"],
             k=self.rank_depth,
+            **(
+                {"_evaluation_context": self.evaluation_context}
+                if self.evaluation_context is not None
+                else {}
+            ),
             **({"comparison_budget": self.comparison_budget} if self.comparison_budget is not None else {}),
         )
         after = router._cached_route_index.cache_info()
-        if outcome.policy_id != self.cfg.routing_policy or outcome.decision is None:
+        expected_policy = (
+            self.evaluation_context.policy_id
+            if self.evaluation_context is not None
+            else self.cfg.routing_policy
+        )
+        if outcome.policy_id != expected_policy or outcome.decision is None:
             raise ValueError("actual policy dispatch or decision missing")
         decision = outcome.decision
         if decision.status == "error" and not raw_trace:
@@ -195,6 +207,10 @@ class ActualRouter:
             "index_generation_id": decision.index_generation_id,
             "rank_depth": self.rank_depth,
             "confidence": decision.confidence.value,
+            "calibration_digest": decision.calibration_digest,
+            "confidence_calibration_id": decision.confidence.calibration_id,
+            "production_active_identity": router._resolve_active_policy(self.cfg)[1],
+            "evaluation_only": self.evaluation_context is not None,
             "comparison_budget_digest": self.comparison_budget.digest
             if self.comparison_budget is not None
             else None,
@@ -202,7 +218,11 @@ class ActualRouter:
             if self.comparison_budget is not None
             else None,
             "candidate_work": dict(decision.truncations),
-            "confidence_reason": "Authenticated compatible top1 probability"
+            "confidence_reason": (
+                "Frozen evaluation probability; integrity only, no operator authority"
+                if self.evaluation_context is not None
+                else "Authenticated compatible top1 probability"
+            )
             if decision.confidence.value is not None
             else "No usable compatible probability for this result",
             "cache": {

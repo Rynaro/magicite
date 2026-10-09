@@ -317,7 +317,98 @@ def main(argv: list[str] | None = None) -> int:
     power.add_argument("--repetitions", type=int, required=True)
     power.add_argument("--seed", type=int, required=True)
     power.add_argument("--output", type=Path, required=True)
+    for name in ("benchmark-develop", "benchmark-fit", "benchmark-final", "benchmark-production-witness"):
+        command = subparsers.add_parser(
+            name, help="Actual protected routing; local observations remain nonqualifying"
+        )
+        command.add_argument("--project-root", type=Path, required=True)
+        command.add_argument("--model-cache", type=Path, required=True)
+        command.add_argument("--model-manifest", type=Path, required=True)
+        command.add_argument("--output", type=Path, required=True)
+        command.add_argument("--rank-depth", type=int, default=5)
+        if name == "benchmark-production-witness":
+            command.add_argument("--queries", type=Path, required=True)
+            command.add_argument("--profile", default="ci-smoke")
+        elif name == "benchmark-final":
+            command.add_argument("--commitment", type=Path, required=True)
+            command.add_argument("--replay", action="store_true")
+        else:
+            command.add_argument("--freeze", type=Path, required=True)
+            if name == "benchmark-develop":
+                command.add_argument("--plan", type=Path, required=True)
+                command.add_argument("--group-floors", required=True)
+                command.add_argument("--repetitions", type=int, required=True)
+            else:
+                command.add_argument("--development", type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.command.startswith("benchmark-"):
+        from magicite.core.comparison_budget import ComparisonBudget
+        from magicite.errors import InvalidInputError
+        from magicite.eval import calibration_consumer as consumer
+        from magicite.eval import protected_benchmark as benchmark
+        from magicite.eval.production import verify_model
+
+        try:
+            model = json.loads(args.model_manifest.read_bytes())
+            verify_model(args.model_cache, model)
+            actual = consumer.cli_actual(args.project_root, args.model_cache, args.rank_depth)
+            try:
+                if args.command == "benchmark-production-witness":
+                    result = benchmark.production_witness(
+                        actual,
+                        json.loads(args.queries.read_bytes()),
+                        args.output,
+                        model_cache=args.model_cache,
+                        model_manifest=model,
+                        profile_id=args.profile,
+                    )
+                else:
+                    if args.command == "benchmark-develop":
+                        plan = json.loads(args.plan.read_bytes())
+                    else:
+                        source = args.development if args.command == "benchmark-fit" else args.commitment
+                        plan = json.loads(source.read_bytes())["body"]["plan"]
+                    actual.comparison_budget = ComparisonBudget.from_dict(plan["comparison_budget"])
+                    if args.command == "benchmark-develop":
+                        result = benchmark.develop(
+                            args.freeze,
+                            args.plan,
+                            args.output,
+                            actual,
+                            model_cache=args.model_cache,
+                            model_manifest=model,
+                            group_floors=[int(n) for n in args.group_floors.split(",")],
+                            repetitions=args.repetitions,
+                        )
+                    elif args.command == "benchmark-fit":
+                        result = benchmark.fit(
+                            args.freeze,
+                            args.development,
+                            args.output,
+                            actual,
+                            model_cache=args.model_cache,
+                            model_manifest=model,
+                        )
+                    else:
+                        result = benchmark.final(
+                            args.commitment,
+                            args.output,
+                            actual,
+                            model_cache=args.model_cache,
+                            replay=args.replay,
+                        )
+            finally:
+                actual.conn.close()
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return (
+                2
+                if result.get("status", result.get("body", {}).get("status"))
+                in {"incomplete_power", "complete_with_errors", "incomplete"}
+                else 0
+            )
+        except (OSError, ValueError, KeyError, TypeError, InvalidInputError) as exc:
+            return _print_errors([str(exc)])
+
     if args.command == "plan-grouped-power":
         from magicite.eval.data_readiness import _publish_immutable
         from magicite.eval.grouped_evaluation import plan_grouped_power

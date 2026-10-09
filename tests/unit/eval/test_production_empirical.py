@@ -92,7 +92,8 @@ def test_actual_router_projection_rejects_annotations_and_preserves_dispatch(mon
     query = {"query_id": "q", "query_text": "public diagnostic", "compatibility_context": {}}
     seen = []
     decision = SimpleNamespace(
-        confidence=SimpleNamespace(value=None),
+        confidence=SimpleNamespace(value=None, calibration_id=None),
+        calibration_digest=None,
         truncations={},
         config_digest="config",
         status="selected",
@@ -116,6 +117,11 @@ def test_actual_router_projection_rejects_annotations_and_preserves_dispatch(mon
         )
 
     monkeypatch.setattr(production.router, "route", actual_call)
+    monkeypatch.setattr(
+        production.router,
+        "_resolve_active_policy",
+        lambda cfg: (cfg.routing_policy, "policy", "stable", None, None, ()),
+    )
     provider = production.ProductionEmbedder(tmp_path)
     adapter = production.ActualRouter(SimpleNamespace(routing_policy="dense-v1"), None, provider)
     first = adapter.predict(query)
