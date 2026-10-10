@@ -13,6 +13,7 @@ are recorded as UNEVALUATED with operator commands — never fabricated PASS.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -76,6 +77,9 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="legacy size list; overrides profile corpus_artifacts when set",
     )
+    parser.add_argument("--project-root", type=Path, help="preprovisioned exclusive benchmark root")
+    parser.add_argument("--model-cache", type=Path, help="owned frozen production cache")
+    parser.add_argument("--model-manifest", type=Path, help="pre-execution observed model manifest")
     parser.add_argument("--single-process", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--calls", type=int, default=None, help="measured calls (overrides profile)")
     parser.add_argument("--warmup", type=int, default=None, help="warmup calls (overrides profile)")
@@ -143,6 +147,10 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output", type=Path, help="write the JSON result to this path")
     args = parser.parse_args()
+    if (args.model_cache is None) != (args.model_manifest is None):
+        parser.error("--model-cache and --model-manifest must be provided together")
+    if args.model_cache is not None and args.provider != "production":
+        parser.error("frozen model cache requires production provider")
     if args.sizes is not None and any(size < 1 for size in args.sizes):
         parser.error("--sizes values must be positive")
     if args.calls is not None and args.calls < 2:
@@ -150,6 +158,98 @@ def _parse_args() -> argparse.Namespace:
     if args.warmup is not None and args.warmup < 1:
         parser.error("--warmup must be positive")
     return args
+
+
+def _verify_frozen_model(cache: Path, manifest_path: Path) -> dict[str, Any]:
+    from importlib.metadata import version
+
+    from magicite.eval.production import verify_model
+
+    expected = json.loads(manifest_path.read_bytes())
+    verify_model(cache, expected)
+    if {name: version(name) for name in expected["libraries"]} != expected["libraries"]:
+        raise ValueError("frozen model library inventory changed")
+    return expected
+
+
+def _provider(cfg: Config, cache: Path | None = None) -> Any:
+    if cache is None:
+        return get_embedder(cfg)
+    from magicite.embeddings.fastembed_provider import FastEmbedProvider
+
+    return CachingEmbedder(
+        FastEmbedProvider(cache_dir=str(cache), offline=True), maxsize=cfg.embedding_cache_size
+    )
+
+
+def _clean_project_root(root: Path, *, protected: bool) -> dict[str, Any]:
+    """Inspect pre-enrolled state without deleting or modifying prior workloads."""
+    if not root.is_absolute() or root != root.resolve() or not root.is_dir():
+        raise ValueError("project root must be an existing canonical absolute directory")
+    if any(part.is_symlink() for part in (root, *root.parents)):
+        raise ValueError("symlink project root is unsafe")
+    cfg = Config(project_root=root)
+    allowed = {cfg.db_path, Path(str(cfg.db_path) + "-wal"), Path(str(cfg.db_path) + "-shm")}
+    lock = cfg.dream_lock_path
+    if lock.exists() or lock.is_symlink():
+        if (
+            lock.is_symlink()
+            or not lock.is_file()
+            or lock.stat().st_size != 0
+            or lock.stat().st_uid != os.getuid()
+            or lock.stat().st_mode & 0o022
+        ):
+            raise ValueError(
+                "bootstrap writer lock must be client-owned regular empty non-writable-to-others"
+            )
+        allowed.add(lock)
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise ValueError("symlink within project root is unsafe")
+        if path.is_file() and path not in allowed and not path.is_relative_to(cfg.data_dir / "trust"):
+            if path != cfg.data_dir / "magicite.toml":
+                raise ValueError("project root contains preexisting workload or output")
+    counts = {}
+    if cfg.db_path.exists():
+        from magicite.storage.migrations.registry import MAX_KNOWN_SCHEMA_VERSION
+
+        with sqlite3.connect(f"file:{cfg.db_path}?mode=ro", uri=True) as conn:
+            if db_mod.schema_version(conn) != MAX_KNOWN_SCHEMA_VERSION:
+                raise ValueError("bootstrap database schema mismatch")
+            tables = [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+            # Bootstrap metadata/lease and SQLite FTS internals are not workload rows.
+            for table in tables:
+                if (
+                    table in {"schema_meta", "writer_lease", "trust_policy_meta"}
+                    or table.startswith("index_fts_")
+                    or table.startswith("sqlite_")
+                ):
+                    continue
+                if table == "index_active_pointer":
+                    if conn.execute("SELECT * FROM index_active_pointer").fetchall() != [
+                        (1, None, None, "1970-01-01T00:00:00+00:00")
+                    ]:
+                        raise ValueError("nonempty active index bootstrap metadata")
+                    continue
+                if table == "evidence_meta":
+                    metadata = conn.execute("SELECT * FROM evidence_meta").fetchall()
+                    if metadata != [(1, "EvidenceLedger/1", 0, None, 1, "1970-01-01T00:00:00+00:00")]:
+                        raise ValueError("nonempty evidence bootstrap metadata")
+                    continue
+                count = conn.execute('SELECT COUNT(*) FROM "' + table.replace('"', '""') + '"').fetchone()[0]
+                counts[table] = count
+                if count:
+                    raise ValueError("bootstrap database contains workload rows: " + table)
+    receipt = {"project_root": str(root), "empty_table_counts": counts}
+    if protected:
+        from magicite.core import trust, writer_guard
+
+        registry_id, _ = writer_guard.resolve_custody(cfg)
+        snapshot = trust.authenticated_snapshot(cfg)
+        if snapshot.head["head_sequence"] != 1 or snapshot.decisions:
+            raise ValueError("preprovisioned authority must contain reviewed genesis only")
+        receipt.update(registry_id=registry_id, authenticated_genesis_head=snapshot.head)
+    return receipt
 
 
 def _now() -> str:
@@ -413,19 +513,25 @@ def _timed_route(
 
 
 def _cold_process_ready(
-    cfg: Config, db_path: Path, query: Any, provider: str, custody: list[str] | None = None
+    cfg: Config,
+    db_path: Path,
+    query: Any,
+    provider: str,
+    custody: list[str] | None = None,
+    model_cache: Path | None = None,
+    model_manifest: Path | None = None,
 ) -> float:
     """Wall time for a new serving process through first serialized route."""
     program = """
 import sys, json
 from pathlib import Path
+root, database, query, provider, custody, script, cache, manifest = json.loads(sys.argv[1])
 from magicite.config import Config
 from magicite.embeddings import get_embedder
 from magicite.storage import db
 from magicite.core import router
 from magicite.mcp.bind_retrieval import project_route_output
 from magicite.eval.query_context import corpus_route_context
-root, database, query, provider, custody, script = json.loads(sys.argv[1])
 if custody is not None:
     import importlib.util
     spec = importlib.util.spec_from_file_location('benchmark_matrix', script)
@@ -441,12 +547,37 @@ try:
     context = None
     if isinstance(query, dict):
         context = corpus_route_context(query.get('compatibility_context', {}))
-    outcome = router.route(cfg, conn, get_embedder(cfg), query=text, route_context=context,
+    if cache is None:
+        embedder = get_embedder(cfg)
+    else:
+        from magicite.embeddings.fastembed_provider import FastEmbedProvider
+        from magicite.embeddings.cache import CachingEmbedder
+        embedder = CachingEmbedder(
+            FastEmbedProvider(cache_dir=cache, offline=True), maxsize=cfg.embedding_cache_size
+        )
+    outcome = router.route(cfg, conn, embedder, query=text, route_context=context,
                            k=5, session_id='cold-ready')
     project_route_output(outcome).model_dump_json()
 finally:
     conn.close()
 """
+    if model_cache is not None:
+        # Separate fresh verifier process is outside the unchanged launch-to-exit timer.
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import sys,json,importlib.metadata;from pathlib import Path;"
+                "from magicite.eval.production import verify_model;p=Path(sys.argv[1]);"
+                "e=json.loads(Path(sys.argv[2]).read_bytes());verify_model(p,e);"
+                "assert {n:importlib.metadata.version(n) for n in e['libraries']}==e['libraries']",
+                str(model_cache),
+                str(model_manifest),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
     started = time.perf_counter()
     subprocess.run(
         [
@@ -454,7 +585,16 @@ finally:
             "-c",
             program,
             json.dumps(
-                [str(cfg.project_root), str(db_path), query, provider, custody, str(Path(__file__).resolve())]
+                [
+                    str(cfg.project_root),
+                    str(db_path),
+                    query,
+                    provider,
+                    custody,
+                    str(Path(__file__).resolve()),
+                    str(model_cache) if model_cache else None,
+                    str(model_manifest) if model_manifest else None,
+                ]
             ),
         ],
         capture_output=True,
@@ -707,10 +847,30 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "n_candidates": None,
         }
 
+    explicit_root = getattr(args, "project_root", None)
+    model_cache = getattr(args, "model_cache", None)
+    model_manifest = getattr(args, "model_manifest", None)
+    if (model_cache is None) != (model_manifest is None):
+        raise ValueError("model cache and manifest must be paired")
+    if model_cache is not None:
+        _verify_frozen_model(model_cache, model_manifest)
+        result["frozen_model"] = {
+            "cache": str(model_cache.resolve()),
+            "manifest_sha256": hashlib.sha256(model_manifest.read_bytes()).hexdigest(),
+            "publisher_authenticated": False,
+        }
+    if explicit_root is not None:
+        result["project_preflight"] = _clean_project_root(
+            explicit_root, protected=args.custody == "protected"
+        )
     result["custody"] = {"mode": args.custody, "deployment_qualification": "UNEVALUATED"}
     try:
         with (
-            tempfile.TemporaryDirectory(prefix="magicite-benchmark-") as temp_dir,
+            (
+                contextlib.nullcontext(str(explicit_root))
+                if explicit_root is not None
+                else tempfile.TemporaryDirectory(prefix="magicite-benchmark-")
+            ) as temp_dir,
             tempfile.TemporaryDirectory(prefix="magicite-benchmark-custody-") as custody_parent,
         ):
             project_root = Path(temp_dir).resolve()
@@ -722,7 +882,7 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             if args.custody == "disposable-simulated":
                 custody_dir = Path(custody_parent).resolve() / "private"
                 custody = [str(custody_dir), _enroll_disposable_custody(cfg, custody_dir)]
-            embedder = get_embedder(cfg)
+            embedder = _provider(cfg, model_cache)
             result["fingerprint"]["model_name"] = embedder.model_name
             model_digest = getattr(embedder, "model_digest", None) or getattr(
                 embedder, "artifact_digest", None
@@ -730,7 +890,7 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             result["fingerprint"]["model_digest"] = str(model_digest) if model_digest else "unavailable"
 
             size = sizes[0]
-            db_path = project_root / f"benchmark-{size}.db"
+            db_path = cfg.db_path if explicit_root is not None else project_root / f"benchmark-{size}.db"
             build_started = time.perf_counter()
             rss_before = process_rss_gib()
             conn = db_mod.connect(db_path)
@@ -764,12 +924,14 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                         json.dumps([tuple(row) for row in rows], separators=(",", ":")).encode()
                     ).hexdigest()
                     result["corpus"]["artifact_bytes"] = sum(
-                        path.stat().st_size for path in cfg.registry_dir.rglob("*") if path.is_file()
+                        path.stat().st_size for path in cfg.registry_dir.rglob("*.egr.md") if path.is_file()
                     )
                 build_s = time.perf_counter() - build_started
                 # Index construction may load the model; construct a fresh
                 # provider so cold-ready includes model initialization on route.
-                embedder = get_embedder(cfg)
+                if model_cache is not None:
+                    _verify_frozen_model(model_cache, model_manifest)
+                embedder = _provider(cfg, model_cache)
                 raw = _measure_profile(
                     cfg,
                     conn,
@@ -782,7 +944,13 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 )
                 conn.commit()
                 cold_ready = _cold_process_ready(
-                    cfg, db_path, _query_for_index(0, measure_queries), provider_name, custody
+                    cfg,
+                    db_path,
+                    _query_for_index(0, measure_queries),
+                    provider_name,
+                    custody,
+                    model_cache,
+                    model_manifest,
                 )
                 raw["cold_ready_s"] = cold_ready
                 for cold_state in ("cold_process", "cold_model"):
@@ -793,12 +961,21 @@ def _run(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                     )
                 raw["index_build_s"] = round(build_s, 6)
                 raw["index_build_peak_rss_gib"] = round(max(process_rss_gib(), rss_before), 6)
+                if model_cache is not None:
+                    _verify_frozen_model(model_cache, model_manifest)
                 inner = getattr(embedder, "_inner", embedder)
                 runtime = getattr(inner, "_model", None)
                 model = getattr(runtime, "model", None)
                 model_dir = getattr(model, "_model_dir", None)
+                if model_cache is not None and model_dir is None:
+                    raise ValueError("actual loaded model directory unavailable")
                 if model_dir is not None:
                     model_root = Path(model_dir)
+                    if model_cache is not None and not model_root.resolve().is_relative_to(
+                        model_cache.resolve()
+                    ):
+                        raise ValueError("loaded production model outside frozen cache")
+                    result["loaded_model_directory"] = str(model_root.resolve())
                     hashes = [
                         (str(path.relative_to(model_root)), hashlib.sha256(path.read_bytes()).hexdigest())
                         for path in sorted(model_root.rglob("*"))
@@ -900,6 +1077,10 @@ def _apply_ga_eligibility(
     if getattr(args, "custody", "protected") != "protected":
         eligible = False
         reasons = [*reasons, f"custody={args.custody!r} (deployment custody UNEVALUATED)"]
+    if result.get("fingerprint", {}).get("machine") in {"aarch64", "arm64"}:
+        eligible = False
+        reasons = [*reasons, "native ARM observation; original performance reference is Linux amd64"]
+        result["reference_role"] = "native-arm-observation"
     corpus["ga_eligible"] = eligible
     corpus["ga_ineligible_reasons"] = reasons
     result["corpus"] = corpus
@@ -916,6 +1097,16 @@ def _run_repetitions(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     if args.single_process or count == 1:
         return _run(args)
     runs = []
+    explicit_root = getattr(args, "project_root", None)
+    roots = [explicit_root / f"repetition-{index:03d}" for index in range(count)] if explicit_root else []
+    if roots:
+        if len({root.resolve() for root in roots}) != count:
+            raise ValueError("duplicate repetition roots")
+        for root in roots:
+            _clean_project_root(root, protected=args.custody == "protected")
+    evidence_dir = args.output.parent / (args.output.stem + "-children") if args.output else None
+    if evidence_dir:
+        evidence_dir.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryDirectory(prefix="magicite-repetitions-") as directory:
         for index in range(count):
             output = Path(directory) / f"run-{index}.json"
@@ -931,7 +1122,14 @@ def _run_repetitions(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "--output",
                 str(output),
             ]
+            if roots:
+                command += ["--project-root", str(roots[index])]
             child = subprocess.run(command, capture_output=True, text=True, check=False)
+            if evidence_dir:
+                (evidence_dir / f"run-{index}.stdout").write_text(child.stdout)
+                (evidence_dir / f"run-{index}.stderr").write_text(child.stderr)
+                if output.is_file():
+                    (evidence_dir / output.name).write_bytes(output.read_bytes())
             if not output.is_file():
                 raise RuntimeError("benchmark child did not produce evidence")
             run = json.loads(output.read_text())
