@@ -8,10 +8,9 @@ qualification. macOS production custody remains unqualified. The existing
 [Linux custody qualification](qualification/linux-custody.md) records its own
 bounded evidence; its runner is not a workstation installer.
 
-After this prerequisite is complete, source installations containing the new
-`magicite init --host claude` command can perform [one-command project connection](quick-setup.md#one-command-connection-source--next-build-only).
-The published **1.0.0rc1 wheel does not contain `init`** and uses the manual Quick
-Setup steps. Init checks existing custody; it never provisions privileged accounts,
+After this prerequisite is complete, version 1.0.0 can perform
+[one-command project connection](quick-setup.md#one-command-connection).
+Init checks existing custody; it never provisions privileged accounts,
 enrollment, protected directories or genesis, and never promotes imported drafts.
 
 Use this recipe for a **new registry**. Existing registries need the migration
@@ -26,7 +25,7 @@ client account for CLI approval, model fetching, and MCP.
 
 The client follows [Install](install.md). The custodian also needs the same
 verified wheel in an independently managed Python 3.12 environment. As root,
-create `/opt/magicite-preview/venv` and install the wheel already verified by
+create `/opt/magicite/venv` and install the wheel already verified by
 Install; keep that environment and its ancestors root-owned, without group or
 world writes. Do not run the custodian using a client-writable interpreter or
 package directory.
@@ -34,11 +33,11 @@ package directory.
 ```bash
 set -euo pipefail
 # Administrator: replace this with the wheel verified in Install.
-VERIFIED_WHEEL=/absolute/path/to/magicite-1.0.0rc1-py3-none-any.whl
-sudo mkdir -p /opt/magicite-preview
-sudo python3.12 -m venv /opt/magicite-preview/venv
-sudo /opt/magicite-preview/venv/bin/python -m pip install "$VERIFIED_WHEEL"
-sudo /opt/magicite-preview/venv/bin/magicite --version
+VERIFIED_WHEEL=/absolute/path/to/magicite-1.0.0-py3-none-any.whl
+sudo mkdir -p /opt/magicite
+sudo python3.12 -m venv /opt/magicite/venv
+sudo /opt/magicite/venv/bin/python -m pip install "$VERIFIED_WHEEL"
+sudo /opt/magicite/venv/bin/magicite --version
 ```
 
 Verify the custodian can execute this environment. Protected custody paths and
@@ -58,7 +57,7 @@ PROJECT=$(realpath /absolute/path/to/your-project)
 CLIENT_ACCOUNT=alice
 CUSTODIAN_ACCOUNT=magicite-custodian
 CLIENT_UID=$(id -u "$CLIENT_ACCOUNT")
-CUSTODY_BIN=/opt/magicite-preview/venv/bin/magicite
+CUSTODY_BIN=/opt/magicite/venv/bin/magicite
 CUSTODY_BASE=/var/lib/magicite-custody/my-project
 REGISTRY_ID=my-project
 OPERATOR=your-operator-identity
@@ -84,7 +83,7 @@ Keep autonomous approval disabled: do not set `MAGICITE_AUTONOMOUS=1` or enable
 it in project configuration.
 
 ```bash
-sudo -u "$CUSTODIAN_ACCOUNT" /opt/magicite-preview/venv/bin/python -c \
+sudo -u "$CUSTODIAN_ACCOUNT" /opt/magicite/venv/bin/python -c \
   'import json; from magicite.core.trust import default_policy; print(json.dumps(default_policy().to_dict()))' \
   | sudo -u "$CUSTODIAN_ACCOUNT" tee "$CUSTODY_BASE/policy.json" >/dev/null
 cat "$CUSTODY_BASE/policy.json"
@@ -154,7 +153,7 @@ sudo -u "$CUSTODIAN_ACCOUNT" "$CUSTODY_BIN" custody serve \
 Project client, in another terminal (replace both absolute paths):
 
 ```bash
-MAGICITE=/home/alice/.local/share/magicite-preview/venv/bin/magicite
+MAGICITE=/home/alice/.local/share/magicite/venv/bin/magicite
 PROJECT=$(realpath /absolute/path/to/your-project)
 "$MAGICITE" custody initialize-journal --project-root "$PROJECT"
 "$MAGICITE" custody status --project-root "$PROJECT"

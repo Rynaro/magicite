@@ -3,16 +3,21 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/) —
-with one deliberate exception noted below: **0.1.0 is not a promise of
-stability.** The central design hypothesis this project was built to test
-remains unsupported by its own measurements (see "Honest limits" below),
-and the pre-registered reversal conditions in `docs/01`'s Falsification
-Record could still move shipped defaults. A `1.0.0` would claim a
-confidence the evidence does not support, so the version does not move
-until that changes.
+and this project uses [Semantic Versioning](https://semver.org/). Version 1.0.0
+bounds its promise to implemented functionality; it does not claim the research
+hypothesis, scale budgets, or independent security certification are established.
+Historical entries and their original limitations remain below.
 
 ## [Unreleased]
+
+## [1.0.0] — 2026-10-11
+
+- Release the existing local MCP knowledge workflow, stable dense default,
+  protected trust/lifecycle operations, and `magicite init --host claude`.
+- Align installation and setup with GitHub wheel/source packages and signed OCI;
+  production PyPI remains deferred.
+- Record the maintainer-approved functional scope and open qualification work
+  in [release notes](docs/releases/1.0.0.md).
 
 ## [0.3.1] — 2026-08-18
 

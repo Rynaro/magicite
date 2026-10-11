@@ -1,15 +1,17 @@
 # Magicite v1 integration authority
 
-The installed package identity is 1.0.0rc1. A limited native preview is published;
-new integration source changes are not included in that published artifact.
-Neither the preview nor integration source declares that original v1 GA gates passed.
-The [draft preview contract](releases/1.0.0-rc.1.md) defines its limited advertised
-scope; it does not amend or pass the original GA acceptance criteria.
+The package identity is **1.0.0**. The maintainer approved the bounded functional
+release roadmap on 2026-10-11. The [v1 release scope](releases/1.0.0.md) governs
+this release promise; it does not declare the broader qualification campaign
+passed. Historical RC artifacts and measurements retain their original status.
 
 ## Authority order
 
-1. Frozen [v1 acceptance criteria](../.spectra/plans/magicite-v1/acceptance.md),
-   contracts, evaluation and release gates, plus explicitly accepted amendments.
+1. The [approved functional v1 roadmap](releases/v1/roadmap-proposal-2026-10-11.md)
+   and [release scope](releases/1.0.0.md). The frozen
+   [broader qualification criteria](../.spectra/plans/magicite-v1/acceptance.md)
+   remain historical/open requirements for their separately tracked campaign;
+   release approval does not mark them passed.
 2. Installed runtime schemas and tests, with the [generated reference](generated/runtime-reference.json)
    checked against actual version, engram schemas, 16 MCP tools, CLI and config.
 3. Current documents `02` through `07`, operations and adapter guides. The
@@ -70,12 +72,13 @@ or default-cache model fails closed. No model is fetched by admission.
 
 Threshold margins do not establish probability calibration. Calibrated decisions
 retain null probability confidence. Positive tests use explicitly synthetic
-authenticated test custody and prove engineering mechanics only. GA-R1 closure
-leaves the five fixed items unchanged: grouped statistical/confidence evaluation,
+authenticated test custody and prove engineering mechanics only. The historical GA-R1 qualification closure
+left these campaign items open: grouped statistical/confidence evaluation,
 protected benchmark integration, authentic fresh final quality qualification,
 platform/install/recovery/distribution qualification, and independent release
 candidates/external reproduction with an explicit GA decision. No authentic
-E2/E3 result or release qualification follows from these fixtures.
+E2/E3 result or release qualification follows from these fixtures. The broader
+campaign is deferred under the approved functional release scope.
 
 ## Historical 0.3 semantic decisions (superseded where v1 differs)
 

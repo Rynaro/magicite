@@ -8,7 +8,7 @@ Magicite is a local-first MCP server that routes an agent to the right skill,
 captures what happened, and turns that evidence into reviewable improvements.
 
 [![CI](https://github.com/Rynaro/magicite/actions/workflows/ci.yml/badge.svg)](https://github.com/Rynaro/magicite/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0rc1-7c3aed)](docs/releases/1.0.0-rc.1.md)
+[![Version](https://img.shields.io/badge/version-1.0.0-7c3aed)](docs/releases/1.0.0.md)
 [![Python](https://img.shields.io/badge/python-3.12-3776ab?logo=python&logoColor=white)](pyproject.toml)
 [![MCP](https://img.shields.io/badge/MCP-stdio-0f766e)](https://modelcontextprotocol.io/)
 [![License](https://img.shields.io/github/license/Rynaro/magicite)](LICENSE)
@@ -47,10 +47,13 @@ sandboxing, and execution.
 | **Governed** | Every tool has a risk and side-effect class. Durable lifecycle changes are approval-gated by default and leave an audit trail. |
 | **Host-agnostic** | Any MCP client can use the core server. Hooks improve signal quality, but they are an adapter—not a dependency. |
 
-The **1.0.0rc1 developer preview is [published](https://github.com/Rynaro/magicite/releases/tag/preview/v1.0.0-rc.1)**. The [preview contract](docs/releases/1.0.0-rc.1.md) bounds the
-Python 3.12 native-package and scoped route/read observations; it does not
-qualify a combined production deployment or the original v1 GA contract. See the [current authority](docs/AUTHORITY.md), [operator tutorial](docs/operator-tutorial.md),
-and [UNEVALUATED evidence catalog](docs/evaluation/v1/unevaluated.md).
+Version **1.0.0** ships the existing local MCP knowledge workflow under the
+[approved functional release scope](docs/releases/1.0.0.md). Distribution uses
+GitHub wheel/source packages and signed OCI; production PyPI is deferred.
+Linux protected custody and Python 3.11/3.12 are the supported runtime profile.
+Scale performance, retrieval quality, production adoption, and production macOS
+custody remain unqualified. See [current authority](docs/AUTHORITY.md) and the
+[operator tutorial](docs/operator-tutorial.md).
 
 ## Quick start
 
@@ -59,19 +62,19 @@ references in order:
 
 | Reference | What you do |
 |---|---|
-| [Install](docs/install.md) | Verify the published wheel and install it in a permanent Python 3.12 environment. |
+| [Install](docs/install.md) | Verify the published wheel and install it in a permanent Python 3.11/3.12 environment. |
 | [Setup](docs/setup.md) | Have a Linux administrator provision independent protected custody for the project. |
 | [Quick Setup](docs/quick-setup.md) | Fetch the model, connect MCP, import and approve a skill, then route and load its body. |
 
 Once Install and Setup are complete, **[Quick Setup](docs/quick-setup.md)** is the
-short project-user path. Custody is mandatory; this preview does not yet have a
-one-command bootstrap. macOS production custody remains unqualified. Keep
+short project-user path. Custody is mandatory and must be provisioned by an
+administrator before project connection. macOS production custody remains unqualified. Keep
 autonomous approval disabled and review each imported skill's exact digest.
 
-### One-command project connection (source / next build)
+### One-command project connection
 
-The published **1.0.0rc1 wheel does not include `magicite init`**. From a source
-installation containing this command, after administrator [Setup](docs/setup.md):
+Version 1.0.0 includes `magicite init`. After [Install](docs/install.md) and
+administrator [Setup](docs/setup.md):
 
 ```bash
 magicite init --host claude --project-root /absolute/path/to/project
@@ -91,7 +94,7 @@ imports or approves skills. A terminal operator may separately elect import from
 identity. Noninteractive runs configure and verify, then print manual import and
 review commands. Approval does not promote imported drafts; an empty registry is
 connected with skill preparation still remaining. See [Quick Setup](docs/quick-setup.md)
-for failure recovery and the manual path supported by the published preview.
+for failure recovery and the manual connection path.
 
 The repository's 30 first-party engrams are examples requiring the same review;
 their count is not evidence of a break-even point or routing quality.
@@ -332,7 +335,7 @@ documented in the [operations configuration reference](docs/operations.md#10-qui
 | [Install](docs/install.md) | Published wheel, checksum verification, and permanent Python environment. |
 | [Setup](docs/setup.md) | Linux administrator custody prerequisites and manual provisioning. |
 | [Quick Setup](docs/quick-setup.md) | First approved project skill through MCP. |
-| [Authority manifest](docs/AUTHORITY.md) | What defines current preview behavior when historical records disagree. |
+| [Authority manifest](docs/AUTHORITY.md) | What defines the functional v1 promise when historical records disagree. |
 | [Documentation index](docs/README.md) | The complete reading order and terminology. |
 | [Vision and hypotheses](docs/01-vision-and-hypotheses.md) | Problem statement, falsification record, and research agenda. |
 | [Architecture](docs/02-architecture.md) | Hot/write/Dream paths, storage, concurrency, and security boundary. |
@@ -366,7 +369,8 @@ remain synchronized with the runtime.
 
 ## Project status
 
-Magicite 1.0.0rc1 is a published developer preview.
+Magicite 1.0.0 is the bounded functional release described in the
+[release notes](docs/releases/1.0.0.md).
 The portable format, MCP surface, integrity model, lifecycle governance, and
 Dream recovery are implemented. The research question—whether graph and
 plasticity layers improve routing over simpler retrieval—remains open by
@@ -374,7 +378,7 @@ design, measured rather than assumed.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and
 [GitHub Releases](https://github.com/Rynaro/magicite/releases) for historical
-artifacts; this preview publishes native wheel and source packages.
+artifacts. The v1 channels are GitHub wheel/source packages and signed OCI.
 
 ## License
 
