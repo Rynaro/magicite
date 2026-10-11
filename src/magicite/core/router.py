@@ -1396,7 +1396,7 @@ def _pin_index_identity(
             ),
         )
     try:
-        meta = catalog.pin(gid)
+        meta = catalog.pin_identity(gid)
     except index_gen_mod.IndexGenerationError:
         return (
             None,
