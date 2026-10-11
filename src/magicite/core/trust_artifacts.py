@@ -356,12 +356,7 @@ def require_bound_artifact(cfg: Any, path: Any) -> Any:
     artifact, _ = load_registry_artifact(cfg, path)
     snapshot = journal_for(cfg).snapshot()
     require_enrollment_marker(artifact, snapshot.head["registry_id"])
-    if not any(
-        record["kind"] == "artifact_transform"
-        and record["payload"]["engram_id"] == artifact.id
-        and record["payload"]["target_digest"] == artifact.content_sha256
-        for record in snapshot.records
-    ):
+    if (artifact.id, artifact.content_sha256) not in snapshot.transformed_targets:
         raise CustodianError("artifact has no authenticated transformed content identity")
     return artifact
 

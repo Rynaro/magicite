@@ -36,6 +36,7 @@ class TrustSnapshot:
     latest_by_engram: dict[str, dict[str, Any]]
     records: tuple[dict[str, Any], ...]
     source_signers: dict[tuple[str, str], frozenset[str]]
+    transformed_targets: frozenset[tuple[str, str]]
 
 
 _AUTHORED_TRANSFORMS = frozenset(
@@ -172,7 +173,13 @@ class _Replay:
         if hashlib.sha256(_bytes(self.policy)).hexdigest() != head["policy_digest"]:
             raise CustodianError("snapshot policy commitment mismatch")
         return TrustSnapshot(
-            head, self.policy, tuple(self.decisions), self.latest, self.records, self.source_signers
+            head,
+            self.policy,
+            tuple(self.decisions),
+            self.latest,
+            self.records,
+            self.source_signers,
+            self.transformed_targets,
         )
 
 

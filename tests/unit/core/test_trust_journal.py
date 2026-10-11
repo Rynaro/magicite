@@ -453,3 +453,100 @@ def test_concurrent_local_write_during_append_window_closes_and_drops_cache(jour
     monkeypatch.setattr(trust_journal, "_append_file", real_append)
     with pytest.raises(CustodianError):
         ledger.snapshot()
+
+
+def test_authenticated_transformed_targets_match_history_prefixes(journal):
+    import hashlib
+    from pathlib import Path
+
+    from magicite.core.trust_artifacts import mark_artifact
+    from magicite.core.trust_custodian import _bytes
+
+    ledger, store = journal
+    source = (
+        Path(__file__).resolve().parents[2] / "fixtures/engram-v1/positive/sample-host-tooling.egr.md"
+    ).read_bytes()
+    lineage = mark_artifact(
+        source, registry_id="registry-one", relpath="sample.egr.md", actor="operator"
+    ).lineage
+    pairs = [
+        (lineage["engram_id"], lineage["target_digest"]),
+        ("wrong-id", lineage["target_digest"]),
+        (lineage["engram_id"], "0" * 64),
+    ]
+
+    def check():
+        snapshot = ledger.snapshot()
+        assert isinstance(snapshot.transformed_targets, frozenset)
+        expected = frozenset(
+            (r["payload"]["engram_id"], r["payload"]["target_digest"])
+            for r in snapshot.records
+            if r["kind"] == "artifact_transform"
+        )
+        assert snapshot.transformed_targets == expected
+        for pair in pairs:
+            assert (pair in snapshot.transformed_targets) == any(
+                r["kind"] == "artifact_transform"
+                and (r["payload"]["engram_id"], r["payload"]["target_digest"]) == pair
+                for r in snapshot.records
+            )
+        return snapshot
+
+    assert not check().transformed_targets
+    commit(ledger, store, "unrelated", "revoke", "2026-01-01T00:00:00Z")
+    assert not check().transformed_targets
+    fence = store.register_fence(
+        "registry-one",
+        predecessor=store.read_current("registry-one"),
+        attempt_id="transform-test",
+        holder="lease",
+        local_token=1,
+    )
+    identity = "transform-" + hashlib.sha256(_bytes(lineage)).hexdigest()
+    for _ in range(2):
+        ledger.append(
+            record_id=identity,
+            kind="artifact_transform",
+            payload=lineage,
+            fence=fence,
+            assert_owned=lambda: None,
+        )
+        snapshot = check()
+        assert len(snapshot.transformed_targets) == 1
+    duplicate = mark_artifact(
+        source, registry_id="registry-one", relpath="sample.egr.md", actor="second-operator"
+    ).lineage
+    ledger.append(
+        record_id="transform-" + hashlib.sha256(_bytes(duplicate)).hexdigest(),
+        kind="artifact_transform",
+        payload=duplicate,
+        fence=fence,
+        assert_owned=lambda: None,
+    )
+    snapshot = check()
+    assert len(snapshot.transformed_targets) == 1
+    assert sum(r["kind"] == "artifact_transform" for r in snapshot.records) == 2
+    head = store.read_current("registry-one")
+    store.rotate_prepare(
+        "registry-one", fence=fence, expected_head=head, transition_id="membership-epoch", actor="operator"
+    )
+    committed = store.rotate_commit(
+        "registry-one", fence=fence, expected_head=head, transition_id="membership-epoch"
+    )
+    store.rotate_finish("registry-one", transition_id="membership-epoch", expected_head=committed)
+    new_fence = store.register_fence(
+        "registry-one",
+        predecessor=store.read_current("registry-one"),
+        attempt_id="after-epoch",
+        holder="lease",
+        local_token=2,
+    )
+    ledger.reconcile(fence=new_fence, assert_owned=lambda: None)
+    rotated = check()
+    assert rotated.head["epoch"] == 2
+    assert rotated.transformed_targets == snapshot.transformed_targets
+    snapshot = rotated
+    trust_journal._VERIFIED_SNAPSHOTS.clear()
+    cold = check()
+    assert cold.transformed_targets == snapshot.transformed_targets
+    assert cold.records == snapshot.records

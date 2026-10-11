@@ -170,3 +170,101 @@ def test_registry_loader_rejects_invalid_utf8_without_rewrite(cfg):
     with pytest.raises(UnicodeDecodeError):
         load_registry_artifact(cfg, target)
     assert target.read_bytes() == raw
+
+
+@pytest.mark.parametrize("mutation", ["none", "file", "marker", "missing_lineage"])
+def test_bound_membership_matches_old_scan_and_fresh_reads(cfg, db_conn, monkeypatch, mutation):
+    from magicite.core import trust_artifacts, writer_guard
+
+    target = cfg.registry_dir / "membership.egr.md"
+    with writer_guard.registry_writer_lease(cfg, db_conn).acquire():
+        trust_artifacts.publish_new_artifact(cfg, target, FIXTURE.read_bytes(), actor="membership-test")
+    if mutation == "file":
+        target.write_bytes(target.read_bytes() + b"\nChanged fresh source.\n")
+    elif mutation == "marker":
+        marked = mark_artifact(
+            FIXTURE.read_bytes(), registry_id="wrong-registry", relpath=str(target), actor="membership-test"
+        )
+        target.write_bytes(marked.target)
+    elif mutation == "missing_lineage":
+        source = FIXTURE.read_bytes().replace(b"egr_8ac41f09", b"egr_00000000")
+        # Exact valid marker, but no authenticated transform for these different bytes.
+        marked = mark_artifact(
+            source,
+            registry_id=writer_guard.journal_for(cfg).registry_id,
+            relpath=str(target),
+            actor="membership-test",
+        )
+        target.write_bytes(marked.target.replace(b"name: sample-host-tooling", b"name: missing-lineage"))
+
+    def baseline():
+        artifact, _ = trust_artifacts.load_registry_artifact(cfg, target)
+        snapshot = writer_guard.journal_for(cfg).snapshot()
+        trust_artifacts.require_enrollment_marker(artifact, snapshot.head["registry_id"])
+        if not any(
+            record["kind"] == "artifact_transform"
+            and record["payload"]["engram_id"] == artifact.id
+            and record["payload"]["target_digest"] == artifact.content_sha256
+            for record in snapshot.records
+        ):
+            raise CustodianError("artifact has no authenticated transformed content identity")
+        return artifact
+
+    def observed(read):
+        try:
+            value = read()
+            return ("value", value.id, value.content_sha256)
+        except Exception as exc:
+            return ("error", type(exc), str(exc))
+
+    calls = {"load": 0, "snapshot": 0, "marker": 0}
+    load = trust_artifacts.load_registry_artifact
+    marker = trust_artifacts.require_enrollment_marker
+    snapshot_method = type(writer_guard.journal_for(cfg)).snapshot
+
+    def counted_load(*args, **kwargs):
+        calls["load"] += 1
+        return load(*args, **kwargs)
+
+    def counted_snapshot(*args, **kwargs):
+        calls["snapshot"] += 1
+        return snapshot_method(*args, **kwargs)
+
+    def counted_marker(*args, **kwargs):
+        calls["marker"] += 1
+        return marker(*args, **kwargs)
+
+    monkeypatch.setattr(trust_artifacts, "load_registry_artifact", counted_load)
+    monkeypatch.setattr(trust_artifacts, "require_enrollment_marker", counted_marker)
+    monkeypatch.setattr(type(writer_guard.journal_for(cfg)), "snapshot", counted_snapshot)
+    old = observed(baseline)
+    old_calls = dict(calls)
+    calls.update(load=0, snapshot=0, marker=0)
+    new = observed(lambda: trust_artifacts.require_bound_artifact(cfg, target))
+    assert new == old
+    assert calls == old_calls
+    assert calls["load"] == 1
+    if mutation != "file":
+        assert calls == {"load": 1, "snapshot": 1, "marker": 1}
+    assert new[0] == ("value" if mutation == "none" else "error")
+
+
+def test_authored_targets_remain_historical_lineage_without_admission(cfg, db_conn):
+    from magicite.core import trust_artifacts, writer_guard
+    from magicite.core.trust_journal import _VERIFIED_SNAPSHOTS
+
+    target = cfg.registry_dir / "authored-membership.egr.md"
+    with writer_guard.registry_writer_lease(cfg, db_conn).acquire():
+        trust_artifacts.publish_new_artifact(cfg, target, FIXTURE.read_bytes(), actor="author-test")
+        original = trust_artifacts.require_bound_artifact(cfg, target)
+        content = target.read_bytes().replace(b"Proton", b"PROTON")
+        trust_artifacts.publish_authored_edit(
+            cfg, target, content, expected_source_digest=original.content_sha256, actor="author-test"
+        )
+    snapshot = writer_guard.journal_for(cfg).snapshot()
+    latest = trust_artifacts.require_bound_artifact(cfg, target)
+    assert (original.id, original.content_sha256) in snapshot.transformed_targets
+    assert (latest.id, latest.content_sha256) in snapshot.transformed_targets
+    assert snapshot.latest_by_engram == {}  # Lineage supplies no admission decision.
+    _VERIFIED_SNAPSHOTS.clear()
+    assert writer_guard.journal_for(cfg).snapshot().transformed_targets == snapshot.transformed_targets
