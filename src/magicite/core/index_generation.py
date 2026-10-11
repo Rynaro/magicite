@@ -368,6 +368,16 @@ class IndexedEntry:
         return self.body_digest or self.projection.body_digest
 
 
+@dataclass(frozen=True)
+class GenerationIdentity:
+    """Live generation metadata without decoding unused entry payloads."""
+
+    generation_id: str
+    snapshot_id: str
+    fingerprint: IndexFingerprint
+    status: Literal["building", "complete", "published", "superseded", "failed", "rejected"]
+
+
 @dataclass
 class GenerationMeta:
     generation_id: str
@@ -721,7 +731,12 @@ class IndexCatalog:
             raise IndexGenerationError(f"unknown generation {generation_id!r}")
         return str(row["state"])
 
-    def pin(self, generation_id: str | None = None) -> GenerationMeta:
+    def pin_identity(self, generation_id: str | None = None) -> GenerationIdentity:
+        """Read current identity/state; entry decoding belongs to full ``pin``.
+
+        This validates generation metadata, not unused entry payloads. Explicit
+        complete generations retain the same acceptance rules as full pinning.
+        """
         gid = generation_id if generation_id is not None else self.active_generation_id()
         if gid is None:
             raise IncompleteGenerationError("no active index generation")
@@ -742,12 +757,22 @@ class IndexCatalog:
             )
         fp_raw = json.loads(row["fingerprint_json"])
         snapshot_id = str(fp_raw.get("snapshot_id") or "")
-        return GenerationMeta(
+        return GenerationIdentity(
             generation_id=gid,
             snapshot_id=snapshot_id,
             fingerprint=_fingerprint_from_dict(fp_raw),
             status=state,  # type: ignore[arg-type]
-            entries=self._load_entries(gid),
+        )
+
+    def pin(self, generation_id: str | None = None) -> GenerationMeta:
+        """Pin generation metadata and eagerly decode its complete entry set."""
+        identity = self.pin_identity(generation_id)
+        return GenerationMeta(
+            generation_id=identity.generation_id,
+            snapshot_id=identity.snapshot_id,
+            fingerprint=identity.fingerprint,
+            status=identity.status,
+            entries=self._load_entries(identity.generation_id),
         )
 
 
