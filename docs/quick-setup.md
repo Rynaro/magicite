@@ -2,14 +2,12 @@
 
 Start here **after [Install](install.md) and administrator [Setup](setup.md)**.
 You need a running protected custodian, initialized project journal, and the
-client account pinned in the project descriptor. This is the published
-1.0.0rc1 developer preview; production macOS custody remains unqualified.
+client account pinned in the project descriptor. Version 1.0.0 includes the
+connection command; production macOS custody remains unqualified.
 
-## One-command connection: source / next build only
+## One-command connection
 
-**The published 1.0.0rc1 package lacks `init`.** Use the manual steps below with
-that package. From a source installation containing the command, after completed
-administrator Setup, run inside the existing enrolled project:
+After completed administrator Setup, run inside the existing enrolled project:
 
 ```sh
 magicite init --host claude
@@ -59,7 +57,7 @@ Never replace a concurrent edit with a backup without reviewing both.
 As the same client account/environment that will run MCP:
 
 ```sh
-MAGICITE=/home/alice/.local/share/magicite-preview/venv/bin/magicite
+MAGICITE=/home/alice/.local/share/magicite/venv/bin/magicite
 PROJECT=$(realpath /absolute/path/to/your-project)
 "$MAGICITE" fetch-model
 "$MAGICITE" doctor --project-root "$PROJECT"
@@ -81,7 +79,7 @@ client after changing its configuration.
 {
   "mcpServers": {
     "magicite": {
-      "command": "/home/alice/.local/share/magicite-preview/venv/bin/magicite",
+      "command": "/home/alice/.local/share/magicite/venv/bin/magicite",
       "args": ["serve", "--project-root", "/absolute/path/to/your-project"],
       "env": {"MAGICITE_EMBEDDING_OFFLINE": "1"}
     }
