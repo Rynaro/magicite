@@ -1,0 +1,11 @@
+{
+  "evidence_class": "synthetic_fixture",
+  "fixture": true,
+  "group_keys": {
+    "repository": "fixture-repository1",
+    "session": "fixture-session1",
+    "task": "fixture-task1"
+  },
+  "revision": "fixture-r1",
+  "source_id": "fixture-source1"
+}

@@ -119,11 +119,17 @@ def upsert_engram(conn: sqlite3.Connection, engram: Engram, *, identity_sha256: 
     )
 
     conn.execute("DELETE FROM engram_step WHERE engram_id = ?", (fm.id,))
-    for step in engram.body.procedure:
+    # Imported prose may restart visible list numbering. The file/parsed
+    # labels remain authoritative; only their otherwise-colliding DB keys use
+    # occurrence order, retaining every entry and its learning fields.
+    labels = [step.step_no for step in engram.body.procedure]
+    repeated_labels = len(set(labels)) != len(labels)
+    for ordinal, step in enumerate(engram.body.procedure, 1):
+        storage_key = ordinal if repeated_labels else step.step_no
         conn.execute(
             "INSERT INTO engram_step (engram_id, step_no, text, ok_count, total_count, fault_class) "
             "VALUES (?,?,?,?,?,?)",
-            (fm.id, step.step_no, step.text, step.ok_count, step.total_count, step.fault_class),
+            (fm.id, storage_key, step.text, step.ok_count, step.total_count, step.fault_class),
         )
 
     conn.execute("DELETE FROM engram_trigger WHERE engram_id = ?", (fm.id,))

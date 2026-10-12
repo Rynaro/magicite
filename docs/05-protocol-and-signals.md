@@ -1,5 +1,21 @@
 # 05. Protocol and Signals: MCP Surface and Host Integration
 
+## Current v1 integration contract
+
+The runtime exposes exactly 16 tools. The generated runtime reference binds
+actual input/output schema digests and CLI/config inventories. CLI trust,
+policy (including reconcile), evidence, backup and doctor commands are not MCP
+tools. Route abstention exposes no plan nodes or plan digest; body loading needs
+the route's expected_content_digest and expected_policy_digest and revalidates trust/content/policy.
+Generic stdio fixture transcripts pin the actual SDK/protocol. Real Claude Code
+and bounded fuzz evidence remain UNEVALUATED; a broad dependency is not host
+conformance. Historical w_retrieval=0.05 applies only to experimental adaptation.
+
+See [AUTHORITY](AUTHORITY.md), [generated reference](generated/runtime-reference.json),
+and [operator tutorial](operator-tutorial.md).
+
+## Retained design and historical context
+
 **Status:** Draft-refined / v1  
 **Provenance:** exploratory/consolidated-research-graph-mcp-proposal.md Part IV.5–IV.7, engram-format.md §7, FINDING-010, FINDING-012, GAP-003, mcp20-server-dossier.md sections 1–2  
 **Decisions implemented:** [DECISION D3] Tiered signal-fidelity ladder; unified tool inventory; hooks demoted to optional adapter; [GAP-003] closed by design

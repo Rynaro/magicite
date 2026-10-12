@@ -1,0 +1,100 @@
+{
+  "artifacts": [
+    {
+      "path": "uv.lock",
+      "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+    },
+    {
+      "path": "src/magicite/core/registry.py",
+      "sha256": "af85d15e30255faba98f5638d69c2fa46d20bef32d1477b790dfa08b6a1ea8fc"
+    },
+    {
+      "path": "src/magicite/core/approvals.py",
+      "sha256": "80be539aa0cb21e4f50540320aa1cf375f67574e73252d5b7de963b2e0e92ef2"
+    },
+    {
+      "path": "src/magicite/obs/doctor.py",
+      "sha256": "61a5f1a003cde3e6a51a90701113189ec9317f95a2000cf2936b187166aec29d"
+    },
+    {
+      "path": "src/magicite/core/trust_journal.py",
+      "sha256": "f6042c85c297e9d3ab73338addcf8423d3497fbc7003710c9d1f9e652f2e6a49"
+    },
+    {
+      "path": "src/magicite/core/trust_custodian.py",
+      "sha256": "68c7a6e3114acd98c6f699a5e1726357c6c7ef765ccdefa2f248d67ac9e18ad2"
+    },
+    {
+      "path": "src/magicite/core/trust_custodian_transport.py",
+      "sha256": "0d3131fb4f1e6623fc7eed7a7478484e63300a62092f8a1ca32ddb73ad2da797"
+    },
+    {
+      "path": "src/magicite/core/writer_guard.py",
+      "sha256": "fee5814250496a003efc24d61d83e7cc284807adf987142df8aaef6dcf6ef528"
+    },
+    {
+      "path": "src/magicite/core/evidence.py",
+      "sha256": "05f8a64fa29109af5c74491ea6d1688bef9a556fa9e047d3ad2da7d13c04b6d7"
+    },
+    {
+      "path": "src/magicite/core/fingerprint_key.py",
+      "sha256": "80490caf0c14f3e96d7d4f4453ff1d175ab9dc9718a2d69d8f6c1eb58033659f"
+    },
+    {
+      "path": "src/magicite/core/backup.py",
+      "sha256": "51a9204deedee3ca5f7d9a27cf7240ba42144871a2936779bc4f0814e41ef34f"
+    },
+    {
+      "path": "src/magicite/config.py",
+      "sha256": "b49c5f408257ad72f8b951c89bc49e2f517cb1704393c4b4553b867398e17ca9"
+    },
+    {
+      "path": "tests/unit/core/test_review_approve_busy_wait.py",
+      "sha256": "befdc5b76ae36dfd22a896b71bc01770cf07c225ad7dcc22414f871b25105f63"
+    },
+    {
+      "path": "tests/unit/obs/test_doctor.py",
+      "sha256": "3c6c8b67a272bd73d7d11972de1bead3c09e258aef2c795364c8f7aedb6cd04d"
+    },
+    {
+      "path": "tests/unit/obs/test_th_custody_zero_write_canary.py",
+      "sha256": "f40f6e396247118e9549dbb10e6fb74818877179478035302d98c45ca9b317c1"
+    },
+    {
+      "path": "tests/integration/test_trust_recovery.py",
+      "sha256": "b5606673ca1aee52012c82a5e59ff2552b06a539cfd47298d7e2786e24a3dec4"
+    },
+    {
+      "path": "tests/unit/core/test_trust_atlas_fixes.py",
+      "sha256": "377aedee0da3f552c7c9dde5d4d6a88fcaeb6acc8308a20b06ecd5732bf91451"
+    },
+    {
+      "path": "tests/unit/core/test_th_single_snapshot_sites.py",
+      "sha256": "c37757890e3d942802941b21af8756901d1dcb5df1ca29040e39ecac929c466e"
+    },
+    {
+      "path": "tests/integration/test_th10_old_reader_downgrade.py",
+      "sha256": "2d1623d5ddc6f65732524162bc51c61599919e48679da2c00c292a2292d81051"
+    },
+    {
+      "path": "scripts/check_release_manifest.py",
+      "sha256": "b48e895b561aa2c97e2f5573c6973fad6ca93ea8897cfe409b972bc4ade612e5"
+    },
+    {
+      "path": ".spectra/plans/magicite-v1/release-gates.md",
+      "sha256": "a71ae83746c3490985ed7ed3a70735d673e838dc8051c1a59e5f0ff1052ba19b"
+    },
+    {
+      "path": ".spectra/plans/v1-r3-qualification.acceptance.md",
+      "sha256": "b66c3d4f30804cae51207594d36683e566653bb1621cdcdc5b2cba93317f9480"
+    }
+  ],
+  "historical_r2": {
+    "base_source": "9692735e453c0b2f722ced1c251934839342bcb2",
+    "base_tree_sha256": "e6533efedc8e927c4a2560410100938b33d3a595eeb33a61ba4aab67cee113c0",
+    "candidate_tree_sha256": "e6533efedc8e927c4a2560410100938b33d3a595eeb33a61ba4aab67cee113c0",
+    "changed": false
+  },
+  "schema": "magicite/r3-source-bindings/1",
+  "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4"
+}

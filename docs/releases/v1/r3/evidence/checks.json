@@ -1,0 +1,134 @@
+[
+  {
+    "id": "pytest",
+    "argv": [
+      "/private/tmp/magicite-r3-qualification/venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "--cov=src/magicite",
+      "--cov-report=term-missing",
+      "--cov-fail-under=70",
+      "--junitxml=/private/tmp/magicite-r3-qualification/candidate-evidence-c2/junit.xml",
+      "-p",
+      "no:cacheprovider",
+      "-m",
+      "not benchmark"
+    ],
+    "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q --cov=src/magicite --cov-report=term-missing --cov-fail-under=70 --junitxml=/private/tmp/magicite-r3-qualification/candidate-evidence-c2/junit.xml -p no:cacheprovider -m \"not benchmark\"",
+    "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+    "started_at": "2026-10-05T18:54:45.878155+00:00",
+    "finished_at": "2026-10-05T18:59:37.298293+00:00",
+    "seconds": 291.419,
+    "exit_code": 0,
+    "log": "pytest.txt",
+    "sha256": "337cfe21bd7fbd846a733dbe30a45b439b074aeb5ac5a1dd8ba81e8648930be1"
+  },
+  {
+    "id": "focused",
+    "argv": [
+      "/private/tmp/magicite-r3-qualification/venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/unit/core/test_review_approve_busy_wait.py",
+      "tests/unit/obs/test_doctor.py",
+      "tests/unit/obs/test_th_custody_zero_write_canary.py",
+      "tests/integration/test_trust_recovery.py"
+    ],
+    "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+    "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+    "started_at": "2026-10-05T18:59:37.298836+00:00",
+    "finished_at": "2026-10-05T18:59:40.020255+00:00",
+    "seconds": 2.722,
+    "exit_code": 0,
+    "log": "focused.txt",
+    "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+  },
+  {
+    "id": "ruff",
+    "argv": [
+      "/private/tmp/magicite-r3-qualification/venv/bin/ruff",
+      "check",
+      "--no-cache",
+      "."
+    ],
+    "command": "/private/tmp/magicite-r3-qualification/venv/bin/ruff check --no-cache .",
+    "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+    "started_at": "2026-10-05T18:59:40.020479+00:00",
+    "finished_at": "2026-10-05T18:59:40.097081+00:00",
+    "seconds": 0.077,
+    "exit_code": 0,
+    "log": "ruff.txt",
+    "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  {
+    "id": "mypy",
+    "argv": [
+      "/private/tmp/magicite-r3-qualification/venv/bin/mypy",
+      "--cache-dir",
+      "/private/tmp/magicite-r3-qualification/mypy-cache",
+      "src"
+    ],
+    "command": "/private/tmp/magicite-r3-qualification/venv/bin/mypy --cache-dir /private/tmp/magicite-r3-qualification/mypy-cache src",
+    "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+    "started_at": "2026-10-05T18:59:40.097264+00:00",
+    "finished_at": "2026-10-05T18:59:40.407342+00:00",
+    "seconds": 0.31,
+    "exit_code": 0,
+    "log": "mypy.txt",
+    "sha256": "d197d6017d587f21ad64746c2d6847a7ecaac183b973fcf4aa19a188a269cd3f"
+  },
+  {
+    "id": "generated",
+    "argv": [
+      "/private/tmp/magicite-r3-qualification/venv/bin/python",
+      "scripts/check_generated_docs.py"
+    ],
+    "command": "/private/tmp/magicite-r3-qualification/venv/bin/python scripts/check_generated_docs.py",
+    "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+    "started_at": "2026-10-05T18:59:40.407526+00:00",
+    "finished_at": "2026-10-05T18:59:40.852461+00:00",
+    "seconds": 0.445,
+    "exit_code": 0,
+    "log": "generated.txt",
+    "sha256": "c901f6b1c625776df96ce7b2bf0ac16a616f04b6977bcac4df948624ab2d89b3"
+  },
+  {
+    "id": "docs",
+    "argv": [
+      "/private/tmp/magicite-r3-qualification/venv/bin/python",
+      "scripts/check_docs.py"
+    ],
+    "command": "/private/tmp/magicite-r3-qualification/venv/bin/python scripts/check_docs.py",
+    "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+    "started_at": "2026-10-05T18:59:40.852680+00:00",
+    "finished_at": "2026-10-05T18:59:40.985380+00:00",
+    "seconds": 0.133,
+    "exit_code": 0,
+    "log": "docs.txt",
+    "sha256": "95bb245045e53ccb29ddcc8b12671d7193d5041ca43f478a6665ccef8cf5971b"
+  },
+  {
+    "id": "release-negative-controls",
+    "argv": [
+      "/private/tmp/magicite-r3-qualification/venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/unit/test_release_manifest.py"
+    ],
+    "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/test_release_manifest.py",
+    "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+    "started_at": "2026-10-05T18:59:40.985605+00:00",
+    "finished_at": "2026-10-05T18:59:45.802608+00:00",
+    "seconds": 4.817,
+    "exit_code": 0,
+    "log": "release-negative-controls.txt",
+    "sha256": "d409030ee28a73ae789da363e2b1380c6f51b713a4def48984467c215a2a208d"
+  }
+]

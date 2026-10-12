@@ -1,0 +1,34 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "ebcbafec-cf5a-4d8b-aa33-610fdd4e287f",
+  "thread_id": "9fe7ae18-1ba8-45fd-b3ee-a9269ce1fa20",
+  "parent_id": "382d6fee-76e8-4f02-9c6c-eed95efcc4ad",
+  "from": {
+    "eidolon": "vigil",
+    "version": "1.8.0"
+  },
+  "to": {
+    "eidolon": "orchestrator",
+    "version": "n/a"
+  },
+  "performative": "INFORM",
+  "edge_origin": "composition",
+  "objective": "Accept all ten bounded measured-C4 engineering criteria after independent8784-row reconciliation; retain C3 producer provenance and broader release limits.",
+  "artifact": {
+    "kind": "independent-acceptance-report",
+    "schema_version": "1.0",
+    "path": "independent-c4-final-review.md",
+    "sha256": "d02d329f8adba1874bda36981cd7cb73bb2c1b49ef8898c8f2bbf2c042742014",
+    "size_bytes": 2149
+  },
+  "integrity": {
+    "method": "sha256",
+    "value": "d02d329f8adba1874bda36981cd7cb73bb2c1b49ef8898c8f2bbf2c042742014"
+  },
+  "trace": {
+    "ts": "2026-10-08T01:28:03.855604+00:00",
+    "host": "codex",
+    "model": "gpt-6-astra",
+    "tier": "standard"
+  }
+}

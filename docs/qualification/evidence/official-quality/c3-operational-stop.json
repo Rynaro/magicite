@@ -1,0 +1,36 @@
+{
+  "source_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+  "status": "INCOMPLETE_OPERATIONAL_STOP",
+  "supervisor_exit_code": 130,
+  "supervisor_pid": 71074,
+  "stopped_at": 1791417191.019051,
+  "scope": "train-only execution; no heldout query, repeat, policy/threshold fit or budget increase",
+  "completed_rows": 6,
+  "row_elapsed_seconds": [
+    25.485624499997357,
+    23.588661665999098,
+    23.548451125010615,
+    23.512681541993516,
+    23.41854266700102,
+    23.502145959006157
+  ],
+  "checkpoint_completed": 6,
+  "checkpoint_pending": {
+    "allocated_seconds": 120,
+    "query_id": "train:q-train-003628",
+    "started_at": 1791417125.565011,
+    "worker_pid": 71123
+  },
+  "query_budget_spent_seconds": 143.05610745900776,
+  "original_query_timeout_seconds": 120,
+  "original_phase_budget_seconds": 7200,
+  "heldout_policy_requested_rows": 4392,
+  "heldout_mean_budget_seconds": 1.639344262295082,
+  "interpretation": "Repeated warm train costs show serious full-test feasibility risk. Actual test-pool query cost has not been measured; no claim of measured heldout latency. Preserve source and consult prospective pure cache-efficiency scope.",
+  "repeat_controls": "NOT RUN",
+  "raw_row_sha256": "447eafc34034425a75150a67ccd7a83e0004dbebef8a1f543f277dcb3292ca70",
+  "checkpoint_sha256": "bb3646175c6420b28bf4a20f1d47bfdfa0e36f5d669b319ed49ac2d976d7a15e",
+  "log_sha256": "47ac7d09ced68afcb6ea7cda60552ecc3cee37941adfe18c98e27e031331555a",
+  "source_mutated": false,
+  "all_owned_processes_terminated": true
+}

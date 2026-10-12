@@ -2,6 +2,14 @@
 idempotency, the ``synapses:``/``plasticity:`` checkpoint procedure, and
 the enqueue/dedup machinery ``consolidate()``/``session_end()`` share.
 
+**V1 S00 policy boundary.** Dream continues to update historical
+``engram.storage_strength`` / ``edge.storage_strength`` (research baseline
+and experimental adaptive inputs). Those writes MUST NOT alter the active
+stable policy digest (``core.routing_policy.active_stable_policy_digest``):
+stable ``dense-v1`` ranking never reads Dream-written strengths. A release
+that restores implicit adaptation by re-blending Dream state into the
+default is not an acceptable rollback.
+
 **Where each phase's input actually comes from (read this before touching
 Phase 2).** Phase 2 (Potentiate) computes Δw for ``engram.storage_strength``
 and ``edge.storage_strength`` **exclusively** from captured, unconsumed
@@ -52,8 +60,10 @@ from magicite.core import audit as audit_mod
 from magicite.core import decay as decay_mod
 from magicite.core import distill as distill_mod
 from magicite.core import plasticity as plasticity_mod
+from magicite.core import routing_policy as policy_mod
+from magicite.core import trust as trust_mod
+from magicite.core import trust_artifacts, writer_guard
 from magicite.engram import ids as ids_mod
-from magicite.engram import parser as parser_mod
 from magicite.engram import writer as writer_mod
 from magicite.engram.model import (
     Engram,
@@ -63,6 +73,7 @@ from magicite.engram.model import (
     ProvenanceJournalEntry,
     Synapse,
 )
+from magicite.engram.model_v1 import EngramV1, ProvenanceJournalEntryV1
 from magicite.errors import BusyError, NotFoundError, TransitionDeniedError
 from magicite.storage import ephemeral as ephemeral_mod
 from magicite.storage import lease as lease_mod
@@ -129,8 +140,7 @@ def enqueue(
     exactly this dedup path.
     """
     existing = conn.execute(
-        "SELECT id FROM consolidation_run WHERE state IN ('queued', 'running') "
-        "ORDER BY rowid DESC LIMIT 1"
+        "SELECT id FROM consolidation_run WHERE state IN ('queued', 'running') ORDER BY rowid DESC LIMIT 1"
     ).fetchone()
     if existing is not None:
         return EnqueueOutcome(
@@ -227,9 +237,7 @@ def _prune_learned_edges(conn: sqlite3.Connection, cfg: Config) -> list[tuple[st
         if float(r["storage_strength"]) < cfg.theta_prune:
             new_count = int(r["below_prune_runs"]) + 1
             if new_count >= 3:
-                conn.execute(
-                    "DELETE FROM edge WHERE src_id = ? AND dst_name = ? AND type = ?", key
-                )
+                conn.execute("DELETE FROM edge WHERE src_id = ? AND dst_name = ? AND type = ?", key)
                 pruned.append(key)
             else:
                 conn.execute(
@@ -258,9 +266,7 @@ def _phase2_potentiate(
 
     for tag in trace.node_tags:
         engram_id = str(tag["engram_id"])
-        row = conn.execute(
-            "SELECT storage_strength FROM engram WHERE id = ?", (engram_id,)
-        ).fetchone()
+        row = conn.execute("SELECT storage_strength FROM engram WHERE id = ?", (engram_id,)).fetchone()
         if row is None:
             ephemeral_mod.mark_tag_consumed(conn, int(tag["id"]), run_id=run_id)
             continue
@@ -459,9 +465,7 @@ def _phase5_distill(cfg: Config, conn: sqlite3.Connection, *, run_id: str) -> di
     Dream's automatic pass and an operator's on-demand one are exactly one
     implementation. Proposal-only (CR-3): writes ``approval`` rows,
     never an engram."""
-    outcome = distill_mod.run_distillation(
-        cfg, conn, proposed_by="dream-worker", session_ids=None
-    )
+    outcome = distill_mod.run_distillation(cfg, conn, proposed_by="dream-worker", session_ids=None)
     return {
         "candidates": len(outcome.candidates),
         "approval_ids": outcome.approval_ids,
@@ -496,6 +500,22 @@ class _CheckpointCandidate:
     frontmatter_doc: Any
     path: Path
     changed: bool
+    typed: EngramV1
+
+
+def _render_checkpoint_v1(typed: EngramV1, candidate: Engram) -> str:
+    current = typed.model_copy(deep=True)
+    legacy = dict(current.frontmatter.legacy or {})
+    legacy["plasticity"] = (candidate.frontmatter.plasticity.model_dump(mode="json")
+                            if candidate.frontmatter.plasticity else None)
+    legacy["peak_storage_strength"] = candidate.frontmatter.peak_storage_strength
+    legacy["synapses"] = [item.model_dump(mode="json") for item in candidate.frontmatter.synapses]
+    current.frontmatter.legacy = legacy
+    current.frontmatter.origin.journal = [
+        ProvenanceJournalEntryV1(**entry.model_dump())
+        for entry in candidate.frontmatter.provenance_journal
+    ]
+    return writer_mod.render_document_v1(current)
 
 
 def _build_synapses(conn: sqlite3.Connection, cfg: Config, engram_id: str) -> list[Synapse]:
@@ -555,8 +575,14 @@ def _build_checkpoint_candidate(
     file_path = project_root / str(engram_row["path"])
     if not file_path.is_file():
         return None
-    parsed = parser_mod.parse_file(file_path, registry_root=project_root)
-    engram = parsed.engram
+    from magicite.core.registry import project_v1_to_durable_engram
+    typed = trust_artifacts.require_bound_artifact(cfg, file_path)
+    if trust_mod.admission_still_valid(cfg,engram_id=typed.id,content_digest=typed.content_sha256,
+            resource_digest=trust_mod.compute_resource_digest_at(cfg,relpath=typed.path)):
+        # Full-byte admissions cannot survive an adaptive rewrite. Historical
+        # state remains in its existing stores; no implicit reapproval occurs.
+        return None
+    engram = project_v1_to_durable_engram(typed,server_origin="authored")
 
     db_row = conn.execute("SELECT * FROM engram WHERE id = ?", (engram.id,)).fetchone()
     if db_row is None:
@@ -589,15 +615,16 @@ def _build_checkpoint_candidate(
     # synapses/version keys in place, but each call's returned string is
     # captured immediately, so reusing one CommentedMap sequentially here
     # is safe.
-    original_rendered = writer_mod.render_document(engram, parsed.frontmatter_doc)
-    candidate_text = writer_mod.render_document(candidate, parsed.frontmatter_doc)
+    original_rendered = _render_checkpoint_v1(typed, engram)
+    candidate_text = _render_checkpoint_v1(typed, candidate)
     changed = candidate_text != original_rendered
     return _CheckpointCandidate(
         engram=candidate,
         source_engram=engram,
-        frontmatter_doc=parsed.frontmatter_doc,
+        frontmatter_doc=None,
         path=file_path,
         changed=changed,
+        typed=typed,
     )
 
 
@@ -712,8 +739,10 @@ def _phase7_checkpoint(
             # freshly-rebuilt DB re-parses the file and computes the file's
             # *actual*, current digest, which would never match the stale
             # value this row carried before the rebuild.
-            final_text = writer_mod.render_document(candidate, built.frontmatter_doc)
-            writer_mod.atomic_write(built.path, final_text)
+            final_text = _render_checkpoint_v1(built.typed, candidate)
+            trust_artifacts.publish_authored_edit(cfg,built.path,final_text.encode(),
+                expected_source_digest=built.typed.content_sha256,actor="dream-worker",
+                transform_id="magicite-dream-checkpoint/1")
             if fault_hook is not None:
                 fault_hook(f"checkpoint:file:{row['name']}")
             new_content_sha256 = ids_mod.content_sha256(final_text.encode("utf-8"))
@@ -748,8 +777,8 @@ def run_checkpoint_only(cfg: Config, conn: sqlite3.Connection) -> CheckpointStat
     interleave writes to the same files)."""
     cfg.ensure_dirs()
     project_root = cfg.project_root.resolve()
-    cross_lease = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path, conn=conn, holder=f"checkpoint:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+    cross_lease = writer_guard.registry_writer_lease(
+        cfg, conn, holder=f"checkpoint:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
     with cross_lease.acquire():
         with lease_mod.writer_lease(holder="checkpoint"):
@@ -787,8 +816,10 @@ def archive_engram(
         raise TransitionDeniedError(
             f"cannot archive {name!r}: status {row['status']!r} is not a legal source "
             "for the any(!=draft) -> archived transition",
-            unmet=[f"status {row['status']!r} is excluded (draft was never routable; "
-                   "archived is already archived)"],
+            unmet=[
+                f"status {row['status']!r} is excluded (draft was never routable; "
+                "archived is already archived)"
+            ],
         )
 
     now = _now()
@@ -799,8 +830,8 @@ def archive_engram(
     # independent writer of durable engram state and must not interleave
     # with a running Dream cycle either -- the cross-process lease, not
     # just G2's in-process one.
-    cross_lease = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path, conn=conn, holder=f"archive-tool:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+    cross_lease = writer_guard.registry_writer_lease(
+        cfg, conn, holder=f"archive-tool:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
     with cross_lease.acquire():
         with lease_mod.writer_lease(holder="archive-tool"):
@@ -826,6 +857,9 @@ class DreamRunResult:
     archived_engrams: list[str]
     started_at: str
     finished_at: str
+    #: Active stable policy digest before/after the run (AC-S00-02). Dream
+    #: may mutate historical strengths; this digest must remain identical.
+    stable_policy_digest: str = ""
 
 
 def _claim_run(conn: sqlite3.Connection, *, trigger: str) -> sqlite3.Row:
@@ -999,8 +1033,9 @@ def run(
     """
     cfg.ensure_dirs()
     project_root = cfg.project_root.resolve()
-    cross_lease = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path, conn=conn, holder=f"dream:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+    digest_before = policy_mod.active_stable_policy_digest(cfg)
+    cross_lease = writer_guard.registry_writer_lease(
+        cfg, conn, holder=f"dream:{os.getpid()}:{uuid.uuid4().hex[:6]}"
     )
 
     with cross_lease.acquire():
@@ -1125,6 +1160,17 @@ def run(
             checkpoint_payload = stats["checkpoint"]
             finished_at = str(recovery["finished_at"])
 
+    digest_after = policy_mod.active_stable_policy_digest(cfg)
+    if digest_before != digest_after:
+        raise RuntimeError(
+            "Dream mutated the active stable policy digest; "
+            "historical strength updates must not change dense-v1 identity"
+        )
+    stats["stable_policy"] = {
+        "digest": digest_after,
+        "unchanged": True,
+    }
+
     return DreamRunResult(
         run_id=run_id,
         state="succeeded",
@@ -1136,4 +1182,5 @@ def run(
         archived_engrams=list(stats["decay"]["archived"]),
         started_at=started_at,
         finished_at=finished_at,
+        stable_policy_digest=digest_after,
     )

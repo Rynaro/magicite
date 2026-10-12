@@ -1,0 +1,27 @@
+import json
+import pytest
+from tests.unit.core.test_review_approve_busy_wait import approval_subject
+from magicite.core import registry, approvals
+from magicite.errors import InvalidInputError
+
+@pytest.mark.parametrize('damage', ['missing', 'empty', 'actor', 'time', 'sequence', 'state'])
+def test_replay_rejects_incomplete_audit_without_overwrite(approval_subject, cfg, db_conn, damage):
+    registry.review_approve(cfg, db_conn, **approval_subject)
+    mirror = next(cfg.approvals_dir.glob('*.json'))
+    data = json.loads(mirror.read_text())
+    if damage == 'missing':
+        data.pop('audit_log')
+    elif damage == 'empty':
+        data['audit_log'] = []
+    elif damage == 'state':
+        data['state'] = 'approved'
+    else:
+        key, value = {'actor': ('actor', 'other'), 'time': ('at', 'other'), 'sequence': ('sequence', 9)}[damage]
+        data['audit_log'][0][key] = value
+    mirror.write_text(json.dumps(data))
+    before_mirror = mirror.read_bytes()
+    before_record = approvals.get(db_conn, data['id'])
+    with pytest.raises(InvalidInputError, match='reconciliation'):
+        registry.review_approve(cfg, db_conn, **approval_subject)
+    assert approvals.get(db_conn, data['id']) == before_record
+    assert mirror.read_bytes() == before_mirror

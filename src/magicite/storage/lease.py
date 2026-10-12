@@ -49,6 +49,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Protocol
 
 from magicite.errors import BusyError
 
@@ -75,9 +76,7 @@ _HOLDER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 #: a callee opens). Only the outermost ``release_writer_lease()`` actually
 #: drops ``_HOLDER``/``_PROCESS_LOCK`` -- otherwise an inner release would
 #: prematurely free the lease out from under an still-in-flight outer call.
-_DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar(
-    "magicite_writer_lease_depth", default=0
-)
+_DEPTH: contextvars.ContextVar[int] = contextvars.ContextVar("magicite_writer_lease_depth", default=0)
 
 # The active cross-process lease, when the top-level writer uses one. Durable
 # helpers consult it from assert_single_writer(), turning the fencing token
@@ -94,6 +93,21 @@ class WriterLeaseError(BusyError):
 def held_by_me() -> bool:
     """True iff the *current* context holds the writer lease."""
     return _DEPTH.get() > 0
+
+
+def cross_process_lease_held() -> bool:
+    """True iff the current context holds a :class:`CrossProcessLease`."""
+    return _CROSS_PROCESS_LEASE.get() is not None
+
+
+def require_cross_process_scope(lock_path: str | Path) -> None:
+    """Require the bound fence to belong to this registry and remain owned."""
+    current = _CROSS_PROCESS_LEASE.get()
+    if not isinstance(current, CrossProcessLease):
+        raise BusyError("cross-process writer lease is required")
+    if Path(current.lock_path).resolve() != Path(lock_path).resolve():
+        raise BusyError("bound writer lease belongs to a different registry")
+    current.assert_owned()
 
 
 def acquire_writer_lease(holder: str = "writer") -> None:
@@ -139,22 +153,46 @@ def writer_lease(holder: str = "writer") -> Iterator[None]:
     """The top-level acquisition point: ``register()``/``sync()``/``export()``
     (and Dream's checkpoint phase, via :class:`CrossProcessLease` layered on
     top -- see :func:`core.dream.run`) wrap their durable-write work in this
-    context manager exactly once per call."""
+    context manager exactly once per call.
+
+    When a :class:`CrossProcessLease` is bound (via ``try_acquire``/``acquire``),
+    assert fencing ownership on enter so nested domain writers (evidence,
+    trust, approvals, backup) cannot commit after token loss (AC-S12-04 / B6).
+    """
     acquire_writer_lease(holder)
     try:
+        assert_cross_process_fence()
         yield
     finally:
         release_writer_lease()
 
 
+def assert_cross_process_fence() -> None:
+    """If a :class:`CrossProcessLease` is bound, require it still owns the token.
+
+    Used by :func:`writer_lease` and by domain writers (e.g. approvals) that
+    historically did not require the in-process writer lease, while still
+    failing closed under a stolen fencing token (AC-S12-04 / B6).
+    """
+    cross_process = _CROSS_PROCESS_LEASE.get()
+    if cross_process is not None:
+        cross_process.assert_owned()  # type: ignore[attr-defined]
+
+
 def assert_single_writer() -> None:
     """G2: every public ``storage.durable`` write function -- and
-    ``engram.writer.atomic_write()`` -- calls this first."""
+    ``engram.writer.atomic_write()`` -- calls this first.
+
+    S12 backup/restore and evidence/trust domain writers also call this under
+    :class:`CrossProcessLease` so a stale/killed holder cannot commit after
+    fencing-token loss (AC-S12-04).
+    """
     if _DEPTH.get() <= 0:
         raise WriterLeaseError(
             "durable write attempted without holding the writer lease",
             hint="durable writes must happen inside register()/sync()/export()/"
-            "checkpoint(), which acquire the writer lease before writing",
+            "checkpoint()/backup.create_snapshot()/backup.restore_snapshot(), "
+            "which acquire the writer lease before writing",
         )
     cross_process = _CROSS_PROCESS_LEASE.get()
     if cross_process is not None:
@@ -168,9 +206,7 @@ def assert_single_writer() -> None:
 #: under ``src/magicite`` that may call :func:`dream_context`). Every other
 #: module reads it only through :func:`assert_dream_context`/
 #: :func:`in_dream_context`, never sets it.
-_DREAM_CONTEXT: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "magicite_dream_context", default=False
-)
+_DREAM_CONTEXT: contextvars.ContextVar[bool] = contextvars.ContextVar("magicite_dream_context", default=False)
 
 
 class DreamContextError(BusyError):
@@ -238,6 +274,19 @@ class LeaseAcquireResult:
     stolen: bool  # True iff a stale (expired) lease row was reclaimed
 
 
+class CustodyCoordinator(Protocol):
+    registry_id: str
+
+    def capture(self) -> None: ...
+
+    def register(self, holder: str, local_token: int) -> None: ...
+
+
+def current_cross_process_lease() -> CrossProcessLease | None:
+    current = _CROSS_PROCESS_LEASE.get()
+    return current if isinstance(current, CrossProcessLease) else None
+
+
 class CrossProcessLease:
     """spec §4.2 ``storage/lease.py::WriterLease``: acquires, in order,
 
@@ -266,8 +315,10 @@ class CrossProcessLease:
         holder: str | None = None,
         ttl_s: float = DEFAULT_LEASE_TTL_S,
         heartbeat_interval_s: float = DEFAULT_HEARTBEAT_INTERVAL_S,
+        custody: CustodyCoordinator | None = None,
     ) -> None:
         self.lock_path = Path(lock_path)
+        self.custody = custody
         self.conn = conn
         self.holder = holder or f"{os.uname().nodename}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
         self.ttl_s = ttl_s
@@ -275,6 +326,7 @@ class CrossProcessLease:
         self._flock_fd: int | None = None
         self._held = False
         self._fencing_token: int | None = None
+        self._ctx_token: contextvars.Token[object | None] | None = None
         self._heartbeat_stop = threading.Event()
         self._heartbeat_thread: threading.Thread | None = None
         self._heartbeat_failure: BaseException | None = None
@@ -303,12 +355,20 @@ class CrossProcessLease:
         another holder is live; returns a :class:`LeaseAcquireResult`
         (``stolen=True`` iff a dead holder's expired lease was reclaimed).
         """
+        if self._held or _CROSS_PROCESS_LEASE.get() is not None:
+            raise BusyError("direct nested lease acquisition cannot refresh custody")
         if not self._try_flock():
             raise BusyError(
                 "writer lease flock is held by another process",
                 hint="another `magicite dream`/writer process is already running on this host",
             )
         try:
+            # Capture the custody predecessor only while holding the flock and
+            # before the lease row is written: a queued contender must not carry
+            # a predecessor captured before the previous holder registered its
+            # fence. Failure here releases the flock via the handler below.
+            if self.custody is not None:
+                self.custody.capture()
             now = _now()
             acquired_at = _iso(now)
             expires_at = _iso(now + _td(self.ttl_s))
@@ -353,6 +413,16 @@ class CrossProcessLease:
                 raise
             self._held = True
             self._fencing_token = fencing_token
+            if self.custody is not None:
+                self.assert_owned()
+                self.custody.register(self.holder, fencing_token)
+                self.assert_owned()
+            # Publish into the context var so assert_single_writer / nested
+            # domain writers observe the same fence as acquire() (AC-S12-04).
+            if _CROSS_PROCESS_LEASE.get() is None:
+                self._ctx_token = _CROSS_PROCESS_LEASE.set(self)
+            else:
+                self._ctx_token = None
             return LeaseAcquireResult(
                 holder=self.holder,
                 acquired_at=acquired_at,
@@ -361,7 +431,7 @@ class CrossProcessLease:
                 stolen=stolen,
             )
         except BaseException:
-            self._release_flock()
+            self.release()
             raise
 
     def heartbeat(self) -> None:
@@ -420,9 +490,7 @@ class CrossProcessLease:
                     ),
                 )
                 if cursor.rowcount != 1:
-                    self._heartbeat_failure = BusyError(
-                        "periodic heartbeat lost writer lease ownership"
-                    )
+                    self._heartbeat_failure = BusyError("periodic heartbeat lost writer lease ownership")
                     self._held = False
                     return
         except BaseException as exc:  # surfaced by assert_owned on the writer thread
@@ -480,18 +548,44 @@ class CrossProcessLease:
             )
             self._held = False
             self._fencing_token = None
+        if self._ctx_token is not None:
+            _CROSS_PROCESS_LEASE.reset(self._ctx_token)
+            self._ctx_token = None
         self._release_flock()
 
     @contextmanager
     def acquire(self) -> Iterator[LeaseAcquireResult]:
+        # Re-entrant: nested trust mutators under review_*/import must not
+        # try_acquire (BusyError) or release the outer fencing token.
+        current = _CROSS_PROCESS_LEASE.get()
+        if current is not None:
+            if (
+                not isinstance(current, CrossProcessLease)
+                or current.lock_path.resolve() != self.lock_path.resolve()
+            ):
+                raise BusyError("nested writer lease registry mismatch")
+            current.assert_owned()
+            if self.custody is not None and (
+                current.custody is None or current.custody.registry_id != self.custody.registry_id
+            ):
+                raise BusyError("nested writer lease lacks matching custody")
+            now = _now()
+            yield LeaseAcquireResult(
+                holder=getattr(current, "holder", self.holder),
+                acquired_at=_iso(now),
+                expires_at=_iso(now + _td(self.ttl_s)),
+                fencing_token=int(getattr(current, "_fencing_token", None) or 0),
+                stolen=False,
+            )
+            return
+
+        # try_acquire publishes _CROSS_PROCESS_LEASE; do not double-set.
         result = self.try_acquire()
-        token = _CROSS_PROCESS_LEASE.set(self)
         self._start_periodic_heartbeat()
         try:
             yield result
         finally:
             self._stop_periodic_heartbeat()
-            _CROSS_PROCESS_LEASE.reset(token)
             self.release()
 
 

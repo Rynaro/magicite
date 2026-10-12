@@ -1,0 +1,35 @@
+{
+  "note": "The c0782fd diagnostics are immutable historical observations. On the r2 source they fail closed before their scenario because trust/evidence writes require enrolled custody; the r2 custody scripts replay the same scenarios.",
+  "reruns": [
+    {
+      "command": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python docs/releases/v1/evidence/reproduce-trust-mirror-loss.py",
+      "exit_code": 1,
+      "final_error": "CustodianError: protected custody enrollment required",
+      "script": {
+        "path": "docs/releases/v1/evidence/reproduce-trust-mirror-loss.py",
+        "sha256": "ef800dbb9aa296ec68a6cc132d38a7e79dbbac3e4cd2231bfa530516dc95115b"
+      },
+      "stdout_bytes": 0,
+      "untracked_scope": [
+        "docs/releases/v1/r2/evidence/probe-checkpoint-process-death-custody.py",
+        "docs/releases/v1/r2/evidence/reproduce-trust-mirror-loss-custody.py"
+      ]
+    },
+    {
+      "command": "/private/tmp/claude-501/-Users-henrique-workspace-oss-magicite/dd0f761a-8a6a-4dee-89a0-8c26f01f7b17/scratchpad/s16venv/bin/python docs/releases/v1/evidence/probe-checkpoint-process-death.py",
+      "exit_code": 1,
+      "final_error": "CustodianError: protected custody enrollment required",
+      "script": {
+        "path": "docs/releases/v1/evidence/probe-checkpoint-process-death.py",
+        "sha256": "a1968469cdaeb11432383e828fb8edbd2d74192ca0c00c8dd26416ecea4f4208"
+      },
+      "stdout_bytes": 0,
+      "untracked_scope": [
+        "docs/releases/v1/r2/evidence/probe-checkpoint-process-death-custody.py",
+        "docs/releases/v1/r2/evidence/reproduce-trust-mirror-loss-custody.py"
+      ]
+    }
+  ],
+  "schema": "magicite/historical-diagnostic-rerun/1",
+  "source_commit": "9bf9ca025fc4513592f72d7f6f1c04563a31bc8c"
+}

@@ -56,9 +56,7 @@ def test_construction_never_calls_the_factory() -> None:
 
 def test_first_embed_call_constructs_the_model_exactly_once() -> None:
     calls: list[dict] = []
-    provider = fe_mod.FastEmbedProvider(
-        dim=4, factory=lambda **kw: _stub_factory(calls=calls, **kw)
-    )
+    provider = fe_mod.FastEmbedProvider(dim=4, factory=lambda **kw: _stub_factory(calls=calls, **kw))
     assert calls == []
     provider.embed("hi")
     assert len(calls) == 1
@@ -104,9 +102,7 @@ def test_embed_returns_l2_normalized_vector() -> None:
 
 def test_embed_batch_empty_never_constructs_the_model() -> None:
     calls: list[dict] = []
-    provider = fe_mod.FastEmbedProvider(
-        dim=4, factory=lambda **kw: _stub_factory(calls=calls, **kw)
-    )
+    provider = fe_mod.FastEmbedProvider(dim=4, factory=lambda **kw: _stub_factory(calls=calls, **kw))
     out = provider.embed_batch([])
     assert out.shape == (0, 4)
     assert calls == []
@@ -127,6 +123,31 @@ def test_construction_failure_raises_typed_error_on_first_use() -> None:
     provider = fe_mod.FastEmbedProvider(factory=failing_factory)
     with pytest.raises(fe_mod.FastEmbedModelUnavailableError):
         provider.embed("hi")
+
+
+def test_offline_unavailable_includes_fetch_model_remediation() -> None:
+    """S13: offline miss must tell the operator to run ``magicite fetch-model``."""
+
+    def failing_factory(**kwargs):
+        raise RuntimeError("model unavailable")
+
+    provider = fe_mod.FastEmbedProvider(offline=True, factory=failing_factory)
+    with pytest.raises(fe_mod.FastEmbedModelUnavailableError) as excinfo:
+        provider.embed("hi")
+    message = str(excinfo.value)
+    assert "offline=True" in message
+    assert fe_mod.OFFLINE_MODEL_REMEDIATION in message
+    assert "Run `magicite fetch-model` before setting MAGICITE_EMBEDDING_OFFLINE=1." in message
+
+
+def test_online_unavailable_omits_fetch_model_remediation() -> None:
+    def failing_factory(**kwargs):
+        raise RuntimeError("model unavailable")
+
+    provider = fe_mod.FastEmbedProvider(offline=False, factory=failing_factory)
+    with pytest.raises(fe_mod.FastEmbedModelUnavailableError) as excinfo:
+        provider.embed("hi")
+    assert fe_mod.OFFLINE_MODEL_REMEDIATION not in str(excinfo.value)
 
 
 def test_embed_failure_raises_typed_error_not_swallowed() -> None:

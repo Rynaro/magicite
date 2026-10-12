@@ -1,0 +1,54 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/releases/v1/r3/evidence/focused.txt",
+      "sha256": "1d261f70c0982b4eb3f440cbe6255185555fd7070c6e43587f5d3c3b2bfdc16a"
+    },
+    {
+      "path": "docs/releases/v1/r3/evidence/checks.json",
+      "sha256": "d4439af4b1cac783957036e38ceb97a4cf78678eb287a3caec671f2ea40867bc"
+    },
+    {
+      "path": "docs/releases/v1/r3/evidence/junit.xml",
+      "sha256": "dc8a4ba85b3383d7e411b933621e7fdb554c8437165d8bd8113881765e105b53"
+    },
+    {
+      "path": "docs/releases/v1/r3/evidence/review-final.md",
+      "sha256": "3b8744df6b3a81cd5ea4d810a849a73eb9929a16b64cf9568417c1ed0d18912d"
+    },
+    {
+      "path": "docs/releases/v1/r3/evidence/review-c2.md",
+      "sha256": "e2e038224d948a529e33c625e35c03b21aaf43ea99ce48a7e44bd0168373a48d"
+    },
+    {
+      "path": "docs/releases/v1/r3/evidence/review-candidate-binding-c2.md",
+      "sha256": "ba0cb608e9c1bbd85badd350592dc784e51c34318821431ad20fa0258723514f"
+    }
+  ],
+  "command": "/private/tmp/magicite-r3-qualification/venv/bin/python -m pytest -q -p no:cacheprovider tests/unit/core/test_review_approve_busy_wait.py tests/unit/obs/test_doctor.py tests/unit/obs/test_th_custody_zero_write_canary.py tests/integration/test_trust_recovery.py",
+  "environment": {
+    "custody": "disposable-simulated",
+    "dependency_install": "uv sync --frozen --all-extras",
+    "embedding_provider": "hashing",
+    "executable": "/private/tmp/magicite-r3-qualification/venv/bin/python",
+    "lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+    "machine": "arm64",
+    "platform": "macOS-27.0-arm64-arm-64bit",
+    "python": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+    "real_separate_uid_deployment": false,
+    "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+    "source_dirty": false
+  },
+  "gate": "RELIABILITY",
+  "lock": {
+    "path": "uv.lock",
+    "sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8"
+  },
+  "obligation": "zero-write-doctor",
+  "producer": "Vivi /root/implement_r3",
+  "reviewer": "VIGIL /root/verify_r3",
+  "schema": "magicite/release-witness/1",
+  "scope": "Same-account simulated custody, actual filesystem byte/entry/mode/mtime canaries; no separate-UID deployment claim",
+  "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+  "status": "PASS"
+}

@@ -1,0 +1,544 @@
+{
+  "cache_states": {
+    "cold_index": {
+      "identified": true,
+      "latency_ms": 66.637,
+      "measured": true,
+      "notes": "route index cache cleared"
+    },
+    "cold_model": {
+      "identified": true,
+      "latency_ms": 272.0442080171779,
+      "measured": true,
+      "notes": "fresh serving subprocess through first serialized route; acquisition excluded"
+    },
+    "cold_process": {
+      "identified": true,
+      "latency_ms": 272.0442080171779,
+      "measured": true,
+      "notes": "fresh serving subprocess through first serialized route; acquisition excluded"
+    },
+    "hot_query_cache": {
+      "identified": true,
+      "latency_ms": 4.817,
+      "measured": true,
+      "notes": "repeated identical query after warmups"
+    },
+    "warm_index": {
+      "identified": true,
+      "latency_ms": 4.593,
+      "measured": true,
+      "notes": "after 2 warmups; distinct/rotated queries"
+    }
+  },
+  "corpus": {
+    "actual_artifacts": true,
+    "artifact_bytes": 57056,
+    "artifact_inventory_sha256": "d81c832ea64c9249f534e1e73cf662a3cdb58760dd65f3c5df02834878956bfa",
+    "content_identity_sha256": null,
+    "ga_eligible": false,
+    "ga_ineligible_reasons": [
+      "provider='hashing' (need production)",
+      "profile.budget.ga_support_claim is false",
+      "corpus.kind='synthetic' (need manifest)",
+      "envelope_mode='completeness' (need budget)",
+      "corpus path missing",
+      "corpus license missing",
+      "support run profile does not match the claimed supported scale",
+      "both licensed real and synthetic measured E6 runs are required"
+    ],
+    "kind": "synthetic",
+    "license": null,
+    "n_candidates": 100,
+    "path": null
+  },
+  "envelope_check": {
+    "errors": [],
+    "mode": "completeness",
+    "notes": [
+      "shared CI validates completeness only; dedicated runner owns budgets"
+    ],
+    "ok": true
+  },
+  "fingerprint": {
+    "container_image_digest": null,
+    "dependency_lock_sha256": "eae3f587b1c57b1026360734dd6dd7fb71e3d7dbe381d50e8882fe4ede9518a8",
+    "embedding_dimensions": 256,
+    "machine": "arm64",
+    "model_digest": "unavailable",
+    "model_name": "hashing-256",
+    "os_release": "27.0.0",
+    "payload_aggregation": "max-measured-responses",
+    "payload_surface": "RouteOutput/1 JSON",
+    "payload_tokenizer": "unicode61-word/1",
+    "payload_unit": "lexical-word-tokens",
+    "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "provider": "hashing",
+    "python": "3.14.6",
+    "runner_label": "local-workspace",
+    "runtime_is_container": false
+  },
+  "legacy_measurements": [
+    {
+      "cache_hit_rates": {
+        "query_embed_cache": 0.0,
+        "route_index": 0.0
+      },
+      "cache_states": {
+        "cold_index": {
+          "identified": true,
+          "latency_ms": 66.637,
+          "measured": true,
+          "notes": "route index cache cleared"
+        },
+        "cold_model": {
+          "identified": true,
+          "latency_ms": 272.0442080171779,
+          "measured": true,
+          "notes": "fresh serving subprocess through first serialized route; acquisition excluded"
+        },
+        "cold_process": {
+          "identified": true,
+          "latency_ms": 272.0442080171779,
+          "measured": true,
+          "notes": "fresh serving subprocess through first serialized route; acquisition excluded"
+        },
+        "hot_query_cache": {
+          "identified": true,
+          "latency_ms": 4.817,
+          "measured": true,
+          "notes": "repeated identical query after warmups"
+        },
+        "warm_index": {
+          "identified": true,
+          "latency_ms": 4.593,
+          "measured": true,
+          "notes": "after 2 warmups; distinct/rotated queries"
+        }
+      },
+      "cold_ready_s": 0.2720442080171779,
+      "cold_top_candidate": "egr_00000015",
+      "hot_query_route": {
+        "max_ms": 4.838,
+        "n": 8,
+        "p50_ms": 4.601,
+        "p95_ms": 4.817,
+        "p99_ms": 4.834
+      },
+      "index_build_peak_rss_gib": 0.067413,
+      "index_build_s": 0.208284,
+      "index_gib": 0.000633,
+      "index_miss_route": {
+        "max_ms": 5.105,
+        "n": 8,
+        "p50_ms": 4.563,
+        "p95_ms": 4.959,
+        "p99_ms": 5.076
+      },
+      "payload_tokens": 406,
+      "process_rss_gib": 0.067413,
+      "semantic_equality": true,
+      "size": 100,
+      "truncations_fallbacks": [
+        {
+          "fallback_identity": null,
+          "query_index": 0,
+          "truncations": {
+            "eligible_pool": 63
+          }
+        },
+        {
+          "fallback_identity": null,
+          "query_index": 1,
+          "truncations": {
+            "eligible_pool": 63
+          }
+        },
+        {
+          "fallback_identity": null,
+          "query_index": 2,
+          "truncations": {
+            "eligible_pool": 63
+          }
+        },
+        {
+          "fallback_identity": null,
+          "query_index": 3,
+          "truncations": {
+            "eligible_pool": 63
+          }
+        },
+        {
+          "fallback_identity": null,
+          "query_index": 4,
+          "truncations": {
+            "eligible_pool": 63
+          }
+        },
+        {
+          "fallback_identity": null,
+          "query_index": 5,
+          "truncations": {
+            "eligible_pool": 63
+          }
+        },
+        {
+          "fallback_identity": null,
+          "query_index": 6,
+          "truncations": {
+            "eligible_pool": 63
+          }
+        },
+        {
+          "fallback_identity": null,
+          "query_index": 7,
+          "truncations": {
+            "eligible_pool": 63
+          }
+        }
+      ],
+      "warm_durations_s": [
+        0.004485541954636574,
+        0.00450683303643018,
+        0.004523708950728178,
+        0.004535292042419314,
+        0.004509124904870987,
+        0.004513874999247491,
+        0.004489750019274652,
+        0.004623624961823225
+      ],
+      "warm_route": {
+        "max_ms": 4.624,
+        "n": 8,
+        "p50_ms": 4.511,
+        "p95_ms": 4.593,
+        "p99_ms": 4.617
+      }
+    }
+  ],
+  "measured_queries": 8,
+  "measurements": {
+    "artifact_body_bytes": 57056,
+    "cache_hit_rates": {
+      "query_embed_cache": 0.0,
+      "route_index": 0.0
+    },
+    "cold_ready_s": 0.2720442080171779,
+    "hot_query_route": {
+      "max_ms": 4.838,
+      "n": 8,
+      "p50_ms": 4.601,
+      "p95_ms": 4.817,
+      "p99_ms": 4.834
+    },
+    "index_build_peak_rss_gib": 0.067413,
+    "index_build_s": 0.208284,
+    "index_gib": 0.000633,
+    "index_miss_route": {
+      "max_ms": 5.105,
+      "n": 8,
+      "p50_ms": 4.563,
+      "p95_ms": 4.959,
+      "p99_ms": 5.076
+    },
+    "payload_tokens": 406,
+    "process_rss_gib": 0.067413,
+    "semantic_equality": true,
+    "size": 100,
+    "truncations_fallbacks": [
+      {
+        "fallback_identity": null,
+        "query_index": 0,
+        "truncations": {
+          "eligible_pool": 63
+        }
+      },
+      {
+        "fallback_identity": null,
+        "query_index": 1,
+        "truncations": {
+          "eligible_pool": 63
+        }
+      },
+      {
+        "fallback_identity": null,
+        "query_index": 2,
+        "truncations": {
+          "eligible_pool": 63
+        }
+      },
+      {
+        "fallback_identity": null,
+        "query_index": 3,
+        "truncations": {
+          "eligible_pool": 63
+        }
+      },
+      {
+        "fallback_identity": null,
+        "query_index": 4,
+        "truncations": {
+          "eligible_pool": 63
+        }
+      },
+      {
+        "fallback_identity": null,
+        "query_index": 5,
+        "truncations": {
+          "eligible_pool": 63
+        }
+      },
+      {
+        "fallback_identity": null,
+        "query_index": 6,
+        "truncations": {
+          "eligible_pool": 63
+        }
+      },
+      {
+        "fallback_identity": null,
+        "query_index": 7,
+        "truncations": {
+          "eligible_pool": 63
+        }
+      }
+    ],
+    "warm_durations_s": [
+      0.004485541954636574,
+      0.00450683303643018,
+      0.004523708950728178,
+      0.004535292042419314,
+      0.004509124904870987,
+      0.004513874999247491,
+      0.004489750019274652,
+      0.004623624961823225
+    ],
+    "warm_route_p50_ms": 4.511,
+    "warm_route_p95_ms": 4.593,
+    "warm_route_p99_ms": 4.617
+  },
+  "parameters": {
+    "calls": 8,
+    "corpus_manifest": null,
+    "envelope_mode": "completeness",
+    "repetitions": 1,
+    "sizes": [
+      100
+    ],
+    "warmup": 2
+  },
+  "process_id": 56870,
+  "profile": {
+    "budget": {
+      "cold_ready_s": null,
+      "ga_support_claim": false,
+      "index_build_peak_rss_gib": null,
+      "index_build_s": null,
+      "index_gib": null,
+      "process_rss_gib": null,
+      "warm_route_p95_ms": null,
+      "warm_route_p99_ms": null
+    },
+    "corpus_artifacts": 100,
+    "describe": "CI-feasible synthetic smoke; completeness only, no GA claim",
+    "distinct_query_rotation": true,
+    "measured_queries_min": 8,
+    "opt_in": false,
+    "profile_id": "ci-smoke",
+    "repetitions": 1,
+    "required_cache_states": [
+      "cold_process",
+      "cold_model",
+      "cold_index",
+      "warm_index",
+      "hot_query_cache"
+    ],
+    "required_fingerprint_fields": [
+      "python",
+      "platform",
+      "machine",
+      "processor",
+      "os_release",
+      "provider",
+      "model_name",
+      "model_digest",
+      "dependency_lock_sha256",
+      "runner_label",
+      "runtime_is_container"
+    ],
+    "warmup_queries": 2
+  },
+  "provider": "hashing",
+  "provider_requested": "hashing",
+  "recorded_at": "2026-09-30T21:33:15.756466+00:00",
+  "repetition_results": [
+    {
+      "measured_queries": 8,
+      "measurements": {
+        "artifact_body_bytes": 57056,
+        "cache_hit_rates": {
+          "query_embed_cache": 0.0,
+          "route_index": 0.0
+        },
+        "cold_ready_s": 0.2720442080171779,
+        "hot_query_route": {
+          "max_ms": 4.838,
+          "n": 8,
+          "p50_ms": 4.601,
+          "p95_ms": 4.817,
+          "p99_ms": 4.834
+        },
+        "index_build_peak_rss_gib": 0.067413,
+        "index_build_s": 0.208284,
+        "index_gib": 0.000633,
+        "index_miss_route": {
+          "max_ms": 5.105,
+          "n": 8,
+          "p50_ms": 4.563,
+          "p95_ms": 4.959,
+          "p99_ms": 5.076
+        },
+        "payload_tokens": 406,
+        "process_rss_gib": 0.067413,
+        "semantic_equality": true,
+        "size": 100,
+        "truncations_fallbacks": [
+          {
+            "fallback_identity": null,
+            "query_index": 0,
+            "truncations": {
+              "eligible_pool": 63
+            }
+          },
+          {
+            "fallback_identity": null,
+            "query_index": 1,
+            "truncations": {
+              "eligible_pool": 63
+            }
+          },
+          {
+            "fallback_identity": null,
+            "query_index": 2,
+            "truncations": {
+              "eligible_pool": 63
+            }
+          },
+          {
+            "fallback_identity": null,
+            "query_index": 3,
+            "truncations": {
+              "eligible_pool": 63
+            }
+          },
+          {
+            "fallback_identity": null,
+            "query_index": 4,
+            "truncations": {
+              "eligible_pool": 63
+            }
+          },
+          {
+            "fallback_identity": null,
+            "query_index": 5,
+            "truncations": {
+              "eligible_pool": 63
+            }
+          },
+          {
+            "fallback_identity": null,
+            "query_index": 6,
+            "truncations": {
+              "eligible_pool": 63
+            }
+          },
+          {
+            "fallback_identity": null,
+            "query_index": 7,
+            "truncations": {
+              "eligible_pool": 63
+            }
+          }
+        ],
+        "warm_durations_s": [
+          0.004485541954636574,
+          0.00450683303643018,
+          0.004523708950728178,
+          0.004535292042419314,
+          0.004509124904870987,
+          0.004513874999247491,
+          0.004489750019274652,
+          0.004623624961823225
+        ],
+        "warm_route_p50_ms": 4.511,
+        "warm_route_p95_ms": 4.593,
+        "warm_route_p99_ms": 4.617
+      },
+      "process_id": 56870,
+      "status": "measured",
+      "warmup_queries": 2
+    }
+  ],
+  "schema": "magicite-benchmark-profile-result/1",
+  "status": "measured",
+  "unevaluated": [
+    {
+      "gate": "ROUTING/EXTERNAL",
+      "item_id": "skillret-official-final-split",
+      "manifest_or_digest": "ExperimentManifest/1 with corpus_sha256 of the acquired official split; pin arXiv:2605.05726v3 + archive SHA-256 via magicite.eval.external.record_external_download",
+      "operator_command": "python -m magicite.eval acquire-skillret --archive /path/to/skillret-official.tar.gz --expected-sha256 <ARCHIVE_SHA256> --license <LICENSE> --revision <GIT_OR_RELEASE_SHA> --corpus-json /path/to/corpus_manifest.json --output artifacts/skillret-acquired-corpus.json && python -m magicite.eval run-retrieval --experiment docs/evaluation/v1/preregistration-template.json --corpus artifacts/skillret-acquired-corpus.json --split final --provider production --output artifacts/skillret-final/",
+      "reason": "Official SkillRet evaluation split (arXiv:2605.05726v3) is not shipped in-repo; CI uses docs/evaluation/v1/fixtures/skillret-tiny only",
+      "status": "UNEVALUATED"
+    },
+    {
+      "gate": "PERFORMANCE",
+      "item_id": "real-licensed-10k-corpus",
+      "manifest_or_digest": "CorpusManifest/1 content_identity_sha256 for the licensed 10k corpus + magicite-benchmark-profile-result/1 with corpus.kind=manifest (synthetic runs set corpus.kind=synthetic and ga_eligible=false)",
+      "operator_command": "python scripts/run_benchmark_matrix.py --profile supported-10k --provider production --corpus-manifest /path/to/licensed-10k/corpus_manifest.json --environment-label dedicated-linux-amd64-4c-16g --envelope-mode budget --output artifacts/e6-supported-10k-real.json",
+      "reason": "A 10k support claim requires both synthetic 10k and a real licensed 10k corpus (evaluation.md E6); real corpus is not available offline here. When --corpus-manifest is supplied the matrix builds/measures that corpus and labels corpus.kind=manifest; synthetic-only runs are corpus.kind=synthetic and never GA-eligible.",
+      "status": "UNEVALUATED"
+    },
+    {
+      "gate": "PERFORMANCE",
+      "item_id": "production-provider-e6-budgets",
+      "manifest_or_digest": "magicite-benchmark-profile-result/1 with fingerprint.provider=production and model_digest of the pinned FastEmbed artifact",
+      "operator_command": "python scripts/run_benchmark_matrix.py --profile supported-10k --provider production --calls 1000 --warmup 50 --repetitions 3 --environment-label dedicated-linux-amd64-4c-16g --envelope-mode budget --output artifacts/e6-supported-10k-production.json",
+      "reason": "Dedicated Linux amd64 4c/16GiB reference runner budgets for the production FastEmbed provider were not executed in this sandbox",
+      "status": "UNEVALUATED"
+    },
+    {
+      "gate": "ROUTING",
+      "item_id": "hybrid-rrf-vs-dense-v1-paired",
+      "manifest_or_digest": "ResultManifest/1 aggregates + Verdict JSON; on fail/inconclusive call policy_store.retain_simple_incumbent_evidence(...); never activate()",
+      "operator_command": "python -m magicite.eval run-paired-policies --incumbent dense-v1 --candidate hybrid-rrf-v1 --experiment docs/evaluation/v1/preregistration-template.json --corpus /path/to/locked-final-corpus.json --n-resamples 10000 --seed 0 --output artifacts/hybrid-vs-dense-verdict.json",
+      "reason": "Hybrid vs dense-v1 paired Hit@1 comparison on a locked final split is not run here; promotion stays with the frozen dense-v1 incumbent",
+      "status": "UNEVALUATED"
+    },
+    {
+      "gate": "ROUTING",
+      "item_id": "empirical-abstention-bounds",
+      "manifest_or_digest": "Calibration artifact digest + ResultManifest/1 abstention aggregates",
+      "operator_command": "python -m magicite.eval run-abstention-gate --calibration-split calibration --final-split final --experiment docs/evaluation/v1/preregistration-template.json --corpus /path/to/locked-corpus.json --output artifacts/abstention-gate.json",
+      "reason": "Calibrated abstention Wilson/bootstrap bounds on locked no-match and answerable final queries require a sealed final split not opened here",
+      "status": "UNEVALUATED"
+    },
+    {
+      "gate": "COMPOSITION",
+      "item_id": "host-task-usefulness-corpus",
+      "manifest_or_digest": "Claim/1 evidence_class=host-task bound to ResultManifest/1 with paired HostTaskArmResult digests",
+      "operator_command": "python -m magicite.eval run-host-tasks --corpus /path/to/host-task-corpus.json --arms no_skill,selected_skill,composed_plan --n-resamples 10000 --seed 0 --output artifacts/host-task-usefulness.json",
+      "reason": "GA usefulness claims need an independently authored host-task corpus with paired no-skill/selected-skill/composed-plan arms at \u226530 groups; in-repo echo fixture only exercises the pipeline",
+      "status": "UNEVALUATED"
+    },
+    {
+      "gate": "PERFORMANCE",
+      "item_id": "exploratory-50k-envelope",
+      "manifest_or_digest": "magicite-benchmark-profile-result/1 for exploratory-50k",
+      "operator_command": "python scripts/run_benchmark_matrix.py --profile exploratory-50k --provider production --opt-in-exploratory --environment-label dedicated-linux-amd64-4c-16g --output artifacts/e6-exploratory-50k.json",
+      "reason": "50k exploratory profile is opt-in; no GA support claim without amended budget",
+      "status": "UNEVALUATED"
+    }
+  ],
+  "warmup_queries": 2
+}

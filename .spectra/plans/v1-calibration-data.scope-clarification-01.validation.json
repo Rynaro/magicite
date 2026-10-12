@@ -1,0 +1,48 @@
+{
+  "at": "2026-10-08T11:16:39.364765+00:00",
+  "original_hashes_unchanged": true,
+  "effective_scope_exact_original_plus_conditional_path": true,
+  "commands": [
+    {
+      "argv": [
+        "/Users/henrique/workspace/oss/magicite/.eidolons/ramza/bin/ramza-freeze",
+        "--state",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.state.json",
+        "--criteria",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.acceptance.md",
+        "--verify"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "ok: criteria match frozen hash\n"
+    },
+    {
+      "argv": [
+        "/Users/henrique/workspace/oss/magicite/.eidolons/ramza/bin/ramza-freeze",
+        "--state",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-01.state.json",
+        "--criteria",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.acceptance.md",
+        "--verify"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "ok: criteria match frozen hash\n"
+    },
+    {
+      "argv": [
+        "/Users/henrique/workspace/oss/magicite/.eidolons/ramza/bin/ramza-verify-emit",
+        "--spec",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-01.md",
+        "--envelope",
+        "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-01.envelope.json"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "ok: emission gate passed (v1-calibration-data.scope-clarification-01.md + envelope)\n"
+    }
+  ],
+  "amendment_note": "ramza-freeze --amend previously returned no change: criteria hash unchanged; additive note/envelope records scope-only clarification",
+  "receiver_verification": "pending root independent verification",
+  "source_edits_by_planner": false
+}

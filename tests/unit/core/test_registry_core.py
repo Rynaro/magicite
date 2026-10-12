@@ -55,9 +55,7 @@ def test_register_reports_dangling_edge_for_unregistered_target(cfg, db_conn, em
     src = cfg.registry_dir / "proton-ge-proton-downgrade.egr.md"
     (only_one / "proton-ge-proton-downgrade.egr.md").write_text(src.read_text())
 
-    outcome = registry_mod.register(
-        cfg, db_conn, embedder, path=str(only_one.relative_to(cfg.project_root))
-    )
+    outcome = registry_mod.register(cfg, db_conn, embedder, path=str(only_one.relative_to(cfg.project_root)))
     assert outcome.ingested == 1
     row = db_conn.execute(
         "SELECT dangling FROM edge WHERE dst_name = 'steam-prefix-access' AND type = 'depends_on'"
@@ -122,8 +120,21 @@ def test_invalid_authoritative_file_disables_projection(cfg, db_conn, embedder) 
 def test_sync_reconciles_removed_edges(cfg, db_conn, embedder) -> None:
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     victim = cfg.registry_dir / "proton-ge-proton-downgrade.egr.md"
-    text = victim.read_text(encoding="utf-8")
-    victim.write_text(text.replace("needs: [steam-prefix-access]", "needs: []"), encoding="utf-8")
+    # This is an intentional authored edit, not unreviewed filesystem tampering.
+    from magicite.core import trust_artifacts, writer_guard
+    from magicite.engram.writer import render_document_v1
+
+    typed = trust_artifacts.require_bound_artifact(cfg, victim)
+    expected_digest = typed.content_sha256
+    typed.frontmatter.legacy = {**(typed.frontmatter.legacy or {}), "needs": []}
+    with writer_guard.registry_writer_lease(cfg, db_conn).acquire():
+        trust_artifacts.publish_authored_edit(
+            cfg,
+            victim,
+            render_document_v1(typed).encode(),
+            expected_source_digest=expected_digest,
+            actor="test-author",
+        )
 
     registry_mod.sync(cfg, db_conn, embedder)
 

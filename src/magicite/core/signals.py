@@ -17,6 +17,12 @@ never derivable from anything a client sends. A caller claiming
 ``adapter_token="hook_verified"`` (or any other guess) with no matching
 server-side token configured gets Tier 1, full stop.
 
+**S09 / C6 (evidence provenance):** ``assign_tier`` establishes *caller*
+source identity for evidence receipts. It does **not** assert task-verifier
+correctness. Verifier labels on durable evidence
+(``magicite.core.evidence.VerifierRef``) are a separate axis and must never
+self-upgrade trust from a caller-supplied claim (AC-S09-04).
+
 **R1 (signal poisoning defense, bounded, not eliminated):** the per-skill-
 per-session cap (``cfg.per_skill_session_cap``, default 3) bounds how many
 times one session can tag one skill; Tier-1's weight cap (``core/plasticity.

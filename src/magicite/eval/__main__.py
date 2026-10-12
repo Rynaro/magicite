@@ -1,4 +1,4 @@
-"""Small validation CLI for versioned evaluation corpora."""
+"""Validation CLI for versioned evaluation corpora and V1 manifests."""
 
 from __future__ import annotations
 
@@ -7,6 +7,15 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+
+from magicite.eval.validate import (
+    claim_eligible_for_new_run_gate,
+    validate_claim_data,
+    validate_corpus_manifest_data,
+    validate_experiment_data,
+    validate_prediction_data,
+    validate_result_data,
+)
 
 
 def _has_cycle(nodes: set[str], edges: list[dict[str, Any]]) -> bool:
@@ -181,20 +190,428 @@ def validate_corpus(path: Path) -> list[str]:
     return validate_corpus_data(data)
 
 
+def _load_json(path: Path) -> tuple[Any | None, list[str]]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), []
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, [f"cannot read {path}: {exc}"]
+
+
+def _print_errors(errors: list[str]) -> int:
+    for error in errors:
+        print(f"ERROR: {error}", file=sys.stderr)
+    return 1 if errors else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m magicite.eval")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
     validate = subparsers.add_parser("validate-corpus")
     validate.add_argument("path", type=Path)
-    args = parser.parse_args(argv)
 
-    errors = validate_corpus(args.path)
-    if errors:
-        for error in errors:
-            print(f"ERROR: {error}", file=sys.stderr)
-        return 1
-    data = json.loads(args.path.read_text(encoding="utf-8"))
-    print(f"validated {len(data['cases'])} independent composition cases")
+    for name in (
+        "validate-experiment",
+        "validate-corpus-manifest",
+        "validate-prediction",
+        "validate-result",
+        "validate-claim",
+    ):
+        sp = subparsers.add_parser(name)
+        sp.add_argument("path", type=Path)
+
+    acquire = subparsers.add_parser(
+        "acquire-skillret",
+        help="Record local SkillRet archive digest and write a verified CorpusManifest (offline).",
+    )
+    acquire.add_argument("--archive", type=Path, required=True)
+    acquire.add_argument("--expected-sha256", required=True)
+    acquire.add_argument("--license", dest="license_name", required=True)
+    acquire.add_argument("--revision", required=True)
+    acquire.add_argument(
+        "--corpus-json",
+        type=Path,
+        required=True,
+        help="CorpusManifest/1 JSON path (on disk, or basename found inside the archive)",
+    )
+    acquire.add_argument("--output", type=Path, required=True)
+    acquire.add_argument("--acquired-at", default=None)
+
+    retrieval = subparsers.add_parser(
+        "run-retrieval",
+        help="Run nonqualifying synthetic hashing retrieval diagnostics.",
+    )
+    retrieval.add_argument("--experiment", type=Path, required=True)
+    retrieval.add_argument("--corpus", type=Path, required=True)
+    retrieval.add_argument("--split", required=True)
+    retrieval.add_argument("--provider", required=True, choices=("hashing", "production"))
+    retrieval.add_argument("--output", type=Path, required=True)
+    retrieval.add_argument("--policy-id", default="dense-v1")
+
+    paired = subparsers.add_parser(
+        "run-paired-policies",
+        help=(
+            "Nonqualifying synthetic hashing paired diagnostics (never activates policies). "
+            "The candidate arm is a seed-perturbed harness arm, not a real policy rank."
+        ),
+    )
+    paired.add_argument("--incumbent", required=True)
+    paired.add_argument("--candidate", required=True)
+    paired.add_argument("--experiment", type=Path, required=True)
+    paired.add_argument("--corpus", type=Path, required=True)
+    paired.add_argument("--n-resamples", type=int, default=10_000)
+    paired.add_argument("--seed", type=int, default=0)
+    paired.add_argument("--output", type=Path, required=True)
+    paired.add_argument(
+        "--provider",
+        choices=("hashing", "production"),
+        default="hashing",
+        help="Legacy fixture only; production must use the actual empirical adapter.",
+    )
+
+    abstain = subparsers.add_parser(
+        "run-abstention-gate",
+        help="Run nonqualifying synthetic hashing abstention diagnostics (no refit).",
+    )
+    abstain.add_argument("--calibration-split", required=True)
+    abstain.add_argument("--final-split", required=True)
+    abstain.add_argument("--experiment", type=Path, required=True)
+    abstain.add_argument("--corpus", type=Path, required=True)
+    abstain.add_argument("--output", type=Path, required=True)
+
+    host = subparsers.add_parser(
+        "run-host-tasks",
+        help="Ingest precomputed host-verifier arm JSON; Magicite does not execute host tasks.",
+    )
+    host.add_argument("--corpus", type=Path, required=True)
+    host.add_argument(
+        "--arms",
+        required=True,
+        help="Comma-separated arms, e.g. no_skill,selected_skill,composed_plan",
+    )
+    host.add_argument("--n-resamples", type=int, default=10_000)
+    host.add_argument("--seed", type=int, default=0)
+    host.add_argument("--output", type=Path, required=True)
+
+    for name in ("fit-calibration", "evaluate-frozen-calibration"):
+        sp = subparsers.add_parser(name, help="Actual-router offline calibration; nonqualifying.")
+        sp.add_argument("--freeze", type=Path, required=True)
+        sp.add_argument("--project-root", type=Path, required=True)
+        sp.add_argument("--model-cache", type=Path, required=True)
+        sp.add_argument("--model-manifest", type=Path, required=True)
+        sp.add_argument("--rank-depth", type=int, default=5)
+        sp.add_argument("--statistical-protocol", type=Path)
+        sp.add_argument("--comparison-budget", type=Path)
+        sp.add_argument("--output", type=Path, required=True)
+        if name == "evaluate-frozen-calibration":
+            sp.add_argument("--candidate", type=Path, required=True)
+            sp.add_argument("--replay", action="store_true")
+    power = subparsers.add_parser("plan-grouped-power", help="Development-only conditional power simulation")
+    power.add_argument("--input", type=Path, required=True)
+    power.add_argument("--freeze", type=Path, required=True)
+    power.add_argument("--rank-depth", type=int, default=5)
+    power.add_argument("--project-root", type=Path, required=True)
+    power.add_argument("--model-cache", type=Path, required=True)
+    power.add_argument("--model-manifest", type=Path, required=True)
+    power.add_argument("--group-floors", required=True)
+    power.add_argument("--repetitions", type=int, required=True)
+    power.add_argument("--seed", type=int, required=True)
+    power.add_argument("--output", type=Path, required=True)
+    for name in ("benchmark-develop", "benchmark-fit", "benchmark-final", "benchmark-production-witness"):
+        command = subparsers.add_parser(
+            name, help="Actual protected routing; local observations remain nonqualifying"
+        )
+        command.add_argument("--project-root", type=Path, required=True)
+        command.add_argument("--model-cache", type=Path, required=True)
+        command.add_argument("--model-manifest", type=Path, required=True)
+        command.add_argument("--output", type=Path, required=True)
+        command.add_argument("--rank-depth", type=int, default=5)
+        if name == "benchmark-production-witness":
+            command.add_argument("--queries", type=Path, required=True)
+            command.add_argument("--profile", default="ci-smoke")
+        elif name == "benchmark-final":
+            command.add_argument("--commitment", type=Path, required=True)
+            command.add_argument("--replay", action="store_true")
+        else:
+            command.add_argument("--freeze", type=Path, required=True)
+            if name == "benchmark-develop":
+                command.add_argument("--plan", type=Path, required=True)
+                command.add_argument("--group-floors", required=True)
+                command.add_argument("--repetitions", type=int, required=True)
+            else:
+                command.add_argument("--development", type=Path, required=True)
+    args = parser.parse_args(argv)
+    if args.command.startswith("benchmark-"):
+        from magicite.core.comparison_budget import ComparisonBudget
+        from magicite.errors import InvalidInputError
+        from magicite.eval import calibration_consumer as consumer
+        from magicite.eval import protected_benchmark as benchmark
+        from magicite.eval.production import verify_model
+
+        try:
+            model = json.loads(args.model_manifest.read_bytes())
+            verify_model(args.model_cache, model)
+            actual = consumer.cli_actual(args.project_root, args.model_cache, args.rank_depth)
+            try:
+                if args.command == "benchmark-production-witness":
+                    result = benchmark.production_witness(
+                        actual,
+                        json.loads(args.queries.read_bytes()),
+                        args.output,
+                        model_cache=args.model_cache,
+                        model_manifest=model,
+                        profile_id=args.profile,
+                    )
+                else:
+                    if args.command == "benchmark-develop":
+                        plan = json.loads(args.plan.read_bytes())
+                    else:
+                        source = args.development if args.command == "benchmark-fit" else args.commitment
+                        plan = json.loads(source.read_bytes())["body"]["plan"]
+                    actual.comparison_budget = ComparisonBudget.from_dict(plan["comparison_budget"])
+                    if args.command == "benchmark-develop":
+                        result = benchmark.develop(
+                            args.freeze,
+                            args.plan,
+                            args.output,
+                            actual,
+                            model_cache=args.model_cache,
+                            model_manifest=model,
+                            group_floors=[int(n) for n in args.group_floors.split(",")],
+                            repetitions=args.repetitions,
+                        )
+                    elif args.command == "benchmark-fit":
+                        result = benchmark.fit(
+                            args.freeze,
+                            args.development,
+                            args.output,
+                            actual,
+                            model_cache=args.model_cache,
+                            model_manifest=model,
+                        )
+                    else:
+                        result = benchmark.final(
+                            args.commitment,
+                            args.output,
+                            actual,
+                            model_cache=args.model_cache,
+                            replay=args.replay,
+                        )
+            finally:
+                actual.conn.close()
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return (
+                2
+                if result.get("status", result.get("body", {}).get("status"))
+                in {"incomplete_power", "complete_with_errors", "incomplete"}
+                else 0
+            )
+        except (OSError, ValueError, KeyError, TypeError, InvalidInputError) as exc:
+            return _print_errors([str(exc)])
+
+    if args.command == "plan-grouped-power":
+        from magicite.eval.data_readiness import _publish_immutable
+        from magicite.eval.grouped_evaluation import plan_grouped_power
+
+        try:
+            from magicite.core.comparison_budget import ComparisonBudget
+            from magicite.eval import calibration_consumer as consumer
+            from magicite.eval.production import verify_model
+
+            model = json.loads(args.model_manifest.read_bytes())
+            verify_model(args.model_cache, model)
+            frozen = consumer.data.verify_freeze(args.freeze)
+            protocol = frozen["binding"]["statistical_projection"]["protocol"]
+            actual = consumer.cli_actual(
+                args.project_root,
+                args.model_cache,
+                protocol["comparison_budget"]["output_k"]
+                if protocol["comparison_budget"]
+                else args.rank_depth,
+            )
+            actual.comparison_budget = (
+                ComparisonBudget.from_dict(protocol["comparison_budget"])
+                if protocol["comparison_budget"]
+                else None
+            )
+            input_bytes = args.input.read_bytes()
+            try:
+                envelope = consumer.validate_power_input(
+                    json.loads(input_bytes),
+                    args.freeze,
+                    actual,
+                    model_cache=args.model_cache,
+                    model_manifest=model,
+                )
+                source = envelope["input"]
+                result = plan_grouped_power(
+                    source["development"],
+                    group_floors=[int(g) for g in args.group_floors.split(",")],
+                    seed=args.seed,
+                    repetitions=args.repetitions,
+                    identities=source["identities"],
+                    assumptions={
+                        "independent_original_groups": source["protocol_frame"]["group_assumptions"][
+                            "independent_original_groups"
+                        ],
+                        "development_representative": source["power_assumptions"][
+                            "development_representative"
+                        ],
+                        "evidence_digests": source["power_assumptions"]["evidence_digests"],
+                    },
+                    bound_input=envelope,
+                )
+                consumer.guard(
+                    source["binding"],
+                    consumer.inputs(args.freeze)[0],
+                    consumer.inputs(args.freeze)[1],
+                    actual,
+                    args.model_cache,
+                )
+                if args.input.read_bytes() != input_bytes:
+                    raise ValueError("power input bytes changed during simulation")
+            finally:
+                actual.conn.close()
+            _publish_immutable(args.output, result)
+            print(json.dumps(result, sort_keys=True, indent=2))
+            return 0
+        except (ValueError, KeyError, TypeError, OSError) as exc:
+            return _print_errors([str(exc)])
+    if args.command in {"fit-calibration", "evaluate-frozen-calibration"}:
+        from magicite.eval import calibration_consumer as consumer
+        from magicite.eval.production import verify_model
+
+        try:
+            model = json.loads(args.model_manifest.read_bytes())
+            verify_model(args.model_cache, model)
+            from magicite.core.comparison_budget import ComparisonBudget
+            from magicite.eval import data_readiness
+
+            freeze = data_readiness.verify_freeze(args.freeze)
+            projection = freeze["binding"].get("statistical_projection")
+            frozen_protocol = projection["protocol"] if projection else None
+            if (
+                args.statistical_protocol is not None
+                and json.loads(args.statistical_protocol.read_bytes()) != frozen_protocol
+            ):
+                raise ValueError("protocol CLI input differs from frozen preregistration")
+            budget_body = frozen_protocol["comparison_budget"] if frozen_protocol else None
+            if (
+                args.comparison_budget is not None
+                and json.loads(args.comparison_budget.read_bytes()) != budget_body
+            ):
+                raise ValueError("budget CLI input differs from frozen preregistration")
+            actual = consumer.cli_actual(args.project_root, args.model_cache, args.rank_depth)
+            actual.comparison_budget = (
+                ComparisonBudget.from_dict(budget_body) if budget_body is not None else None
+            )
+            try:
+                if args.command == "fit-calibration":
+                    result = consumer.fit_calibration(
+                        args.freeze, args.output, actual, model_cache=args.model_cache, model_manifest=model
+                    )
+                else:
+                    result = consumer.evaluate_frozen_calibration(
+                        args.freeze,
+                        args.candidate,
+                        args.output,
+                        actual,
+                        model_cache=args.model_cache,
+                        replay=args.replay,
+                    )
+            finally:
+                actual.conn.close()
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            return _print_errors([str(exc)])
+
+    if args.command == "validate-corpus":
+        errors = validate_corpus(args.path)
+        if errors:
+            return _print_errors(errors)
+        data = json.loads(args.path.read_text(encoding="utf-8"))
+        print(f"validated {len(data['cases'])} independent composition cases")
+        return 0
+
+    if args.command.startswith("validate-"):
+        data, load_errors = _load_json(args.path)
+        if load_errors:
+            return _print_errors(load_errors)
+        assert data is not None
+
+        validators = {
+            "validate-experiment": validate_experiment_data,
+            "validate-corpus-manifest": validate_corpus_manifest_data,
+            "validate-prediction": validate_prediction_data,
+            "validate-result": validate_result_data,
+            "validate-claim": validate_claim_data,
+        }
+        errors = validators[args.command](data)
+        if args.command == "validate-claim":
+            for error in claim_eligible_for_new_run_gate(data):
+                if error not in errors:
+                    errors.append(error)
+        if errors:
+            return _print_errors(errors)
+        print(f"{args.command} ok")
+        return 0
+
+    from magicite.eval import operator_cli as ops
+
+    try:
+        if args.command == "acquire-skillret":
+            result = ops.cmd_acquire_skillret(
+                archive=args.archive,
+                expected_sha256=args.expected_sha256,
+                license_name=args.license_name,
+                revision=args.revision,
+                corpus_json=args.corpus_json,
+                output=args.output,
+                acquired_at=args.acquired_at,
+            )
+        elif args.command == "run-retrieval":
+            result = ops.cmd_run_retrieval(
+                experiment_path=args.experiment,
+                corpus_path=args.corpus,
+                split=args.split,
+                provider=args.provider,
+                output=args.output,
+                policy_id=args.policy_id,
+            )
+        elif args.command == "run-paired-policies":
+            result = ops.cmd_run_paired_policies(
+                incumbent=args.incumbent,
+                candidate=args.candidate,
+                experiment_path=args.experiment,
+                corpus_path=args.corpus,
+                n_resamples=args.n_resamples,
+                seed=args.seed,
+                output=args.output,
+                provider=args.provider,
+            )
+        elif args.command == "run-abstention-gate":
+            result = ops.cmd_run_abstention_gate(
+                calibration_split=args.calibration_split,
+                final_split=args.final_split,
+                experiment_path=args.experiment,
+                corpus_path=args.corpus,
+                output=args.output,
+            )
+        elif args.command == "run-host-tasks":
+            result = ops.cmd_run_host_tasks(
+                corpus_path=args.corpus,
+                arms=[a.strip() for a in args.arms.split(",") if a.strip()],
+                n_resamples=args.n_resamples,
+                seed=args.seed,
+                output=args.output,
+            )
+        else:
+            return _print_errors([f"unknown command {args.command!r}"])
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        return _print_errors([str(exc)])
+
+    print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
 

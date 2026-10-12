@@ -1,0 +1,271 @@
+{
+  "source_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+  "query_id": "train:q-train-000792",
+  "calls": [
+    {
+      "call": "cold-1",
+      "wall_seconds": 87.00103604100877,
+      "cpu_seconds": 86.95461300000001,
+      "process_peak_rss_bytes": 771244032,
+      "subject_entries": 4096,
+      "subject_capacity": 4096,
+      "provider_embed_delta": 1,
+      "provider_batch_delta": 0,
+      "route_cache": {
+        "embedding_cache": "No adapter query cache; underlying ONNX runtime remains loaded",
+        "production_batch_calls": 0,
+        "production_embed_calls": 1,
+        "route_index_hits": 0,
+        "route_index_misses": 0,
+        "subject_projection": "Live subject cache may be warm; no fabricated hit counter."
+      },
+      "comparison": {
+        "fields_equal": {
+          "abstained": true,
+          "candidate_ids": true,
+          "confidence": true,
+          "config_digest": true,
+          "exclusions": true,
+          "index_generation_id": true,
+          "model_digest": true,
+          "policy_digest": true,
+          "policy_family": true,
+          "policy_id": true,
+          "query_id": true,
+          "registry_digest": true,
+          "selected_content_digests": true,
+          "selected_ids": true,
+          "status": true
+        },
+        "score_lengths_equal": true,
+        "scores_max_abs_diff": 0.0
+      },
+      "hot_functions": [
+        {
+          "calls": 10124,
+          "cumulative_seconds": 76.55844287000001,
+          "file": "src/magicite/engram/parser.py",
+          "line": 72,
+          "name": "load_frontmatter_doc",
+          "primitive_calls": 10124,
+          "self_seconds": 0.004415427
+        },
+        {
+          "calls": 2,
+          "cumulative_seconds": 1.796672416,
+          "file": "src/magicite/core/trust.py",
+          "line": 202,
+          "name": "authenticated_snapshot",
+          "primitive_calls": 2,
+          "self_seconds": 1.0207e-05
+        },
+        {
+          "calls": 1,
+          "cumulative_seconds": 86.095760084,
+          "file": "src/magicite/core/router.py",
+          "line": 848,
+          "name": "_evaluate_route_eligibility",
+          "primitive_calls": 1,
+          "self_seconds": 0.095855463
+        },
+        {
+          "calls": 10124,
+          "cumulative_seconds": 80.031268427,
+          "file": "src/magicite/engram/parser.py",
+          "line": 163,
+          "name": "parse_artifact",
+          "primitive_calls": 10124,
+          "self_seconds": 0.075212452
+        },
+        {
+          "calls": 10126,
+          "cumulative_seconds": 83.88266453700001,
+          "file": "src/magicite/core/router.py",
+          "line": 668,
+          "name": "_build_subject_entry",
+          "primitive_calls": 10126,
+          "self_seconds": 0.091017291
+        }
+      ],
+      "artifact_sha256": "b29a87617404786e6e81e2657e1d775b35e6b5abd0e9796b38f550178be4e016"
+    },
+    {
+      "call": "warm-1",
+      "wall_seconds": 85.27150479200645,
+      "cpu_seconds": 85.32537099999999,
+      "process_peak_rss_bytes": 771244032,
+      "subject_entries": 4096,
+      "subject_capacity": 4096,
+      "provider_embed_delta": 1,
+      "provider_batch_delta": 0,
+      "route_cache": {
+        "embedding_cache": "No adapter query cache; underlying ONNX runtime remains loaded",
+        "production_batch_calls": 0,
+        "production_embed_calls": 1,
+        "route_index_hits": 0,
+        "route_index_misses": 0,
+        "subject_projection": "Live subject cache may be warm; no fabricated hit counter."
+      },
+      "comparison": {
+        "fields_equal": {
+          "abstained": true,
+          "candidate_ids": true,
+          "confidence": true,
+          "config_digest": true,
+          "exclusions": true,
+          "index_generation_id": true,
+          "model_digest": true,
+          "policy_digest": true,
+          "policy_family": true,
+          "policy_id": true,
+          "query_id": true,
+          "registry_digest": true,
+          "selected_content_digests": true,
+          "selected_ids": true,
+          "status": true
+        },
+        "score_lengths_equal": true,
+        "scores_max_abs_diff": 0.0
+      },
+      "hot_functions": [
+        {
+          "calls": 10123,
+          "cumulative_seconds": 77.044846143,
+          "file": "src/magicite/engram/parser.py",
+          "line": 72,
+          "name": "load_frontmatter_doc",
+          "primitive_calls": 10123,
+          "self_seconds": 0.004682065
+        },
+        {
+          "calls": 2,
+          "cumulative_seconds": 0.000786834,
+          "file": "src/magicite/core/trust.py",
+          "line": 202,
+          "name": "authenticated_snapshot",
+          "primitive_calls": 2,
+          "self_seconds": 5.043000000000001e-06
+        },
+        {
+          "calls": 1,
+          "cumulative_seconds": 85.064609375,
+          "file": "src/magicite/core/router.py",
+          "line": 848,
+          "name": "_evaluate_route_eligibility",
+          "primitive_calls": 1,
+          "self_seconds": 0.10357065900000001
+        },
+        {
+          "calls": 10123,
+          "cumulative_seconds": 80.5944418,
+          "file": "src/magicite/engram/parser.py",
+          "line": 163,
+          "name": "parse_artifact",
+          "primitive_calls": 10123,
+          "self_seconds": 0.077288915
+        },
+        {
+          "calls": 10126,
+          "cumulative_seconds": 84.63373740700001,
+          "file": "src/magicite/core/router.py",
+          "line": 668,
+          "name": "_build_subject_entry",
+          "primitive_calls": 10126,
+          "self_seconds": 0.092066248
+        }
+      ],
+      "artifact_sha256": "eb9450bbac0c0121703649bea18cb0843e1c1cc1112c2b559d73fbc4c0180f58"
+    },
+    {
+      "call": "warm-2",
+      "wall_seconds": 85.76185420900583,
+      "cpu_seconds": 85.80647299999998,
+      "process_peak_rss_bytes": 771244032,
+      "subject_entries": 4096,
+      "subject_capacity": 4096,
+      "provider_embed_delta": 1,
+      "provider_batch_delta": 0,
+      "route_cache": {
+        "embedding_cache": "No adapter query cache; underlying ONNX runtime remains loaded",
+        "production_batch_calls": 0,
+        "production_embed_calls": 1,
+        "route_index_hits": 0,
+        "route_index_misses": 0,
+        "subject_projection": "Live subject cache may be warm; no fabricated hit counter."
+      },
+      "comparison": {
+        "fields_equal": {
+          "abstained": true,
+          "candidate_ids": true,
+          "confidence": true,
+          "config_digest": true,
+          "exclusions": true,
+          "index_generation_id": true,
+          "model_digest": true,
+          "policy_digest": true,
+          "policy_family": true,
+          "policy_id": true,
+          "query_id": true,
+          "registry_digest": true,
+          "selected_content_digests": true,
+          "selected_ids": true,
+          "status": true
+        },
+        "score_lengths_equal": true,
+        "scores_max_abs_diff": 0.0
+      },
+      "hot_functions": [
+        {
+          "calls": 10123,
+          "cumulative_seconds": 77.55524555800001,
+          "file": "src/magicite/engram/parser.py",
+          "line": 72,
+          "name": "load_frontmatter_doc",
+          "primitive_calls": 10123,
+          "self_seconds": 0.004522567
+        },
+        {
+          "calls": 2,
+          "cumulative_seconds": 0.000810459,
+          "file": "src/magicite/core/trust.py",
+          "line": 202,
+          "name": "authenticated_snapshot",
+          "primitive_calls": 2,
+          "self_seconds": 4.667e-06
+        },
+        {
+          "calls": 1,
+          "cumulative_seconds": 85.557415,
+          "file": "src/magicite/core/router.py",
+          "line": 848,
+          "name": "_evaluate_route_eligibility",
+          "primitive_calls": 1,
+          "self_seconds": 0.10622476800000001
+        },
+        {
+          "calls": 10123,
+          "cumulative_seconds": 81.199021396,
+          "file": "src/magicite/engram/parser.py",
+          "line": 163,
+          "name": "parse_artifact",
+          "primitive_calls": 10123,
+          "self_seconds": 0.07685470400000001
+        },
+        {
+          "calls": 10126,
+          "cumulative_seconds": 85.124852043,
+          "file": "src/magicite/core/router.py",
+          "line": 668,
+          "name": "_build_subject_entry",
+          "primitive_calls": 10126,
+          "self_seconds": 0.092109469
+        }
+      ],
+      "artifact_sha256": "9ab38e6331bf848d665c107b36ad324664bf3c444a8935ca94279e7f52fc3873"
+    }
+  ],
+  "profile_scope": "cProfile instrumented diagnostic with overhead, not benchmark/E6",
+  "conclusion": "Full10123-subject workload rebuilds10126subject projections and parses10123artifacts even on same-process warm repeats; YAML parsing dominates. This verifies subject cache working-set churn, not embedding-model cache thrash. No cache/source/decisions modified; no heldout queries.",
+  "budget_spent_seconds": 258.03439504202106,
+  "original_smoke_unchanged_sha256": "447eafc34034425a75150a67ccd7a83e0004dbebef8a1f543f277dcb3292ca70"
+}

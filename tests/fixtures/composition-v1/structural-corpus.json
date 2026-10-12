@@ -1,0 +1,46 @@
+{
+  "schema": "magicite/composition-v1-corpus/1",
+  "corpus_id": "composition-v1-structural",
+  "description": "Structural composition fixtures for Plan/1 (C5). Labels are independent of production expand(). Multiple accepted topological orders allowed where noted.",
+  "cases": [
+    {
+      "id": "producer-before-consumer",
+      "selected": ["egr_b0000001"],
+      "features": ["producer", "known-empty-inventory"],
+      "accepted_orders": [["egr_a0000001", "egr_b0000001"]],
+      "label_rationale": "Known-empty inventory + B requires artifact X + eligible A produces X ⇒ A before B."
+    },
+    {
+      "id": "ambiguous-two-producers",
+      "selected": ["egr_b0000002"],
+      "features": ["ambiguity"],
+      "expect_status": "invalid",
+      "expect_codes": ["ambiguous_provider"],
+      "label_rationale": "Two satisfying producers with no preference ⇒ ambiguous_provider."
+    },
+    {
+      "id": "cycle-no-executable-prefix",
+      "selected": ["egr_c0000001"],
+      "features": ["cycle"],
+      "expect_status": "invalid",
+      "expect_codes": ["cycle"],
+      "expect_empty_order": true,
+      "label_rationale": "Cycle ⇒ invalid plan with no executable prefix (never legacy cycle-break labelled executable)."
+    },
+    {
+      "id": "before-ordering",
+      "selected": ["egr_33333333", "egr_aaaa0001"],
+      "features": ["before"],
+      "accepted_orders": [["egr_aaaa0001", "egr_33333333"]],
+      "label_rationale": "relations.before orders already-selected nodes; absent targets stay inactive."
+    },
+    {
+      "id": "supersedes-conflict",
+      "selected": ["egr_33333333", "egr_bbbb0001"],
+      "features": ["supersedes", "conflict"],
+      "expect_status": "invalid",
+      "expect_codes": ["conflict"],
+      "label_rationale": "Both exact supersedes revisions in one plan ⇒ conflicting."
+    }
+  ]
+}

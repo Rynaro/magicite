@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-08T12:20:42.590949+00:00",
+  "sha256": {
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/ramza-calibration.jsonl": "16f9ed7959e5aa9038653e7a74cff0f937b538173c7bae59bb3a702d2ceeaa85",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.acceptance.md": "a5f8cbbd36a7104ba2839e92b889ba1eaf095f1266528a933466213c136a0ff7",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.envelope.json": "aae554d4118d84d0b544ee8c68bdf0293703e4a6f7c04b1e311ea24effdb6e74",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.handoff.yaml": "31a07a3d4122278af4099d90109451603dfee24cb01c9da5809df7230e18ae84",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.md": "0ef93afaacb058c1a48f6861f9bf2987d4c97b783b2896c95d76a7526fcf5d55",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.plan.json": "0b32b3cc30c2303bf16b078e6b14a417bc280f22d1a9984d908450fa92ee46ac",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.remaining-estimate-scope-correction.json": "a8ef332790295695ca31acaa111b9bab0cce8381e1725dee2eede2f724144b9e",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.remaining-estimate-scope-correction.md": "9d0fcbd332d1b91149d6a701b697dd9b1780262080032e51118805a39e2fc42e",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.remaining-estimate.json": "a4424de796f9f373fc16f07b269f27c77ac5f990ac91ec977a8810c0e90f2c24",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.remaining-estimate.md": "aec5521860019c7d2f665ccb9d31038cecbc3594ed70ed1ba2489fd4c7bfcf9c",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-01.envelope.json": "ee7288cf6131fd4aba4871e034c89552ddec110476fbd68cc6df2e212aaba8a9",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-01.md": "8a4a781b0b6b72d73affb7ec0f878ebfe2cb22fd5dba2eab4730220f09de5b69",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-01.original-hashes.json": "e5c1467e7b0883a5a86d558a72700b009558145c8a145c5ac45d7887fb4ef21d",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-01.scope.txt": "7205b89cfecf25004bda58f1787bfea0409dac542162b2c539a4ac4c63002973",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-01.state.json": "a4aff671f225e4448693e3b1a6e5cab075d66e99552f36bef1b956b75e25760b",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.scope-clarification-01.validation.json": "b42bd6b4b713b3b8e06fd58eb688fc0d8d81f7a64db4f3e64bca89eda1928e5a",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.state.json": "ac8e3ce49e7036e1788992a50b954e8ccb3ff5736137b7cb91500ad09a00aeef",
+    "/private/tmp/magicite-v1-calibration/root-cause-ci-a2-to-idg.md": "2d2a20ac6878443146cbce601249f52ce6deaa36e09cc4779dad587bb1338cd2",
+    "/private/tmp/magicite-v1-calibration/root-cause-ci-a2-to-idg.envelope.json": "0234d605f4bd64f664504e6e1edb4e06c6f7f46c6b5eb053c198b9dc90b5de88",
+    "/private/tmp/magicite-v1-calibration/checker-ci-a2-reproductions.json": "e69ef70934cb2914b1869cbba3a70f6ebbbaf5bc1c83c684f1d8d5521e452754",
+    "/private/tmp/magicite-v1-calibration/checker-ci-a2-counterfactual.log": "0ce88768a9473be1e7b8becbb63962f3be004760e3e27bda4664d1d0167f549a",
+    "/private/tmp/magicite-v1-calibration/root-scope-01-verification.json": "ceb396ea3750e9b7a21dac5ff779e022d49a9541f07709be8bb1a0c3ace32f66",
+    "/private/tmp/magicite-v1-calibration/root-scope-01-trace.jsonl": "f885090e2a7797f3144ebc71c45f99fdb3d68272c410f57bf3bf1fcbb54e2c35"
+  }
+}

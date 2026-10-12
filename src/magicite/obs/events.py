@@ -37,20 +37,46 @@ from magicite.storage import ephemeral as ephemeral_mod
 PASSIVE_INFERENCE_TIER = 0
 REDACTED_ARGUMENT = "<redacted>"
 _SECRET_ARGUMENT_KEYS = frozenset({"adapter_token"})
+#: C6 / S09: never fold raw query/prompt text into digests or ledger rows.
+_PRIVACY_ARGUMENT_KEYS = frozenset(
+    {
+        "query",
+        "raw_query",
+        "prompt",
+        "raw_prompt",
+        "procedure_output",
+        "secret",
+        "absolute_path",
+        "project_path",
+    }
+)
 
 
 def redact_arguments(value: Any) -> Any:
-    """Return a canonical copy with credential values removed before hashing."""
+    """Return a canonical copy with credential/privacy values removed before hashing.
+
+    S09 inventory: args digests and tool-call ledger rows must omit raw
+    query/prompt/secret fields (AC-S00-04 / AC-S09-03). Route-specific
+    events already use keyed fingerprints; this keeps the generic path safe.
+    """
     if isinstance(value, dict):
-        return {
-            key: REDACTED_ARGUMENT if key in _SECRET_ARGUMENT_KEYS else redact_arguments(item)
-            for key, item in value.items()
-        }
+        out: dict[str, Any] = {}
+        for key, item in value.items():
+            if key in _SECRET_ARGUMENT_KEYS or key in _PRIVACY_ARGUMENT_KEYS:
+                out[key] = REDACTED_ARGUMENT
+            else:
+                out[key] = redact_arguments(item)
+        return out
     if isinstance(value, list):
         return [redact_arguments(item) for item in value]
     if isinstance(value, tuple):
         return tuple(redact_arguments(item) for item in value)
     return value
+
+
+def privacy_sensitive_argument_keys() -> frozenset[str]:
+    """Keys S09 treats as raw-capture / export-forbidden in argument digests."""
+    return _SECRET_ARGUMENT_KEYS | _PRIVACY_ARGUMENT_KEYS
 
 
 def args_digest(arguments: dict[str, Any]) -> str:

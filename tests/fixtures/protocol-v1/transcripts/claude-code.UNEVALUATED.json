@@ -1,0 +1,6 @@
+{
+  "schema": "magicite/protocol-transcript/1",
+  "status": "UNEVALUATED",
+  "host": "claude-code",
+  "note": "Placeholder until a pinned real-host session is archived. Does not claim conformance."
+}

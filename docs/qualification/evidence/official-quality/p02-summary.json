@@ -1,0 +1,97 @@
+{
+  "schema": "magicite/p02-local-summary/1",
+  "source_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "tool_session": 31007,
+  "exit": 0,
+  "calls_completed": 3,
+  "query_id": "train:q-train-000792",
+  "heldout_queries": 0,
+  "spent_seconds": 87.53409395797644,
+  "wall_seconds": [
+    86.15926733298693,
+    0.638263166998513,
+    0.7365634579909965
+  ],
+  "cpu_seconds": [
+    86.053445,
+    0.7052770000000095,
+    0.7989979999999974
+  ],
+  "process_peak_rss_bytes": [
+    771604480,
+    771604480,
+    771604480
+  ],
+  "rss_scope": "Process peak, includes clone/model/startup; not isolated cache byte memory",
+  "subject_cache_capacity": 16384,
+  "subject_cache_entries": [
+    10123,
+    10123,
+    10123
+  ],
+  "parse_artifact_calls": [
+    10123,
+    0,
+    0
+  ],
+  "provider_embed_delta": [
+    1,
+    1,
+    1
+  ],
+  "provider_batch_delta": [
+    0,
+    0,
+    0
+  ],
+  "all15fields_equal": true,
+  "score_max_abs_diff": 0.0,
+  "source_clean_after": true,
+  "producer_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+  "producer_rows_unchanged": {
+    "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/smoke-dense-v1.jsonl",
+    "sha256": "447eafc34034425a75150a67ccd7a83e0004dbebef8a1f543f277dcb3292ca70"
+  },
+  "prospective_binding": {
+    "path": "/private/tmp/magicite-v1-quality/p02-prospective-binding.json",
+    "sha256": "b359a992459fbb107da20745ef78029f135f8e09265cc68080f3149f12a03a02"
+  },
+  "raw_summary": {
+    "path": "/private/tmp/magicite-v1-quality/train-profile-c4-p02-v1/summary.json",
+    "sha256": "6819e90c37ad8b4a54f3a92b5cbe6bd076ae9563ecdc6839efa478a025cb71d6"
+  },
+  "invocation": {
+    "path": "/private/tmp/magicite-v1-quality/train-profile-c4-p02-v1/invocation.json",
+    "sha256": "406bb0a5c095dd6c3deb69c2a3cc2c4de30e3c2eca967921af22f0c33584d6e8"
+  },
+  "calls": {
+    "cold-1": {
+      "path": "/private/tmp/magicite-v1-quality/train-profile-c4-p02-v1/cold-1.json",
+      "sha256": "2cd6c7a8811244a3e9b3566a7ce06ed0cfdd6c944c68c8578b7d02a36c01752e"
+    },
+    "warm-1": {
+      "path": "/private/tmp/magicite-v1-quality/train-profile-c4-p02-v1/warm-1.json",
+      "sha256": "d3690075b61169db50c958efcc18a826fd259182969f5d9d1c32679bb5a0ec57"
+    },
+    "warm-2": {
+      "path": "/private/tmp/magicite-v1-quality/train-profile-c4-p02-v1/warm-2.json",
+      "sha256": "8353eda80560126f951a7c91a21ff5dfa7d9ed6f01291753bf809eac089abb1a"
+    }
+  },
+  "cprof": {
+    "cold-1": {
+      "path": "/private/tmp/magicite-v1-quality/train-profile-c4-p02-v1/cold-1.cprof",
+      "sha256": "a870ba39254f48d148b76e7c2a92c41abd94a34c4cd5c6fd9cb6d38357ac9d82"
+    },
+    "warm-1": {
+      "path": "/private/tmp/magicite-v1-quality/train-profile-c4-p02-v1/warm-1.cprof",
+      "sha256": "b8719f73c5fb88a079d0781091b6ee19380bd2ea437f2d0503bbda94e0ebfa4f"
+    },
+    "warm-2": {
+      "path": "/private/tmp/magicite-v1-quality/train-profile-c4-p02-v1/warm-2.cprof",
+      "sha256": "f1c7cdb9d73dae9c69ab232e60aa637c376895918f574a97699bc268992cf909"
+    }
+  },
+  "status": "LOCAL_CHECKS_PASS_INDEPENDENT_PENDING",
+  "scope": "Train diagnostic only; no full smoke, E3/E6/heldout/GA claim"
+}

@@ -45,10 +45,13 @@ def test_no_communities_does_not_mutate_the_caller_config(cfg, db_conn, embedder
     assert cfg.ablation_no_communities is False
 
 
-def test_no_communities_config_switch_is_real(cfg, db_conn, embedder) -> None:
+def test_no_communities_config_switch_is_real(cfg, db_conn, embedder, review_fixture_artifacts) -> None:
     """The switch actually reaches core/router.py::route() -- not a
     bench-only reimplementation."""
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    from tests.conftest import TOY_ENGRAM_NAMES
+
+    review_fixture_artifacts(*TOY_ENGRAM_NAMES)
     registry_mod.sync(cfg, db_conn, embedder)
     from magicite.core import router as router_mod
 
@@ -84,11 +87,14 @@ def test_no_tag_capture_never_calls_signal_use_or_signal_outcome(cfg, db_conn, e
     assert result.name == "no_tag_capture"
 
 
-def test_no_tag_capture_demonstrates_instability(cfg, db_conn, embedder) -> None:
+def test_no_tag_capture_demonstrates_instability(cfg, db_conn, embedder, review_fixture_artifacts) -> None:
     """docs/07's own hypothesis, made concrete: ungated, ever-growing
     per-occurrence bumps toward frequently-labelled skills degrade
     accuracy relative to the real, gated baseline (d)."""
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    from tests.conftest import TOY_ENGRAM_NAMES
+
+    review_fixture_artifacts(*TOY_ENGRAM_NAMES)
     registry_mod.sync(cfg, db_conn, embedder)
     queries = bench_mod.load_queries(TOY_QUERIES_PATH)
 

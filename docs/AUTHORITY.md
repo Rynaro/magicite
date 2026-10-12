@@ -1,26 +1,86 @@
-# Magicite 0.3 authority manifest
+# Magicite v1 integration authority
 
-This manifest is the entry point for deciding what Magicite 0.3 means. It
-exists because the 0.2 audit found live design prose, archived construction
-records, and runtime behavior competing as if they had equal authority.
+The package identity is **1.0.0**. The maintainer approved the bounded functional
+release roadmap on 2026-10-11. The [v1 release scope](releases/1.0.0.md) governs
+this release promise; it does not declare the broader qualification campaign
+passed. Historical RC artifacts and measurements retain their original status.
 
 ## Authority order
 
-1. The 0.3 acceptance criteria and accepted amendments under
-   `.spectra/plans/magicite-v0.3.0-integrity-recovery*`.
-2. Public MCP schemas, engram schemas, configuration defaults, and tests in
-   the tagged release.
-3. Current documents `02` through `07`, `operations.md`, and adapter guides.
-4. `01-vision-and-hypotheses.md` for claims and falsification status only.
-5. Archived `.spectra/changes/archive/` records as immutable historical
-   evidence. Archives do not override a later accepted criterion.
-6. `docs/research/exploratory/` as research context, never current behavior.
+1. The [approved functional v1 roadmap](releases/v1/roadmap-proposal-2026-10-11.md)
+   and [release scope](releases/1.0.0.md). The frozen
+   [broader qualification criteria](../.spectra/plans/magicite-v1/acceptance.md)
+   remain historical/open requirements for their separately tracked campaign;
+   release approval does not mark them passed.
+2. Installed runtime schemas and tests, with the [generated reference](generated/runtime-reference.json)
+   checked against actual version, engram schemas, 16 MCP tools, CLI and config.
+3. Current documents `02` through `07`, operations and adapter guides. The
+   current v1 contract at each document's start supersedes its historical context.
+4. Historical v0.3 results and append-only archives, retained as evidence rather
+   than proof of v1 performance or efficacy.
+5. Exploratory research and unaccepted proposals, which cannot change behavior.
 
-When two current sources disagree, the release is blocked until the mismatch
-is resolved or recorded as a scoped erratum. Code passing a test is not by
-itself permission to silently change a frozen acceptance criterion.
+The stable default is `dense-v1`; see [ADR 001](decisions/001-stable-dense-v1-incumbent.md).
+Adaptive selection is experimental. S10 efficacy is held; its containment is mandatory.
+A passing fixture establishes only that fixture's obligation. Official external data,
+production envelopes, real-host transcripts, fuzz evidence and independent operator
+validation remain separately [UNEVALUATED](evaluation/v1/unevaluated.md).
 
-## 0.3 semantic decisions
+`skill-graph.db` is local, rebuildable state and is ignored by default. Complete
+recovery also requires canonical bodies/assets, approvals, policy/trust state,
+evidence checkpoints and separately protected fingerprint-key custody; a copied DB
+is not a complete backup. Authenticated trust history is held by a separately
+provisioned custodian under the adopted trust-hardening amendment; the project-local
+journal is a verified projection, not an authority. A historical [separate-UID Linux custody witness](qualification/linux-custody.md)
+exists at source c7b3bfbeae89031bb33658a4bc041aea4a2091ec. It does not qualify
+macOS custody or the combination of native installation and real-host deployment.
+Those combined deployment obligations remain UNEVALUATED.
+
+## Protected calibration admission (GA-R1)
+
+Runtime thresholds come exclusively from the immutable calibration bundle in
+MAC-protected policy state under existing authenticated custody. Local
+`calibration/active.json` and named evaluation artifacts never authorize runtime
+calibration. The artifact binds the uncalibrated base policy; the admitted
+candidate has a separate effective identity containing the artifact digest.
+The server permission/tool ceiling is bound once. Current configuration, model
+bytes, registry/index pins, installed source mechanism and authenticated custody
+history are checked before each calibrated route and cached body disclosure.
+Changed history, retired records, missing control corroboration or stale bindings
+fail closed. Writer fence advancement alone does not change history identity.
+
+`magicite policy admit-calibration --artifact artifact.json --evidence evidence.json
+--actor OPERATOR` gives a read-only digest summary. After reviewing the entire
+bundle, the operator supplies `--reviewed-sha256 EXACT_BUNDLE_DIGEST` to admit the
+candidate. Existing `policy approve` and CAS `policy activate` remain separate
+explicit operations. No calibration admission MCP tool or automatic activation
+is added. Generic `register-evaluated` cannot authorize a calibrated policy,
+including a policy named `dense-v1`; its legacy exemption applies only without
+calibration.
+
+The future `magicite/calibration-qualification/1` attestation requires complete
+qualifying E2/E3 PASS reports with immutable fit/final input and candidate anchors,
+exact subject/source bindings and digest-linked underlying reports. Current
+frozen-calibration consumer reports remain nonqualifying and are rejected even
+inside an outer PASS wrapper. Validation checks structure and consistency;
+it does not prove authentic data or statistical truth. The exact digest review
+is an operator attestation protected by existing custody. Its frozen source
+commit is attested provenance; the observed installed Python-source commitment
+is the live mechanism identity. The current model adapter must expose immutable
+model artifact bytes for non-hashing calibrated admission; an unobservable remote
+or default-cache model fails closed. No model is fetched by admission.
+
+Threshold margins do not establish probability calibration. Calibrated decisions
+retain null probability confidence. Positive tests use explicitly synthetic
+authenticated test custody and prove engineering mechanics only. The historical GA-R1 qualification closure
+left these campaign items open: grouped statistical/confidence evaluation,
+protected benchmark integration, authentic fresh final quality qualification,
+platform/install/recovery/distribution qualification, and independent release
+candidates/external reproduction with an explicit GA decision. No authentic
+E2/E3 result or release qualification follows from these fixtures. The broader
+campaign is deferred under the approved functional release scope.
+
+## Historical 0.3 semantic decisions (superseded where v1 differs)
 
 - FastEmbed is the default production provider; hashing is the deterministic
   CI provider and Ollama is optional.
@@ -36,7 +96,8 @@ itself permission to silently change a frozen acceptance criterion.
 - `yields` is portable composition metadata in 0.3; it is not a graph edge
   until a future governed semantics defines its producer/consumer behavior.
 - `skill-graph.db` is local, rebuildable state and is ignored by default. The
-  `.egr.md` registry and durable approval mirrors are the portable authority.
+  `.egr.md` registry and durable approval mirrors are the portable authority for skills
+  and proposals; trust history is not (see the custodian-held journal above).
 - Lifecycle status, verification status, and operation execution status are
   independent dimensions. The word `pending` must always name its dimension.
 - Register, sync, sharpen, lifecycle operations, and Dream may write durable

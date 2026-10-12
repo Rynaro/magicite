@@ -286,8 +286,10 @@ def test_lost_token_fences_durable_write(tmp_path, lease_conn) -> None:
             "UPDATE writer_lease SET holder = 'replacement', fencing_token = fencing_token + 1 "
             "WHERE id = 1"
         )
-        with lease.writer_lease():
-            with pytest.raises(BusyError):
+        # Fence fires on writer_lease enter once CrossProcessLease is bound
+        # (AC-S12-04); durable writes remain unreachable after token loss.
+        with pytest.raises(BusyError):
+            with lease.writer_lease():
                 durable_mod.write_schema_meta(lease_conn, "fenced", "must-not-land")
     assert lease_conn.execute(
         "SELECT value FROM schema_meta WHERE key = 'fenced'"

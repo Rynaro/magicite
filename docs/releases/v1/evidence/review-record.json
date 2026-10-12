@@ -1,0 +1,23 @@
+{
+  "code": {
+    "independent_command": "/private/tmp/s14-mcp200/bin/python -m pytest -q -p no:cacheprovider tests/unit/test_release_manifest.py",
+    "result": "47 passed",
+    "reviewer": "RAMZA /root/v1_plan",
+    "scope": "Validator code only; prior report-content and numeric/boolean findings resolved.",
+    "source_commit": "eee0fd8e34e7d7909309be09d9c429839e63fbbe",
+    "verdict": "APPROVED"
+  },
+  "code_delta": {
+    "reviewer": "RAMZA /root/v1_plan",
+    "scope": "Require explicit clean candidate/RC sources;54 focused tests independently passed; actual os._exit23 checkpoint/rebuild probe independently passed.",
+    "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+    "verdict": "APPROVED"
+  },
+  "evidence": {
+    "reviewed_head": "52f7bba54eaf9e94acd6408ddaaa93fd144b5183",
+    "reviewer": "RAMZA /root/v1_plan",
+    "scope": "Local mechanical evidence adjudication and NO-GA package:76 exact criteria,63PASS/13UNEVALUATED,14clause witnesses,17gates,1042nestedartifactrefs. Not GA approval, external reproduction or trust proposal adoption.",
+    "tested_source": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+    "verdict": "APPROVED"
+  }
+}

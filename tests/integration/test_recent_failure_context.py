@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from magicite.core import registry as registry_mod
 from magicite.core import router as router_mod
+from magicite.core import routing_policy as policy_mod
 
 
 def test_recent_failure_context_is_populated_by_ingestion(cfg, db_conn, embedder) -> None:
+    # S00 call-site: recent-failure soft boost is experimental adaptive-blend.
+    cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
     path = cfg.registry_dir / "proton-ge-proton-downgrade.egr.md"
     raw = path.read_text(encoding="utf-8")
     path.write_text(
@@ -15,15 +18,17 @@ def test_recent_failure_context_is_populated_by_ingestion(cfg, db_conn, embedder
         ),
         encoding="utf-8",
     )
+    from tests.support.custody_adapter import review_sources
+
+    sources = {p.name.removesuffix(".egr.md"): p.read_bytes() for p in cfg.registry_dir.glob("*.egr.md")}
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    review_sources(cfg, db_conn, sources=sources)
     row = db_conn.execute(
         "SELECT fault_class FROM engram_step WHERE engram_id = 'egr_b5320dfd' AND step_no = 1"
     ).fetchone()
     assert row["fault_class"] == "PROTON_REGRESSION"
 
-    baseline = router_mod.route(
-        cfg, db_conn, embedder, query="rollback ge-proton for steam", k=7
-    )
+    baseline = router_mod.route(cfg, db_conn, embedder, query="rollback ge-proton for steam", k=7)
     conditioned = router_mod.route(
         cfg,
         db_conn,

@@ -183,15 +183,17 @@ def test_archive_below_floor_moves_file_never_deletes(cfg, db_conn, registered) 
     below floor_archived THEN the next Dream run SHALL move its file into
     .magicite/archive/ without deleting it."""
     engram_id = _seed_evidenced_engram(db_conn, PROTON, storage_strength=0.05)
-    file_path = cfg.project_root / db_conn.execute(
-        "SELECT path FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()["path"]
+    file_path = (
+        cfg.project_root
+        / db_conn.execute("SELECT path FROM engram WHERE id = ?", (engram_id,)).fetchone()["path"]
+    )
     assert file_path.is_file()
 
     from magicite.core.dream import checkpoint_phase
+    from magicite.core.writer_guard import registry_writer_lease
     from magicite.storage import lease as lease_mod
 
-    with lease_mod.writer_lease(), checkpoint_phase():
+    with registry_writer_lease(cfg, db_conn).acquire(), lease_mod.writer_lease(), checkpoint_phase():
         archived = decay_mod.archive_below_floor(cfg, db_conn, now=_iso(datetime.now(UTC)))
 
     assert len(archived) == 1
@@ -223,9 +225,10 @@ def test_brand_new_engram_is_never_archived_on_first_dream_run(cfg, db_conn, reg
     archive_below_floor docstring for why >=3 outcomes gates eligibility,
     not merely S < floor)."""
     from magicite.core.dream import checkpoint_phase
+    from magicite.core.writer_guard import registry_writer_lease
     from magicite.storage import lease as lease_mod
 
-    with lease_mod.writer_lease(), checkpoint_phase():
+    with registry_writer_lease(cfg, db_conn).acquire(), lease_mod.writer_lease(), checkpoint_phase():
         archived = decay_mod.archive_below_floor(cfg, db_conn, now=_iso(datetime.now(UTC)))
     assert archived == []
 
@@ -242,9 +245,10 @@ def test_engram_that_never_crossed_the_floor_is_never_archived(cfg, db_conn, reg
     _seed_evidenced_engram(db_conn, PROTON, storage_strength=0.1348, peak_storage_strength=0.1348)
 
     from magicite.core.dream import checkpoint_phase
+    from magicite.core.writer_guard import registry_writer_lease
     from magicite.storage import lease as lease_mod
 
-    with lease_mod.writer_lease(), checkpoint_phase():
+    with registry_writer_lease(cfg, db_conn).acquire(), lease_mod.writer_lease(), checkpoint_phase():
         archived = decay_mod.archive_below_floor(cfg, db_conn, now=_iso(datetime.now(UTC)))
     assert archived == [], "a skill that never crossed floor_archived must not be auto-archived"
 
@@ -260,9 +264,10 @@ def test_engram_that_truly_decayed_below_the_floor_is_still_archived(cfg, db_con
     _seed_evidenced_engram(db_conn, PROTON, storage_strength=0.05, peak_storage_strength=0.6)
 
     from magicite.core.dream import checkpoint_phase
+    from magicite.core.writer_guard import registry_writer_lease
     from magicite.storage import lease as lease_mod
 
-    with lease_mod.writer_lease(), checkpoint_phase():
+    with registry_writer_lease(cfg, db_conn).acquire(), lease_mod.writer_lease(), checkpoint_phase():
         archived = decay_mod.archive_below_floor(cfg, db_conn, now=_iso(datetime.now(UTC)))
     assert len(archived) == 1
     assert archived[0].name == PROTON

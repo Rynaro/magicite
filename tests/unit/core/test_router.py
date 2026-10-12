@@ -2,13 +2,19 @@
 coverage for the other M2 route() steps that are not separately gated by
 a frozen AC id (hub penalty, context conditioning) -- mirrors
 test_composition.py's direct-SQL synthetic-fixture style so each behavior
-is isolated from register()/embed() plumbing."""
+is isolated from register()/embed() plumbing.
+
+Adaptive-blend assertions below opt into
+``experimental/adaptive-blend-v1``; the stable default is ``dense-v1``
+(see ``test_policy_boundary.py``).
+"""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
 from magicite.core import router as router_mod
+from magicite.core import routing_policy as policy_mod
 from magicite.storage import ephemeral as ephemeral_mod
 
 
@@ -16,8 +22,51 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _insert_engram(conn, engram_id: str, name: str, *, context_names: list[str] | None = None) -> None:
+def _use_experimental(cfg) -> None:
+    cfg.routing_policy = policy_mod.POLICY_EXPERIMENTAL_ADAPTIVE_BLEND_V1
+
+
+def _insert_engram(cfg, conn, engram_id: str, name: str, *, context_names: list[str] | None = None) -> str:
+    from magicite.engram import ids as ids_mod
+
     now = _now()
+    body = f"## Procedure\n{name}\n"
+    raw = f"""---
+spec: engram/0.2
+name: {name}
+id: {engram_id}
+version: 1
+provenance: authored
+intent:
+  does: "does {name}"
+  use_when: "use when {name}"
+  not_when: "never"
+triggers:
+  positive: ["{name}"]
+  negative: []
+context_affinity: []
+plasticity:
+  storage_strength: 0.0
+  exposure_count: 0
+  outcome:
+    success: 0
+    failure: 0
+  excitability: 0.05
+  status: nascent
+needs: []
+inhibits: []
+provenance_journal: []
+trust:
+  origin: authored
+  verification_status: verified
+---
+{body}"""
+    rel = f".magicite/engrams/{name}.egr.md"
+    full = cfg.project_root / rel
+    full.parent.mkdir(parents=True, exist_ok=True)
+    data = raw.encode("utf-8")
+    full.write_bytes(data)
+    digest = ids_mod.content_sha256(data)
     conn.execute(
         """
         INSERT INTO engram (
@@ -26,8 +75,24 @@ def _insert_engram(conn, engram_id: str, name: str, *, context_names: list[str] 
           identity_sha256, content_sha256, body_sha256, file_mtime_ns, created_at, updated_at
         ) VALUES (?,?,?,?,?,?,?,?, ?,?, 0.0, ?, 0.05, ?,?,?, 0, ?, ?)
         """,
-        (engram_id, name, f"{name}.egr.md", "engram/0.2", 1, "authored", "verified", "nascent",
-         "does", "use_when", now, engram_id, engram_id, engram_id, now, now),
+        (
+            engram_id,
+            name,
+            rel,
+            "engram/0.2",
+            1,
+            "authored",
+            "verified",
+            "nascent",
+            "does",
+            "use_when",
+            now,
+            digest,
+            digest,
+            digest,
+            now,
+            now,
+        ),
     )
     for ctx_name in context_names or []:
         ctx_id = f"ctx_{ctx_name}"
@@ -39,6 +104,10 @@ def _insert_engram(conn, engram_id: str, name: str, *, context_names: list[str] 
             "INSERT INTO engram_context (engram_id, context_id, weight) VALUES (?,?,1.0)",
             (engram_id, ctx_id),
         )
+
+    from tests.support.custody_adapter import review_inserted_source
+
+    return review_inserted_source(cfg, conn, path=full, source=data)
 
 
 def _insert_edge(
@@ -56,10 +125,16 @@ def _insert_edge(
 
 
 def _embed_and_store(conn, embedder, engram_id: str, text: str) -> None:
+    row = conn.execute("SELECT content_sha256 FROM engram WHERE id = ?", (engram_id,)).fetchone()
+    digest = row["content_sha256"] if row is not None else engram_id
     vec = embedder.embed(text)
     ephemeral_mod.upsert_embedding(
-        conn, engram_id=engram_id, model_name=embedder.model_name, dim=embedder.dim, vec=vec,
-        source_sha256=engram_id,
+        conn,
+        engram_id=engram_id,
+        model_name=embedder.model_name,
+        dim=embedder.dim,
+        vec=vec,
+        source_sha256=digest,
     )
 
 
@@ -67,17 +142,18 @@ def test_inhibition_lowers_score(cfg, db_conn, embedder) -> None:
     """AC-023: GIVEN an engram whose inhibits edge targets a competitor
     engram WHEN both are activated by a query THEN the inhibited engram's
     score SHALL be strictly lower than without the inhibition edge."""
-    _insert_engram(db_conn, "egr_inhibitor", "inhibitor")
-    _insert_engram(db_conn, "egr_target", "target")
-    _embed_and_store(db_conn, embedder, "egr_inhibitor", "shared query text")
-    _embed_and_store(db_conn, embedder, "egr_target", "shared query text")
+    _use_experimental(cfg)
+    _insert_engram(cfg, db_conn, "egr_aa01dd01", "inhibitor")
+    _insert_engram(cfg, db_conn, "egr_aa01dd02", "target")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd01", "shared query text")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd02", "shared query text")
 
     baseline = router_mod.route(cfg, db_conn, embedder, query="shared query text", k=5)
     baseline_score = next(c.score for c in baseline.candidates if c.name == "target")
     inhibitor_activation_present = any(c.name == "inhibitor" for c in baseline.candidates)
     assert inhibitor_activation_present
 
-    _insert_edge(db_conn, "egr_inhibitor", "target", "egr_target", "inhibits", 0.8)
+    _insert_edge(db_conn, "egr_aa01dd01", "target", "egr_aa01dd02", "inhibits", 0.8)
 
     inhibited = router_mod.route(cfg, db_conn, embedder, query="shared query text", k=5)
     inhibited_score = next(c.score for c in inhibited.candidates if c.name == "target")
@@ -86,27 +162,27 @@ def test_inhibition_lowers_score(cfg, db_conn, embedder) -> None:
 
 
 def test_negative_cue_penalty_is_diagnosable(cfg, db_conn, embedder) -> None:
-    _insert_engram(db_conn, "egr_a", "a")
-    _insert_engram(db_conn, "egr_b", "b")
-    _embed_and_store(db_conn, embedder, "egr_a", "shared positive route")
-    _embed_and_store(db_conn, embedder, "egr_b", "shared positive route")
+    _use_experimental(cfg)
+    _insert_engram(cfg, db_conn, "egr_aa01dd0a", "a")
+    _insert_engram(cfg, db_conn, "egr_aa01dd0b", "b")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0a", "shared positive route")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0b", "shared positive route")
     db_conn.execute(
         "INSERT INTO engram_trigger (engram_id, polarity, ord, text) VALUES (?,?,?,?)",
-        ("egr_a", "negative", 0, "do not use for database outage"),
+        ("egr_aa01dd0a", "negative", 0, "do not use for database outage"),
     )
 
-    result = router_mod.route(
-        cfg, db_conn, embedder, query="database outage", k=5
-    )
+    result = router_mod.route(cfg, db_conn, embedder, query="database outage", k=5)
     candidate = next(c for c in result.candidates if c.name == "a")
     assert candidate.diagnostics["contraindication"] <= 0.0
     assert candidate.diagnostics["contraindication"] < 0.0
 
 
 def test_route_index_reused_for_same_generation(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     router_mod._cached_route_index.cache_clear()
-    _insert_engram(db_conn, "egr_a", "a")
-    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
+    _insert_engram(cfg, db_conn, "egr_aa01dd0a", "a")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0a", "shared text")
     router_mod.route(cfg, db_conn, embedder, query="shared text")
     before = router_mod._cached_route_index.cache_info()
     router_mod.route(cfg, db_conn, embedder, query="shared text")
@@ -115,25 +191,27 @@ def test_route_index_reused_for_same_generation(cfg, db_conn, embedder) -> None:
 
 
 def test_route_index_invalidated_on_mutation(cfg, db_conn, embedder) -> None:
+    _use_experimental(cfg)
     router_mod._cached_route_index.cache_clear()
-    _insert_engram(db_conn, "egr_a", "a")
-    _insert_engram(db_conn, "egr_b", "b")
-    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
-    _embed_and_store(db_conn, embedder, "egr_b", "shared text")
+    _insert_engram(cfg, db_conn, "egr_aa01dd0a", "a")
+    _insert_engram(cfg, db_conn, "egr_aa01dd0b", "b")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0a", "shared text")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0b", "shared text")
     router_mod.route(cfg, db_conn, embedder, query="shared text")
     before = router_mod._cached_route_index.cache_info()
-    _insert_edge(db_conn, "egr_a", "b", "egr_b", "composes", 1.0)
+    _insert_edge(db_conn, "egr_aa01dd0a", "b", "egr_aa01dd0b", "composes", 1.0)
     router_mod.route(cfg, db_conn, embedder, query="shared text")
     after = router_mod._cached_route_index.cache_info()
     assert after.misses == before.misses + 1
 
 
 def test_cached_and_uncached_routes_match(cfg, db_conn, embedder) -> None:
-    _insert_engram(db_conn, "egr_a", "a")
-    _insert_engram(db_conn, "egr_b", "b")
-    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
-    _embed_and_store(db_conn, embedder, "egr_b", "shared text")
-    _insert_edge(db_conn, "egr_a", "b", "egr_b", "composes", 1.0)
+    _use_experimental(cfg)
+    _insert_engram(cfg, db_conn, "egr_aa01dd0a", "a")
+    _insert_engram(cfg, db_conn, "egr_aa01dd0b", "b")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0a", "shared text")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0b", "shared text")
+    _insert_edge(db_conn, "egr_aa01dd0a", "b", "egr_aa01dd0b", "composes", 1.0)
     router_mod._cached_route_index.cache_clear()
     uncached = router_mod.route(cfg, db_conn, embedder, query="shared text")
     cached = router_mod.route(cfg, db_conn, embedder, query="shared text")
@@ -157,14 +235,15 @@ def test_hub_penalty_dampens_a_structural_hub(cfg, db_conn, embedder) -> None:
     candidate -- an effect of the *unrelated* restart-value change, not
     of this test's own hub-penalty comparison (which is unaffected by
     ``k`` as long as ``hub`` is present in both candidate lists)."""
-    _insert_engram(db_conn, "egr_hub", "hub")
-    _embed_and_store(db_conn, embedder, "egr_hub", "shared text")
+    _use_experimental(cfg)
+    _insert_engram(cfg, db_conn, "egr_aa01dd0c", "hub")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0c", "shared text")
     n_spokes = 40
     for i in range(n_spokes):
-        spoke_id = f"egr_spoke{i}"
-        _insert_engram(db_conn, spoke_id, f"spoke{i}")
+        spoke_id = f"egr_aa01d{i:03d}"
+        _insert_engram(cfg, db_conn, spoke_id, f"spoke{i}")
         _embed_and_store(db_conn, embedder, spoke_id, "shared text")
-        _insert_edge(db_conn, spoke_id, "hub", "egr_hub", "composes", 1.0)
+        _insert_edge(db_conn, spoke_id, "hub", "egr_aa01dd0c", "composes", 1.0)
 
     k = n_spokes + 1
 
@@ -180,10 +259,11 @@ def test_hub_penalty_dampens_a_structural_hub(cfg, db_conn, embedder) -> None:
 
 
 def test_context_conditioning_project_tag_boosts_linked_engram(cfg, db_conn, embedder) -> None:
-    _insert_engram(db_conn, "egr_a", "a", context_names=["steam-gaming"])
-    _insert_engram(db_conn, "egr_b", "b")
-    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
-    _embed_and_store(db_conn, embedder, "egr_b", "shared text")
+    _use_experimental(cfg)
+    _insert_engram(cfg, db_conn, "egr_aa01dd0a", "a", context_names=["steam-gaming"])
+    _insert_engram(cfg, db_conn, "egr_aa01dd0b", "b")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0a", "shared text")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0b", "shared text")
 
     without_context = router_mod.route(cfg, db_conn, embedder, query="shared text", k=5)
     a_without = next(c.score for c in without_context.candidates if c.name == "a")
@@ -200,8 +280,9 @@ def test_context_conditioning_project_tag_boosts_linked_engram(cfg, db_conn, emb
 
 
 def test_context_conditioning_unresolvable_strings_are_echoed(cfg, db_conn, embedder) -> None:
-    _insert_engram(db_conn, "egr_a", "a")
-    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
+    _use_experimental(cfg)
+    _insert_engram(cfg, db_conn, "egr_aa01dd0a", "a")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0a", "shared text")
 
     context = {
         "project_tag": "no-such-tag",
@@ -213,10 +294,11 @@ def test_context_conditioning_unresolvable_strings_are_echoed(cfg, db_conn, embe
 
 
 def test_context_conditioning_user_pref_hard_excludes(cfg, db_conn, embedder) -> None:
-    _insert_engram(db_conn, "egr_a", "a")
-    _insert_engram(db_conn, "egr_b", "b")
-    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
-    _embed_and_store(db_conn, embedder, "egr_b", "shared text")
+    _use_experimental(cfg)
+    _insert_engram(cfg, db_conn, "egr_aa01dd0a", "a")
+    _insert_engram(cfg, db_conn, "egr_aa01dd0b", "b")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0a", "shared text")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0b", "shared text")
 
     result = router_mod.route(
         cfg, db_conn, embedder, query="shared text", k=5, context={"user_prefs": ["-a"]}
@@ -227,13 +309,14 @@ def test_context_conditioning_user_pref_hard_excludes(cfg, db_conn, embedder) ->
 
 
 def test_recent_failures_boosts_matching_fault_class(cfg, db_conn, embedder) -> None:
-    _insert_engram(db_conn, "egr_a", "a")
-    _insert_engram(db_conn, "egr_b", "b")
-    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
-    _embed_and_store(db_conn, embedder, "egr_b", "shared text")
+    _use_experimental(cfg)
+    _insert_engram(cfg, db_conn, "egr_aa01dd0a", "a")
+    _insert_engram(cfg, db_conn, "egr_aa01dd0b", "b")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0a", "shared text")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0b", "shared text")
     db_conn.execute(
         "INSERT INTO engram_step (engram_id, step_no, text, fault_class) VALUES (?,?,?,?)",
-        ("egr_a", 1, "some step", "OOMKilled"),
+        ("egr_aa01dd0a", 1, "some step", "OOMKilled"),
     )
 
     result = router_mod.route(
@@ -252,10 +335,11 @@ def test_retrieval_strength_is_decayed_at_read_time(cfg, db_conn, embedder) -> N
     contributing full weight to routing indefinitely, which is exactly the
     "R accumulates undamped" gap FORGE's review flagged as load-bearing for
     ranking manipulation."""
-    _insert_engram(db_conn, "egr_a", "a")
-    _insert_engram(db_conn, "egr_b", "b")
-    _embed_and_store(db_conn, embedder, "egr_a", "shared text")
-    _embed_and_store(db_conn, embedder, "egr_b", "shared text")
+    _use_experimental(cfg)
+    _insert_engram(cfg, db_conn, "egr_aa01dd0a", "a")
+    _insert_engram(cfg, db_conn, "egr_aa01dd0b", "b")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0a", "shared text")
+    _embed_and_store(db_conn, embedder, "egr_aa01dd0b", "shared text")
 
     stale_anchor = (datetime.now(UTC) - timedelta(days=60)).isoformat()
     fresh_anchor = datetime.now(UTC).isoformat()
@@ -263,10 +347,12 @@ def test_retrieval_strength_is_decayed_at_read_time(cfg, db_conn, embedder) -> N
     # fresh -- with decay-at-read wired in, "a"'s *effective* R must be
     # lower, so its score must be lower too (all else identical).
     db_conn.execute(
-        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_a', 1.0, ?)", (stale_anchor,)
+        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_aa01dd0a', 1.0, ?)",
+        (stale_anchor,),
     )
     db_conn.execute(
-        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_b', 1.0, ?)", (fresh_anchor,)
+        "INSERT INTO eph_retrieval (engram_id, r, r_decayed_at) VALUES ('egr_aa01dd0b', 1.0, ?)",
+        (fresh_anchor,),
     )
 
     result = router_mod.route(cfg, db_conn, embedder, query="shared text", k=5)

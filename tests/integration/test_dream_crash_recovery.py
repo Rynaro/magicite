@@ -21,7 +21,14 @@ PROTON = "proton-ge-proton-downgrade"
 FIXED_RUN_TIME = "2026-08-18T12:00:00+00:00"
 
 
-def _die_during_dream(project_root: str, selector: str) -> None:
+def _die_during_dream(project_root: str, selector: str, custody_directory: str, registry_id: str) -> None:
+    from tests.support.custody_adapter import attach_fixture
+
+    with attach_fixture(Path(project_root), Path(custody_directory), registry_id):
+        _die_during_dream_attached(project_root, selector)
+
+
+def _die_during_dream_attached(project_root: str, selector: str) -> None:
     cfg = Config.load(Path(project_root), env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"})
     conn = db_mod.connect(cfg.db_path)
 
@@ -75,9 +82,18 @@ def test_process_death_recovers_to_uninterrupted_state(cfg, tmp_path: Path, sele
     baseline_root = tmp_path.parent / f"{tmp_path.name}-baseline-{suffix}"
     run_id, baseline_cfg = _prepare_identical_roots(cfg, baseline_root)
 
+    from tests.support.custody_adapter import attach_fixture, clone_fixture_timeline
+
+    from magicite.core import writer_guard
+
+    provider = writer_guard.resolve_custody(cfg)[1]
+    baseline_custody = clone_fixture_timeline(
+        provider, baseline_root.parent / (baseline_root.name + "-custody")
+    )
     baseline_conn = db_mod.connect(baseline_cfg.db_path)
     try:
-        baseline_result = dream_mod.run(baseline_cfg, baseline_conn, trigger="crash-test")
+        with attach_fixture(baseline_root, baseline_custody, provider.registry_id):
+            baseline_result = dream_mod.run(baseline_cfg, baseline_conn, trigger="crash-test")
         baseline_projection = queries_mod.durable_projection(baseline_conn)
         baseline_files = _engram_bytes(baseline_root)
     finally:
@@ -86,7 +102,7 @@ def test_process_death_recovers_to_uninterrupted_state(cfg, tmp_path: Path, sele
 
     process = multiprocessing.get_context("spawn").Process(
         target=_die_during_dream,
-        args=(str(cfg.project_root), selector),
+        args=(str(cfg.project_root), selector, str(provider.store.directory), provider.registry_id),
     )
     process.start()
     process.join(timeout=30)

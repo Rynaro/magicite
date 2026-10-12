@@ -1,0 +1,68 @@
+{
+  "custody": "simulated fixture custodian via tests/support/custody_adapter.enroll_fixture; not a distinct-UID or installed-channel qualification",
+  "original_exploit_reproduced": false,
+  "precondition_admit_then_revoke_observed": true,
+  "scenario": "admit -> revoke -> delete revoke mirror -> re-check (original S16 diagnostic)",
+  "schema": "magicite/trust-mirror-diagnostic/2",
+  "scope": "Disposable registries and custodians in temporary directories; checkout unchanged",
+  "status": "NOT_REPRODUCED",
+  "variants": [
+    {
+      "admission_after_loss": {
+        "value": false
+      },
+      "admission_reinstated": false,
+      "admitted_after_revoke": false,
+      "admitted_before_revoke": true,
+      "latest_decision_after_loss": {
+        "value": "revoke"
+      },
+      "live_trust_view_admitted_after_loss": {
+        "value": false
+      },
+      "mutation": {
+        "admit_mirror_replayed": true,
+        "revoke_mirror_files_deleted": 0,
+        "revoke_mirror_files_found": 0
+      },
+      "variant": "revoke_mirror_deleted"
+    },
+    {
+      "admission_after_loss": {
+        "value": false
+      },
+      "admission_reinstated": false,
+      "admitted_after_revoke": false,
+      "admitted_before_revoke": true,
+      "latest_decision_after_loss": {
+        "value": "revoke"
+      },
+      "live_trust_view_admitted_after_loss": {
+        "value": false
+      },
+      "mutation": {
+        "projection_rows_deleted": 1
+      },
+      "variant": "revoke_projection_row_deleted"
+    },
+    {
+      "admission_after_loss": {
+        "value": false
+      },
+      "admission_reinstated": false,
+      "admitted_after_revoke": false,
+      "admitted_before_revoke": true,
+      "latest_decision_after_loss": {
+        "closed_error": "TrustLedgerCorruptError"
+      },
+      "live_trust_view_admitted_after_loss": {
+        "value": false
+      },
+      "mutation": {
+        "local_authority_tree_deleted": true,
+        "local_authority_tree_existed": true
+      },
+      "variant": "local_authority_tree_deleted"
+    }
+  ]
+}

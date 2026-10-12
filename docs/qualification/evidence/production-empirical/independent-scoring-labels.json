@@ -1,0 +1,138 @@
+[
+  {
+    "group_id": "skill-author-engram",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-01",
+    "relevance": {
+      "egr_f640cc8b": 1.0
+    }
+  },
+  {
+    "group_id": "skill-composition-plan-expansion",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-02",
+    "relevance": {
+      "egr_acfbc4a5": 1.0
+    }
+  },
+  {
+    "group_id": "skill-container-privilege-boundary",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-03",
+    "relevance": {
+      "egr_ffee7210": 1.0
+    }
+  },
+  {
+    "group_id": "skill-decay-lazy-read",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-04",
+    "relevance": {
+      "egr_5b5516cd": 1.0
+    }
+  },
+  {
+    "group_id": "skill-embedding-provider-contract",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-05",
+    "relevance": {
+      "egr_1f4796d0": 1.0
+    }
+  },
+  {
+    "group_id": "skill-engram-writer-determinism",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-06",
+    "relevance": {
+      "egr_987ed80b": 1.0
+    }
+  },
+  {
+    "group_id": "skill-ephemeral-vs-durable-tables",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-07",
+    "relevance": {
+      "egr_11ea9756": 1.0
+    }
+  },
+  {
+    "group_id": "skill-error-envelope",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-08",
+    "relevance": {
+      "egr_ac77d7f3": 1.0
+    }
+  },
+  {
+    "group_id": "skill-offline-embedding-setup",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-09",
+    "relevance": {
+      "egr_90fe52ff": 1.0
+    }
+  },
+  {
+    "group_id": "skill-activation-ppr",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-10",
+    "relevance": {
+      "egr_863244b8": 1.0
+    }
+  },
+  {
+    "group_id": "skill-edge-weight-two-channels",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-11",
+    "relevance": {
+      "egr_75e9a9ef": 1.0
+    }
+  },
+  {
+    "group_id": "skill-tier2-hook-adapter",
+    "negative_ids": [],
+    "no_match": false,
+    "query_id": "diagnostic-12",
+    "relevance": {
+      "egr_f21621ef": 1.0
+    }
+  },
+  {
+    "group_id": "no-match-cooking",
+    "negative_ids": [],
+    "no_match": true,
+    "query_id": "diagnostic-13",
+    "relevance": {}
+  },
+  {
+    "group_id": "no-match-travel",
+    "negative_ids": [],
+    "no_match": true,
+    "query_id": "diagnostic-14",
+    "relevance": {}
+  },
+  {
+    "group_id": "no-match-arithmetic",
+    "negative_ids": [],
+    "no_match": true,
+    "query_id": "diagnostic-15",
+    "relevance": {}
+  },
+  {
+    "group_id": "no-match-gardening",
+    "negative_ids": [],
+    "no_match": true,
+    "query_id": "diagnostic-16",
+    "relevance": {}
+  }
+]

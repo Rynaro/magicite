@@ -1,0 +1,65 @@
+{
+  "acceptance_status": {
+    "reasons": [
+      "focused:unqualified-provenance",
+      "independent:unqualified-provenance",
+      "hosted-ci:unqualified-provenance",
+      "official-execution:unqualified-provenance"
+    ],
+    "status": "not-accepted"
+  },
+  "artifact_integrity": {
+    "status": "verified"
+  },
+  "candidate_status": {
+    "status": "current"
+  },
+  "checks": [
+    {
+      "artifact_integrity": "verified",
+      "event_id": "focused-c4",
+      "execution_provenance": "self-attested",
+      "id": "focused",
+      "oracle_id": "official-quality-focused@1",
+      "outcome": "pass"
+    },
+    {
+      "artifact_integrity": "verified",
+      "event_id": "independent-c4",
+      "execution_provenance": "self-attested",
+      "id": "independent",
+      "oracle_id": "official-quality-independent@1",
+      "outcome": "pass"
+    },
+    {
+      "artifact_integrity": "verified",
+      "event_id": "hosted-ci-c4",
+      "execution_provenance": "self-attested",
+      "id": "hosted-ci",
+      "oracle_id": "official-quality-hosted-ci@1",
+      "outcome": "pass"
+    },
+    {
+      "artifact_integrity": "verified",
+      "event_id": "official-execution-c4",
+      "execution_provenance": "self-attested",
+      "id": "official-execution",
+      "oracle_id": "official-quality-official-execution@1",
+      "outcome": "pass"
+    }
+  ],
+  "completion": "not-complete",
+  "dispatch": "unobserved",
+  "events": 13,
+  "execution_provenance": {
+    "status": "self-attested"
+  },
+  "execution_terminations": [],
+  "historical": false,
+  "reconciliation_required": false,
+  "requested": {
+    "route_digest": "89f7f09cf634ec24784af76f331b347334bcdf7c56965ea2f430d3d44b9c51d4"
+  },
+  "run_id": "v1-official-quality",
+  "validation_errors": []
+}

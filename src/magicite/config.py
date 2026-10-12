@@ -96,6 +96,13 @@ class Config:
     theta_prune: float = 0.10
 
     # ── routing tunables (spec §3.3) ────────────────────────────────────
+    #: V1 S00 / contracts C0+C4: explicit policy identity. Default is the
+    #: nonadaptive dense incumbent. Legacy adaptive blend is opt-in only via
+    #: ``experimental/adaptive-blend-v1`` (see ``core/routing_policy.py``).
+    routing_policy: str = "dense-v1"
+    #: Operator-only permission ceiling; request grants can only narrow these.
+    allowed_permissions: tuple[str, ...] = ()
+    allowed_tools: tuple[str, ...] = ()
     session_ttl_hours: float = 3.0
     temperature: float = 0.07
     #: [DECLARED-EDGES-AMENDED 2026-08-15] was 0.15. MEASURED (70 engrams
@@ -151,6 +158,52 @@ class Config:
     #: EXACT, bit-for-bit revert to pre-amendment behaviour (AC-039) --
     #: one config line, ablation-switchable, [routing] in magicite.toml.
     declared_edge_strength: float = 1.0
+
+    #: S09 / C6: optional extra roots where evidence exports may be written and
+    #: later privacy-deleted. Paths are absolute or project-relative; unset means
+    #: only ``<data_dir>/evidence/exports/`` is allowed (refuse unmanaged dirs).
+    evidence_export_roots: tuple[str, ...] = ()
+    #: S09 / C6 retention policy (operator Config — never from meta.json).
+    evidence_retention_operational_days: int = 30
+    evidence_retention_audit_days: int = 90
+    #: S09 / C6 backup overlay expiry (operator Config — never from meta.json).
+    evidence_backup_expiry_days: int = 90
+
+    # ── S07 route orchestration / abstention / reranker ─────────────────
+    #: Optional local reranker provider id (``noop`` / empty = disabled).
+    #: Unknown required providers fail closed as operational errors unless a
+    #: fallback identity is configured.
+    reranker_provider: str = ""
+    #: Wall-clock budget for an optional reranker call (seconds).
+    reranker_timeout_s: float = 2.0
+    #: When set, a reranker timeout or missing required model falls back to
+    #: this selection mechanism identity (e.g. ``dense-v1``) instead of an
+    #: operational error. Empty = fail closed as ``status=error``.
+    reranker_fallback: str = "dense-v1"
+    #: When True, a configured non-empty ``reranker_provider`` is required;
+    #: missing/unknown providers become operational errors (or configured
+    #: fallback). When False, an empty/unknown provider is a no-op.
+    reranker_required: bool = False
+    #: How many extra candidates to pull when eligibility drops the slate
+    #: below ``k`` (bounded refill after eligibility).
+    candidate_refill_limit: int = 32
+    #: Max exclusion summaries retained on RouteDecision/1.
+    max_exclusion_summaries: int = 32
+    #: Minimum fused/cosine score for calibrated selection (overridden by a
+    #: compatible calibration artifact when present).
+    abstention_score_threshold: float = 0.0
+    #: Minimum top-1/top-2 margin for calibrated selection (overridden by a
+    #: compatible calibration artifact when present).
+    abstention_margin_threshold: float = 0.0
+    #: When True, apply fitted/configured abstention thresholds on the
+    #: stable path. When False, never abstain for threshold/margin reasons
+    #: (legacy always-return-top-k behaviour for uncalibrated installs).
+    abstention_enabled: bool = True
+    #: C2 default local authorship policy (N1): when True, verified
+    #: ``origin_trusted`` local artifacts without an explicit reject/revoke/
+    #: quarantine decision are treated as admitted for routing. When False,
+    #: authored artifacts need a digest-bound admit like imports.
+    default_local_authorship_admission: bool = True
 
     # ── graph index build (spec §2.6 steps 8-9) ─────────────────────────
     similar_to_top_m: int = 5
@@ -318,9 +371,7 @@ class Config:
         ``magicite.toml`` lives inside it — a file cannot say where it is.
         """
         resolved_env: Mapping[str, str] = os.environ if env is None else env
-        root = Path(
-            project_root or resolved_env.get("MAGICITE_PROJECT_ROOT") or Path.cwd()
-        ).resolve()
+        root = Path(project_root or resolved_env.get("MAGICITE_PROJECT_ROOT") or Path.cwd()).resolve()
         cfg = cls(project_root=root, data_dir_name=resolve_data_dir_name(root, resolved_env))
 
         toml_values = _read_toml(cfg.toml_path)
@@ -389,12 +440,49 @@ _ENV_FIELD_MAP: dict[str, str] = {
     "MAGICITE_AUTONOMOUS": "autonomous",
     "MAGICITE_COMMIT_DB": "commit_db",
     "MAGICITE_LOG_LEVEL": "log_level",
+    "MAGICITE_ROUTING_POLICY": "routing_policy",
+    "MAGICITE_EVIDENCE_EXPORT_ROOTS": "evidence_export_roots",
+    "MAGICITE_EVIDENCE_RETENTION_OPERATIONAL_DAYS": "evidence_retention_operational_days",
+    "MAGICITE_EVIDENCE_RETENTION_AUDIT_DAYS": "evidence_retention_audit_days",
+    "MAGICITE_EVIDENCE_BACKUP_EXPIRY_DAYS": "evidence_backup_expiry_days",
+    "MAGICITE_RERANKER_PROVIDER": "reranker_provider",
+    "MAGICITE_RERANKER_TIMEOUT_S": "reranker_timeout_s",
+    "MAGICITE_RERANKER_FALLBACK": "reranker_fallback",
+    "MAGICITE_RERANKER_REQUIRED": "reranker_required",
+    "MAGICITE_CANDIDATE_REFILL_LIMIT": "candidate_refill_limit",
+    "MAGICITE_MAX_EXCLUSION_SUMMARIES": "max_exclusion_summaries",
+    "MAGICITE_ABSTENTION_SCORE_THRESHOLD": "abstention_score_threshold",
+    "MAGICITE_ABSTENTION_MARGIN_THRESHOLD": "abstention_margin_threshold",
+    "MAGICITE_ABSTENTION_ENABLED": "abstention_enabled",
+    "MAGICITE_DEFAULT_LOCAL_AUTHORSHIP_ADMISSION": "default_local_authorship_admission",
 }
 
-_BOOL_FIELDS = {"embedding_offline", "autonomous", "commit_db", "dream_on_session_end"}
+_BOOL_FIELDS = {
+    "embedding_offline",
+    "autonomous",
+    "commit_db",
+    "dream_on_session_end",
+    "reranker_required",
+    "abstention_enabled",
+    "default_local_authorship_admission",
+}
 
 
 def _coerce(field_name: str, raw: Any) -> Any:
+    if field_name in {"allowed_permissions", "allowed_tools"}:
+        from magicite.core.context import normalize_grant_set
+
+        if not isinstance(raw, (list, tuple)) or not all(isinstance(x, str) for x in raw):
+            raise ValueError("operator permission/tool ceilings must be arrays of identifiers")
+        return tuple(sorted(normalize_grant_set(raw)))
+    if field_name == "evidence_export_roots":
+        if isinstance(raw, (list, tuple)):
+            return tuple(str(p).strip() for p in raw if str(p).strip())
+        if isinstance(raw, str):
+            # Use os.pathsep so Windows drive letters (C:\...) are not split on ':'.
+            # Commas are never separators — TOML lists cover multi-value config files.
+            return tuple(p.strip() for p in raw.split(os.pathsep) if p.strip())
+        return ()
     if not isinstance(raw, str):
         return raw
     if field_name in _BOOL_FIELDS:
@@ -410,11 +498,28 @@ def _coerce(field_name: str, raw: Any) -> Any:
     return raw
 
 
+def _validate_s07(cfg: Config) -> None:
+    """Fail closed on invalid S07 orchestration knobs."""
+    from magicite.errors import InvalidInputError
+
+    if cfg.reranker_timeout_s < 0:
+        raise InvalidInputError("reranker_timeout_s must be >= 0")
+    if cfg.candidate_refill_limit < 1:
+        raise InvalidInputError("candidate_refill_limit must be >= 1")
+    if cfg.max_exclusion_summaries < 1:
+        raise InvalidInputError("max_exclusion_summaries must be >= 1")
+    if cfg.abstention_score_threshold < 0:
+        raise InvalidInputError("abstention_score_threshold must be >= 0")
+    if cfg.abstention_margin_threshold < 0:
+        raise InvalidInputError("abstention_margin_threshold must be >= 0")
+
+
 def _apply_mapping(cfg: Config, values: dict[str, Any]) -> Config:
     for key, raw in values.items():
         name = key.replace("-", "_")
         if name in _FIELD_NAMES:
             setattr(cfg, name, _coerce(name, raw))
+    _validate_s07(cfg)
     return cfg
 
 
@@ -422,4 +527,5 @@ def _apply_env(cfg: Config, env: Mapping[str, str]) -> Config:
     for env_key, field_name in _ENV_FIELD_MAP.items():
         if env_key in env:
             setattr(cfg, field_name, _coerce(field_name, env[env_key]))
+    _validate_s07(cfg)
     return cfg

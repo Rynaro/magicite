@@ -1,0 +1,16 @@
+{
+  "captured_at": "2026-10-08T11:16:00.155507+00:00",
+  "sha256": {
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.md": "0ef93afaacb058c1a48f6861f9bf2987d4c97b783b2896c95d76a7526fcf5d55",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.acceptance.md": "a5f8cbbd36a7104ba2839e92b889ba1eaf095f1266528a933466213c136a0ff7",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.envelope.json": "aae554d4118d84d0b544ee8c68bdf0293703e4a6f7c04b1e311ea24effdb6e74",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.handoff.yaml": "31a07a3d4122278af4099d90109451603dfee24cb01c9da5809df7230e18ae84",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.plan.json": "0b32b3cc30c2303bf16b078e6b14a417bc280f22d1a9984d908450fa92ee46ac",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/v1-calibration-data.state.json": "ac8e3ce49e7036e1788992a50b954e8ccb3ff5736137b7cb91500ad09a00aeef",
+    "/private/tmp/magicite-v1-calibration/.spectra/plans/ramza-calibration.jsonl": "16f9ed7959e5aa9038653e7a74cff0f937b538173c7bae59bb3a702d2ceeaa85",
+    "/private/tmp/magicite-v1-calibration/root-plan-verification.json": "8b3c464a7179d4b11c63e06800397dcfd33e976a27784421c7efa85cf1bb3be9",
+    "/private/tmp/magicite-v1-calibration/root-plan-trace.jsonl": "773f6a9c71bfa97963f7fb9c4262cd6fceb9cde63a10bdd04041e5e72cf79094",
+    "/private/tmp/magicite-v1-calibration/root-scout-verification.json": "a38c619eccf32ef118f12b37a48e05a7a9804380a8ef65301c29c348e579fdf9",
+    "/private/tmp/magicite-v1-calibration/root-scout-trace.jsonl": "1cafb29318a88a4a36e167c63b6e90418975d21d91b6eb300c0c389c69810b31"
+  }
+}

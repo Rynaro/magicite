@@ -49,21 +49,36 @@ outcome transitions without exposing another public MCP tool.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from magicite.config import Config
+from magicite.errors import InvalidInputError
+from magicite.storage.lease import assert_cross_process_fence
 
 AUTONOMOUS_ACTOR = "autonomous-mode"
 
-_VALID_OPS: frozenset[str] = frozenset({"sharpen", "promote", "archive", "nucleate"})
+_VALID_OPS: frozenset[str] = frozenset(
+    {
+        "sharpen",
+        "promote",
+        "archive",
+        "nucleate",
+        "trust_approve",
+        "trust_reject",
+        "trust_revoke",
+        "policy_activate",
+        "policy_rollback",
+    }
+)
 _VALID_STATES: frozenset[str] = frozenset(
     {"proposed", "approved", "rejected", "executed", "succeeded", "failed"}
 )
@@ -206,10 +221,16 @@ def _write_mirror(cfg: Config, record: ApprovalRecord) -> None:
             fh.write(content)
             fh.flush()
             os.fsync(fh.fileno())
+        assert_cross_process_fence()
+        os.replace(tmp_path, path)
+        directory_fd = os.open(str(path.parent), os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     except BaseException:
         tmp_path.unlink(missing_ok=True)
         raise
-    os.replace(tmp_path, path)
 
 
 def _upsert_row(conn: sqlite3.Connection, record: ApprovalRecord) -> None:
@@ -242,10 +263,97 @@ def _upsert_row(conn: sqlite3.Connection, record: ApprovalRecord) -> None:
 
 
 def _persist(cfg: Config, conn: sqlite3.Connection, record: ApprovalRecord) -> ApprovalRecord:
-    """File wins first (durable outside the DB), then the DB cache row."""
+    """File wins first (durable outside the DB), then the DB cache row.
+
+    S12 / AC-S12-04: when a CrossProcessLease is held, refuse durable approval
+    writes after fencing-token loss (no second lock system). In-process
+    writer_lease remains optional for legacy propose/decide callers.
+    """
+    assert_cross_process_fence()
     _write_mirror(cfg, record)
     _upsert_row(conn, record)
     return record
+
+
+def _mirror_record(path: Path) -> ApprovalRecord:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return ApprovalRecord(
+        id=data["id"],
+        op=data["op"],
+        target_name=data["target_name"],
+        payload=data.get("payload") or {},
+        state=data["state"],
+        proposed_by=data["proposed_by"],
+        proposed_at=data["proposed_at"],
+        decided_by=data.get("decided_by"),
+        decided_at=data.get("decided_at"),
+        reason=data.get("reason"),
+        executed_run_id=data.get("executed_run_id"),
+        audit_log=tuple(ApprovalAuditEvent.from_dict(e) for e in data.get("audit_log", [])),
+    )
+
+
+def _require_proposal_audit(record: ApprovalRecord) -> None:
+    """A matching identity/payload alone cannot witness a completed audit."""
+    valid_id = (
+        isinstance(record.id, str)
+        and record.id.startswith("appr_")
+        and record.id[5:]
+        and all(c.isascii() and (c.isalnum() or c == "_") for c in record.id[5:])
+    )
+    if not valid_id or record.state not in _VALID_STATES or not record.audit_log:
+        raise InvalidInputError("approval audit requires reconciliation")
+    proposal = record.audit_log[0]
+    if (
+        proposal.sequence != 1 or proposal.operation != "propose"
+        or proposal.from_state is not None or proposal.to_state != "proposed"
+        or proposal.actor != record.proposed_by or proposal.at != record.proposed_at
+        or not proposal.actor or not proposal.at
+    ):
+        raise InvalidInputError("approval audit requires reconciliation")
+    previous = proposal.to_state
+    for sequence, event in enumerate(record.audit_log[1:], 2):
+        if (
+            event.sequence != sequence or event.from_state != previous
+            or event.to_state not in _LEGAL_NEXT.get(previous, frozenset())
+            or not event.actor or not event.at
+        ):
+            raise InvalidInputError("approval audit requires reconciliation")
+        previous = event.to_state
+    if previous != record.state:
+        raise InvalidInputError("approval audit requires reconciliation")
+
+
+def _existing_trust_approval(
+    cfg: Config, conn: sqlite3.Connection, target_name: str, payload: dict[str, Any], decision_id: str
+) -> ApprovalRecord | None:
+    # Mirrors precede DB writes: recover a crash after mirror replace without
+    # minting another logical audit. Also retain pre-idempotency audit IDs.
+    for path in sorted(cfg.approvals_dir.glob("*.json")):
+        try:
+            record = _mirror_record(path)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise InvalidInputError("approval audit requires reconciliation") from exc
+        if record.op != "trust_approve" or record.payload.get("decision_id") != decision_id:
+            continue
+        if record.target_name != target_name or record.payload != payload:
+            raise InvalidInputError("approval audit conflicts with the committed decision")
+        _require_proposal_audit(record)
+        if path.stem != record.id:
+            raise InvalidInputError("approval audit requires reconciliation")
+        assert_cross_process_fence()
+        _upsert_row(conn, record)
+        return record
+    for row in conn.execute(
+        "SELECT * FROM approval WHERE op='trust_approve' AND target_name=?", (target_name,)
+    ):
+        record = _row_to_record(row)
+        if record.payload.get("decision_id") == decision_id:
+            if record.payload != payload:
+                raise InvalidInputError("approval audit conflicts with the committed decision")
+            _require_proposal_audit(record)
+            return _persist(cfg, conn, record)
+    return None
 
 
 def propose(
@@ -256,6 +364,7 @@ def propose(
     target_name: str,
     payload: dict[str, Any],
     proposed_by: str,
+    idempotency_key: str | None = None,
 ) -> ApprovalRecord:
     """Create a new ``proposed`` approval (spec §5.2). ``payload`` carries
     whatever the executor needs to replay the operation later (e.g. the
@@ -263,9 +372,17 @@ def propose(
     snapshot a ``promote()`` guard evaluated)."""
     if op not in _VALID_OPS:
         raise ValueError(f"unknown approval op {op!r}, expected one of {sorted(_VALID_OPS)}")
+    approval_id = new_id()
+    if idempotency_key is not None:
+        if op != "trust_approve" or payload.get("decision_id") != idempotency_key:
+            raise InvalidInputError("approval idempotency key must bind a trust approval decision")
+        existing = _existing_trust_approval(cfg, conn, target_name, payload, idempotency_key)
+        if existing is not None:
+            return existing
+        approval_id = "appr_" + hashlib.sha256(idempotency_key.encode()).hexdigest()
     proposed_at = _now()
     record = ApprovalRecord(
-        id=new_id(),
+        id=approval_id,
         op=op,
         target_name=target_name,
         payload=payload,
@@ -443,6 +560,94 @@ def resume(
         actor=resumed_by,
         executed_run_id=run_id,
     )
+
+
+def record_policy_control_event(
+    cfg: Config,
+    *,
+    op: str,
+    policy_id: str,
+    policy_digest: str,
+    actor: str,
+    payload: dict[str, Any] | None = None,
+    prepared: bool = False,
+) -> ApprovalRecord:
+    """Write a durable governed control-state mirror for policy activate/rollback.
+
+    Lives under ``cfg.approvals_dir`` (distinct authoritative domain from
+    ``policy_store/``) so deleting ``state.json`` alone cannot erase evidence
+    of prior policy governance. Mirror-only (no DB conn required on the
+    policy-store hot path); ``reload_from_mirror`` will rehydrate into the
+    operational ``approval`` table on sync.
+
+    When a CrossProcessLease is held, assert the fencing token before the
+    mirror write — governed control-state is a durable mutation and must not
+    commit under a stolen fence (AC-S12-04; consistent with ``_persist``).
+    """
+    if op not in {"policy_activate", "policy_rollback"}:
+        raise ValueError(f"unsupported policy control op {op!r}")
+    assert_cross_process_fence()
+    at = _now()
+    body = {
+        "policy_id": policy_id,
+        "policy_digest": policy_digest,
+        **(payload or {}),
+    }
+    record = ApprovalRecord(
+        id=new_id(),
+        op=op,
+        target_name=policy_id,
+        payload=body,
+        state="approved" if prepared else "succeeded",
+        proposed_by=actor,
+        proposed_at=at,
+        decided_by=actor,
+        decided_at=at,
+        reason="policy_store_control",
+        audit_log=(
+            ApprovalAuditEvent(
+                sequence=1,
+                operation=op,
+                actor=actor,
+                at=at,
+                from_state=None,
+                to_state="approved" if prepared else "succeeded",
+                reason="policy_store_control",
+            ),
+        ),
+    )
+    _write_mirror(cfg, record)
+    return record
+
+
+def finalize_policy_control_event(cfg: Config, expected: dict[str, Any]) -> None:
+    """Finish a prepared mirror using the MAC-authenticated policy transaction.
+
+    The caller supplies the committed state's record, never mirror-only authority.
+    Missing or conflicting mirrors fail closed instead of inventing approval.
+    """
+    path = _mirror_path(cfg, str(expected["id"]))
+    try:
+        current = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise InvalidInputError("pending policy control mirror is unavailable") from exc
+    stable = set(expected) - {"state", "audit_log"}
+    if (not isinstance(current, dict)
+            or any(current.get(key) != expected[key] for key in stable)
+            or current.get("state") not in {"approved", "succeeded"}):
+        raise InvalidInputError("pending policy control mirror conflicts with committed state")
+    if current["state"] == "succeeded":
+        return
+    record = ApprovalRecord(
+        **{key: value for key, value in expected.items() if key != "audit_log"},
+        audit_log=tuple(ApprovalAuditEvent.from_dict(e) for e in expected["audit_log"]),
+    )
+    event = ApprovalAuditEvent(
+        sequence=len(record.audit_log) + 1, operation=record.op,
+        actor="policy-store-reconcile", at=_now(), from_state="approved",
+        to_state="succeeded", reason="authenticated_policy_commit",
+    )
+    _write_mirror(cfg, replace(record, state="succeeded", audit_log=(*record.audit_log, event)))
 
 
 def reload_from_mirror(cfg: Config, conn: sqlite3.Connection) -> int:

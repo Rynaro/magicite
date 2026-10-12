@@ -1,0 +1,10 @@
+{
+  "ack_durable": true,
+  "child_exit_code": 23,
+  "custody": "simulated fixture custodian in parent and child; not deployment proof",
+  "projection_wiped_before_rebuild": true,
+  "recovered_event": true,
+  "schema": "magicite/checkpoint-process-death/2",
+  "sequence_matches_ack": true,
+  "status": "PASS"
+}

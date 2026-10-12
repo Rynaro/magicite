@@ -1,0 +1,1 @@
+ERROR: known exposed official final cannot be resealed fresh

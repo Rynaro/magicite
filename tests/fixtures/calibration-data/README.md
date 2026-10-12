@@ -1,0 +1,1 @@
+All candidate texts, queries, labels, source groups, people and timestamps are invented control fixtures. Passing structural controls does not prove authentic annotation, independence, temporal truth, fresh final, E2/E3/E6 or release readiness.

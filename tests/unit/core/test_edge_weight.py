@@ -96,7 +96,7 @@ def test_declared_edge_enters_the_activation_graph(cfg, db_conn, embedder) -> No
 # ── AC-039 ────────────────────────────────────────────────────────────────
 
 
-def test_zero_declared_strength_is_an_exact_revert(cfg, db_conn, embedder) -> None:
+def test_zero_declared_strength_is_an_exact_revert(cfg, db_conn, embedder, review_fixture_artifacts) -> None:
     """AC-039: GIVEN a registry containing declared edges and a config
     with declared_edge_strength = 0.0 WHEN route() scores a query THEN
     every returned score SHALL equal the score from the same registry
@@ -117,6 +117,9 @@ def test_zero_declared_strength_is_an_exact_revert(cfg, db_conn, embedder) -> No
     the one thing §3.3.1 actually changed.
     """
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
+    from tests.conftest import TOY_ENGRAM_NAMES
+
+    review_fixture_artifacts(*TOY_ENGRAM_NAMES)
     cfg.declared_edge_strength = 0.0
     cfg.hub_penalty = 0.0
     query = "rollback proton for a steam game"

@@ -1,5 +1,20 @@
 # 02. Architecture: Engine Structure and Deployment Posture
 
+## Current v1 integration contract
+
+Stable `dense-v1` routing uses full canonical content, deterministic candidate IDs,
+pre-ranking eligibility and pinned index generations. Dream does not affect stable
+ordering. Hybrid promotion requires frozen paired evaluation; adaptive selection
+is explicitly experimental. FastEmbed/ONNX by default, hashing for fixture CI,
+Ollama optional. Public projections disclose no raw query and bind body loading
+to current eligibility. The architecture detail below includes historical adaptive
+mechanics; those mechanics do not describe the stable dense default.
+
+See [AUTHORITY](AUTHORITY.md), [generated reference](generated/runtime-reference.json),
+and [operator tutorial](operator-tutorial.md).
+
+## Retained design and historical context
+
 **Status:** Draft-refined / v1  
 **Provenance:** exploratory/consolidated-research-graph-mcp-proposal.md Part IV.1–IV.3, FINDING-006, FINDING-011, mcp20-server-dossier.md sections 1–2, 5, 10–11, GAP-004  
 **Decisions implemented:** [DECISION D2] Local-first core + deployment-profile separation; five mcp20 disciplines adopted; concurrency/scoping model; R5 security boundary

@@ -1,5 +1,23 @@
 # 07. Evaluation and Observability: Fitness, Benchmarks, and Telemetry
 
+## Current v1 integration contract
+
+V1 efficacy and release support require manifested independent labels, predictions,
+source/lock/model identities and Claim/1 integrity. Historical v0.3 composition
+results remain at docs/evaluation/v0.3-results.json and cannot qualify new-run gates.
+Official SkillRet, licensed real-scale runs, production E6, paired hybrid comparison,
+empirical abstention and independent host-task usefulness are UNEVALUATED.
+E3 keeps frozen group/CI bounds and exact Holm correction; E4 retains timeout cases
+in paired denominators. E6 uses actual clean-process measurements and both real
+and synthetic strata. Payload units are lexical word tokens from the pinned
+tokenizer over public RouteOutput/1 JSON, maximum across measured responses;
+they are not model BPE, cost or context-capacity measurements.
+
+See [AUTHORITY](AUTHORITY.md), [generated reference](generated/runtime-reference.json),
+and [operator tutorial](operator-tutorial.md).
+
+## Retained design and historical context
+
 **Status:** Draft-refined / v1  
 **Provenance:** exploratory/consolidated-research-graph-mcp-proposal.md Part IV.8–IV.10, engram-format.md §3–§4, FINDING-004, D1 hypothesis register (doc 01)  
 **Decisions implemented:** Fitness functions for lifecycle gates; system-level evaluation plan; per-tier signal-yield measurement; KPIs; ablation suite

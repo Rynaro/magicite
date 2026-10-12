@@ -1,0 +1,14 @@
+src/magicite/eval/data_readiness.py
+src/magicite/eval/validate.py
+src/magicite/eval/operator_cli.py
+src/magicite/eval/__main__.py
+scripts/qualify_calibration_data.py
+tests/unit/eval/test_data_readiness.py
+tests/unit/eval/test_manifests.py
+tests/unit/eval/test_production_empirical.py
+tests/unit/test_qualify_calibration_data.py
+tests/fixtures/calibration-data/*
+docs/qualification/calibration-data.md
+docs/qualification/evidence/calibration-data/*
+.spectra/plans/v1-calibration-data*
+docs/generated/runtime-reference.json

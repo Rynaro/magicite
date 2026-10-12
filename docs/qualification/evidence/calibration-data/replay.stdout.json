@@ -1,0 +1,30 @@
+{
+  "access_intent": {
+    "binding": {
+      "classification": "nonqualifying_local_control; authentic readiness UNEVALUATED",
+      "experiment_identity": "5b426f480f75795655c4828c8546f1037ef9b89ece0c6daef20c9c2b39cc478d",
+      "freeze_identity": "649f31112f4c2969f8b07a38db643f71e210165e462d320dbe6c5dbc93c68926",
+      "packet_sha256": "1dad5712926e2e25993a2bbf9f7eba2949638affc075aa1c5ba4f32a72fdb7c6",
+      "preregistration_sha256": "5b426f480f75795655c4828c8546f1037ef9b89ece0c6daef20c9c2b39cc478d",
+      "purpose": "synthetic-control"
+    },
+    "exposure_retained": true,
+    "first_access_intent_at": "2026-10-08T11:30:50.090343+00:00",
+    "schema": "magicite/final-access-intent/1"
+  },
+  "authentic_readiness": "UNEVALUATED",
+  "final_labels": [
+    {
+      "judgment_ref": "judgment2",
+      "kind": "ambiguous",
+      "query_id": "fixture-q2",
+      "rationale": "Invented fixture judgment against both declared candidates; not authentic annotation.",
+      "relevance": {
+        "egr_fixture1": 1,
+        "egr_fixture2": 1
+      }
+    }
+  ],
+  "freeze_identity": "649f31112f4c2969f8b07a38db643f71e210165e462d320dbe6c5dbc93c68926",
+  "qualifying": false
+}

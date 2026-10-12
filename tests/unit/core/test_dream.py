@@ -130,9 +130,7 @@ def test_run_phase5_distill_proposes_a_frequent_uncovered_path(cfg, db_conn, reg
     for i in range(5):
         sid = f"auto-nuc-{i}"
         signals_mod.signal_use(cfg, db_conn, skill_ids=names, session_id=sid)
-        signals_mod.signal_outcome(
-            cfg, db_conn, valence=0.9, salience=0.9, skill_ids=names, session_id=sid
-        )
+        signals_mod.signal_outcome(cfg, db_conn, valence=0.9, salience=0.9, skill_ids=names, session_id=sid)
 
     result = dream_mod.run(cfg, db_conn, trigger="manual")
 
@@ -167,18 +165,17 @@ def test_run_failure_is_isolated_and_recorded(cfg, db_conn, registered, monkeypa
     def _boom(*args, **kwargs):
         raise RuntimeError("synthetic phase failure")
 
+    original_phase = dream_mod._phase4_renormalise
     monkeypatch.setattr(dream_mod, "_phase4_renormalise", _boom)
 
     with pytest.raises(RuntimeError, match="synthetic phase failure"):
         dream_mod.run(cfg, db_conn, trigger="manual")
 
-    row = db_conn.execute(
-        "SELECT state, error FROM consolidation_run ORDER BY rowid DESC LIMIT 1"
-    ).fetchone()
+    row = db_conn.execute("SELECT state, error FROM consolidation_run ORDER BY rowid DESC LIMIT 1").fetchone()
     assert row["state"] == "failed"
     assert "synthetic phase failure" in row["error"]
 
-    monkeypatch.undo()
+    monkeypatch.setattr(dream_mod, "_phase4_renormalise", original_phase)
     # A fresh run must succeed -- the failed run's cross-process lease was
     # released (context manager __exit__ always runs) and it does not
     # dedup-block a new attempt (only queued/running runs dedup).
@@ -227,9 +224,7 @@ def test_zero_delta_s_burst_does_not_force_full_checkpoint_rewrite(cfg, db_conn,
     """
     dream_mod.run(cfg, db_conn, trigger="manual")  # absorb the one-time declared-edge sync
 
-    names = [
-        str(r["name"]) for r in db_conn.execute("SELECT name FROM engram").fetchall()
-    ]
+    names = [str(r["name"]) for r in db_conn.execute("SELECT name FROM engram").fetchall()]
     signals_mod.signal_use(cfg, db_conn, skill_ids=names, session_id="zero-delta-burst")
     signals_mod.signal_outcome(
         cfg, db_conn, valence=0.9, salience=0.9, skill_ids=names, session_id="zero-delta-burst"
@@ -255,9 +250,7 @@ def test_zero_delta_s_burst_still_anchors_spacing_for_a_later_real_commit(cfg, d
     dream_mod.run(cfg, db_conn, trigger="manual")  # establishes the Tier-C anchor, commits nothing
 
     past = (datetime.now(UTC) - timedelta(hours=8)).isoformat()
-    db_conn.execute(
-        "UPDATE eph_bookkeeping SET last_dw_input_at = ? WHERE engram_id = ?", (past, proton_id)
-    )
+    db_conn.execute("UPDATE eph_bookkeeping SET last_dw_input_at = ? WHERE engram_id = ?", (past, proton_id))
     signals_mod.signal_use(cfg, db_conn, skill_ids=[PROTON], session_id="anchor-2")
     signals_mod.signal_outcome(
         cfg, db_conn, valence=0.9, salience=0.9, skill_ids=[PROTON], session_id="anchor-2"
@@ -282,9 +275,9 @@ def test_eph_event_flooding_cannot_move_storage_strength(cfg, db_conn, registere
     still written by mcp/app.py's dispatcher) must move nothing -- Dream's
     Phase 2 never reads eph_event for S at all."""
     engram_id = _engram_id(db_conn, PROTON)
-    before = db_conn.execute(
-        "SELECT storage_strength FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()["storage_strength"]
+    before = db_conn.execute("SELECT storage_strength FROM engram WHERE id = ?", (engram_id,)).fetchone()[
+        "storage_strength"
+    ]
 
     now = _iso(datetime.now(UTC))
     for _ in range(100):
@@ -296,9 +289,9 @@ def test_eph_event_flooding_cannot_move_storage_strength(cfg, db_conn, registere
 
     result = dream_mod.run(cfg, db_conn, trigger="manual")
 
-    after = db_conn.execute(
-        "SELECT storage_strength FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()["storage_strength"]
+    after = db_conn.execute("SELECT storage_strength FROM engram WHERE id = ?", (engram_id,)).fetchone()[
+        "storage_strength"
+    ]
     assert after == before
     assert result.stats["potentiate"]["committed_nodes"] == 0
 
@@ -361,9 +354,9 @@ def test_edge_potentiates_only_after_a_properly_spaced_second_observation(cfg, d
 
 
 def test_run_raises_busy_when_lease_already_held(cfg, db_conn, registered) -> None:
-    from magicite.storage import lease as lease_mod
+    from magicite.core.writer_guard import registry_writer_lease
 
-    held = lease_mod.CrossProcessLease(lock_path=cfg.dream_lock_path, conn=db_conn, holder="external")
+    held = registry_writer_lease(cfg, db_conn, holder="external")
     held.try_acquire()
     try:
         run_count_before = db_conn.execute("SELECT COUNT(*) AS n FROM consolidation_run").fetchone()["n"]

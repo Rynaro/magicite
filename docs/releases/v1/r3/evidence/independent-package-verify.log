@@ -1,0 +1,5 @@
+{
+  "positive-overlay": "PASS",
+  "mismatched-source": "REJECTED: package source mismatch",
+  "modified-bound-artifact": "REJECTED: package artifact digest mismatch: docs/releases/v1/r3/evidence/focused.txt"
+}

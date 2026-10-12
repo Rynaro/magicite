@@ -22,9 +22,12 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/v1-integration]
   pull_request:
-    branches: [main]
+    branches: [main, codex/v1-integration]
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -47,6 +50,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Full history: the AC-TH-10 witness runs the frozen 22ae4e0 reader via git archive.
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -92,6 +98,35 @@ jobs:
         continue-on-error: true
         run: uv run pytest -q -m benchmark -s
 
+      # S13: execute historical compatibility checks separately from v1 evidence.
+      - name: Historical corpus and result compatibility
+        run: |
+          uv run python -m magicite.eval validate-corpus docs/evaluation/composition-v0.3.json
+          uv run python scripts/check_evaluation_results.py docs/evaluation/v0.3-results.json
+
+      - name: V1 manifest, Claim integrity, schema and source roundtrip
+        run: |
+          uv run pytest -q tests/unit/eval/test_manifests.py tests/unit/engram/test_v1_schema.py tests/integration/test_skillmd_roundtrip.py
+
+      - name: Generated documentation and negative contract fixtures
+        run: |
+          uv run python scripts/check_generated_docs.py
+          uv run python scripts/check_docs.py
+          uv run pytest -q tests/unit/test_docs_v1.py
+
+      - name: Disposable operator tutorial (fixture evidence only)
+        run: uv run python scripts/smoke_operator_tutorial.py --output ci-evidence/operator-tutorial.json
+
+      - name: Hashing benchmark envelope completeness (not production budgets)
+        run: uv run python scripts/run_benchmark_matrix.py --profile ci-smoke --provider hashing --envelope-mode completeness --custody disposable-simulated --output ci-evidence/hashing-completeness.json
+
+      - name: Archive fixture tutorial and completeness evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v1-fixture-evidence-py${{ matrix.python-version }}
+          path: ci-evidence/*.json
+          if-no-files-found: error
+
       # VG-4 (AC-003/AC-004): the manifest is exactly 16 tools.
       - name: magicite tools == 16
         run: |
@@ -128,6 +163,9 @@ jobs:
   docker-build-and-smoke:
     name: docker build + VG-9 smoke + Trivy gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -142,6 +180,8 @@ jobs:
           file: Dockerfile
           tags: magicite:verify
           load: true
+          # Refresh runtime apt security updates on every build; preserve builder cache.
+          no-cache-filters: runtime
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -186,6 +226,7 @@ jobs:
             -v "$PWD/scripts/run_benchmark_matrix.py:/tmp/run_benchmark_matrix.py:ro" \
             magicite:verify /tmp/run_benchmark_matrix.py \
             --provider production --sizes 1000 10000 --calls 2 --warmup 1 \
+            --custody disposable-simulated \
             --environment-label production-container
 
       # Trivy HIGH/CRITICAL gate (mission directive: "CI: ... image build +
@@ -215,3 +256,70 @@ jobs:
           severity: "HIGH,CRITICAL"
           exit-code: "1"
           ignore-unfixed: true
+
+  # ── S13 packaging scaffold: immutable supply-chain pins, clean wheel
+  # install probe, and release-manifest digest round-trip. Published-channel
+  # installs (PyPI/pipx/uvx/OCI digest) stay UNEVALUATED until milestone
+  # S13-published-channels (after S11/S15). ────────────────────────────────
+  packaging-scaffold:
+    name: packaging scaffold (wheel + supply-chain)
+    runs-on: ubuntu-latest
+    env:
+      MAGICITE_EMBEDDING_PROVIDER: hashing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.11.23"
+          python-version: "3.12"
+
+      - name: Install dependencies (all extras — leiden, dev)
+        run: uv sync --all-extras
+
+      - name: Supply-chain immutable inputs
+        run: uv run python scripts/check_supply_chain.py
+
+      - name: Build wheel + sdist
+        run: uv build
+
+      - name: Write release manifest for dist/
+        run: |
+          uv run python scripts/check_supply_chain.py \
+            --skip-immutable-inputs \
+            --write-manifest dist/release-manifest.json \
+            --artifacts dist
+
+      - name: Verify release manifest digests
+        run: |
+          uv run python scripts/check_supply_chain.py \
+            --skip-immutable-inputs \
+            --verify-manifest dist/release-manifest.json
+
+      - name: Clean wheel install probe (script)
+        run: |
+          wheel="$(ls -1 dist/magicite-*.whl | tail -1)"
+          uv run python scripts/verify_wheel_install.py --wheel "$wheel"
+
+      - name: Acceptance install-channel suite
+        run: |
+          wheel="$(ls -1 dist/magicite-*.whl | tail -1)"
+          export MAGICITE_TEST_WHEEL="$wheel"
+          uv run pytest -q -p no:cacheprovider tests/acceptance/test_install_channels.py
+
+      # Future wiring (merge-after S01/S02/S03/S04) — do not enable until those
+      # slices land their verifier commands. Negative/security findings must
+      # remain visible (no continue-on-error once enabled).
+      #
+      # S01 evidence harness:
+      #   - uv run python scripts/check_evaluation_results.py --completeness-only
+      # S02 schema / golden fixtures:
+      #   - uv run pytest -q tests/unit/engram/ -k schema
+      # S03 storage migrations:
+      #   - uv run pytest -q tests/unit/storage/test_migrations.py
+      # S04 registry lifecycle / approvals:
+      #   - uv run pytest -q tests/acceptance/ -k registry_or_approvals
+      # S11 (consumes this scaffold): MCP/CLI conformance against installed wheel
+      # S15 (consumes this scaffold): generated docs authority against packaged resources

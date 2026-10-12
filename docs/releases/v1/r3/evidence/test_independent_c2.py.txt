@@ -1,0 +1,26 @@
+import pytest
+from tests.unit.core.test_review_approve_busy_wait import approval_subject
+from magicite.core import registry
+from magicite.errors import BusyError
+
+def test_nested_approval_still_fences_actual_owner(approval_subject, cfg, db_conn, monkeypatch):
+    outer = registry._cross_process_lease(cfg, db_conn, 'outer-independent')
+    original_admit = registry.lifecycle_mod.apply_local_admission
+    original_assert = outer.assert_owned
+    lost = False
+    def assert_owned():
+        if lost:
+            raise BusyError('independent simulated outer ownership loss')
+        return original_assert()
+    def admit(*args, **kwargs):
+        nonlocal lost
+        result = original_admit(*args, **kwargs)
+        lost = True
+        return result
+    monkeypatch.setattr(outer, 'assert_owned', assert_owned)
+    monkeypatch.setattr(registry.lifecycle_mod, 'apply_local_admission', admit)
+    with outer.acquire(), registry.lease_mod.writer_lease():
+        with pytest.raises(BusyError):
+            registry.review_approve(cfg, db_conn, **approval_subject)
+    assert not list(cfg.approvals_dir.glob('*.json'))
+    assert not db_conn.execute("SELECT id FROM approval WHERE op='trust_approve'").fetchall()

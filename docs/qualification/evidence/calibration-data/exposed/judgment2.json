@@ -1,0 +1,9 @@
+{
+  "author_id": "fixture-author2",
+  "fixture": true,
+  "kind": "ambiguous",
+  "pool_sha256": "76919ebae1a7df43d2f55089778bcc907cc300f29ffbcabeef534d77c047aace",
+  "query_id": "fixture-q2",
+  "rationale": "Invented fixture judgment against both declared candidates; not authentic annotation.",
+  "reviewer_id": "fixture-reviewer2"
+}

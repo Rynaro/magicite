@@ -1,0 +1,62 @@
+{
+  "schema": "magicite/support-policy/1",
+  "support": [
+    {
+      "id": "python-3.11-3.12",
+      "status": "tested",
+      "replacement": "Use the CI-tested Python 3.11 or 3.12 window",
+      "support_deadline": "Until a reviewed support-policy change with a replacement release",
+      "evidence": ".github/workflows/ci.yml; exact-head CI recorded in release evidence"
+    },
+    {
+      "id": "native-linux-amd64-macos-arm64",
+      "status": "proposed",
+      "replacement": "Source checkout with local filesystem; published install matrix remains UNEVALUATED",
+      "support_deadline": "Reassess before the first v1 release candidate"
+    },
+    {
+      "id": "oci-linux-amd64-arm64",
+      "status": "proposed",
+      "replacement": "Digest-pinned OCI once actual published artifacts pass installation checks",
+      "support_deadline": "Reassess before the first v1 release candidate"
+    },
+    {
+      "id": "other-python-os-hosts",
+      "status": "experimental",
+      "replacement": "Use tested Python window and documented stdio fixtures",
+      "support_deadline": "No stable support commitment; review before any support promotion"
+    },
+    {
+      "id": "network-filesystems",
+      "status": "experimental",
+      "replacement": "Use a local filesystem for writable registries",
+      "support_deadline": "Excluded from supported guarantees until a reviewed filesystem validation matrix"
+    }
+  ],
+  "deprecations": [
+    {
+      "id": "engram-0.2",
+      "status": "deprecated",
+      "replacement": "engram/1.0 via validated migration; retain complete backups for downgrade",
+      "support_deadline": "Dual-reader retained through the v1 transition; no removal before a published migration release and notice; stable fields/commands remain for at least two minor releases and 90 days after published notice, whichever is longer"
+    },
+    {
+      "id": "legacy-spectra-data-directory",
+      "status": "deprecated",
+      "replacement": ".magicite project-local data directory",
+      "support_deadline": "Fallback retained for existing .spectra/engrams registries until an explicitly announced migration release; stable fields/commands remain for at least two minor releases and 90 days after published notice, whichever is longer"
+    },
+    {
+      "id": "adaptive-default",
+      "status": "deprecated",
+      "replacement": "dense-v1 stable default; adaptive only explicit experimental selection",
+      "support_deadline": "Removed as default in the v1 integration contract; no future stable default without independent evaluation and review; stable fields/commands remain for at least two minor releases and 90 days after published notice, whichever is longer"
+    }
+  ],
+  "deprecation_window": {
+    "minimum_minor_releases": 2,
+    "minimum_days": 90,
+    "removal_rule": "whichever-is-longer",
+    "starts_at": "First published deprecation notice for the affected stable contract; unreleased integrations do not start the clock"
+  }
+}

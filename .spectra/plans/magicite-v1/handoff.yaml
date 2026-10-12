@@ -1,0 +1,13 @@
+schema: magicite/handoff/1
+intent: specs-only
+base_commit: 496e4eded09f7c0b8e0b776c3c709bccadc0321a
+plan: plan.json
+contracts: contracts.md
+criteria: acceptance.md
+executor: vivi
+auto_merge: false
+auto_deploy: false
+first_assignments: [S00, S01, S02, S13]
+module_parallelism: use build_after
+integration_order: use merge_after
+shared_file_ownership: plan.json#shared_file_locks

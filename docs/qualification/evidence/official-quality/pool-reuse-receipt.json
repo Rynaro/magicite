@@ -1,0 +1,24 @@
+{
+  "schema": "magicite/official-quality-pool-reuse/1",
+  "checker": "vigil",
+  "verdict": "ACCEPTED",
+  "producer_experiment": "/private/tmp/magicite-v1-quality/candidate-c3-evidence",
+  "producer_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+  "consumer_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "independent_review": {
+    "path": "/private/tmp/magicite-v1-quality/independent-c4-producer-consumer-review.json",
+    "sha256": "2753ddd647d0b8300587cbad0e6d5affcfed892f9fb1d7975beb306a66dac648"
+  },
+  "complete_diff_sha256": "32e3b4741994528f8137215241d5778d0713e268f18156981762ce746909ffbc",
+  "snapshots": {
+    "train": {
+      "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/train-snapshot.json",
+      "sha256": "e53b623880d6ae8844ae63b9d182a4593dc18d94af80861b4d6527d610cacc27"
+    },
+    "test": {
+      "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/test-snapshot.json",
+      "sha256": "fed3b41eeadd3425471973a820ef50188d57927d549f591f2e1af6cf35ee1092"
+    }
+  },
+  "scope": "C3 byte-verified admission/embedding pools reused by reviewed C4; no heldout authorization or relabeling of producer"
+}

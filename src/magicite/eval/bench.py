@@ -33,11 +33,12 @@ primitives (``core/activation.py``), not a parallel reimplementation:
 - (d) the real ``route()``: embedding + activation weighted by *learned*
   ``S_edge`` + hub penalty + context + community rerank
 
-Composition ground truth (Plan F1) is derived once per distinct
-``expected_top1`` name from that engram's own declared
-``needs``/``composes`` closure (``core/composition.py::expand``, the same
-mechanism ``route()`` itself uses) -- an independent, label-driven truth,
-not something any baseline gets to define for itself.
+Composition Plan F1 against production ``expand()`` gold is retained only
+as a **deprecated diagnostic** (``plan_f1_status =
+deprecated_diagnostic_circular_gold``). Independent structural evaluation
+supplies expected plans from corpus annotations via
+``magicite.eval.gold.load_structural_gold`` / ``expected_plans=`` —
+never from the planner under test (AC-S01-04 / evaluation.md E1, E4).
 """
 
 from __future__ import annotations
@@ -276,6 +277,7 @@ class BaselineReport:
     label: str
     ranking: metrics_mod.RankingReport
     plan_f1: metrics_mod.PlanF1Result
+    plan_f1_status: str = metrics_mod.PLAN_F1_DEPRECATED_DIAGNOSTIC
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -292,6 +294,10 @@ class BaselineReport:
             # is unaffected by this addition.
             "plan_f1_n_evaluated": self.plan_f1.n_evaluated,
             "plan_f1_n_total": self.plan_f1.n_total,
+            # S01: circular expand()-as-gold Plan F1 is a deprecated
+            # diagnostic; independent corpus annotations set
+            # plan_f1_status=independent_corpus.
+            "plan_f1_status": self.plan_f1_status,
         }
 
 
@@ -303,13 +309,22 @@ def run_baseline(
     queries: list[LabelledQuery],
     *,
     k: int = 5,
+    expected_plans: dict[str, list[str]] | None = None,
+    allow_circular_diagnostic_gold: bool = False,
 ) -> BaselineReport:
     if baseline not in BASELINE_NAMES:
         raise ValueError(f"unknown baseline {baseline!r}, expected one of {BASELINE_NAMES}")
+    if expected_plans is None and not allow_circular_diagnostic_gold:
+        raise ValueError(
+            "independent expected_plans are required for Plan F1 gold; pass "
+            "allow_circular_diagnostic_gold=True only for the deprecated "
+            "expand()-as-gold diagnostic (not eligible for status=supported)"
+        )
 
     ranking_pairs: list[tuple[list[str], str]] = []
     plan_pairs: list[tuple[list[str], list[str]]] = []
     expected_plan_cache: dict[str, list[str]] = {}
+    using_independent_gold = expected_plans is not None
 
     for q in queries:
         route_outcome = None
@@ -326,7 +341,13 @@ def run_baseline(
         ranking_pairs.append((ranked, q.expected_top1))
 
         if q.expected_top1 not in expected_plan_cache:
-            expected_plan_cache[q.expected_top1] = _expand_plan(cfg, conn, q.expected_top1)
+            if expected_plans is not None:
+                if q.expected_top1 not in expected_plans:
+                    raise KeyError(f"independent gold missing expected_plan for {q.expected_top1!r}")
+                expected_plan_cache[q.expected_top1] = list(expected_plans[q.expected_top1])
+            else:
+                # Explicit diagnostic only: gold from production expand().
+                expected_plan_cache[q.expected_top1] = _expand_plan(cfg, conn, q.expected_top1)
         expected_plan = expected_plan_cache[q.expected_top1]
 
         if not ranked:
@@ -339,8 +360,17 @@ def run_baseline(
 
     ranking_report = metrics_mod.aggregate_ranking(ranking_pairs)
     plan_report = metrics_mod.aggregate_plan_f1(plan_pairs)
+    status = (
+        metrics_mod.PLAN_F1_INDEPENDENT
+        if using_independent_gold
+        else metrics_mod.PLAN_F1_DEPRECATED_DIAGNOSTIC
+    )
     return BaselineReport(
-        name=baseline, label=BASELINE_LABELS[baseline], ranking=ranking_report, plan_f1=plan_report
+        name=baseline,
+        label=BASELINE_LABELS[baseline],
+        ranking=ranking_report,
+        plan_f1=plan_report,
+        plan_f1_status=status,
     )
 
 
@@ -373,6 +403,8 @@ def run_bench(
     queries: list[LabelledQuery],
     baselines: list[str] | None = None,
     k: int = 5,
+    expected_plans: dict[str, list[str]] | None = None,
+    allow_circular_diagnostic_gold: bool = False,
 ) -> BenchReport:
     """AC-029: emits Hit@1/3/5, MRR and Plan F1 for every requested
     baseline (default: all four, a-d). Read-only over the DB except for
@@ -380,11 +412,26 @@ def run_bench(
     its normal Tier-C bookkeeping (spec §3.3 step 11) -- exactly what a
     genuine benchmark run against a real server would do; nothing here
     mutates durable (Tier A/B) state.
+
+    Pass ``expected_plans`` (from ``magicite.eval.gold``) for independent
+    structural gold. The expand()-as-gold path requires
+    ``allow_circular_diagnostic_gold=True`` and remains ineligible for
+    ``status=supported`` promotion claims.
     """
     selected = baselines if baselines is not None else list(BASELINE_NAMES)
     registry_size = int(conn.execute("SELECT COUNT(*) AS n FROM engram").fetchone()["n"])
     reports = {
-        name: run_baseline(cfg, conn, embedder, name, queries, k=k) for name in selected
+        name: run_baseline(
+            cfg,
+            conn,
+            embedder,
+            name,
+            queries,
+            k=k,
+            expected_plans=expected_plans,
+            allow_circular_diagnostic_gold=allow_circular_diagnostic_gold,
+        )
+        for name in selected
     }
     return BenchReport(registry_size=registry_size, n_queries=len(queries), baselines=reports)
 
@@ -396,22 +443,50 @@ def run_bench(
 @click.command()
 @click.option("--project-root", default=".", show_default=True, help="Registry project root.")
 @click.option(
-    "--queries", "queries_path", default=None,
+    "--queries",
+    "queries_path",
+    default=None,
     help="Labelled query JSONL path (default: <data-dir>/bench/queries.jsonl).",
 )
 @click.option(
-    "--baseline", "selected_baselines", multiple=True,
-    type=click.Choice(BASELINE_NAMES), help="Repeatable; default: all four (a-d).",
+    "--baseline",
+    "selected_baselines",
+    multiple=True,
+    type=click.Choice(BASELINE_NAMES),
+    help="Repeatable; default: all four (a-d).",
 )
 @click.option("-k", default=5, show_default=True, help="Top-k candidates per query.")
 @click.option(
-    "--sync/--no-sync", default=True, show_default=True,
+    "--sync/--no-sync",
+    default=True,
+    show_default=True,
     help="Run sync() first so embeddings/communities are current.",
 )
+@click.option(
+    "--allow-circular-diagnostic-gold/--no-allow-circular-diagnostic-gold",
+    default=False,
+    show_default=True,
+    help=(
+        "Permit deprecated expand()-as-gold Plan F1 (diagnostic only; "
+        "ineligible for status=supported claims). Prefer -- with independent "
+        "corpus annotations via the Python API expected_plans=."
+    ),
+)
 def cli(
-    project_root: str, queries_path: str | None, selected_baselines: tuple[str, ...], k: int, sync: bool
+    project_root: str,
+    queries_path: str | None,
+    selected_baselines: tuple[str, ...],
+    k: int,
+    sync: bool,
+    allow_circular_diagnostic_gold: bool,
 ) -> None:
-    """Run the docs/07 baseline benchmark (a-d) and print Hit@k/MRR/Plan F1 as JSON."""
+    """Run baselines a-d; print Hit@k/MRR/Plan F1 as JSON.
+
+    Circular expand()-as-gold Plan F1 requires
+    ``--allow-circular-diagnostic-gold`` (diagnostic only; not eligible for
+    ``status=supported``). Prefer independent corpus annotations via the
+    Python API ``expected_plans=``.
+    """
     from magicite.core import registry as registry_mod
     from magicite.embeddings import get_embedder
     from magicite.storage import db as db_mod
@@ -429,7 +504,13 @@ def cli(
     queries = load_queries(qpath)
 
     report = run_bench(
-        cfg, conn, embedder, queries=queries, baselines=list(selected_baselines) or None, k=k
+        cfg,
+        conn,
+        embedder,
+        queries=queries,
+        baselines=list(selected_baselines) or None,
+        k=k,
+        allow_circular_diagnostic_gold=allow_circular_diagnostic_gold,
     )
     click.echo(json.dumps(report.to_dict(), indent=2, default=str))
 

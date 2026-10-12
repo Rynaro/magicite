@@ -1,0 +1,15 @@
+{
+  "schema": "magicite/composition-v1-host-task/1",
+  "task_id": "echo-ok",
+  "description": "Independently authored deterministic host task for AC-S08-04. Verifier distinguishes structural Plan/1 validity from task outcome.",
+  "expected_stdout": "ok",
+  "seed_command": ["echo", "ok"],
+  "verifier_id": "composition-echo-verifier",
+  "verifier_version": "1",
+  "arms": ["no-skill", "selected-skill", "composed-plan"],
+  "label_provenance": {
+    "method": "manual_deterministic_fixture",
+    "production_expansion_used": false,
+    "reviewed": true
+  }
+}

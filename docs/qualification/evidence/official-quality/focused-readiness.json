@@ -1,0 +1,46 @@
+{
+  "schema": "magicite/a03-readiness-checks/1",
+  "stage": "uncommitted-reviewed-candidate",
+  "staged_diff_sha256": "32e3b4741994528f8137215241d5778d0713e268f18156981762ce746909ffbc",
+  "focused": {
+    "passed": 111,
+    "seconds": 7.59
+  },
+  "ruff": "PASS",
+  "mypy": {
+    "status": "PASS",
+    "source_files": 2,
+    "cache_scope": "task-owned temporary cache; original local-cache internal error retained in earlier tool output"
+  },
+  "candidate_generated_docs": "PASS",
+  "docs_contracts": "PASS",
+  "heldout_queries": 0,
+  "model_calls_during_implementation": 0,
+  "evidence": {
+    "c4-focused-final.log": {
+      "path": "/private/tmp/magicite-v1-quality/c4-focused-final.log",
+      "sha256": "ffcdba3b90c56e14097d3f76b3a6c3747a7dd7c712a7fcf55ec4a8861e43393c"
+    },
+    "c4-ruff-final.log": {
+      "path": "/private/tmp/magicite-v1-quality/c4-ruff-final.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    "c4-mypy-final.log": {
+      "path": "/private/tmp/magicite-v1-quality/c4-mypy-final.log",
+      "sha256": "f9b031e5c45aa702cd4fef028d465551cb20a2c4698e0913c7b00766b20ac4d8"
+    },
+    "c4-generated-docs-final.log": {
+      "path": "/private/tmp/magicite-v1-quality/c4-generated-docs-final.log",
+      "sha256": "c901f6b1c625776df96ce7b2bf0ac16a616f04b6977bcac4df948624ab2d89b3"
+    },
+    "c4-doc-contracts-final.log": {
+      "path": "/private/tmp/magicite-v1-quality/c4-doc-contracts-final.log",
+      "sha256": "95bb245045e53ccb29ddcc8b12671d7193d5041ca43f478a6665ccef8cf5971b"
+    }
+  },
+  "limitations": [
+    "readiness only, actual C4 and independent review pending",
+    "manual self-attested orchestration, not Gauge acceptance"
+  ],
+  "normalization": "Canonical A03 source copy removes only extra EOF blank line; original temp handoff preserved"
+}

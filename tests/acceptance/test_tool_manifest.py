@@ -38,16 +38,16 @@ def test_sixteen_tools() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tools_list_over_stdio(project_root) -> None:
+async def test_tools_list_over_stdio(cfg) -> None:
     """The same 16 names, proven over the real MCP wire (belt-and-suspenders on AC-003)."""
-    import sys
-
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
+    from tests.support.custody_adapter import fixture_cli_argv
 
+    command, *args = fixture_cli_argv(cfg, "serve", "--project-root", str(cfg.project_root))
     params = StdioServerParameters(
-        command=sys.executable,
-        args=["-m", "magicite", "serve", "--project-root", str(project_root)],
+        command=command,
+        args=args,
         env={"MAGICITE_EMBEDDING_PROVIDER": "hashing"},
     )
     async with stdio_client(params) as (read, write):

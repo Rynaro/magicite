@@ -1,0 +1,129 @@
+{
+  "status": "ALL_TEN_BOUNDED_ENGINEERING_CRITERIA_ACCEPTED_FOR_MEASURED_C4",
+  "measured_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "pool_producer_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+  "checker": "vigil",
+  "maker": "vivi",
+  "criteria": [
+    {
+      "id": "AC-OQ-01",
+      "status": "PASS",
+      "basis": "Clean C4 source151 inputs, accepted corpus/pools/model13 files and frozen configuration rehashed; current meaningful binding negatives pass. Historical missing/mutated model controls inherited through exact verify_model/model_files/_contained AST and unchanged manifest, not claimed new execution."
+    },
+    {
+      "id": "AC-OQ-02",
+      "status": "PASS",
+      "basis": "Prospective64 namespaced train queries independently rederived from original_id groups; both64-row smoke arms used full10123 pool, no fit or test-based selection."
+    },
+    {
+      "id": "AC-OQ-03",
+      "status": "PASS",
+      "basis": "Complete6006 official test records bound to original native bodies, raw targets, vectors and supported digest/resource-bound explicit evaluation reviews; original producerC3 attribution retained."
+    },
+    {
+      "id": "AC-OQ-04",
+      "status": "PASS",
+      "basis": "Actual FastEmbed/router calls under distinct dense-v1 and experimental/adaptive-blend-v1 policies, fixeddepth10/default5 preserved, exact query-only projection and selected-content identities;8784 query embedding calls observed."
+    },
+    {
+      "id": "AC-OQ-05",
+      "status": "PASS",
+      "basis": "Exactly4392 unique lexical query outcomes per arm, allselected, noerrors/timeouts/abstentions/exclusionviolations; raw ranks/scores/decisions/domains and commands/PIDs verified."
+    },
+    {
+      "id": "AC-OQ-06",
+      "status": "PASS",
+      "basis": "Independent every-row metric recomputation matches full4392 denominators, graded linearNDCG/recall/MRR, decision/rank semantics; sixpaired vectors identical so10000seed0 bootstrap differences necessarilyzero."
+    },
+    {
+      "id": "AC-OQ-07",
+      "status": "PASS",
+      "basis": "Thresholds0/0 enabled, confidence/ECE/no-match rate null; no invented negatives/groupindependence/hybrid/promotion or calibratedabstention claim."
+    },
+    {
+      "id": "AC-OQ-08",
+      "status": "PASS",
+      "basis": "Durable checkpoints and immutablecomplete rows/lexicalprefix/budget checks reconcile; focused interruption/drift/timeout/duplicate controls passed; C3 intentionalincomplete smoke remains separate; C4 no resumed/retried rows."
+    },
+    {
+      "id": "AC-OQ-09",
+      "status": "PASS",
+      "basis": "Independent pretest authorization precedes command/exposure, C3 producer\u2192C4 consumer receipt binds full diff/pools, all8784 outcomes/currentCI6SUCCESS and actual exact-source archiveverificationexit0 reconcile."
+    },
+    {
+      "id": "AC-OQ-10",
+      "status": "PASS",
+      "basis": "Engineering completion is separated from observedquality; C1/C2failedpreparations,C3incompletesmoke,P01/P02 preserved; firsttestexposure retained. NoE3/E6/GA/humansecurity/originalskill-execution/licenseauthenticity claims."
+    }
+  ],
+  "metrics": {
+    "dense-v1": {
+      "decision_hit_at_1": 0.45787795992714025,
+      "rank_hit_at_1": 0.45787795992714025,
+      "recall_at_5": 0.48034304796599875,
+      "recall_at_10": 0.5325591985428051,
+      "mrr_at_10": 0.5377183804608668,
+      "ndcg_at_10_linear_gain": 0.4662594010882044,
+      "selection_coverage": 1.0,
+      "selective_accuracy": 0.45787795992714025
+    },
+    "experimental/adaptive-blend-v1": {
+      "decision_hit_at_1": 0.45787795992714025,
+      "rank_hit_at_1": 0.45787795992714025,
+      "recall_at_5": 0.48034304796599875,
+      "recall_at_10": 0.5325591985428051,
+      "mrr_at_10": 0.5377183804608668,
+      "ndcg_at_10_linear_gain": 0.4662594010882044,
+      "selection_coverage": 1.0,
+      "selective_accuracy": 0.45787795992714025
+    }
+  },
+  "report_sha256": "d10bc2d6877f7160b0d69a72171a7ee042c0cecd5160d07c54f9fba8f6462304",
+  "evidence": {
+    "independent-c4-final-reconciliation.json": {
+      "path": "/private/tmp/magicite-v1-quality/independent-c4-final-reconciliation.json",
+      "sha256": "05e58f09bd980d56d08929ec9929e29852e97b1b510092eda582e9c1bfb0ef8a"
+    },
+    "independent-c4-live-readiness.json": {
+      "path": "/private/tmp/magicite-v1-quality/independent-c4-live-readiness.json",
+      "sha256": "1d154a22c0271e178717b48b1810c0e5a0e207c61eb53316e939d55211ed8adb"
+    },
+    "independent-c4-test-authorization.json": {
+      "path": "/private/tmp/magicite-v1-quality/independent-c4-test-authorization.json",
+      "sha256": "9594f566edb707228bf8352b271443915a70c3c2b9ff36dd36bf7deeac50c528"
+    },
+    "independent-c4-producer-consumer-review.json": {
+      "path": "/private/tmp/magicite-v1-quality/independent-c4-producer-consumer-review.json",
+      "sha256": "2753ddd647d0b8300587cbad0e6d5affcfed892f9fb1d7975beb306a66dac648"
+    },
+    "independent-p02-final-review.json": {
+      "path": "/private/tmp/magicite-v1-quality/independent-p02-final-review.json",
+      "sha256": "b1254ce23cbd3e275c8f75f8df9f1d7eefccb3dadf796ee0fcaf2342416a5180"
+    },
+    "independent-c4-dense-v1-arm-review.json": {
+      "path": "/private/tmp/magicite-v1-quality/independent-c4-dense-v1-arm-review.json",
+      "sha256": "59916a10f694e86bb48f6b24c36f6facf06d9f2331c63a164e2ca2310b15d356"
+    },
+    "independent-c4-experimental_adaptive-blend-v1-arm-review.json": {
+      "path": "/private/tmp/magicite-v1-quality/independent-c4-experimental_adaptive-blend-v1-arm-review.json",
+      "sha256": "b44ed927b1d1070252bb043330db229f6e24dd69306c818cb2fdc1fc0f6ad552"
+    },
+    "candidate-c4-exact-verify.json": {
+      "path": "/private/tmp/magicite-v1-quality/candidate-c4-exact-verify.json",
+      "sha256": "dc48b172bbd31f648a0275c131d5c7b6a2c830598f7eb678bf6027e69b99b927"
+    },
+    "hosted-ci-c4-final.json": {
+      "path": "/private/tmp/magicite-v1-quality/hosted-ci-c4-final.json",
+      "sha256": "fa40cd52d411e994ca62d2735a03966bcb8201992729324e96532c18d9a13cef"
+    }
+  },
+  "archive_boundary": "Any later evidence-only successor still requires separate full-diff/runtime-input/archive-content/source-attribution review and current-headCI. It is not relabeled as measured C4 execution.",
+  "limits": [
+    "Engineering observation completion, not empiricalquality threshold pass/E3/E6/GA.",
+    "C4 measured source and C3 poolproducer remain separate from any later evidence successor.",
+    "No independent human security approval or original-skill execution/license authenticity.",
+    "Historical missing/mutated model negatives inherited by exact unchanged verify_model+manifest binding; not newly executed C4 negatives."
+  ],
+  "verification_note": "No checker model queries, pool rebuild or optimization. All actual raw predictions reconciled; zero paired vector proof avoids redundant Monte Carlo.",
+  "model_negative_inheritance_proof": "verify_model/model_files/_contained AST equal actual prior empirical5d58456 source; expectedmanifestdd1d94... unchanged."
+}

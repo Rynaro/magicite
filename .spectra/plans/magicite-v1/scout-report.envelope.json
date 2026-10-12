@@ -1,0 +1,52 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "01a0edb4-bca5-783a-b0cc-234a84026335",
+  "thread_id": "01a0edb4-bca0-755e-93b0-28427bdd65bc",
+  "parent_id": null,
+  "from": {
+    "eidolon": "atlas",
+    "version": "1.13.0"
+  },
+  "to": {
+    "eidolon": "ramza",
+    "version": "1.0.0"
+  },
+  "performative": "INFORM",
+  "edge_origin": "roster",
+  "objective": "Deliver source-backed V1 slice boundaries.",
+  "artifact": {
+    "kind": "scout-report",
+    "schema_version": "1.0",
+    "path": ".spectra/plans/magicite-v1/scout-report.md",
+    "sha256": "bc2cbe5870c0f49dcbb5c5615ec15e19c7258ec07f9507ef96e7d8fd43f06910",
+    "size_bytes": 7647
+  },
+  "integrity": {
+    "method": "sha256",
+    "value": "bc2cbe5870c0f49dcbb5c5615ec15e19c7258ec07f9507ef96e7d8fd43f06910"
+  },
+  "trace": {
+    "ts": "2026-09-29T15:07:20.096097Z",
+    "host": "codex",
+    "model": "gpt-6",
+    "tier": "standard"
+  },
+  "ise": {
+    "assertion_grade": "self-attested",
+    "provenance": {
+      "methodology_version": "atlas-1.13.0",
+      "tool_surface": [
+        "Read",
+        "Search",
+        "Web",
+        "RAMZA"
+      ],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  }
+}

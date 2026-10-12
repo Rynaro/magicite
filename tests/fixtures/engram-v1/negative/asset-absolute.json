@@ -1,0 +1,19 @@
+{
+  "spec": "engram/1.0",
+  "name": "bad-asset-absolute",
+  "id": "egr_bad00002",
+  "version": 1,
+  "intent": { "does": "neg", "use_when": "neg", "not_when": "neg" },
+  "routing": {
+    "positive": ["a", "b", "c"],
+    "negative": ["d"],
+    "body_digest": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "origin": { "channel": "authored" },
+  "assets": {
+    "/etc/passwd": {
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 0
+    }
+  }
+}

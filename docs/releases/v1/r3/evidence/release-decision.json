@@ -1,0 +1,42 @@
+{
+  "argv": [
+    "/private/tmp/magicite-r3-qualification/venv/bin/python",
+    "scripts/check_release_manifest.py",
+    "docs/releases/v1/r3/release-manifest.json",
+    "--root",
+    "/Users/henrique/.codex/worktrees/v1-r3-qualification/magicite"
+  ],
+  "exit_code": 1,
+  "manifest": {
+    "path": "docs/releases/v1/r3/release-manifest.json",
+    "sha256": "83073ec044710814fc216ac505e5cfa71ef0e36a67216da92b88a8d0fcb5366f"
+  },
+  "result": {
+    "eligible": false,
+    "errors": [
+      "POLICY: UNEVALUATED does not satisfy a mandatory gate",
+      "EVIDENCE: UNEVALUATED does not satisfy a mandatory gate",
+      "SCHEMA: UNEVALUATED does not satisfy a mandatory gate",
+      "TRUST: UNEVALUATED does not satisfy a mandatory gate",
+      "ROUTING: UNEVALUATED does not satisfy a mandatory gate",
+      "COMPOSITION: UNEVALUATED does not satisfy a mandatory gate",
+      "PRIVACY: UNEVALUATED does not satisfy a mandatory gate",
+      "LEARNING: UNEVALUATED does not satisfy a mandatory gate",
+      "PROTOCOL: UNEVALUATED does not satisfy a mandatory gate",
+      "RELIABILITY: UNEVALUATED does not satisfy a mandatory gate",
+      "PERFORMANCE: UNEVALUATED does not satisfy a mandatory gate",
+      "DISTRIBUTION: UNEVALUATED does not satisfy a mandatory gate",
+      "DOCS: UNEVALUATED does not satisfy a mandatory gate",
+      "RC-CONTRACT: UNEVALUATED does not satisfy a mandatory gate",
+      "EXTERNAL: UNEVALUATED does not satisfy a mandatory gate",
+      "SECURITY: UNEVALUATED does not satisfy a mandatory gate",
+      "GA-ALL: UNEVALUATED does not satisfy a mandatory gate",
+      "RC-CONTRACT: two RCs required",
+      "EXTERNAL: external reproduction or two-pilot path required",
+      "GA-ALL: explicit maintainer sign-off at candidate source required"
+    ],
+    "recommendation": "NO-GA"
+  },
+  "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+  "stderr": ""
+}

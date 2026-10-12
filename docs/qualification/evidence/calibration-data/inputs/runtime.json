@@ -1,0 +1,17 @@
+[
+  {
+    "compatibility_context": {},
+    "query_id": "fixture-q0",
+    "query_text": "Find the invented first task"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "fixture-q1",
+    "query_text": "Unrelated invented task with no suitable candidate"
+  },
+  {
+    "compatibility_context": {},
+    "query_id": "fixture-q2",
+    "query_text": "Ambiguous invented first or second task"
+  }
+]

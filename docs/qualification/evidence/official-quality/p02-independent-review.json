@@ -1,0 +1,93 @@
+{
+  "verdict": "P02_ACCEPTED_FOR_FRESH_C4_TRAIN_SMOKE_ONLY",
+  "consumer_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "producer_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+  "query_id": "train:q-train-000792",
+  "summary_sha256": "6819e90c37ad8b4a54f3a92b5cbe6bd076ae9563ecdc6839efa478a025cb71d6",
+  "invocation_sha256": "406bb0a5c095dd6c3deb69c2a3cc2c4de30e3c2eca967921af22f0c33584d6e8",
+  "instrumentation_review_sha256": "225a7c1956137cc774d866307bc1529b81005357b2f4639bbfbf7750516057b2",
+  "calls": [
+    {
+      "call": "cold-1",
+      "wall_seconds_instrumented": 86.15926733298693,
+      "cpu_seconds": 86.053445,
+      "calls": {
+        "load_frontmatter_doc": 10123,
+        "authenticated_snapshot": 2,
+        "_evaluate_route_eligibility": 1,
+        "_build_subject_entry": 10126,
+        "evaluate_eligibility": 10125,
+        "parse_artifact": 10123
+      },
+      "cumulative_seconds": {
+        "load_frontmatter_doc": 75.688177087,
+        "authenticated_snapshot": 1.779398209,
+        "_evaluate_route_eligibility": 85.156398959,
+        "_build_subject_entry": 82.95948320800001,
+        "evaluate_eligibility": 0.13134310400000002,
+        "parse_artifact": 79.14866298300001
+      },
+      "score_max_abs_diff": 0.0,
+      "peak_rss_bytes_including_setup": 771604480,
+      "profile_sha256": "a870ba39254f48d148b76e7c2a92c41abd94a34c4cd5c6fd9cb6d38357ac9d82",
+      "json_sha256": "2cd6c7a8811244a3e9b3566a7ce06ed0cfdd6c944c68c8578b7d02a36c01752e",
+      "old_peak_rss_bytes": 771244032,
+      "peak_rss_difference_bytes": 360448
+    },
+    {
+      "call": "warm-1",
+      "wall_seconds_instrumented": 0.638263166998513,
+      "cpu_seconds": 0.7052770000000095,
+      "calls": {
+        "authenticated_snapshot": 2,
+        "_evaluate_route_eligibility": 1,
+        "_build_subject_entry": 10126,
+        "evaluate_eligibility": 10125
+      },
+      "cumulative_seconds": {
+        "authenticated_snapshot": 0.0007265840000000001,
+        "_evaluate_route_eligibility": 0.445083667,
+        "_build_subject_entry": 0.22330159200000002,
+        "evaluate_eligibility": 0.07898935600000001
+      },
+      "score_max_abs_diff": 0.0,
+      "peak_rss_bytes_including_setup": 771604480,
+      "profile_sha256": "b8719f73c5fb88a079d0781091b6ee19380bd2ea437f2d0503bbda94e0ebfa4f",
+      "json_sha256": "d3690075b61169db50c958efcc18a826fd259182969f5d9d1c32679bb5a0ec57",
+      "old_peak_rss_bytes": 771244032,
+      "peak_rss_difference_bytes": 360448
+    },
+    {
+      "call": "warm-2",
+      "wall_seconds_instrumented": 0.7365634579909965,
+      "cpu_seconds": 0.7989979999999974,
+      "calls": {
+        "authenticated_snapshot": 2,
+        "_evaluate_route_eligibility": 1,
+        "_build_subject_entry": 10126,
+        "evaluate_eligibility": 10125
+      },
+      "cumulative_seconds": {
+        "authenticated_snapshot": 0.0007397500000000001,
+        "_evaluate_route_eligibility": 0.54533025,
+        "_build_subject_entry": 0.22450903500000002,
+        "evaluate_eligibility": 0.07941938100000001
+      },
+      "score_max_abs_diff": 0.0,
+      "peak_rss_bytes_including_setup": 771604480,
+      "profile_sha256": "f1c7cdb9d73dae9c69ab232e60aa637c376895918f574a97699bc268992cf909",
+      "json_sha256": "8353eda80560126f951a7c91a21ff5dfa7d9ed6f01291753bf809eac089abb1a",
+      "old_peak_rss_bytes": 771244032,
+      "peak_rss_difference_bytes": 360448
+    }
+  ],
+  "causal_finding": "Reviewed cap-only core counterfactual eliminates full warm reparsing: both warm repeats zero artifact/YAML parses while all subjects still visited, authenticated trust snapshots refreshed and eligibility evaluated. Three outcomes preserve all15 fixed fields and scores exactly versus P01/original C3.",
+  "scope": [
+    "Fresh full64-per-arm C4train smoke may proceed under original deadlines/budgets.",
+    "No heldout authorization: fullsmoke/live readiness still required.",
+    "Profiled wall times not E6 or uninstrumented throughput promise.",
+    "PeakRSS wholeprocess setup inclusive; small observed difference doesnot bound isolated cache bytes or future maximum-entry memory.",
+    "C3 is poolproducer; no new admission/embedbuild claimed.",
+    "No additional checker modelcalls/query executions/source edits."
+  ]
+}

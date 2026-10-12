@@ -1,6 +1,6 @@
 # Claude Code Host Adapter (Tier-2 Hook Adapter)
 
-**Status:** v1, M3. **Normative source:** `docs/05-protocol-and-signals.md`
+**Status:** adapter implementation present; real Claude Code v1 transcript UNEVALUATED. **Normative source:** `docs/05-protocol-and-signals.md`
 §"Tier-2: Host Adapter Matrix" and §"Signal Fidelity Model: The Three-Tier
 Ladder"; `.spectra/changes/archive/2026-08-15-magicite-v1-implementation/spec.md` §3.3 (`signal_use`/
 `signal_outcome`) and §6.2 (the P0 enforcement point). This document does not
@@ -14,8 +14,9 @@ Tier 1 (`signal_use`/`signal_outcome` called by an agent following the
 follows instructions reasonably reliably. This adapter describes the
 **optional, additive** Tier-2 acceleration available specifically on Claude
 Code, via its hook system. Nothing here is required for Magicite to be
-useful — it only raises signal confidence (85–95% vs Tier-1's 70–85%,
-docs/05) and removes the per-session Tier-1 caps for hook-verified calls.
+useful. Historical confidence ranges were design assumptions, not measured v1
+host accuracy. Hook-verified calls use their own signal tier; real-host validation
+is still required.
 
 ---
 
@@ -69,17 +70,15 @@ client cannot self-upgrade a call's trust level.
    }
    ```
 
-   **`--user 1000:1000` is required here, not optional** (M7 finding,
-   `tests/acceptance/test_docker_smoke.py`): `magicite serve` calls
-   `Config.ensure_dirs()` at every boot, creating `.magicite/{archive,
-   approvals,runtime}` if absent. A bind mount preserves the *host's* file
-   ownership, so a container running as the image's baked-in default (UID
-   10001, i.e. this flag omitted) hits a bare `PermissionError` against any
-   normal host-owned `<project_root>` before it can even complete
-   `initialize` -- it is not merely a file-ownership hygiene nicety, the
-   server cannot boot without it. Replace `1000:1000` with your own
-   `$(id -u):$(id -g)` if your host user is not UID/GID 1000. See the
-   Dockerfile's own PRIVILEGE-BOUNDARY NOTE for the full reasoning.
+   Use your host UID/GID for predictable host file ownership: replace
+   `1000:1000` with `$(id -u):$(id -g)` when needed. On native Linux,
+   private directories owned by another UID can prevent the default image
+   user from accessing custody or creating project state before `initialize`.
+   Docker Desktop bind sharing can translate ownership and access, so omitting
+   `--user` does not universally prevent boot. The container smoke test verifies
+   refusal on an actually foreign-private native directory, paired with a
+   successful initialize by its owner. Its custody is simulated; this does not
+   qualify a real deployment custody service.
 
 3. **Configure Claude Code's hooks** (`.claude/settings.json`, project- or
    user-scoped) to call `signal_use`/`signal_outcome` with the same secret as

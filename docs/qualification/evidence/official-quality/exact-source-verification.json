@@ -1,0 +1,23 @@
+{
+  "schema": "magicite/exact-source-verification/1",
+  "source_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "source_clean_before_archive": true,
+  "tool_session": 61036,
+  "exit_code": 0,
+  "command": [
+    "/private/tmp/magicite-r3-qualification/venv/bin/python",
+    "scripts/qualify_official_quality.py",
+    "--verify",
+    "--experiment",
+    "/private/tmp/magicite-v1-quality/candidate-c4-evidence"
+  ],
+  "cwd": "/Users/henrique/.codex/worktrees/v1-r3-qualification/magicite",
+  "candidate_import": "/Users/henrique/.codex/worktrees/v1-r3-qualification/magicite/src",
+  "observed_completion_utc": "2026-10-08T01:26:48.538224+00:00",
+  "log": {
+    "path": "/private/tmp/magicite-v1-quality/candidate-c4-final-verify.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "scope": "Exact measured C4 source and original local complete experiment; archive docs successor not claimed as model execution. Verification rehashes/recomputes retained outcomes, no model queries."
+}

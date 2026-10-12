@@ -63,4 +63,11 @@ async def _run(project_root: str) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(_run(sys.argv[1]))
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from tests.support.custody_adapter import attach_fixture
+
+    project_root, custody_directory, registry_id = sys.argv[1:4]
+    with attach_fixture(Path(project_root), Path(custody_directory), registry_id):
+        asyncio.run(_run(project_root))

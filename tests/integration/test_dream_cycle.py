@@ -12,7 +12,6 @@ from magicite.core import dream as dream_mod
 from magicite.core import registry as registry_mod
 from magicite.errors import BusyError
 from magicite.mcp import app as app_mod
-from magicite.storage import lease as lease_mod
 
 pytestmark = pytest.mark.acceptance
 
@@ -38,9 +37,9 @@ def test_single_writer_enforced(cfg, db_conn, embedder) -> None:
     "an exception happened.\""""
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
 
-    holder = lease_mod.CrossProcessLease(
-        lock_path=cfg.dream_lock_path, conn=db_conn, holder="dream-run-already-in-progress"
-    )
+    from magicite.core.writer_guard import registry_writer_lease
+
+    holder = registry_writer_lease(cfg, db_conn, holder="dream-run-already-in-progress")
     holder.try_acquire()
 
     engram_dir = cfg.registry_dir
@@ -131,9 +130,10 @@ def test_decay_floor_archives_never_deletes(cfg, db_conn, embedder) -> None:
     archival actually fires as part of a real Dream cycle."""
     registry_mod.register(cfg, db_conn, embedder, path=".magicite/engrams")
     engram_id = db_conn.execute("SELECT id FROM engram WHERE name = ?", (PROTON,)).fetchone()["id"]
-    original_path = cfg.project_root / db_conn.execute(
-        "SELECT path FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()["path"]
+    original_path = (
+        cfg.project_root
+        / db_conn.execute("SELECT path FROM engram WHERE id = ?", (engram_id,)).fetchone()["path"]
+    )
     assert original_path.is_file()
 
     # Simulate "has decayed below the floor" -- real, accumulated evidence
@@ -166,8 +166,6 @@ def test_decay_floor_archives_never_deletes(cfg, db_conn, embedder) -> None:
     # has to hold at the index level, not just for the file on disk.
     sync_outcome = registry_mod.sync(cfg, db_conn, embedder)
     assert PROTON not in sync_outcome.removed
-    row_after_sync = db_conn.execute(
-        "SELECT status FROM engram WHERE id = ?", (engram_id,)
-    ).fetchone()
+    row_after_sync = db_conn.execute("SELECT status FROM engram WHERE id = ?", (engram_id,)).fetchone()
     assert row_after_sync is not None, "sync() must not delete an archived engram's row"
     assert row_after_sync["status"] == "archived"

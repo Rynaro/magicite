@@ -1,0 +1,60 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "01a0edb4-bca6-7a53-a833-ea5afc4acf68",
+  "thread_id": "01a0edb4-bca0-755e-93b0-28427bdd65bc",
+  "parent_id": null,
+  "from": {
+    "eidolon": "ramza",
+    "version": "1.0.0"
+  },
+  "to": {
+    "eidolon": "vivi",
+    "version": "1.3.0"
+  },
+  "performative": "PROPOSE",
+  "edge_origin": "roster",
+  "objective": "Propose 17 independently assignable Magicite V1 slices with 76 frozen acceptance criteria.",
+  "artifact": {
+    "kind": "spec",
+    "schema_version": "1.0",
+    "path": ".spectra/plans/magicite-v1.md",
+    "sha256": "5f7471ab7e4272603ccf76a7736c8d05ad911d2f43823ca9c5bd6c0ea2fa4bb7",
+    "size_bytes": 8586
+  },
+  "integrity": {
+    "method": "sha256",
+    "value": "5f7471ab7e4272603ccf76a7736c8d05ad911d2f43823ca9c5bd6c0ea2fa4bb7"
+  },
+  "trace": {
+    "ts": "2026-09-29T15:07:20.096097Z",
+    "host": "codex",
+    "model": "gpt-6",
+    "tier": "standard"
+  },
+  "ise": {
+    "assertion_grade": "self-attested",
+    "provenance": {
+      "methodology_version": "ramza-1.0.0",
+      "tool_surface": [
+        "Read",
+        "Search",
+        "Web",
+        "RAMZA"
+      ],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  },
+  "x_ramza_acceptance_criteria": {
+    "path": ".spectra/plans/magicite-v1/acceptance.md",
+    "sha256": "f10330326a78d50c9d657866dda8367849f79aca36c2740ac516a4db99011a2c"
+  },
+  "x_magicite_packet": {
+    "path": ".spectra/plans/magicite-v1/packet-manifest.json",
+    "sha256": "9153e14b14141375c9a9b26376342c1d757260cc522d85ac9d26381121322146"
+  }
+}

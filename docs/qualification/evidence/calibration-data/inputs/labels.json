@@ -1,0 +1,26 @@
+[
+  {
+    "kind": "positive",
+    "query_id": "fixture-q0",
+    "relevance": {
+      "egr_fixture1": 1
+    }
+  },
+  {
+    "judgment_ref": "judgment1",
+    "kind": "no_match",
+    "query_id": "fixture-q1",
+    "rationale": "Invented fixture judgment against both declared candidates; not authentic annotation.",
+    "relevance": {}
+  },
+  {
+    "judgment_ref": "judgment2",
+    "kind": "ambiguous",
+    "query_id": "fixture-q2",
+    "rationale": "Invented fixture judgment against both declared candidates; not authentic annotation.",
+    "relevance": {
+      "egr_fixture1": 1,
+      "egr_fixture2": 1
+    }
+  }
+]

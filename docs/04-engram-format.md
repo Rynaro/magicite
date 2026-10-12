@@ -1,5 +1,21 @@
 # 04. Engram Format: v0.2 Specification Direction
 
+## Current v1 integration contract
+
+The dual reader accepts legacy `engram/0.2` and admitted `engram/1.0`. New v1
+artifacts use the packaged JSON Schema and preserve complete inline procedure
+prose, source extensions and optional digest-bound assets. Legacy IDs remain
+stable across migration. V1 typed inputs/outputs and capabilities participate
+in eligibility and composition; legacy `yields` was metadata-only in 0.3.
+Migration preview is zero-write; apply/resume use fenced publication and retain
+a matching backup for downgrade. See the current schemas in the generated
+runtime reference. The older schema walkthrough below is historical context.
+
+See [AUTHORITY](AUTHORITY.md), [generated reference](generated/runtime-reference.json),
+and [operator tutorial](operator-tutorial.md).
+
+## Retained design and historical context
+
 **Status:** Draft-refined / v1  
 **Provenance:** exploratory/engram-format.md entire, FINDING-007, FINDING-009, FINDING-010, GAP-005  
 **Decisions implemented:** [DECISION D1] Three-tier rule applied to format; refined `synapses:` block for Tier-B edges; SKILL.md full round-trip (import + export); unified `register()` semantics

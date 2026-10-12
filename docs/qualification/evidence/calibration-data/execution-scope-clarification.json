@@ -1,0 +1,10 @@
+{
+  "authentic_readiness": "UNEVALUATED",
+  "clarification": "No model/rank/fit/save/activation applies to the new packet CLI commands. The separately retained unit regression invocation exercises existing diagnostic/UnitModel ranking mechanics and is not an empirical observation.",
+  "measured_source_commit": "5167757c5b5e661096cf86bacab670e90f44980e",
+  "observed_call_counters_claimed": false,
+  "original_summary_execution_text": "actual offline fixture packet CLI, no model/rank/fit/activation",
+  "raw_command_outputs_and_summary_unchanged": true,
+  "runtime_fixture_criteria_unchanged": true,
+  "schema": "magicite/calibration-data-execution-scope-clarification/1"
+}

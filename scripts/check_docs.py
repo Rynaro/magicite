@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from docs_v1_contracts import check_readme_claims, check_support, check_unevaluated
+
 from magicite.config import Config
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +75,7 @@ def _authority_contract() -> list[str]:
     errors: list[str] = []
     authority = _text("docs/AUTHORITY.md")
     if "## Authority order" not in authority or "Current documents `02` through `07`" not in authority:
-        errors.append("docs/AUTHORITY.md does not declare the v0.3 authority order")
+        errors.append("docs/AUTHORITY.md does not declare the current authority order")
     redirects = json.loads(_text("docs/archive-redirects.json"))
     if redirects.get("schema") != "magicite/archive-redirects/1":
         errors.append("archive redirect manifest schema is missing")
@@ -105,7 +107,8 @@ def _semantic_contract() -> list[str]:
         "04-engram-format.md": [
             "immutable hash of identity+routing blocks",
             "content_sha256",
-            "`yields` is metadata-only in 0.3",
+            "engram/1.0",
+            "engram/0.2",
         ],
         "05-protocol-and-signals.md": [
             "runtime exposes exactly 16 tools",
@@ -119,8 +122,8 @@ def _semantic_contract() -> list[str]:
         ],
         "07-evaluation-and-observability.md": [
             "docs/evaluation/v0.3-results.json",
-            "SUPPORTED (structural only)",
-            "End-to-end decomposition, winner retrieval, and task success remain untested",
+            "UNEVALUATED",
+            "independent host-task",
         ],
     }
     for name, needles in required.items():
@@ -148,7 +151,10 @@ def _semantic_contract() -> list[str]:
 CONTRACTS = {
     "database-local-rebuildable": _database_contract,
     "append-only-errata": _append_only_contract,
-    "v0.3-semantic-parity": _semantic_contract,
+    "v1-semantic-parity": _semantic_contract,
+    "readme-claims": lambda: check_readme_claims(ROOT),
+    "support-policy": lambda: check_support(ROOT),
+    "unevaluated-catalog": lambda: check_unevaluated(ROOT),
 }
 
 

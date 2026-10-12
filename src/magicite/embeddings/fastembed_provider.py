@@ -62,6 +62,9 @@ import numpy as np
 DEFAULT_MODEL_NAME = "BAAI/bge-small-en-v1.5"
 DEFAULT_DIM = 384
 
+#: Actionable remediation when offline mode cannot load a cached model (S13).
+OFFLINE_MODEL_REMEDIATION = "Run `magicite fetch-model` before setting MAGICITE_EMBEDDING_OFFLINE=1."
+
 
 class _TextEmbeddingLike(Protocol):
     """The slice of ``fastembed.TextEmbedding``'s surface this module uses."""
@@ -77,6 +80,13 @@ class FastEmbedModelUnavailableError(RuntimeError):
     or -- in online mode -- any download failure). Never swallowed: a
     silent fallback to a different embedding space would violate CR-6
     ("the file records whichever [model] produced the vector")."""
+
+
+def _format_unavailable_message(prefix: str, *, offline: bool, cause: BaseException) -> str:
+    message = f"{prefix} (offline={offline}): {cause}"
+    if offline:
+        return f"{message}. {OFFLINE_MODEL_REMEDIATION}"
+    return message
 
 
 def _default_factory(**kwargs: Any) -> _TextEmbeddingLike:
@@ -125,8 +135,11 @@ class FastEmbedProvider:
                 )
             except Exception as exc:
                 raise FastEmbedModelUnavailableError(
-                    f"could not construct fastembed model {self.model_name!r} "
-                    f"(offline={self._offline}): {exc}"
+                    _format_unavailable_message(
+                        f"could not construct fastembed model {self.model_name!r}",
+                        offline=self._offline,
+                        cause=exc,
+                    )
                 ) from exc
         return self._model
 
@@ -142,8 +155,11 @@ class FastEmbedProvider:
             (vec,) = list(model.embed([text]))
         except Exception as exc:
             raise FastEmbedModelUnavailableError(
-                f"fastembed embed() failed for model {self.model_name!r} "
-                f"(offline={self._offline}): {exc}"
+                _format_unavailable_message(
+                    f"fastembed embed() failed for model {self.model_name!r}",
+                    offline=self._offline,
+                    cause=exc,
+                )
             ) from exc
         return self._normalize(vec)
 
@@ -155,8 +171,11 @@ class FastEmbedProvider:
             vecs = list(model.embed(texts))
         except Exception as exc:
             raise FastEmbedModelUnavailableError(
-                f"fastembed embed() failed for model {self.model_name!r} "
-                f"(offline={self._offline}): {exc}"
+                _format_unavailable_message(
+                    f"fastembed embed() failed for model {self.model_name!r}",
+                    offline=self._offline,
+                    cause=exc,
+                )
             ) from exc
         return np.stack([self._normalize(v) for v in vecs])
 

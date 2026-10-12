@@ -1,0 +1,39 @@
+{
+  "checks": {
+    "docs": {
+      "command": "/private/tmp/s14-mcp200/bin/python scripts/check_docs.py",
+      "exit_code": 0,
+      "output": {
+        "path": "docs/releases/v1/evidence/docs.txt",
+        "sha256": "95bb245045e53ccb29ddcc8b12671d7193d5041ca43f478a6665ccef8cf5971b"
+      }
+    },
+    "generated": {
+      "command": "/private/tmp/s14-mcp200/bin/python scripts/check_generated_docs.py",
+      "exit_code": 0,
+      "output": {
+        "path": "docs/releases/v1/evidence/generated.txt",
+        "sha256": "c901f6b1c625776df96ce7b2bf0ac16a616f04b6977bcac4df948624ab2d89b3"
+      }
+    },
+    "mypy": {
+      "command": "/private/tmp/s14-mcp200/bin/python -m mypy src",
+      "exit_code": 0,
+      "output": {
+        "path": "docs/releases/v1/evidence/mypy.txt",
+        "sha256": "dc43c4a518c8b02be9b88992ec25413d8e874b5fe64eebf24c6e12d5007d2ccc"
+      }
+    },
+    "ruff": {
+      "command": ".venv/bin/ruff check .",
+      "exit_code": 0,
+      "output": {
+        "path": "docs/releases/v1/evidence/ruff.txt",
+        "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      }
+    }
+  },
+  "source_commit": "c0782fd5ea477857b7fe6e7a967a9bbf85808620",
+  "source_dirty": false,
+  "tracked_code_diff": false
+}

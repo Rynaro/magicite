@@ -1,0 +1,10 @@
+{
+  "references_verified": 332,
+  "criteria_frozen_texts_verified": 102,
+  "criterion_statuses": {
+    "UNEVALUATED": 93,
+    "PASS": 9
+  },
+  "raw_checks": 7,
+  "independent_review_copies": "byte-identical"
+}

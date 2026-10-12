@@ -1,0 +1,264 @@
+{
+  "criterion_ledger": {
+    "path": "docs/releases/v1/r3/criterion-ledger.json",
+    "sha256": "325f9f5c076652e4b978119dc076701566f1d9325e87015da0a6f7d11ae8b585"
+  },
+  "draft_only": true,
+  "external": null,
+  "gates": [
+    {
+      "evidence": [],
+      "id": "POLICY",
+      "obligations": [
+        "nonadaptive-default",
+        "dream-isolation",
+        "explicit-experimental",
+        "pinned-incumbent"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Current tests pass; complete obligation-by-obligation policy adjudication is outside this bounded package.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "EVIDENCE",
+      "obligations": [
+        "manifested-predictions",
+        "independent-labels",
+        "claim-ci",
+        "negative-history"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Independent final label provenance and a complete new empirical run chain are absent.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "SCHEMA",
+      "obligations": [
+        "frozen-schema",
+        "roundtrip-corpus",
+        "migration-downgrade-replay"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Schema regressions pass in the current suite; the full frozen roundtrip/migration/downgrade obligation set is not separately adjudicated.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "TRUST",
+      "obligations": [
+        "offline-tamper",
+        "local-review-revocation",
+        "server-origin",
+        "adversarial-corpus"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Approval completion and diagnostic gaps are repaired and independently reviewed; separate-UID deployment and all trust/adversarial release obligations remain unproven.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "ROUTING",
+      "obligations": [
+        "full-content-indexes",
+        "eligibility",
+        "explanations",
+        "calibrated-abstention",
+        "e3-quality"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Current functional tests do not establish E3 quality or calibrated abstention on release workloads.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "COMPOSITION",
+      "obligations": [
+        "independent-structural-corpus",
+        "actual-host-outcomes",
+        "safe-invalid-plan"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Independent structural corpus and actual-host outcomes remain absent.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "PRIVACY",
+      "obligations": [
+        "data-map",
+        "no-default-raw",
+        "historical-cleanup",
+        "checkpoint-rpo",
+        "lifecycle-tests"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "The successor map covers current trust/custody and evidence surfaces; all privacy lifecycle obligations have not received a complete fresh gate adjudication.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "LEARNING",
+      "obligations": [
+        "containment",
+        "fully-gated-or-unavailable"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Current regressions do not replace complete containment/gated-availability qualification.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "PROTOCOL",
+      "obligations": [
+        "schemas",
+        "retry-cancel-errors",
+        "advertised-transcripts"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Current protocol tests do not establish the complete advertised host transcript and retry/cancel matrix.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [
+        {
+          "path": "docs/releases/v1/r3/evidence/zero-write-doctor.json",
+          "sha256": "5f961ea6c95b30d50c58e67a545550f744753961c69ced5dc69982162180672a"
+        }
+      ],
+      "id": "RELIABILITY",
+      "obligations": [
+        "all-store-kill-replay-fencing",
+        "backup-restore-upgrade-matrix",
+        "zero-write-doctor"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Read-only doctor and bounded approval replay are observed; all-store kill/replay/fencing and complete backup/restore/upgrade matrix are outstanding.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "PERFORMANCE",
+      "obligations": [
+        "dedicated-e6",
+        "production-model",
+        "supported-scale"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Dedicated E6, production model, and supported-scale evidence are absent.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "DISTRIBUTION",
+      "obligations": [
+        "published-installs",
+        "supply-chain",
+        "testpypi-rehearsal"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Published installs, TestPyPI rehearsal and fetched-distribution checks are outstanding.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "DOCS",
+      "obligations": [
+        "generated-reference-claims",
+        "tested-operator-path",
+        "redirects",
+        "support-security-governance"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Generated-reference and documentation contracts pass; the complete release operator/support/governance obligation set is not freshly adjudicated.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "RC-CONTRACT",
+      "obligations": [
+        "two-independent-rcs",
+        "stable-fingerprints",
+        "passing-matrix"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Two compatible independently built RCs and a complete supported matrix are absent.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "EXTERNAL",
+      "obligations": [
+        "independent-reproduction-or-two-pilots"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Native agent review is not independent external reproduction or two real pilots.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "SECURITY",
+      "obligations": [
+        "threat-model",
+        "bounded-fuzz-adversarial",
+        "critical-resolved"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "PR #51 documents are immutable unmerged provenance; named human assessment, mitigation/expiry review and High residual sign-off remain pending.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    },
+    {
+      "evidence": [],
+      "id": "GA-ALL",
+      "obligations": [
+        "all-required-gates",
+        "maintainer-signoff",
+        "fetched-artifacts"
+      ],
+      "owner": "maintainer / qualification operator",
+      "reason": "Required release gates, maintainer sign-off and fetched-artifact qualification remain absent.",
+      "review_status": "APPROVED",
+      "reviewer": "VIGIL /root/verify_r3",
+      "status": "UNEVALUATED"
+    }
+  ],
+  "maintainer_signoff": null,
+  "producer": "Vivi /root/implement_r3",
+  "release_candidates": [],
+  "schema": "magicite/release-manifest/1",
+  "source_commit": "64831a6dc2b46d1baa487d9bf247d09871c878e4",
+  "source_dirty": false
+}

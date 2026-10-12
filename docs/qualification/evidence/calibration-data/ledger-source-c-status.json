@@ -1,0 +1,69 @@
+{
+  "acceptance_status": {
+    "reasons": [
+      "focused:unqualified-provenance",
+      "independent:missing",
+      "independent:evidence-unavailable",
+      "independent:unqualified-provenance",
+      "offline-control-execution:unqualified-provenance",
+      "hosted-ci:missing",
+      "hosted-ci:evidence-unavailable",
+      "hosted-ci:unqualified-provenance"
+    ],
+    "status": "not-accepted"
+  },
+  "artifact_integrity": {
+    "status": "unavailable"
+  },
+  "candidate_status": {
+    "status": "current"
+  },
+  "checks": [
+    {
+      "artifact_integrity": "verified",
+      "event_id": "focused-5167757",
+      "execution_provenance": "self-attested",
+      "id": "focused",
+      "oracle_id": "calibration-data-focused@1",
+      "outcome": "pass"
+    },
+    {
+      "artifact_integrity": "unavailable",
+      "event_id": null,
+      "execution_provenance": "unavailable",
+      "id": "independent",
+      "oracle_id": "calibration-data-independent@1",
+      "outcome": "missing"
+    },
+    {
+      "artifact_integrity": "verified",
+      "event_id": "offline-control-5167757",
+      "execution_provenance": "self-attested",
+      "id": "offline-control-execution",
+      "oracle_id": "calibration-data-offline-control-execution@1",
+      "outcome": "pass"
+    },
+    {
+      "artifact_integrity": "unavailable",
+      "event_id": null,
+      "execution_provenance": "unavailable",
+      "id": "hosted-ci",
+      "oracle_id": "calibration-data-hosted-ci@1",
+      "outcome": "missing"
+    }
+  ],
+  "completion": "not-complete",
+  "dispatch": "unobserved",
+  "events": 6,
+  "execution_provenance": {
+    "status": "self-attested"
+  },
+  "execution_terminations": [],
+  "historical": false,
+  "reconciliation_required": false,
+  "requested": {
+    "route_digest": "d8a92369b9b74f6d2ca7cf6a68c819646fae1a3f1723759480a0582913685565"
+  },
+  "run_id": "v1-calibration-data",
+  "validation_errors": []
+}

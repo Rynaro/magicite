@@ -1,0 +1,72 @@
+{
+  "source_commit": "b752eab99e22950df5c9f6d3c3dc56b3c11c2970",
+  "experiment_sha256": "300f4aa0f6b2bf9cbbe329dec5f23f2b1bf9dda139942479f0fb7596aa4e2334",
+  "expected_model_material_entries": 13,
+  "pools": {
+    "train": {
+      "snapshot_sha256": "e53b623880d6ae8844ae63b9d182a4593dc18d94af80861b4d6527d610cacc27",
+      "admitted_count": 10123,
+      "snapshot_file_count": 40502,
+      "register_review_seconds": 2174.1630967090023,
+      "actual_worker_elapsed_seconds": 2207.0267507499957,
+      "exit_code": 0,
+      "production_embed_calls": 10123,
+      "production_batch_calls": 0,
+      "review_evidence": {
+        "before": {
+          "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/train-base/pre-review.json",
+          "sha256": "d9cba7bfe36cb03ba7357e2a1fc7e98a5a328bb6342f00018485bb8531f644db"
+        },
+        "outcomes": {
+          "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/train-base/review-outcomes.json",
+          "sha256": "e742ebd21a71031a83f6058ad7e044cdb8a1f9e4e45539a1b55e37e9d57f2073"
+        }
+      },
+      "index_identity": [
+        null,
+        null,
+        null,
+        null,
+        [
+          "index_generation_absent",
+          "snapshot_unpinned",
+          "schema_digest_unavailable",
+          "tokenizer_digest_unavailable"
+        ]
+      ]
+    },
+    "test": {
+      "snapshot_sha256": "fed3b41eeadd3425471973a820ef50188d57927d549f591f2e1af6cf35ee1092",
+      "admitted_count": 6006,
+      "snapshot_file_count": 24034,
+      "register_review_seconds": 854.7666724580049,
+      "actual_worker_elapsed_seconds": 880.956248292001,
+      "exit_code": 0,
+      "production_embed_calls": 6006,
+      "production_batch_calls": 0,
+      "review_evidence": {
+        "before": {
+          "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/test-base/pre-review.json",
+          "sha256": "c2552303509b2416726ac79317deea56785d43cbe2fef6c3683e709474122bf2"
+        },
+        "outcomes": {
+          "path": "/private/tmp/magicite-v1-quality/candidate-c3-evidence/test-base/review-outcomes.json",
+          "sha256": "15779857465a58c785d831aa99c07e4170035779851c354fc386b99fdaa0d5d6"
+        }
+      },
+      "index_identity": [
+        null,
+        null,
+        null,
+        null,
+        [
+          "index_generation_absent",
+          "snapshot_unpinned",
+          "schema_digest_unavailable",
+          "tokenizer_digest_unavailable"
+        ]
+      ]
+    }
+  },
+  "scope": "actual local setup costs, not reference performance/security/execution-safety qualification"
+}

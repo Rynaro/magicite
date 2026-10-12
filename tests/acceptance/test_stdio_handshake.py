@@ -47,15 +47,12 @@ def _rpc(method: str, params: dict | None = None, *, id: int | None = None) -> b
     return (json.dumps(msg) + "\n").encode("utf-8")
 
 
-async def _spawn(project_root: Path) -> asyncio.subprocess.Process:
+async def _spawn(cfg) -> asyncio.subprocess.Process:
+    from tests.support.custody_adapter import fixture_cli_argv
+
     env = {**os.environ, "MAGICITE_EMBEDDING_PROVIDER": "hashing"}
     return await asyncio.create_subprocess_exec(
-        sys.executable,
-        "-m",
-        "magicite",
-        "serve",
-        "--project-root",
-        str(project_root),
+        *fixture_cli_argv(cfg, "serve", "--project-root", str(cfg.project_root)),
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -63,14 +60,19 @@ async def _spawn(project_root: Path) -> asyncio.subprocess.Process:
     )
 
 
-async def _spawn_escape_driver(project_root: Path) -> asyncio.subprocess.Process:
+async def _spawn_escape_driver(cfg) -> asyncio.subprocess.Process:
     """VC-4/VC-5: the same stdio wiring as ``_spawn``, driving
     ``_stdio_escape_driver.py`` instead of ``magicite serve``."""
+    from magicite.core import writer_guard
+
+    _, provider = writer_guard.resolve_custody(cfg)
     env = {**os.environ, "MAGICITE_EMBEDDING_PROVIDER": "hashing"}
     return await asyncio.create_subprocess_exec(
         sys.executable,
         str(ESCAPE_DRIVER),
-        str(project_root),
+        str(cfg.project_root),
+        str(provider.store.directory),
+        provider.registry_id,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -118,9 +120,9 @@ async def _terminate(proc: asyncio.subprocess.Process) -> None:
 
 
 @pytest.mark.asyncio
-async def test_initialize(project_root: Path) -> None:
+async def test_initialize(cfg) -> None:
     """AC-001: the server completes the initialize handshake and reports serverInfo.name == 'magicite'."""
-    proc = await _spawn(project_root)
+    proc = await _spawn(cfg)
     try:
         resp, _raw = await _initialize(proc)
         assert "error" not in resp, resp
@@ -130,9 +132,9 @@ async def test_initialize(project_root: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_stdout_is_protocol_only(project_root: Path) -> None:
+async def test_stdout_is_protocol_only(cfg) -> None:
     """AC-002: every line written to stdout is a valid MCP JSON-RPC frame, never anything else."""
-    proc = await _spawn(project_root)
+    proc = await _spawn(cfg)
     lines: list[bytes] = []
     try:
         _resp, raw_init_line = await _initialize(proc)
@@ -173,14 +175,14 @@ async def test_stdout_is_protocol_only(project_root: Path) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("protocol_version", HANDSHAKE_PROTOCOL_VERSIONS)
-async def test_initialize_across_handshake_versions(project_root: Path, protocol_version: str) -> None:
+async def test_initialize_across_handshake_versions(cfg, protocol_version: str) -> None:
     """VC-1: every revision mcp==1.29.0 could serve still negotiates cleanly on mcp>=2.0,
     and a following tools/list still returns all 16 tools on that connection.
 
     VC-2 (first half): the negotiated ``protocolVersion`` is never the modern-era
     ``2026-07-28`` -- it is always the handshake-era value the client offered.
     """
-    proc = await _spawn(project_root)
+    proc = await _spawn(cfg)
     try:
         resp, _raw = await _initialize(proc, protocol_version=protocol_version)
         assert "error" not in resp, resp
@@ -206,14 +208,14 @@ async def test_initialize_across_handshake_versions(project_root: Path, protocol
     ["2026-07-28", "2099-01-01", "not-a-real-protocol-version"],
 )
 async def test_no_modern_era_leakage_on_unrecognized_version(
-    project_root: Path, protocol_version: str
+    cfg, protocol_version: str
 ) -> None:
     """VC-2 (second half): an `initialize` carrying an unrecognised or future
     (including the modern-era `2026-07-28`) `protocolVersion` is NEVER answered
     with a `MODERN_PROTOCOL_VERSIONS` member -- guards the `LATEST_PROTOCOL_VERSION`
     semantic trap (dossier §7.3) at the wire, where it would actually bite a host.
     """
-    proc = await _spawn(project_root)
+    proc = await _spawn(cfg)
     try:
         resp, _raw = await _initialize(proc, protocol_version=protocol_version)
         assert "error" not in resp, resp
@@ -224,7 +226,7 @@ async def test_no_modern_era_leakage_on_unrecognized_version(
 
 
 @pytest.mark.asyncio
-async def test_stdout_diversion_survives_native_escapes(project_root: Path) -> None:
+async def test_stdout_diversion_survives_native_escapes(cfg) -> None:
     """VC-4: AC-002 re-verified at three escape levels from a REAL tool handler
     (``_stdio_escape_driver.py``, wiring the same ``build_state``/``dispatch_call``/
     ``Server``/``stdio_server`` production pieces as ``magicite.mcp.app.run_stdio``):
@@ -236,7 +238,7 @@ async def test_stdout_diversion_survives_native_escapes(project_root: Path) -> N
     ``os.read(0, ...)`` and gets an immediate EOF (``stdin_read_len == 0``),
     proving fd 0 -> the null device has no blocking side effect.
     """
-    proc = await _spawn_escape_driver(project_root)
+    proc = await _spawn_escape_driver(cfg)
     lines: list[bytes] = []
     try:
         _resp, raw_init_line = await _initialize(proc)

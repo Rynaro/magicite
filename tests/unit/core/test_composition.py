@@ -164,3 +164,141 @@ def test_cycle_break_is_deterministic(synthetic_conn) -> None:
 
     assert first.cycle_broken is True
     assert first.order == second.order
+
+
+# ---------------------------------------------------------------------------
+# Plan/1 typed composition (AC-S08-01) — anchors from C5, not expand() gold
+# ---------------------------------------------------------------------------
+
+
+def _load_composition_fixtures():
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "fixtures" / "composition-v1" / "host_verifier.py"
+    name = "composition_v1_host_verifier"
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_denied_dependency_invalid() -> None:
+    """AC-S08-01: eligible winner with denied/missing required dependency → invalid plan.
+
+    Legacy expand() would still emit an order that includes only the winner
+    (dangling excluded) or would walk a denied dep if it were a resolved
+    edge — Plan/1 must refuse executable status.
+    """
+    hv = _load_composition_fixtures()
+    from magicite.core.composition import REASON_UNSATISFIED, compose
+    from magicite.core.eligibility import REASON_DANGLING_DEPENDENCY, REASON_LIFECYCLE_BLOCKED
+    from magicite.engram import EngramRevisionRef, RequiredCapability, VersionConstraint
+
+    winner = hv.node(
+        "egr_a0000001",
+        relation_requires=[EngramRevisionRef(id="egr_d0000001", version=1)],
+        requires=[
+            RequiredCapability(
+                kind="host",
+                id="host.fs.read-project",
+                version=VersionConstraint(scheme="semver", range=">=1.0.0"),
+            )
+        ],
+        required_permissions=frozenset({"perm.read"}),
+    )
+    denied_dep = hv.node("egr_d0000001", version=1, content_digest=hv.DIGEST_B)
+    snap = hv.snapshot([winner, denied_dep])
+    ctx = hv.base_context()
+
+    trusts = {
+        "egr_a0000001": hv.trust("egr_a0000001"),
+        "egr_d0000001": hv.trust(
+            "egr_d0000001",
+            lifecycle_status="archived",
+            admitted=False,
+            content_digest=hv.DIGEST_B,
+        ),
+    }
+
+    plan = compose(
+        ["egr_a0000001"],
+        ctx,
+        snap,
+        server_policy=hv.DEFAULT_POLICY,
+        trust_view=lambda eid: trusts[eid],
+    )
+    assert plan.status == "invalid"
+    assert plan.executable is False
+    assert plan.topological_order == ()
+    codes = {d.code for d in plan.diagnostics}
+    assert REASON_LIFECYCLE_BLOCKED in codes
+
+    # Missing required dependency (absent from snapshot) is also invalid.
+    snap_missing = hv.snapshot([winner])
+    plan_missing = compose(
+        ["egr_a0000001"],
+        ctx,
+        snap_missing,
+        server_policy=hv.DEFAULT_POLICY,
+        trust_view=lambda eid: trusts[eid],
+    )
+    assert plan_missing.status == "invalid"
+    assert plan_missing.executable is False
+    assert plan_missing.topological_order == ()
+    missing_codes = {d.code for d in plan_missing.diagnostics}
+    assert REASON_DANGLING_DEPENDENCY in missing_codes or REASON_UNSATISFIED in missing_codes
+
+
+def test_stale_content_digest_invalid() -> None:
+    """ATLAS nit: node content_digest must be rechecked against trust on every node.
+
+    Probe: snapshot digest aaa… + trust digest bbb… ⇒ invalid with stale_digest,
+    empty topological_order, not executable. Fails against path='dependency'
+    without expected_content_digest.
+    """
+    hv = _load_composition_fixtures()
+    from magicite.core.composition import compose
+    from magicite.core.eligibility import REASON_STALE_DIGEST
+    from magicite.engram import EngramRevisionRef
+
+    node_digest = "a" * 64
+    trust_digest = "b" * 64
+    alone = hv.node("egr_a0000001", content_digest=node_digest)
+    plan = compose(
+        ["egr_a0000001"],
+        hv.base_context(),
+        hv.snapshot([alone]),
+        server_policy=hv.DEFAULT_POLICY,
+        trust_view=lambda eid: hv.trust(eid, content_digest=trust_digest),
+    )
+    assert plan.status == "invalid"
+    assert plan.executable is False
+    assert plan.topological_order == ()
+    assert REASON_STALE_DIGEST in {d.code for d in plan.diagnostics}
+
+    # Dependency path: selected matches, required dep is stale.
+    winner = hv.node(
+        "egr_a0000002",
+        content_digest=node_digest,
+        relation_requires=[EngramRevisionRef(id="egr_d0000002", version=1)],
+    )
+    dep = hv.node("egr_d0000002", content_digest=node_digest)
+    trusts = {
+        "egr_a0000002": hv.trust("egr_a0000002", content_digest=node_digest),
+        "egr_d0000002": hv.trust("egr_d0000002", content_digest=trust_digest),
+    }
+    dep_plan = compose(
+        ["egr_a0000002"],
+        hv.base_context(),
+        hv.snapshot([winner, dep]),
+        server_policy=hv.DEFAULT_POLICY,
+        trust_view=lambda eid: trusts[eid],
+    )
+    assert dep_plan.status == "invalid"
+    assert dep_plan.executable is False
+    assert dep_plan.topological_order == ()
+    assert REASON_STALE_DIGEST in {d.code for d in dep_plan.diagnostics}

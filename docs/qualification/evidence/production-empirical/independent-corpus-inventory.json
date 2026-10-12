@@ -1,0 +1,246 @@
+{
+  "inventory": [
+    {
+      "body_sha256": "09e8629ee4429ca6b35ca937307e0b90c9a636d35c49f86331ace4d79650070d",
+      "bytes": 4516,
+      "id": "egr_863244b8",
+      "name": "magicite-activation-ppr",
+      "path": ".magicite/engrams/magicite-activation-ppr.egr.md",
+      "sha256": "43112bfb2de91dc78a54e80d80e05eae174a8cd897e2e0b34585c4cc8ed92c2b"
+    },
+    {
+      "body_sha256": "d10db878ac66fabc7928f6eaeb1f498813473e7a12a98343187ecb08df941a5b",
+      "bytes": 3898,
+      "id": "egr_bcf05165",
+      "name": "magicite-amend-routing-default",
+      "path": ".magicite/engrams/magicite-amend-routing-default.egr.md",
+      "sha256": "cf5568ef2e964ba9731e3710a9711650e3fa04b4f1f22a70bd911a6ae28b7e39"
+    },
+    {
+      "body_sha256": "f8be5c5f444d88ff4fe05c1307cf281ae653036203a353cf4231f45270e0cd71",
+      "bytes": 5484,
+      "id": "egr_f640cc8b",
+      "name": "magicite-author-engram",
+      "path": ".magicite/engrams/magicite-author-engram.egr.md",
+      "sha256": "d68c6be7b766f1e810250e286e16403e2986f56459a5ba674451342190f44a4b"
+    },
+    {
+      "body_sha256": "f559497503164d145df037c615667992b2357518bab774f334b4e99eb1d5f79f",
+      "bytes": 3944,
+      "id": "egr_acfbc4a5",
+      "name": "magicite-composition-plan-expansion",
+      "path": ".magicite/engrams/magicite-composition-plan-expansion.egr.md",
+      "sha256": "372840cec7c1b2784eee5efceeffcdeabb24d75531b99ca6cbf9cba4fa811418"
+    },
+    {
+      "body_sha256": "b4837efdccbe99c754a6ac09bd80a14629e3683ad090156201723d782a7f30da",
+      "bytes": 3663,
+      "id": "egr_ffee7210",
+      "name": "magicite-container-privilege-boundary",
+      "path": ".magicite/engrams/magicite-container-privilege-boundary.egr.md",
+      "sha256": "062d13c1948bdde9b4ca603536a9541ff668fb2577e7bf288faa39f691b88536"
+    },
+    {
+      "body_sha256": "7b2c0fb151bc0f5f9cfb8c0901aeb422e23529124f979d8c494c7dd174dd3dc9",
+      "bytes": 4102,
+      "id": "egr_5b5516cd",
+      "name": "magicite-decay-lazy-read",
+      "path": ".magicite/engrams/magicite-decay-lazy-read.egr.md",
+      "sha256": "73090d156fa0572ce4c411bbe84859f6abc0b2384fe426401fef8555581a3e8a"
+    },
+    {
+      "body_sha256": "ad960680608cfb2d7bee8cca405cf07c102aa51f49794774b0ac7eeae9f9b54a",
+      "bytes": 3891,
+      "id": "egr_3107d0a9",
+      "name": "magicite-diagnose-flat-plasticity",
+      "path": ".magicite/engrams/magicite-diagnose-flat-plasticity.egr.md",
+      "sha256": "f5743f65bcbb8a1f8856aebc0a7708c7e3740a64dd6c05bb2530ba72c7acc443"
+    },
+    {
+      "body_sha256": "c7736f8b0e888aeaa51466fc5cf0f9e77670287db7d746f27370870cc4d92cb6",
+      "bytes": 4017,
+      "id": "egr_40c7c6af",
+      "name": "magicite-dream-consolidation",
+      "path": ".magicite/engrams/magicite-dream-consolidation.egr.md",
+      "sha256": "95e12422e278ad524f49d061f16b90abca4b419908ef40fec36838c86015e37c"
+    },
+    {
+      "body_sha256": "9701c6647cf646b9601fec0d2d816f9f2482f41307181c46e1c5aae0e406f9ae",
+      "bytes": 4062,
+      "id": "egr_1bd3fd0a",
+      "name": "magicite-dream-phase-pipeline",
+      "path": ".magicite/engrams/magicite-dream-phase-pipeline.egr.md",
+      "sha256": "b16be591249d9b84ceee0e73d343c104dda4cbd54525aa890f53e88748609463"
+    },
+    {
+      "body_sha256": "13966cfc88856a1bf9134a7066f1da433073f2bc8d56111d2ca763d7dc9bd0bd",
+      "bytes": 4405,
+      "id": "egr_75e9a9ef",
+      "name": "magicite-edge-weight-two-channels",
+      "path": ".magicite/engrams/magicite-edge-weight-two-channels.egr.md",
+      "sha256": "4ec04419af2341367d436b38241b3a285fa0cc324b9a355ac57953b7463c1575"
+    },
+    {
+      "body_sha256": "a3ca55a1e84e277f8685c9afd440fbbe590193ce1c4ee10bbf9d04b0427ab811",
+      "bytes": 4083,
+      "id": "egr_1f4796d0",
+      "name": "magicite-embedding-provider-contract",
+      "path": ".magicite/engrams/magicite-embedding-provider-contract.egr.md",
+      "sha256": "d22a2a3921e92aad4ef3c10091f753b756166d48fc9de82819ad019de0928295"
+    },
+    {
+      "body_sha256": "d625e082b6eaa0247f393850cbbee9dfd450f89a71cf737ec75497e7444452c6",
+      "bytes": 4288,
+      "id": "egr_987ed80b",
+      "name": "magicite-engram-writer-determinism",
+      "path": ".magicite/engrams/magicite-engram-writer-determinism.egr.md",
+      "sha256": "0456847b9dc4406d53b8fee75fdbf98b161fc978674e42c97f8fbc1c6b446f4f"
+    },
+    {
+      "body_sha256": "51389b6467f82a90b64fc016301acdd9a4289f5ae025cc110a5d499134b88b2c",
+      "bytes": 4122,
+      "id": "egr_11ea9756",
+      "name": "magicite-ephemeral-vs-durable-tables",
+      "path": ".magicite/engrams/magicite-ephemeral-vs-durable-tables.egr.md",
+      "sha256": "422ed7ac748ccbac29e03bf03df4234353a46ae6f65edb5d222588a29f5c6ac1"
+    },
+    {
+      "body_sha256": "b83f6fec08e977b2f6bb09022bf63e37f4f02324ee51dfc6a66f84e555e1a36a",
+      "bytes": 3999,
+      "id": "egr_ac77d7f3",
+      "name": "magicite-error-envelope",
+      "path": ".magicite/engrams/magicite-error-envelope.egr.md",
+      "sha256": "33ceef638bbfdbecc9532d51a8a11c9cfe11fb259f1d74d163c9c2799d11a2c0"
+    },
+    {
+      "body_sha256": "d10a8503ab460460fe0fc1fb3368b621aea3651b69a95ff2ac01a90ba330284b",
+      "bytes": 3504,
+      "id": "egr_3369f7bf",
+      "name": "magicite-esl-change-lifecycle",
+      "path": ".magicite/engrams/magicite-esl-change-lifecycle.egr.md",
+      "sha256": "cc3682386405453f74450d83a9a6a64823dfbc311e937fa2da86e9bed9c6db2a"
+    },
+    {
+      "body_sha256": "4987f5f89fffd852f258f77f535750446afc779b8c9e7d5977aee1fb4ba0b7ca",
+      "bytes": 4336,
+      "id": "egr_18eece55",
+      "name": "magicite-eval-baselines-abcd",
+      "path": ".magicite/engrams/magicite-eval-baselines-abcd.egr.md",
+      "sha256": "0e0ed90548a08e913f86f419185ea1fc005a30c640b8c49fc71c8d1d06667e28"
+    },
+    {
+      "body_sha256": "621d9b9f2b14482470c87bc6511089bff506bbb1338c7ee48a921329d5bcd439",
+      "bytes": 3514,
+      "id": "egr_30f52c01",
+      "name": "magicite-frozen-verify",
+      "path": ".magicite/engrams/magicite-frozen-verify.egr.md",
+      "sha256": "a9735145110341c99645c25d2a92db4f92e9201fa2dc8a6cfd56084a97bc705c"
+    },
+    {
+      "body_sha256": "e1babc95f1f8706be5b74e7320b2adbc9194f295272ee67028d4ae62601c7e19",
+      "bytes": 3931,
+      "id": "egr_3579bb59",
+      "name": "magicite-honest-claim-scope",
+      "path": ".magicite/engrams/magicite-honest-claim-scope.egr.md",
+      "sha256": "584ff46fa054f3d46a7ea160eafc5821e2a5cb53d75d7c5b960e6d6f794030a6"
+    },
+    {
+      "body_sha256": "b0b42b5f07e034b212f02b22e3d3886f2095ed3becee357feadcb8e7047a969d",
+      "bytes": 4006,
+      "id": "egr_f16e1287",
+      "name": "magicite-import-skillmd",
+      "path": ".magicite/engrams/magicite-import-skillmd.egr.md",
+      "sha256": "7357d8a88bc787cf0ce001fed03c3b2dc89227ffc6a917201c60dd515daa63d7"
+    },
+    {
+      "body_sha256": "b2aad66bb41ebc054f892a68bd55488947780d7d5d4e627851e56143c3ae0f8e",
+      "bytes": 3629,
+      "id": "egr_8a5feb5a",
+      "name": "magicite-lifecycle-approval-gate",
+      "path": ".magicite/engrams/magicite-lifecycle-approval-gate.egr.md",
+      "sha256": "87c28aaeca4460b29100accb98a71ac2fda4ef7408ef29dd6e85725ff0a8b893"
+    },
+    {
+      "body_sha256": "bbb924e779791e5109c976e7b6853520740c9506c98a4e8500ac93119008abec",
+      "bytes": 3664,
+      "id": "egr_90fe52ff",
+      "name": "magicite-offline-embedding-setup",
+      "path": ".magicite/engrams/magicite-offline-embedding-setup.egr.md",
+      "sha256": "978e6da0601db8ed976470bc364cabfb16097a38bea0275619494dc1eaab69af"
+    },
+    {
+      "body_sha256": "b67dada39b9c23a5ffef054104c3bade729c662763a26a948dadf121ddf48a29",
+      "bytes": 4657,
+      "id": "egr_2aa44467",
+      "name": "magicite-p0-hot-path-boundary",
+      "path": ".magicite/engrams/magicite-p0-hot-path-boundary.egr.md",
+      "sha256": "3f54ccafc14fbb3816ca04aadf646ddd2ff217b9410288dcbf5eaf427898291d"
+    },
+    {
+      "body_sha256": "6ce4db52c3ce6a9f497379e0fefa2579f920e7002262180db522d46040ff1a47",
+      "bytes": 4438,
+      "id": "egr_293ed9a7",
+      "name": "magicite-plasticity-dw-formula",
+      "path": ".magicite/engrams/magicite-plasticity-dw-formula.egr.md",
+      "sha256": "d481e4e46f5f6cbef265b140182facedf50861cf1af389ef3b23b7724cdd42ea"
+    },
+    {
+      "body_sha256": "c418d66cb2d293f6c8cd4e39e8b2f51e52d3d3680950a345a2083d892149a16d",
+      "bytes": 3857,
+      "id": "egr_574cca6c",
+      "name": "magicite-rebuild-skill-index",
+      "path": ".magicite/engrams/magicite-rebuild-skill-index.egr.md",
+      "sha256": "23c26503dab780758cce2f9a42b74e2bd1f9cce781db8b04417dd51921f85b79"
+    },
+    {
+      "body_sha256": "d96f7f7c96899f60f9e2cad2c26fdc4c28295dc0a00391c98daf90b93225c256",
+      "bytes": 4014,
+      "id": "egr_577e0d1e",
+      "name": "magicite-release-container",
+      "path": ".magicite/engrams/magicite-release-container.egr.md",
+      "sha256": "f032b8c33554ada17c59249b75249e959d0e27da53027ba6b8abfedc29c52d53"
+    },
+    {
+      "body_sha256": "52e39981d82c4c84bf57aa914cddd7fb0ce8a9e7f2f64ef7e2506bfe54c4ab33",
+      "bytes": 4364,
+      "id": "egr_2daf4dde",
+      "name": "magicite-route-and-signal-loop",
+      "path": ".magicite/engrams/magicite-route-and-signal-loop.egr.md",
+      "sha256": "7f4f3428aee4731a75ba02bb6ead9ab0f4a95b693d72e82db010977558207f5a"
+    },
+    {
+      "body_sha256": "91c7b3084189309d8086d4d6e2b6edda0e54e39d65277df9a4aab049d5f7134b",
+      "bytes": 4546,
+      "id": "egr_5372d906",
+      "name": "magicite-route-pipeline-order",
+      "path": ".magicite/engrams/magicite-route-pipeline-order.egr.md",
+      "sha256": "a13db258483ed83397bb1c134b6d52d10627d9275a13b2fc3dddf018af912dfa"
+    },
+    {
+      "body_sha256": "ea41aa3eac9c6ffc96f7661d85f14dbaaceebf5f2a1e607cfff2f4acacfa2696",
+      "bytes": 3658,
+      "id": "egr_12558cad",
+      "name": "magicite-run-retrieval-benchmark",
+      "path": ".magicite/engrams/magicite-run-retrieval-benchmark.egr.md",
+      "sha256": "f1bf549abe978285f4f3ccd2eb812b89fa27cb9d03fb0fc709752627c7a93b77"
+    },
+    {
+      "body_sha256": "74e15959b5b4877edb4c35807277666854c7b257c4f7ee79655e93be24765b66",
+      "bytes": 4062,
+      "id": "egr_f21621ef",
+      "name": "magicite-tier2-hook-adapter",
+      "path": ".magicite/engrams/magicite-tier2-hook-adapter.egr.md",
+      "sha256": "0dca1b3a1b41bb616ef492dfc5592959aff69f2e853ea7f10fefe200fd3b4842"
+    },
+    {
+      "body_sha256": "7381e6283a4732e4bd394357bd50a4587397ebfe0cdd8f6dd97281461563ab7e",
+      "bytes": 4647,
+      "id": "egr_8e528212",
+      "name": "magicite-writer-lease-and-dream-context",
+      "path": ".magicite/engrams/magicite-writer-lease-and-dream-context.egr.md",
+      "sha256": "21584ab19a2f8d64f9299472032a806e5694b533a996434159c73a788953b892"
+    }
+  ],
+  "scope": "complete tracked first-party diagnostic corpus",
+  "source_commit": "acdfaf520d24a9edf864bf46845ffd889201738a"
+}

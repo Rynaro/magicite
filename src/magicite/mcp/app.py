@@ -115,6 +115,9 @@ class ServerState:
 
 
 def build_state(cfg: Config) -> ServerState:
+    from magicite.core.writer_guard import preflight_custody
+
+    preflight_custody(cfg)
     cfg.ensure_dirs()
     # The writer connection is opened first: it is the one that runs
     # migrations (a durable-schema, i.e. writer, concern), so the ephemeral
@@ -173,8 +176,16 @@ def _args_sha256(arguments: dict[str, Any]) -> str:
     return events_mod.args_digest(arguments)
 
 
-def _error_result(error: MagiciteError) -> CallToolResult:
-    envelope = error.to_dict()
+def _error_result(error: MagiciteError, *, internal: bool = False) -> CallToolResult:
+    from magicite.mcp.redact import redact_error_payload
+
+    envelope = redact_error_payload(error.to_dict(), strict=True)
+    envelope["code"] = error.code.value
+    # Exception strings and hints are untrusted: providers can echo prompts or secrets.
+    envelope["message"] = (
+        "internal error" if internal else f"tool request failed ({error.code.value})"
+    )
+    envelope["hint"] = "inspect the error code and retry with corrected input"
     return CallToolResult(
         content=[TextContent(type="text", text=json.dumps(envelope))],
         structured_content=envelope,
@@ -461,7 +472,7 @@ def dispatch_call(
                 "AND args_sha256 = ? AND state = 'pending'",
                 (tool_name, request_id, args_hash),
             )
-        logger.warning("tool_error", tool=tool_name, code=exc.code.value, message=exc.message)
+        logger.warning("tool_error", tool=tool_name, code=exc.code.value)
         return _error_result(exc)
     except Exception as exc:  # pragma: no cover - defensive: never leak a raw traceback
         if request_id:
@@ -470,8 +481,12 @@ def dispatch_call(
                 "AND args_sha256 = ? AND state = 'pending'",
                 (tool_name, request_id, args_hash),
             )
-        logger.error("tool_internal_error", tool=tool_name, error=str(exc))
-        return _error_result(MagiciteError(f"internal error in {tool_name}: {exc}"))
+        logger.error(
+            "tool_internal_error",
+            tool=tool_name,
+            error_type=type(exc).__name__,
+        )
+        return _error_result(MagiciteError("internal error"), internal=True)
 
     payload = result.model_dump(mode="json")
 

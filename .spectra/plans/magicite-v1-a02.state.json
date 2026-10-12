@@ -1,0 +1,127 @@
+{
+  "schema": "ramza/plan-state.v1",
+  "plan": "magicite-v1-a02",
+  "created_at": "2026-09-29T23:32:19Z",
+  "tier": "lite",
+  "phase": "DONE",
+  "phases_done": [
+    "RS",
+    "S",
+    "P",
+    "E",
+    "C",
+    "T",
+    "A",
+    "DONE"
+  ],
+  "rightsize": {
+    "score": 4,
+    "computed_tier": "lite",
+    "inputs": {
+      "files_est": 8,
+      "new_dep": false,
+      "public_api": false,
+      "migration": false,
+      "security": true,
+      "novel": false,
+      "stakes": "high"
+    }
+  },
+  "refine_cycles": 0,
+  "skips": [],
+  "gates": [
+    {
+      "rubric": "complexity",
+      "total": 6,
+      "dims": {
+        "scope": 1,
+        "ambiguity": 2,
+        "dependencies": 1,
+        "risk": 2
+      },
+      "verdict": "standard",
+      "at": "2026-09-29T23:32:19Z",
+      "label": "a02-c6-export-scope"
+    },
+    {
+      "rubric": "explore",
+      "total": 63,
+      "dims": {
+        "alignment": 6,
+        "correctness": 5,
+        "maintainability": 8,
+        "performance": 8,
+        "simplicity": 9,
+        "risk": 4,
+        "innovation": 2
+      },
+      "verdict": "weak",
+      "at": "2026-09-29T23:32:19Z",
+      "label": "hyp-A-leave-c6-unamended"
+    },
+    {
+      "rubric": "explore",
+      "total": 87.5,
+      "dims": {
+        "alignment": 10,
+        "correctness": 9,
+        "maintainability": 9,
+        "performance": 8,
+        "simplicity": 8,
+        "risk": 9,
+        "innovation": 4
+      },
+      "verdict": "elite",
+      "at": "2026-09-29T23:32:24Z",
+      "label": "hyp-B-disambiguate-managed-set"
+    },
+    {
+      "rubric": "explore",
+      "total": 63.5,
+      "dims": {
+        "alignment": 7,
+        "correctness": 8,
+        "maintainability": 5,
+        "performance": 6,
+        "simplicity": 3,
+        "risk": 6,
+        "innovation": 9
+      },
+      "verdict": "weak",
+      "at": "2026-09-29T23:32:24Z",
+      "label": "hyp-C-encrypt-shred-exports"
+    },
+    {
+      "rubric": "confidence",
+      "total": 92.75,
+      "dims": {
+        "pattern_match": 92,
+        "requirement_clarity": 94,
+        "decomposition_stability": 90,
+        "constraint_compliance": 95
+      },
+      "verdict": "AUTO_PROCEED",
+      "at": "2026-09-29T23:34:02Z",
+      "label": "a02-c6-export-scope"
+    }
+  ],
+  "amendments": [],
+  "declared_scope": [
+    ".spectra/plans/magicite-v1*",
+    ".spectra/plans/ramza-calibration.jsonl"
+  ],
+  "criteria_sha256": null,
+  "critic": {
+    "author": null,
+    "checker": null
+  },
+  "scope_declared_at": "2026-09-29T23:34:02Z",
+  "drift_reports": [
+    {
+      "at": "2026-09-29T23:34:02Z",
+      "range": "worktree-vs-HEAD",
+      "files_changed": 12,
+      "uncovered": []
+    }
+  ]
+}

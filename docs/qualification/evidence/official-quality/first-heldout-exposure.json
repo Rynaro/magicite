@@ -1,0 +1,15 @@
+{
+  "schema": "magicite/first-heldout-exposure/1",
+  "source_commit": "389834606e6b9d4158f128515517ce5d5ad97126",
+  "observed_at_utc": "2026-10-08T00:47:18.407627+00:00",
+  "phase": "test",
+  "policy": "dense-v1",
+  "pending": {
+    "allocated_seconds": 120,
+    "query_id": "test:q-00001",
+    "started_at": 1791420438.3428302,
+    "worker_pid": 79704
+  },
+  "checkpoint_sha256": "9311426fc2e52bbe1556f0a9992e903ce8d4fb67009c87c90796c33f81debc0e",
+  "scope": "Observed durable supervisor pending intent immediately before dispatch; eventual first outcome confirms actual evaluation. Not an exact model-call timestamp."
+}

@@ -1,0 +1,76 @@
+{
+  "envelope_version": "2.0",
+  "message_id": "8f2e6fd3-60ca-4fec-a451-1f3c7b58eeff",
+  "thread_id": "59f3b808-f1e0-43c3-baed-a40b525be9e8",
+  "parent_id": "809ab2e7-af1c-486b-af20-02db7f4b0d7a",
+  "from": {
+    "eidolon": "ramza",
+    "version": "1.1.0"
+  },
+  "to": {
+    "eidolon": "vivi",
+    "version": "n/a"
+  },
+  "performative": "INFORM",
+  "edge_origin": "roster",
+  "objective": "Prospective narrow ancillary scope clarification for canonical generated reference only, preserving frozen criteria and original receipts.",
+  "artifact": {
+    "kind": "spec",
+    "schema_version": "1.0",
+    "path": "v1-calibration-data.scope-clarification-01.md",
+    "sha256": "8a4a781b0b6b72d73affb7ec0f878ebfe2cb22fd5dba2eab4730220f09de5b69",
+    "size_bytes": 4180
+  },
+  "context_delta": {
+    "token_budget": 2500,
+    "input_handles": [
+      "v1-calibration-data.envelope.json",
+      "v1-calibration-data.scope-clarification-01.original-hashes.json"
+    ],
+    "summary": "Conditional canonical generated-reference scope only; actual path corrected from stale resumed dispatch. Owned eval help is not included by generator, so no generated delta is expected. Original criteria and semantics unchanged."
+  },
+  "constraints": {
+    "trust_level": "standard"
+  },
+  "ise": {
+    "assertion_grade": "self-attested",
+    "provenance": {
+      "methodology_version": "ramza-1.1.0",
+      "tool_surface": [
+        "exec_command",
+        "collaboration"
+      ],
+      "lateral_consults": []
+    },
+    "receiver_authorization": {
+      "auto_route": true,
+      "auto_merge": false,
+      "auto_deploy": false
+    }
+  },
+  "integrity": {
+    "method": "sha256",
+    "value": "8a4a781b0b6b72d73affb7ec0f878ebfe2cb22fd5dba2eab4730220f09de5b69"
+  },
+  "trace": {
+    "ts": "2026-10-08T11:16:00.155507+00:00",
+    "host": "codex",
+    "model": "unknown",
+    "tier": "standard"
+  },
+  "x_ramza_acceptance_criteria": {
+    "path": "v1-calibration-data.acceptance.md",
+    "sha256": "a5f8cbbd36a7104ba2839e92b889ba1eaf095f1266528a933466213c136a0ff7"
+  },
+  "x_source_lock": {
+    "path": "v1-official-corpus.upstream-lock.json",
+    "sha256": "17890a8d3de85efb151ade46f495aa28556f9bd0fe6f8bdddd8f22eb86d0d0da"
+  },
+  "x_scope_clarification": {
+    "original_spec_sha256": "0ef93afaacb058c1a48f6861f9bf2987d4c97b783b2896c95d76a7526fcf5d55",
+    "effective_scope_path": "v1-calibration-data.scope-clarification-01.scope.txt",
+    "effective_state_path": "v1-calibration-data.scope-clarification-01.state.json",
+    "criteria_changed": false,
+    "added_conditional_path": "docs/generated/runtime-reference.json"
+  }
+}
