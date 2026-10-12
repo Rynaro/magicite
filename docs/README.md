@@ -13,7 +13,10 @@ context, but do not override the frozen v1 acceptance criteria or installed runt
 
 ## Current v1 operator entry points
 
-Start with the [tested tutorial](operator-tutorial.md), [generated runtime reference](generated/runtime-reference.json),
+New users: start with [First steps with Magicite](first-steps.md) for installation,
+protected project setup, host connection, engram review, and the first route.
+Then use the [tested operator tutorial](operator-tutorial.md) and
+[generated runtime reference](generated/runtime-reference.json),
 [support and deprecation policy](support-policy.json), [stable incumbent ADR](decisions/001-stable-dense-v1-incumbent.md),
 and [UNEVALUATED evidence](evaluation/v1/unevaluated.md). Stable routing uses dense-v1;
 adaptive routing is experimental. The design history below is not evidence of

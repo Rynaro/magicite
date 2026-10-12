@@ -1,10 +1,24 @@
 # Install Magicite
 
-Magicite **1.0.0** is distributed as a wheel/source package on
-[GitHub Releases](https://github.com/Rynaro/magicite/releases/tag/v1.0.0) and a
-signed OCI image at `ghcr.io/rynaro/magicite:1.0.0`. Production PyPI is deferred;
-use the explicit GitHub artifact below. These URLs become available only after
-successful release publication; stop if an asset or attestation is unavailable.
+Magicite **1.0.0** is published on [PyPI](https://pypi.org/project/magicite/1.0.0/),
+as wheel/source artifacts on [GitHub Releases](https://github.com/Rynaro/magicite/releases/tag/v1.0.0),
+and as a signed OCI image at `ghcr.io/rynaro/magicite:1.0.0`. For a standard
+install, use the pinned PyPI package:
+
+```sh
+MAGICITE_HOME="$HOME/.local/share/magicite"
+mkdir -p "$MAGICITE_HOME"
+python3.12 -m venv "$MAGICITE_HOME/venv-1.0.0"
+"$MAGICITE_HOME/venv-1.0.0/bin/python" -m pip install 'magicite==1.0.0'
+"$MAGICITE_HOME/venv-1.0.0/bin/python" -m pip check
+"$MAGICITE_HOME/venv-1.0.0/bin/magicite" --version
+```
+
+Expect version `1.0.0`. For GitHub artifact provenance verification, continue
+with the wheel and attestation procedure below. The
+[PyPI publication receipt](https://github.com/Rynaro/magicite/releases/download/v1.0.0/pypi-publication-receipt.json)
+records that channel's release evidence. These distribution channels do not
+qualify runtime security, retrieval quality, or deployment profiles.
 
 Use Python 3.11 or 3.12 with `venv` and `pip`, `curl`, and GitHub CLI (`gh`) for
 provenance verification. Linux protected custody is the supported runtime
