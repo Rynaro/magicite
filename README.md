@@ -108,8 +108,8 @@ eligible skill is a good fit.
 Engrams are human-readable Markdown files. In `engram/1.0`, the front matter
 names the skill and describes what it does, when it applies, and which typed
 capabilities it requires or produces. The body contains the procedure. Start
-with this [complete v1 example](tests/fixtures/engram-v1/positive/sample-host-tooling.egr.md)
-and the [format guide](docs/04-engram-format.md) when authoring your own.
+with the [beginner native v1 example](docs/examples/first-skill.egr.md) and the
+[format guide](docs/04-engram-format.md) when authoring your own.
 The router binds its v1 routing view to a digest of the body. Finish edits
 before reviewing the current content digest; a file's own trust fields do not
 approve it.
@@ -196,6 +196,7 @@ and [Operations](docs/operations.md).
 
 | If you want to… | Read… |
 |---|---|
+| Follow the end-to-end first steps in a project | [First steps with Magicite](docs/first-steps.md) |
 | Install the published package | [Install](docs/install.md) |
 | Provision a project before use | [Setup](docs/setup.md) |
 | Connect a host and try a skill | [Quick Setup](docs/quick-setup.md) |
