@@ -740,6 +740,94 @@
         "type": "text"
       }
     ],
+    "magicite harness": [],
+    "magicite harness disable": [
+      {
+        "choices": [
+          "all",
+          "claude",
+          "codex",
+          "opencode"
+        ],
+        "default": "all",
+        "name": "harness",
+        "options": [
+          "--harness"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "choice"
+      },
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      }
+    ],
+    "magicite harness enable": [
+      {
+        "choices": [
+          "all",
+          "claude",
+          "codex",
+          "opencode"
+        ],
+        "default": "all",
+        "name": "harness",
+        "options": [
+          "--harness"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "choice"
+      },
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      }
+    ],
+    "magicite harness status": [
+      {
+        "choices": [
+          "all",
+          "claude",
+          "codex",
+          "opencode"
+        ],
+        "default": "all",
+        "name": "harness",
+        "options": [
+          "--harness"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "choice"
+      },
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      }
+    ],
     "magicite init": [
       {
         "choices": [
@@ -1226,6 +1314,35 @@
         "path_exists": null,
         "required": false,
         "type": "text"
+      }
+    ],
+    "magicite setup": [
+      {
+        "choices": null,
+        "default": ".",
+        "name": "project_root",
+        "options": [
+          "--project-root"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "text"
+      },
+      {
+        "choices": [
+          "all",
+          "claude",
+          "codex",
+          "opencode"
+        ],
+        "default": "all",
+        "name": "harness",
+        "options": [
+          "--harness"
+        ],
+        "path_exists": null,
+        "required": false,
+        "type": "choice"
       }
     ],
     "magicite sync": [

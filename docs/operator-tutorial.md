@@ -1,11 +1,18 @@
 # Disposable v1 operator tutorial
 
-This path tests local-source installation, a real generic stdio client, external
-intake and explicit review, route explanations and digest-bound body disclosure,
-backup/restore, and format upgrade/downgrade. It uses hashing fixtures and creates
-only temporary projects. It is **not** an independent operator transcript, a real
-Claude Code session, a published-channel install, or production model evidence.
-Those obligations remain UNEVALUATED.
+This disposable tutorial exercises a simulated custody path, a real generic
+stdio client, external intake and explicit review, route explanations and
+digest-bound body disclosure, backup/restore, and format upgrade/downgrade. It
+uses hashing fixtures and creates only temporary projects. It is **not** an
+independent operator transcript, a real Claude Code session, or a real OS
+service deployment. Actual macOS launchd and Linux systemd installation has not
+been verified here; published-channel installation and production model
+obligations also remain UNEVALUATED.
+
+For a supported first install, use the project installer described in the
+[README](../README.md#1-get-the-source). It provisions protected custody and the
+service automatically. This tutorial's simulated setup remains useful for
+exercising the workflow without changing host accounts or services.
 
 With the repository's pinned dependencies installed (`uv sync --all-extras`), run:
 
@@ -20,14 +27,14 @@ captures actual outputs with local workspace paths redacted. Any failed required
 step exits nonzero. The steps below describe the same executed path; replace the
 fixture project path only when intentionally operating on a real registry.
 
-Trust-dependent commands, including `serve`, fail closed until the project has
-protected custody: a root-installed descriptor under `/etc/magicite/registries/`,
-a separately provisioned custodian account running `magicite custody serve`,
-explicit `magicite custody enroll`, and `magicite custody initialize-journal`.
-Magicite never creates accounts or writes `/etc`. The disposable tutorial cannot
-provision these, so it attaches a disposable in-process simulated custodian to
-each command and records `custody: disposable-simulated`; real separate-UID
-deployment custody remains UNEVALUATED.
+Trust-dependent commands, including `serve`, fail closed until protected
+custody is available. In normal first-time use, `scripts/install_magicite.py`
+provisions the protected descriptor and dedicated service identity, enrolls the
+reviewed policy, starts the service, and initializes the journal. The tutorial
+cannot provision host accounts or services, so it attaches a disposable
+in-process simulated custodian to each command and records
+`custody: disposable-simulated`. This simulation does not validate a real
+separate-UID deployment.
 
 1. Start `magicite serve --project-root PROJECT`; the generic SDK client negotiates
    its actual protocol, lists exactly 16 tools, and calls `register` on the supplied

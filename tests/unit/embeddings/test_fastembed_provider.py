@@ -154,3 +154,15 @@ def test_embed_failure_raises_typed_error_not_swallowed() -> None:
     provider = fe_mod.FastEmbedProvider(factory=lambda **kw: _StubTextEmbedding(fail=True))
     with pytest.raises(fe_mod.FastEmbedModelUnavailableError):
         provider.embed("hi")
+
+
+def test_cache_is_durable_across_tmpdir(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("FASTEMBED_CACHE_PATH", raising=False)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "persistent"))
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "temporary-one"))
+    first = fe_mod.model_cache_dir()
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "temporary-two"))
+    assert fe_mod.model_cache_dir() == first == str(tmp_path / "persistent/magicite/fastembed")
+    monkeypatch.setenv("FASTEMBED_CACHE_PATH", "/explicit/model-cache")
+    assert fe_mod.model_cache_dir() == "/explicit/model-cache"
+    assert fe_mod.model_cache_dir("/argument") == "/argument"

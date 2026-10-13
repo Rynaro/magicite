@@ -752,8 +752,11 @@ def backup_status_cmd(project_root: str, backup_path: str | None) -> None:
 
 
 from magicite.core.custody_admin import custody_cli  # noqa: E402
+from magicite.harnesses import harness_cli, setup_cli  # noqa: E402
 
 cli.add_command(custody_cli)
+cli.add_command(setup_cli)
+cli.add_command(harness_cli)
 
 
 if __name__ == "__main__":

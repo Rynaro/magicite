@@ -48,7 +48,7 @@ _DROP_ENV_KEYS = frozenset(
 
 PROBE = r"""
 from __future__ import annotations
-import hashlib, importlib.metadata, json, shutil, sys, platform
+import hashlib, importlib.metadata, json, shutil, sys, platform, os, subprocess
 from pathlib import Path
 import magicite
 from magicite.config import Config
@@ -136,7 +136,10 @@ if mode == 'serve':
     conn.close()
     from magicite.__main__ import cli
     try:
-        cli.main(args=['serve', '--project-root', str(project)], prog_name='magicite')
+        entry = json.loads((project / '.mcp.json').read_text())['mcpServers']['magicite']
+        assert entry['command'] == sys.executable
+        assert entry['args'] == ['-m', 'magicite', 'serve', '--project-root', str(project)]
+        cli.main(args=entry['args'][2:], prog_name='magicite')
     finally:
         Path(origins_file).write_text(json.dumps(origins()))
         store.close()
@@ -149,6 +152,21 @@ for row in conn.execute('SELECT id,content_sha256 FROM engram').fetchall():
                             expected_digest=row['content_sha256'], actor='probe-fixture-review')
 route = router.route(cfg, conn, embedder, query='rollback proton for a steam game', k=5)
 assert route.candidates and route.candidates[0].name == 'proton-ge-proton-downgrade', 'fixture-route-mismatch'
+
+# Installed activation is verified outside the checkout. The generated server
+# invocation must still fail closed without protected custody; the protocol
+# probe below uses explicitly disposable fixture custody and these exact args.
+subprocess.run([sys.executable, '-m', 'magicite', 'setup', '--project-root', str(project)],
+               check=True, capture_output=True, text=True)
+entry = json.loads((project / '.mcp.json').read_text())['mcpServers']['magicite']
+assert entry['command'] == sys.executable
+assert entry['args'][-1] == str(project)
+assert (project / '.claude/rules/magicite.md').is_file()
+assert (project / 'AGENTS.md').is_file()
+assert (project / '.magicite/instructions.md').is_file()
+unconfigured = subprocess.run([entry['command'], *entry['args']], input='', capture_output=True,
+                              text=True, env=os.environ, timeout=20)
+assert unconfigured.returncode != 0 and 'server startup failed' in unconfigured.stderr
 
 from magicite.embeddings.fastembed_provider import FastEmbedProvider, FastEmbedModelUnavailableError
 network = []
@@ -166,7 +184,9 @@ except FastEmbedModelUnavailableError as exc:
 else:
     raise AssertionError('empty-offline-cache-unexpectedly-succeeded')
 assert not network, 'offline-model-network-attempt'
-result = {'ok': True, 'top': route.candidates[0].name, 'ingested': outcome.ingested,
+result = {'ok': True, 'harness_setup': True, 'handshake_custody': 'disposable-simulated',
+          'generated_server_fail_closed_without_custody': True,
+          'top': route.candidates[0].name, 'ingested': outcome.ingested,
           'pkg_file': str(pkg_file), 'fail_closed_without_custody': True,
           'custody': 'disposable-simulated', 'deployment_custody': 'UNEVALUATED',
           'offline_model_remediation': True, 'offline_network_attempts': len(network),
@@ -562,6 +582,7 @@ def run_probe(*, wheel: Path, keep_env: Path | None = None, dependency_cache: Pa
     result["protocol"] = protocol_probe(
         python, harness, [*arguments, "serve", str(work / "server-origins.json")], work, env, expected
     )
+    result["generated_mcp_handshake"] = True
     result["command_records"] = {
         "install": {"argv": command, "exit": 0},
         "pip_check": {"argv": [str(python), "-m", "pip", "check"], "exit": pip_check.returncode},
