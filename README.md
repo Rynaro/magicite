@@ -158,6 +158,14 @@ eligible skill is a good fit.
 
 ## Harness integration
 
+OpenCode's installed major version selects its configuration layout. V1 uses
+`mcp.magicite` and instruction references; V2 uses `mcp.servers.magicite` and an
+auto-loaded `AGENTS.md` block because V2 ignores the `instructions` list.
+Owned V1 entries upgrade during setup. The shared instruction block remains
+while either Codex or OpenCode V2 is enabled. See the official
+[V2 MCP configuration](https://opencode.ai/v2/docs/mcp-servers) and
+[V2 instructions](https://opencode.ai/v2/docs/instructions/).
+
 Integrations are project-scoped and enabled by default when you run setup. You
 can deactivate or restore a harness at any time:
 

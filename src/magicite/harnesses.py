@@ -11,6 +11,8 @@ import copy
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import tomllib
@@ -77,7 +79,34 @@ def _dump(value) -> str:
     return json.dumps(value, indent=2, ensure_ascii=False) + "\n"
 
 
-def _specs(root: Path, harness: str) -> list[dict]:
+def _opencode_major(root: Path) -> int:
+    executable = shutil.which("opencode")
+    if executable:
+        try:
+            result = subprocess.run([executable, "--version"], capture_output=True, text=True, timeout=5)
+            version = re.search(r"(?:v|\b)([12])\.\d+", result.stdout)
+            if result.returncode == 0 and version:
+                return int(version.group(1))
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    config = _json(_read(root, "opencode.json"), "opencode.json")
+    return 2 if isinstance(config.get("mcp"), dict) and "servers" in config["mcp"] else 1
+
+
+def _section(obj: dict, dotted: str, *, create: bool = False) -> dict:
+    current = obj
+    for part in dotted.split("."):
+        if part not in current:
+            if not create:
+                return {}
+            current[part] = {}
+        current = current[part]
+        if not isinstance(current, dict):
+            _fail(f"Expected object for {dotted}")
+    return current
+
+
+def _specs(root: Path, harness: str, *, opencode_major: int | None = None) -> list[dict]:
     args = ["-m", "magicite", "serve", "--project-root", str(root)]
     command = str(Path(sys.executable).absolute())
     if harness == "claude":
@@ -97,16 +126,25 @@ def _specs(root: Path, harness: str) -> list[dict]:
         ]
     if (root / "opencode.jsonc").exists():
         _fail("opencode.jsonc exists; convert it to opencode.json before setup (JSONC unsupported)")
-    return [
+    major = opencode_major or _opencode_major(root)
+    specs = [
         dict(
             path="opencode.json",
             kind="json",
-            section="mcp",
-            value=dict(type="local", command=[command, *args], enabled=True),
+            section="mcp.servers" if major == 2 else "mcp",
+            value=dict(
+                type="local",
+                command=[command, *args],
+                **({"disabled": False} if major == 2 else {"enabled": True}),
+            ),
         ),
         dict(path="opencode.json", kind="reference", value=".magicite/instructions.md"),
         dict(path=".magicite/instructions.md", kind="file", value=INSTRUCTIONS),
     ]
+    if major == 2:
+        # V2 accepts instructions[] but ignores it; AGENTS.md is auto-loaded.
+        specs.append(dict(path="AGENTS.md", kind="block", value=BLOCK))
+    return specs
 
 
 def _current(text: str | None, spec: dict):
@@ -122,9 +160,7 @@ def _current(text: str | None, spec: dict):
             if values.count(spec["value"]) > 1:
                 _fail("Duplicate Magicite instruction reference")
             return spec["value"] if spec["value"] in values else None
-        section = obj.get(spec["section"], {})
-        if not isinstance(section, dict):
-            _fail(f"Expected object for {spec['section']} in {spec['path']}")
+        section = _section(obj, spec["section"])
         if "magicite" in section and not isinstance(section["magicite"], dict):
             _fail(f"Foreign Magicite entry in {spec['path']}")
         return section.get("magicite")
@@ -171,7 +207,7 @@ def _replace(text: str | None, spec: dict, remove: bool) -> str | None:
             elif value not in values:
                 values.append(value)
         else:
-            section = obj.setdefault(spec["section"], {})
+            section = _section(obj, spec["section"], create=True)
             if remove:
                 section.pop("magicite", None)
             else:
@@ -230,17 +266,71 @@ def manage(project_root: str, selector: str, action: str) -> dict:
             specs = _specs(root, harness)
             owned = record.get("components", [])
             if owned and [(s["path"], s["kind"]) for s in owned] != [(s["path"], s["kind"]) for s in specs]:
-                _fail(
-                    f"{harness}: effective instruction file changed; restore it before modifying integration"
+                old_layout = _specs(root, "opencode", opencode_major=1) if harness == "opencode" else []
+                is_v2_upgrade = (
+                    harness == "opencode"
+                    and len(specs) == 4
+                    and [(s["path"], s["kind"]) for s in owned]
+                    == [(s["path"], s["kind"]) for s in old_layout]
+                    and owned[0].get("section") == "mcp"
                 )
+                known_layouts = (
+                    [
+                        [
+                            (s["path"], s["kind"], s.get("section"))
+                            for s in _specs(root, "opencode", opencode_major=m)
+                        ]
+                        for m in (1, 2)
+                    ]
+                    if harness == "opencode"
+                    else []
+                )
+                if (
+                    action == "disable"
+                    and harness == "opencode"
+                    and [(s["path"], s["kind"], s.get("section")) for s in owned] in known_layouts
+                ):
+                    specs = owned
+                elif is_v2_upgrade and action in ("setup", "enable"):
+                    old = owned[0]
+                    text = writes.get(old["path"], _read(root, old["path"]))
+                    current = _current(text, old)
+                    if current is not None and current != old["value"]:
+                        _fail("OpenCode v1 Magicite entry was edited; refusing version migration")
+                    if current is not None:
+                        writes[old["path"]] = _replace(text, old, True)
+                else:
+                    _fail(f"{harness}: instruction/version layout changed; run setup for a supported upgrade")
+
+            def other_owner(spec, owner=harness):
+                return any(
+                    not r.get("disabled")
+                    and any(
+                        c["path"] == spec["path"]
+                        and c["kind"] == spec["kind"]
+                        and c["value"] == spec["value"]
+                        for c in r.get("components", [])
+                    )
+                    for name, r in state["harnesses"].items()
+                    if name != owner
+                )
+
             observations = []
             for spec in specs:
                 text = writes.get(spec["path"], _read(root, spec["path"]))
                 current = _current(text, spec)
                 old = next(
-                    (s for s in owned if s["path"] == spec["path"] and s["kind"] == spec["kind"]), None
+                    (
+                        s
+                        for s in owned
+                        if s["path"] == spec["path"]
+                        and s["kind"] == spec["kind"]
+                        and s.get("section") == spec.get("section")
+                    ),
+                    None,
                 )
-                if current is not None and (old is None or current != old["value"]):
+                shared = spec["kind"] == "block" and current == spec["value"] and other_owner(spec)
+                if current is not None and not shared and (old is None or current != old["value"]):
                     _fail(
                         f"{harness}: foreign or edited Magicite component in {spec['path']}; "
                         "reconcile manually"
@@ -263,7 +353,9 @@ def manage(project_root: str, selector: str, action: str) -> dict:
                 continue
             remove = action == "disable"
             for spec, text, current, old in observations:
-                if remove and (old is None or current is None):
+                if remove and (
+                    old is None or current is None or (spec["kind"] == "block" and other_owner(spec))
+                ):
                     continue
                 text = writes.get(spec["path"], text)
                 desired = _replace(text, spec, remove)

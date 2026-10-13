@@ -16,6 +16,11 @@ from magicite.harnesses import BLOCK, INSTRUCTIONS, manage
 pytestmark = pytest.mark.acceptance
 
 
+@pytest.fixture(autouse=True)
+def v1_opencode_test_environment(monkeypatch):
+    monkeypatch.setattr("magicite.harnesses._opencode_major", lambda root: 1)
+
+
 def invoke(root, *args):
     return CliRunner().invoke(cli, [*args, "--project-root", str(root)])
 
@@ -150,3 +155,31 @@ def test_opencode_both_components_removed_together(tmp_path):
     data = json.loads((tmp_path / "opencode.json").read_text())
     assert "magicite" not in data["mcp"]
     assert ".magicite/instructions.md" not in data["instructions"]
+
+
+def test_opencode_v2_owned_upgrade_and_shared_instructions(tmp_path, monkeypatch):
+    assert invoke(tmp_path, "setup").exit_code == 0
+    data = json.loads((tmp_path / "opencode.json").read_text())
+    data["mcp"]["other"] = {"type": "local", "command": ["other"]}
+    (tmp_path / "opencode.json").write_text(json.dumps(data))
+    monkeypatch.setattr("magicite.harnesses._opencode_major", lambda root: 2)
+    result = invoke(tmp_path, "setup")
+    assert result.exit_code == 0, result.output
+    data = json.loads((tmp_path / "opencode.json").read_text())
+    assert "magicite" not in data["mcp"]
+    assert data["mcp"]["servers"]["magicite"]["disabled"] is False
+    assert data["mcp"]["other"] == {"type": "local", "command": ["other"]}
+    assert (tmp_path / "AGENTS.md").read_text().count(BLOCK) == 1
+    assert invoke(tmp_path, "harness", "disable", "--harness", "codex").exit_code == 0
+    assert BLOCK in (tmp_path / "AGENTS.md").read_text()
+    assert invoke(tmp_path, "harness", "disable", "--harness", "opencode").exit_code == 0
+    assert BLOCK not in (tmp_path / "AGENTS.md").read_text()
+
+
+def test_opencode_v2_only_setup_owns_autoloaded_block(tmp_path, monkeypatch):
+    monkeypatch.setattr("magicite.harnesses._opencode_major", lambda root: 2)
+    assert invoke(tmp_path, "setup", "--harness", "opencode").exit_code == 0
+    assert BLOCK in (tmp_path / "AGENTS.md").read_text()
+    assert manage(str(tmp_path), "opencode", "status")["harnesses"]["opencode"]["ready"]
+    assert invoke(tmp_path, "harness", "disable", "--harness", "opencode").exit_code == 0
+    assert BLOCK not in (tmp_path / "AGENTS.md").read_text()
