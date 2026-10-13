@@ -152,6 +152,8 @@ def test_clean_wheel(built_wheel: Path, tmp_path: Path, monkeypatch: pytest.Monk
     keep = tmp_path / "clean-env"
     result = probe.run_probe(wheel=built_wheel, keep_env=keep)
     assert result["ok"] is True
+    assert result["harness_setup"] is True
+    assert result["generated_mcp_handshake"] is True
     assert result["top"] == "proton-ge-proton-downgrade"
     assert result["ingested"] >= 1
     assert result["fail_closed_without_custody"] is True

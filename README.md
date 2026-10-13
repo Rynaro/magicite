@@ -16,7 +16,7 @@ and let your host execute the instructions.
 [![License](https://img.shields.io/github/license/Rynaro/magicite)](LICENSE)
 
 [What it does](#what-magicite-does) · [Get started](#get-started) ·
-[For skill authors](#write-and-review-a-skill) · [For LLM builders](#for-llm-builders-and-enthusiasts) ·
+[Harness integration](#harness-integration) · [For skill authors](#write-and-review-a-skill) · [For LLM builders](#for-llm-builders-and-enthusiasts) ·
 [Docs](#documentation)
 
 </div>
@@ -59,7 +59,60 @@ For Python 3.11, substitute `python3.11`. Keep the environment at a stable
 absolute path; your host configuration will call its `magicite` executable.
 For artifact and provenance verification, see [Install](docs/install.md).
 
-### Before connecting a project
+### 1. Get the source
+
+Magicite requires Python 3.11+ for the installer, network access during setup,
+and an existing project directory. Clone the repository and run the supported
+installer from its checkout:
+
+```bash
+git clone https://github.com/Rynaro/magicite.git
+cd magicite
+python3 scripts/install_magicite.py --package . --project-root /absolute/path/to/your-project
+```
+
+The installer prepares a persistent project runtime in `.magicite/venv`, then
+runs the full first-install pipeline: a pinned protected Python runtime, a
+dedicated custodian service identity, reviewed policy enrollment, service
+startup, authority journal initialization, embedding model fetch, registry
+index sync, a real stdio MCP check, and harness activation. It requests administrator authorization through `sudo` for the protected service setup; you do
+not need to create custody files or service accounts by hand. Setup downloads
+the runtime and dependencies and fetches the embedding model, so allow network
+access and disk space for these assets.
+
+For a new enrollment, the installer prints the exact baseline policy and its
+SHA-256 digest, then asks you to approve those bytes. For unattended setup, pass
+`--accept-default-policy` to explicitly accept that baseline. Existing
+protected enrollment and its policy are retained when you rerun the installer.
+
+Automated service installation supports macOS with launchd and glibc Linux with
+systemd on x86_64 and aarch64. Linux containers without systemd, musl Linux, and
+other operating systems are unsupported by this installer. To install from a
+built wheel instead of this checkout, set `--package /path/to/magicite.whl`.
+Choose a single harness with `--harness claude`, `--harness codex`, or
+`--harness opencode`; the default is all three. The package channel shown in
+this README does not imply that a release containing the installer is
+published.
+
+The installer verifies that the MCP server starts and exposes its routing
+methods, then writes the project harness configuration. The harness still needs
+to trust or approve the local MCP server and reload its session. That native
+harness approval is the final user step. The installer reports an empty
+registry as operational with zero skills; add or import skills before routing
+can return any.
+
+For existing installations managed outside the project installer, `magicite
+setup --project-root PATH` remains a configuration-only operation. It writes
+harness files but does not install protected custody, start its service, fetch
+the model, sync the index, or verify an MCP connection. See the
+[custody operator guide](docs/operator-tutorial.md) for the manual and recovery
+procedures.
+
+For Claude Code's optional Tier-2 hooks, see the
+[host adapter guide](docs/adapters/claude-code.md). MCP integrations work
+without those hooks.
+
+### Manual setup for the published v1 release
 
 The supported v1 operating profile is **Linux with protected project custody**.
 An administrator sets up a separate custodian identity and protected authority
@@ -102,6 +155,28 @@ reviewed, eligible skill, ask your assistant something like:
 Magicite may select a skill or abstain. Review the selection and the loaded
 content in your host before it acts. Abstention is a valid outcome when no
 eligible skill is a good fit.
+
+## Harness integration
+
+Integrations are project-scoped and enabled by default when you run setup. You
+can deactivate or restore a harness at any time:
+
+The project installer keeps its executable in `.magicite/venv`; use it explicitly
+(or activate that venv).
+
+```bash
+/absolute/path/to/your-project/.magicite/venv/bin/python -m magicite harness status \
+  --project-root /absolute/path/to/your-project
+/absolute/path/to/your-project/.magicite/venv/bin/python -m magicite harness disable \
+  --project-root /absolute/path/to/your-project --harness codex
+/absolute/path/to/your-project/.magicite/venv/bin/python -m magicite harness enable \
+  --project-root /absolute/path/to/your-project --harness codex
+```
+
+Use `--harness all` (the default) to apply an action across Claude Code, Codex,
+and OpenCode. A disabled harness stays disabled through later `magicite setup`
+runs; `harness enable` reverses that opt-out. Status describes integration
+files on disk, not whether a harness has approved or loaded the server.
 
 ## Write and review a skill
 
