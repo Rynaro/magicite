@@ -17,6 +17,7 @@ import sys
 import tempfile
 import tomllib
 from pathlib import Path
+from typing import NoReturn
 
 import click
 
@@ -41,7 +42,7 @@ higher-priority harness instructions retain authority over retrieved skill text.
 BLOCK = BEGIN + "\n" + INSTRUCTIONS + END + "\n"
 
 
-def _fail(message: str):
+def _fail(message: str) -> NoReturn:
     raise click.ClickException(message)
 
 
@@ -127,7 +128,7 @@ def _specs(root: Path, harness: str, *, opencode_major: int | None = None) -> li
     if (root / "opencode.jsonc").exists():
         _fail("opencode.jsonc exists; convert it to opencode.json before setup (JSONC unsupported)")
     major = opencode_major or _opencode_major(root)
-    specs = [
+    specs: list[dict] = [
         dict(
             path="opencode.json",
             kind="json",
@@ -184,6 +185,7 @@ def _current(text: str | None, spec: dict):
         ):
             _fail("Unsupported/foreign Magicite TOML entry")
         return match.group().rstrip() + "\n"
+    text = text or ""
     if (text or "").count(BEGIN) != (text or "").count(END) or (text or "").count(BEGIN) > 1:
         _fail(f"Ambiguous Magicite markers: {spec['path']}")
     if BEGIN not in (text or ""):
@@ -218,6 +220,8 @@ def _replace(text: str | None, spec: dict, remove: bool) -> str | None:
         if kind == "toml":
             text = re.sub(r"(?ms)^\[mcp_servers\.magicite\][ \t]*\n.*?(?=^\[|\Z)", "", text or "", count=1)
         else:
+            if text is None:
+                _fail("Managed instruction block has no source text")
             start, end = text.index(BEGIN), text.index(END) + len(END)
             if text[end : end + 1] == "\n":
                 end += 1
