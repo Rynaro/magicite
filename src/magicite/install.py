@@ -174,7 +174,20 @@ def finish_client(python: Path, root: Path, harness: str):
             )
         run([python, "-m", "magicite", "custody", "initialize-journal", "--project-root", root])
     run([python, "-m", "magicite", "fetch-model"], cwd=root)
-    run([python, "-m", "magicite", "sync", "--project-root", root], cwd=root)
+    synced = run(
+        [python, "-m", "magicite", "sync", "--project-root", root], cwd=root, capture_output=True, text=True
+    )
+    try:
+        outcome = json.loads(synced.stdout)
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise RuntimeError("Registry sync result could not be verified; harness activation stopped") from exc
+    if not isinstance(outcome, dict) or not isinstance(outcome.get("validation_errors"), list):
+        raise RuntimeError("Registry sync result is incomplete; harness activation stopped")
+    if outcome["validation_errors"]:
+        raise RuntimeError(
+            "Registry sync reported validation errors; review/enroll existing artifacts "
+            "before harness activation"
+        )
     args = ["-m", "magicite", "serve", "--project-root", str(root)]
     asyncio.run(smoke(str(python), args))
     # Interpreter is THIS persistent client venv: subprocess activation uses the

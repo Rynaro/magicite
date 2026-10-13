@@ -123,7 +123,12 @@ def test_finish_resumes_existing_journal_and_zero_registry(tmp_path, monkeypatch
     journal.parent.mkdir(parents=True)
     journal.write_text("existing history")
     monkeypatch.setattr(install, "wait_custody", lambda *args: {"head_sequence": 9})
-    monkeypatch.setattr(install, "run", lambda argv, **kwargs: trace.append(argv[3]))
+
+    def command(argv, **kwargs):
+        trace.append(argv[3])
+        return SimpleNamespace(stdout=json.dumps({"validation_errors": []}))
+
+    monkeypatch.setattr(install, "run", command)
 
     async def smoke(*args):
         trace.append("smoke")
@@ -428,3 +433,29 @@ def test_official_runtime_build_modes_are_normalized(tmp_path):
     assert (root / "python/bin/python3.12").stat().st_mode & 0o777 == 0o755
     assert (root / "python/lib/example.py").stat().st_mode & 0o777 == 0o644
     assert all(not (node.stat().st_mode & 0o022) for node in root.rglob("*"))
+
+
+def test_sync_validation_errors_stop_before_mcp_and_activation(tmp_path, monkeypatch):
+    trace = []
+    monkeypatch.setattr(install, "wait_custody", lambda *args: {"head_sequence": 1})
+
+    def command(argv, **kwargs):
+        trace.append(argv[3])
+        return SimpleNamespace(
+            stdout=json.dumps(
+                {
+                    "validation_errors": [
+                        {"path": "local.egr.md", "message": "authenticated enrollment artifact required"}
+                    ]
+                }
+            )
+        )
+
+    async def smoke(*args):
+        pytest.fail("must not claim MCP/index readiness after sync validation errors")
+
+    monkeypatch.setattr(install, "run", command)
+    monkeypatch.setattr(install, "smoke", smoke)
+    with pytest.raises(RuntimeError, match="sync reported validation errors"):
+        install.finish_client(Path("/client/bin/python"), tmp_path, "all")
+    assert trace == ["custody", "fetch-model", "sync"]
