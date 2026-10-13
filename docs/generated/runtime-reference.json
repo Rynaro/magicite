@@ -3,7 +3,7 @@
     "magicite": [
       {
         "choices": null,
-        "default": "Sentinel.UNSET",
+        "default": false,
         "name": "version",
         "options": [
           "--version"
@@ -866,7 +866,7 @@
       },
       {
         "choices": null,
-        "default": "Sentinel.UNSET",
+        "default": false,
         "name": "fetch_model",
         "options": [
           "--fetch-model"
