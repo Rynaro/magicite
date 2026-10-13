@@ -110,9 +110,10 @@ def extract_runtime(archive, destination):
             target = destination / relative
             if relative.is_absolute() or ".." in relative.parts or relative.parts[:1] != ("python",):
                 raise RuntimeError("Escaping runtime member")
-            if (
-                member.mode & 0o6000 or ((member.isdir() or member.isfile()) and member.mode & 0o022)
-            ) or not (member.isdir() or member.isfile() or member.issym() or member.islnk()):
+            # Normalize official build-user write modes; never preserve them.
+            if member.mode & 0o6000 or not (
+                member.isdir() or member.isfile() or member.issym() or member.islnk()
+            ):
                 raise RuntimeError("Unsafe runtime archive member")
             if not target.resolve().is_relative_to(destination.resolve()):
                 raise RuntimeError("Escaping runtime link ancestor")
