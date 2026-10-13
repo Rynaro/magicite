@@ -48,7 +48,9 @@ own tests inject a stub factory instead of touching fastembed for real.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Iterable
+from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
@@ -64,6 +66,13 @@ DEFAULT_DIM = 384
 
 #: Actionable remediation when offline mode cannot load a cached model (S13).
 OFFLINE_MODEL_REMEDIATION = "Run `magicite fetch-model` before setting MAGICITE_EMBEDDING_OFFLINE=1."
+
+
+def model_cache_dir(cache_dir: str | None = None) -> str:
+    """Use one durable cache across Terminal and harness TMPDIR environments."""
+    return cache_dir or os.environ.get("FASTEMBED_CACHE_PATH") or str(
+        Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "magicite" / "fastembed"
+    )
 
 
 class _TextEmbeddingLike(Protocol):
@@ -121,7 +130,7 @@ class FastEmbedProvider:
         self.model_name = model_name
         self.dim = dim
         self._offline = offline
-        self._cache_dir = cache_dir
+        self._cache_dir = model_cache_dir(cache_dir)
         self._factory = factory
         self._model: _TextEmbeddingLike | None = None
 
@@ -202,5 +211,7 @@ def fetch_model(
     ``MAGICITE_EMBEDDING_OFFLINE=1`` for every subsequent boot."""
     from fastembed import TextEmbedding
 
-    TextEmbedding(model_name=model_name, cache_dir=cache_dir)
+    model = TextEmbedding(model_name=model_name, cache_dir=model_cache_dir(cache_dir))
+    # Download success alone does not establish that offline inference can run.
+    next(iter(model.embed(["Magicite model readiness check"])))
     return model_name
