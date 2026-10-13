@@ -419,7 +419,12 @@ def test_official_runtime_build_modes_are_normalized(tmp_path):
             member.mode, member.size = mode, 4
             stream.addfile(member, io.BytesIO(b"data"))
     root = tmp_path / "runtime"
-    privileged.extract_runtime(archive, root)
+    previous_umask = os.umask(0o077)
+    try:
+        privileged.extract_runtime(archive, root)
+    finally:
+        os.umask(previous_umask)
+    assert all(node.stat().st_mode & 0o777 == 0o755 for node in root.rglob("*") if node.is_dir())
     assert (root / "python/bin/python3.12").stat().st_mode & 0o777 == 0o755
     assert (root / "python/lib/example.py").stat().st_mode & 0o777 == 0o644
     assert all(not (node.stat().st_mode & 0o022) for node in root.rglob("*"))

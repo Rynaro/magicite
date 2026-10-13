@@ -135,6 +135,13 @@ def extract_runtime(archive, destination):
                 else:
                     os.link(resolved, target)
 
+    # Install-only archives contain no explicit directory entries. Normalize
+    # implicit parents too so a restrictive caller umask cannot hide the
+    # protected runtime from the separate custodian principal.
+    for directory in destination.rglob("*"):
+        if directory.is_dir() and not directory.is_symlink():
+            os.chmod(directory, 0o755)
+
 
 def remove_stale_socket(path, uid):
     if not path.exists() and not path.is_symlink():
